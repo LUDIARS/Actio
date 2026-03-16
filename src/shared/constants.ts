@@ -1,0 +1,113 @@
+/** Total number of days in a week (月〜日) */
+export const DAYS_COUNT = 7;
+
+/** Total number of periods per day (1限〜11限) */
+export const PERIODS_COUNT = 11;
+
+/** Day labels (Japanese) */
+export const DAY_LABELS = ["月", "火", "水", "木", "金", "土", "日"] as const;
+
+/** Period start time: 09:30 */
+export const PERIOD_START_HOUR = 9;
+export const PERIOD_START_MINUTE = 30;
+
+/** Each period = 1 hour */
+export const PERIOD_DURATION_MINUTES = 60;
+
+/** Get start/end time for a period index (0-based) */
+export function getPeriodTime(periodIndex: number): {
+  start: string;
+  end: string;
+} {
+  const startHour = PERIOD_START_HOUR + periodIndex;
+  const endHour = startHour + 1;
+  const fmt = (h: number) =>
+    `${String(h).padStart(2, "0")}:${String(PERIOD_START_MINUTE).padStart(2, "0")}`;
+  return { start: fmt(startHour), end: fmt(endHour) };
+}
+
+/** Room types */
+export const ROOM_TYPES = [
+  "講義室",
+  "演習室",
+  "PC室",
+  "実験室",
+  "大講義室",
+] as const;
+export type RoomType = (typeof ROOM_TYPES)[number];
+
+/** Slot status for unified slots (M2) */
+export const SLOT_STATUSES = [
+  "free",
+  "class",
+  "personal",
+  "event",
+  "reserved",
+] as const;
+export type SlotStatus = (typeof SLOT_STATUSES)[number];
+
+/** Reservation status */
+export const RESERVATION_STATUSES = [
+  "confirmed",
+  "cancelled",
+  "pending",
+] as const;
+export type ReservationStatus = (typeof RESERVATION_STATUSES)[number];
+
+/** User roles */
+export const USER_ROLES = [
+  "admin",
+  "teacher",
+  "student",
+  "guest",
+] as const;
+export type UserRole = (typeof USER_ROLES)[number];
+
+/** Schedule generation modes */
+export const SCHEDULE_MODES = ["pack", "spread"] as const;
+export type ScheduleMode = (typeof SCHEDULE_MODES)[number];
+
+/** Swap candidate highlight colors */
+export const SWAP_COLORS = {
+  LOW: "#6E7681", // ≤3 candidates
+  MEDIUM: "#D29922", // 4-14 candidates
+  HIGH: "#3FB950", // ≥15 candidates
+} as const;
+
+/** Max swap chain depth */
+export const MAX_SWAP_DEPTH = 2;
+
+/** Candidate count threshold for skipping recalculation */
+export const SKIP_RECALC_THRESHOLD = 15;
+
+/** Notification event names */
+export const EVENT_NAMES = {
+  SCHEDULE_CONFIRMED: "schedule.confirmed",
+  SCHEDULE_CHANGED: "schedule.changed",
+  RESERVATION_CREATED: "reservation.created",
+  RESERVATION_UPDATED: "reservation.updated",
+  RESERVATION_CANCELLED: "reservation.cancelled",
+  RESERVATION_REMINDER: "reservation.reminder",
+  SYNC_CONFLICT: "sync.conflict",
+} as const;
+
+/** Notification channels */
+export const NOTIFICATION_CHANNELS = [
+  "in_app",
+  "email",
+  "push",
+  "webhook",
+] as const;
+export type NotificationChannel = (typeof NOTIFICATION_CHANNELS)[number];
+
+/** Webhook retry delays in ms */
+export const WEBHOOK_RETRY_DELAYS = [
+  10_000, // 10s
+  30_000, // 30s
+  120_000, // 2min
+  600_000, // 10min
+  3_600_000, // 1hr
+] as const;
+
+/** Max webhook consecutive failures before auto-disable */
+export const WEBHOOK_MAX_FAILURES = 5;
