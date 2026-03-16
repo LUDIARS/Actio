@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from "react";
-import { auth as authApi, getStoredUser, clearTokens, setTokens, setStoredUser } from "../lib/api";
+import { auth as authApi, getStoredUser, setTokens, setStoredUser } from "../lib/api";
 
 interface User {
   id: string;
