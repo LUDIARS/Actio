@@ -1,12 +1,24 @@
-import { drizzle } from "drizzle-orm/postgres-js";
-import postgres from "postgres";
+import { drizzle } from "drizzle-orm/better-sqlite3";
+import Database, { type Database as DatabaseType } from "better-sqlite3";
 import * as schema from "./schema.js";
+import * as curriculumSchema from "./curriculum-schema.js";
+import { resolve } from "path";
 
-const connectionString =
-  process.env.DATABASE_URL || "postgresql://localhost:5432/schedula";
+const dbPath = process.env.DATABASE_PATH || resolve("data", "schedula.db");
 
-const client = postgres(connectionString);
+// Ensure data directory exists
+import { mkdirSync } from "fs";
+mkdirSync(resolve("data"), { recursive: true });
 
-export const db = drizzle(client, { schema });
+const sqlite: DatabaseType = new Database(dbPath);
 
-export { schema };
+// Enable WAL mode for better concurrent read performance
+sqlite.pragma("journal_mode = WAL");
+sqlite.pragma("foreign_keys = ON");
+
+export const db = drizzle(sqlite, {
+  schema: { ...schema, ...curriculumSchema },
+});
+
+export { schema, curriculumSchema };
+export { sqlite };

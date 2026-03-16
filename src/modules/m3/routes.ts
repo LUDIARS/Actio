@@ -1,5 +1,6 @@
 import { Hono } from "hono";
-import { db, schema } from "../../db/connection.js";
+import { v4 as uuidv4 } from "uuid";
+import { db, schema, curriculumSchema } from "../../db/connection.js";
 import { eq, and, inArray } from "drizzle-orm";
 import { calculateGroupAvailability, rankMeetingSuggestions } from "./availability.js";
 import {
@@ -20,14 +21,15 @@ m3.post("/groups", async (c) => {
     createdBy: string;
   }>();
 
-  const [group] = await db
+  const [group] = db
     .insert(schema.groups)
     .values({
+      id: uuidv4(),
       name: body.name,
       members: body.members,
       createdBy: body.createdBy,
     })
-    .returning();
+    .returning().all();
 
   return c.json(group, 201);
 });
@@ -36,11 +38,12 @@ m3.post("/groups", async (c) => {
 m3.get("/groups/:groupId", async (c) => {
   const groupId = c.req.param("groupId");
 
-  const [group] = await db
+  const [group] = db
     .select()
     .from(schema.groups)
     .where(eq(schema.groups.id, groupId))
-    .limit(1);
+    .limit(1)
+    .all();
 
   if (!group) {
     return c.json({ error: "Group not found" }, 404);
@@ -54,11 +57,11 @@ m3.put("/groups/:groupId/members", async (c) => {
   const groupId = c.req.param("groupId");
   const body = await c.req.json<{ members: string[] }>();
 
-  const [updated] = await db
+  const [updated] = db
     .update(schema.groups)
     .set({ members: body.members })
     .where(eq(schema.groups.id, groupId))
-    .returning();
+    .returning().all();
 
   if (!updated) {
     return c.json({ error: "Group not found" }, 404);
@@ -71,11 +74,12 @@ m3.put("/groups/:groupId/members", async (c) => {
 m3.get("/groups/:groupId/availability", async (c) => {
   const groupId = c.req.param("groupId");
 
-  const [group] = await db
+  const [group] = db
     .select()
     .from(schema.groups)
     .where(eq(schema.groups.id, groupId))
-    .limit(1);
+    .limit(1)
+    .all();
 
   if (!group) {
     return c.json({ error: "Group not found" }, 404);
@@ -87,7 +91,7 @@ m3.get("/groups/:groupId/availability", async (c) => {
   const memberSlots = await getMemberSlots(memberIds);
 
   // Get room availability
-  const availableRoomsBySlot = await getRoomAvailabilityMap();
+  const availableRoomsBySlot = getRoomAvailabilityMap();
 
   const availability = calculateGroupAvailability(memberSlots, availableRoomsBySlot);
 
@@ -103,11 +107,12 @@ m3.get("/groups/:groupId/availability", async (c) => {
 m3.get("/groups/:groupId/suggestions", async (c) => {
   const groupId = c.req.param("groupId");
 
-  const [group] = await db
+  const [group] = db
     .select()
     .from(schema.groups)
     .where(eq(schema.groups.id, groupId))
-    .limit(1);
+    .limit(1)
+    .all();
 
   if (!group) {
     return c.json({ error: "Group not found" }, 404);
@@ -116,17 +121,18 @@ m3.get("/groups/:groupId/suggestions", async (c) => {
   const memberIds = group.members as string[];
 
   const memberSlots = await getMemberSlots(memberIds);
-  const availableRoomsBySlot = await getRoomAvailabilityMap();
+  const availableRoomsBySlot = getRoomAvailabilityMap();
   const availability = calculateGroupAvailability(memberSlots, availableRoomsBySlot);
 
   // Get attendance days for each member
   const memberAttendanceDays = new Map<string, number[]>();
   for (const memberId of memberIds) {
-    const [profile] = await db
+    const [profile] = db
       .select()
       .from(schema.memberProfiles)
       .where(eq(schema.memberProfiles.userId, memberId))
-      .limit(1);
+      .limit(1)
+      .all();
 
     if (profile) {
       memberAttendanceDays.set(memberId, profile.attendanceDays as number[]);
@@ -160,41 +166,44 @@ async function getMemberSlots(
     let matrix = createEmptySlotMatrix();
 
     // Get member profile
-    const [profile] = await db
+    const [profile] = db
       .select()
       .from(schema.memberProfiles)
       .where(eq(schema.memberProfiles.userId, userId))
-      .limit(1);
+      .limit(1)
+      .all();
 
     if (profile) {
       // Merge class schedule for member's major
-      const classEntries = await db
+      const classEntries = db
         .select({
           day: schema.scheduleEntries.day,
           period: schema.scheduleEntries.period,
-          major: schema.curricula.major,
+          major: curriculumSchema.curricula.departmentName,
         })
         .from(schema.scheduleEntries)
         .innerJoin(
-          schema.curricula,
-          eq(schema.scheduleEntries.curriculumId, schema.curricula.id)
+          curriculumSchema.curricula,
+          eq(schema.scheduleEntries.curriculumId, curriculumSchema.curricula.id)
         )
         .where(
           and(
             eq(schema.scheduleEntries.termId, currentTerm),
             eq(schema.scheduleEntries.isConfirmed, true),
-            eq(schema.curricula.major, profile.major)
+            eq(curriculumSchema.curricula.departmentName, profile.major)
           )
-        );
+        )
+        .all();
 
       matrix = mergeClassSchedule(matrix, classEntries);
     }
 
     // Merge cached unified slots
-    const cachedSlots = await db
+    const cachedSlots = db
       .select()
       .from(schema.unifiedSlots)
-      .where(eq(schema.unifiedSlots.userId, userId));
+      .where(eq(schema.unifiedSlots.userId, userId))
+      .all();
 
     for (const slot of cachedSlots) {
       if (
@@ -214,10 +223,11 @@ async function getMemberSlots(
     }
 
     // Merge reservations
-    const reservations = await db
+    const reservations = db
       .select()
       .from(schema.reservations)
-      .where(eq(schema.reservations.status, "confirmed"));
+      .where(eq(schema.reservations.status, "confirmed"))
+      .all();
 
     const userRes = reservations.filter((r) =>
       (r.participants as string[]).includes(userId)
@@ -234,11 +244,11 @@ async function getMemberSlots(
   return result;
 }
 
-async function getRoomAvailabilityMap(): Promise<Map<string, string[]>> {
-  const allRooms = await db.select().from(schema.rooms);
+function getRoomAvailabilityMap(): Map<string, string[]> {
+  const allRooms = db.select().from(schema.rooms).all();
   const currentTerm = `term-${new Date().getFullYear()}`;
 
-  const scheduleUsage = await db
+  const scheduleUsage = db
     .select()
     .from(schema.scheduleEntries)
     .where(
@@ -246,12 +256,14 @@ async function getRoomAvailabilityMap(): Promise<Map<string, string[]>> {
         eq(schema.scheduleEntries.termId, currentTerm),
         eq(schema.scheduleEntries.isConfirmed, true)
       )
-    );
+    )
+    .all();
 
-  const reservationUsage = await db
+  const reservationUsage = db
     .select()
     .from(schema.reservations)
-    .where(eq(schema.reservations.status, "confirmed"));
+    .where(eq(schema.reservations.status, "confirmed"))
+    .all();
 
   // Build set of occupied room-slots
   const occupied = new Set<string>();
