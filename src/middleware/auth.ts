@@ -1,18 +1,15 @@
 import { createMiddleware } from "hono/factory";
+import jwt from "jsonwebtoken";
 import type { UserRole } from "../shared/constants.js";
+
+const JWT_SECRET = process.env.JWT_SECRET || "schedula-dev-secret-change-in-production";
 
 /**
  * Role-based access control middleware.
- *
- * Authorization matrix (from design doc §7.3):
- * - admin: full access to all modules
- * - teacher: M1 read, M2/M3/M4 own data, M5 own settings
- * - student: M2/M3/M4 own data, M5 own settings
- * - guest: M4 public read only
  */
 export function requireRole(...allowedRoles: UserRole[]) {
   return createMiddleware(async (c, next) => {
-    const role = (c.req.header("X-User-Role") as UserRole) || "guest";
+    const role = (c.get("userRole" as never) as UserRole) || "guest";
 
     if (!allowedRoles.includes(role)) {
       return c.json(
@@ -30,16 +27,36 @@ export function requireRole(...allowedRoles: UserRole[]) {
 }
 
 /**
- * Extract user context from headers.
- * In production, this would validate JWT / OAuth tokens.
+ * Extract user context from JWT Bearer token or legacy headers.
+ * Supports both:
+ *  - Authorization: Bearer <jwt> (production)
+ *  - X-User-Id / X-User-Role headers (development fallback)
  */
 export function userContext() {
   return createMiddleware(async (c, next) => {
-    const userId = c.req.header("X-User-Id") || "anonymous";
-    const role = (c.req.header("X-User-Role") as UserRole) || "guest";
+    const authHeader = c.req.header("Authorization");
 
-    c.set("userId" as never, userId as never);
-    c.set("userRole" as never, role as never);
+    if (authHeader?.startsWith("Bearer ")) {
+      try {
+        const token = authHeader.slice(7);
+        const payload = jwt.verify(token, JWT_SECRET) as {
+          userId: string;
+          role: string;
+        };
+        c.set("userId" as never, payload.userId as never);
+        c.set("userRole" as never, payload.role as never);
+      } catch {
+        // Invalid token - fall through to header-based auth
+        c.set("userId" as never, "anonymous" as never);
+        c.set("userRole" as never, "guest" as never);
+      }
+    } else {
+      // Legacy header-based auth (development)
+      const userId = c.req.header("X-User-Id") || "anonymous";
+      const role = (c.req.header("X-User-Role") as UserRole) || "guest";
+      c.set("userId" as never, userId as never);
+      c.set("userRole" as never, role as never);
+    }
 
     await next();
   });

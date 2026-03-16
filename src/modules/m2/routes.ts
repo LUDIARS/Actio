@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import { db, schema } from "../../db/connection.js";
+import { db, schema, curriculumSchema } from "../../db/connection.js";
 import { eq, and, not } from "drizzle-orm";
 import {
   createEmptySlotMatrix,
@@ -25,11 +25,12 @@ m2.get("/members/:userId/slots", async (c) => {
   let matrix = createEmptySlotMatrix();
 
   // Get member profile
-  const profile = await db
+  const profile = db
     .select()
     .from(schema.memberProfiles)
     .where(eq(schema.memberProfiles.userId, userId))
-    .limit(1);
+    .limit(1)
+    .all();
 
   if (profile.length === 0) {
     return c.json({ error: "Member not found" }, 404);
@@ -39,32 +40,34 @@ m2.get("/members/:userId/slots", async (c) => {
 
   // Merge M1 class schedule
   const currentTerm = `term-${new Date().getFullYear()}`;
-  const classEntries = await db
+  const classEntries = db
     .select({
       day: schema.scheduleEntries.day,
       period: schema.scheduleEntries.period,
-      major: schema.curricula.major,
+      major: curriculumSchema.curricula.departmentName,
     })
     .from(schema.scheduleEntries)
     .innerJoin(
-      schema.curricula,
-      eq(schema.scheduleEntries.curriculumId, schema.curricula.id)
+      curriculumSchema.curricula,
+      eq(schema.scheduleEntries.curriculumId, curriculumSchema.curricula.id)
     )
     .where(
       and(
         eq(schema.scheduleEntries.termId, currentTerm),
         eq(schema.scheduleEntries.isConfirmed, true),
-        eq(schema.curricula.major, member.major)
+        eq(curriculumSchema.curricula.departmentName, member.major)
       )
-    );
+    )
+    .all();
 
   matrix = mergeClassSchedule(matrix, classEntries);
 
   // Merge cached unified slots (personal events, etc.)
-  const cachedSlots = await db
+  const cachedSlots = db
     .select()
     .from(schema.unifiedSlots)
-    .where(eq(schema.unifiedSlots.userId, userId));
+    .where(eq(schema.unifiedSlots.userId, userId))
+    .all();
 
   for (const slot of cachedSlots) {
     if (
@@ -84,10 +87,11 @@ m2.get("/members/:userId/slots", async (c) => {
   }
 
   // Merge M4 reservations
-  const activeReservations = await db
+  const activeReservations = db
     .select()
     .from(schema.reservations)
-    .where(eq(schema.reservations.status, "confirmed"));
+    .where(eq(schema.reservations.status, "confirmed"))
+    .all();
 
   const userReservations = activeReservations.filter((r) =>
     (r.participants as string[]).includes(userId)
@@ -115,11 +119,12 @@ m2.get("/members/:userId/slots", async (c) => {
 m2.get("/members/:userId/attendance", async (c) => {
   const userId = c.req.param("userId");
 
-  const profile = await db
+  const profile = db
     .select()
     .from(schema.memberProfiles)
     .where(eq(schema.memberProfiles.userId, userId))
-    .limit(1);
+    .limit(1)
+    .all();
 
   if (profile.length === 0) {
     return c.json({ error: "Member not found" }, 404);
@@ -148,11 +153,11 @@ m2.get("/rooms/availability", async (c) => {
   const period = parseInt(c.req.query("period") || "-1", 10);
 
   // Get all rooms
-  const allRooms = await db.select().from(schema.rooms);
+  const allRooms = db.select().from(schema.rooms).all();
 
   // Get schedule entries for the current term
   const currentTerm = `term-${new Date().getFullYear()}`;
-  const scheduleUsage = await db
+  const scheduleUsage = db
     .select()
     .from(schema.scheduleEntries)
     .where(
@@ -160,13 +165,15 @@ m2.get("/rooms/availability", async (c) => {
         eq(schema.scheduleEntries.termId, currentTerm),
         eq(schema.scheduleEntries.isConfirmed, true)
       )
-    );
+    )
+    .all();
 
   // Get confirmed reservations
-  const reservationUsage = await db
+  const reservationUsage = db
     .select()
     .from(schema.reservations)
-    .where(eq(schema.reservations.status, "confirmed"));
+    .where(eq(schema.reservations.status, "confirmed"))
+    .all();
 
   // Build room availability matrix
   const roomAvailability = allRooms.map((room) => {

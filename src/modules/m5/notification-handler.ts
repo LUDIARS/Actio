@@ -84,7 +84,7 @@ async function handleEvent(payload: WebhookPayload): Promise<void> {
 
     for (const userId of targetUserIds) {
       // Check user notification preferences
-      const prefs = await db
+      const prefs = db
         .select()
         .from(schema.notificationPreferences)
         .where(
@@ -93,7 +93,8 @@ async function handleEvent(payload: WebhookPayload): Promise<void> {
             eq(schema.notificationPreferences.channel, "in_app")
           )
         )
-        .limit(1);
+        .limit(1)
+        .all();
 
       // If no preferences or enabled events include this event
       const shouldNotify =
@@ -104,23 +105,25 @@ async function handleEvent(payload: WebhookPayload): Promise<void> {
       if (shouldNotify) {
         // Check quiet hours
         if (!isQuietHours(prefs[0]?.quietHoursStart ?? null, prefs[0]?.quietHoursEnd ?? null)) {
-          await db.insert(schema.notifications).values({
+          db.insert(schema.notifications).values({
+            id: uuidv4(),
             userId,
             event,
             channel: "in_app",
             title: rendered.title,
             body: rendered.body,
-          });
+          }).run();
         }
       }
     }
   }
 
   // 3. Dispatch to registered webhooks
-  const activeWebhooks = await db
+  const activeWebhooks = db
     .select()
     .from(schema.webhookEndpoints)
-    .where(eq(schema.webhookEndpoints.isActive, true));
+    .where(eq(schema.webhookEndpoints.isActive, true))
+    .all();
 
   for (const webhook of activeWebhooks) {
     const subscribedEvents = webhook.events as string[];
