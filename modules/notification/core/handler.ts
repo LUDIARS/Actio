@@ -1,10 +1,10 @@
 import { v4 as uuidv4 } from "uuid";
-import { db, schema } from "../../db/connection.js";
+import { db, schema } from "../../../src/db/connection.js";
 import { eq, and } from "drizzle-orm";
 import { eventBus } from "./event-bus.js";
-import { deliverWebhook, retryWebhookDelivery } from "./webhook-delivery.js";
-import { EVENT_NAMES } from "../../shared/constants.js";
-import type { WebhookPayload } from "../../shared/types.js";
+import { deliverWebhook, retryWebhookDelivery } from "../channels/webhook/delivery.js";
+import { EVENT_NAMES } from "../../../src/shared/constants.js";
+import type { WebhookPayload } from "../../../src/shared/types.js";
 
 // ─── Notification Templates ─────────────────────────────────
 

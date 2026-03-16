@@ -1,8 +1,8 @@
 import { Hono } from "hono";
 import { v4 as uuidv4 } from "uuid";
-import { db, schema } from "../../db/connection.js";
+import { db, schema } from "../../src/db/connection.js";
 import { eq, and } from "drizzle-orm";
-import type { CreateReservationInput } from "../../shared/types.js";
+import type { CreateReservationInput } from "../../src/shared/types.js";
 
 const m4 = new Hono();
 

@@ -1,8 +1,8 @@
 import { parse } from "csv-parse/sync";
 import { v4 as uuidv4 } from "uuid";
-import { DAYS_COUNT, PERIODS_COUNT, DAY_LABELS } from "../../shared/constants.js";
-import type { Instructor, Curriculum, Room } from "../../shared/types.js";
-import type { RoomType } from "../../shared/constants.js";
+import { DAYS_COUNT, PERIODS_COUNT, DAY_LABELS } from "../../src/shared/constants.js";
+import type { Instructor, Curriculum, Room } from "../../src/shared/types.js";
+import type { RoomType } from "../../src/shared/constants.js";
 
 /**
  * Parse instructor CSV.

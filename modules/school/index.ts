@@ -9,16 +9,16 @@
  *   M2: データ統合 (授業・個人予定・予約を統合ビューに集約)
  *   M3: オートスケジューラ (グループの空き時間検索・ミーティング提案)
  *
- * コアの予約システム (M4) やWebhook通知 (M5) はプラットフォーム側に属し、
+ * コアの予約システムやWebhook通知はプラットフォーム側に属し、
  * このモジュールとは独立して動作します。
  */
 
 import { Hono } from "hono";
-import { m1 } from "../m1/routes.js";
-import { m2 } from "../m2/routes.js";
-import { m3 } from "../m3/routes.js";
-import { DAY_LABELS, getPeriodTime, PERIODS_COUNT } from "../../shared/constants.js";
-import type { SchulaModule } from "../../shared/types.js";
+import { m1 } from "../schedule/routes.js";
+import { m2 } from "../integration/routes.js";
+import { m3 } from "../auto-scheduler/routes.js";
+import { DAY_LABELS, getPeriodTime, PERIODS_COUNT } from "../../src/shared/constants.js";
+import type { SchulaModule } from "../../src/shared/types.js";
 
 const schoolRouter = new Hono();
 schoolRouter.route("/m1", m1);

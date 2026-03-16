@@ -2,12 +2,12 @@ import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { logger } from "hono/logger";
 import { serve } from "@hono/node-server";
-import { m4 } from "./modules/m4/routes.js";
-import { m5 } from "./modules/m5/routes.js";
+import { m4 } from "../modules/reservation/routes.js";
+import { notification } from "../modules/notification/routes.js";
 import { auth } from "./auth/routes.js";
 import { userContext } from "./middleware/auth.js";
-import { initNotificationHandler } from "./modules/m5/notification-handler.js";
-import { schoolModule } from "./modules/school/index.js";
+import { initNotificationHandler } from "../modules/notification/core/handler.js";
+import { schoolModule } from "../modules/school/index.js";
 import type { SchulaModule } from "./shared/types.js";
 
 const app = new Hono();
@@ -24,7 +24,7 @@ app.route("/api/auth", auth);
 // 予約システム (Reservations)
 app.route("/api/reservations", m4);
 // Webhook・通知 (Webhooks & Notifications)
-app.route("/api/webhooks", m5);
+app.route("/api/webhooks", notification);
 
 // ─── Optional Modules ───────────────────────────────────────
 const modules: SchulaModule[] = [schoolModule];
@@ -36,14 +36,14 @@ for (const mod of modules) {
 // ─── Legacy Compatibility ───────────────────────────────────
 // 旧パス (/api/m1, /api/m2, ...) への後方互換ルーティング
 // 新規開発では /api/school/m1, /api/reservations, /api/webhooks を使用してください
-import { m1 } from "./modules/m1/routes.js";
-import { m2 } from "./modules/m2/routes.js";
-import { m3 } from "./modules/m3/routes.js";
+import { m1 } from "../modules/schedule/routes.js";
+import { m2 } from "../modules/integration/routes.js";
+import { m3 } from "../modules/auto-scheduler/routes.js";
 app.route("/api/m1", m1);
 app.route("/api/m2", m2);
 app.route("/api/m3", m3);
 app.route("/api/m4", m4);
-app.route("/api/m5", m5);
+app.route("/api/m5", notification);
 
 // /api/timetable → school モジュールへ移動済み (/api/school/timetable)
 import { DAY_LABELS, getPeriodTime, PERIODS_COUNT } from "./shared/constants.js";

@@ -1,9 +1,9 @@
-import { DAYS_COUNT, PERIODS_COUNT } from "../../shared/constants.js";
+import { DAYS_COUNT, PERIODS_COUNT } from "../../src/shared/constants.js";
 import type {
   UnifiedSlot,
   AvailabilitySlot,
   MeetingSuggestion,
-} from "../../shared/types.js";
+} from "../../src/shared/types.js";
 
 /**
  * Calculate group availability from member slot matrices.
