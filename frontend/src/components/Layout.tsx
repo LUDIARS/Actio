@@ -1,14 +1,18 @@
 import { NavLink, Outlet } from "react-router-dom";
+import { useAuth } from "../contexts/AuthContext";
 
 const NAV_ITEMS = [
   { to: "/", label: "Dashboard" },
   { to: "/schedule", label: "M1 時間割" },
+  { to: "/curriculum-plan", label: "カリキュラムプラン" },
   { to: "/scheduler", label: "M3 スケジューラ" },
   { to: "/reservations", label: "M4 予約" },
   { to: "/notifications", label: "M5 通知" },
 ];
 
 export function Layout() {
+  const { user, logout } = useAuth();
+
   return (
     <div style={{ display: "flex", minHeight: "100vh" }}>
       <aside
@@ -39,7 +43,7 @@ export function Layout() {
             Academic Scheduling
           </span>
         </div>
-        <nav style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+        <nav style={{ display: "flex", flexDirection: "column", gap: 2, flex: 1 }}>
           {NAV_ITEMS.map((item) => (
             <NavLink
               key={item.to}
@@ -61,6 +65,39 @@ export function Layout() {
             </NavLink>
           ))}
         </nav>
+
+        {/* User info & logout */}
+        {user && (
+          <div
+            style={{
+              borderTop: "1px solid var(--border)",
+              padding: "0.75rem 1rem",
+              marginTop: "auto",
+            }}
+          >
+            <div style={{ fontSize: "0.8rem", fontWeight: 600, marginBottom: "0.15rem" }}>
+              {user.name}
+            </div>
+            <div style={{ fontSize: "0.7rem", color: "var(--text-muted)", marginBottom: "0.5rem" }}>
+              {user.email}
+            </div>
+            <button
+              onClick={() => logout()}
+              style={{
+                width: "100%",
+                padding: "0.35rem",
+                fontSize: "0.75rem",
+                background: "var(--bg-surface-2)",
+                border: "1px solid var(--border)",
+                borderRadius: "var(--radius-sm)",
+                color: "var(--text-muted)",
+                cursor: "pointer",
+              }}
+            >
+              ログアウト
+            </button>
+          </div>
+        )}
       </aside>
       <main style={{ flex: 1, padding: "1.5rem 2rem", overflow: "auto" }}>
         <Outlet />

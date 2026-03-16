@@ -1,24 +1,48 @@
-import { drizzle } from "drizzle-orm/better-sqlite3";
-import Database, { type Database as DatabaseType } from "better-sqlite3";
-import * as schema from "./schema.js";
-import * as curriculumSchema from "./curriculum-schema.js";
-import { resolve } from "path";
+/**
+ * Database connection factory
+ *
+ * 環境変数 DB_DIALECT で使用するデータベースを選択:
+ *   - "sqlite" (デフォルト): SQLite (better-sqlite3)
+ *   - "postgres": PostgreSQL (postgres.js)
+ *   - "mysql": MySQL (mysql2)
+ *
+ * 接続先は DATABASE_URL (postgres/mysql) または DATABASE_PATH (sqlite) で設定
+ */
 
-const dbPath = process.env.DATABASE_PATH || resolve("data", "schedula.db");
+export type DbDialect = "sqlite" | "postgres" | "mysql";
 
-// Ensure data directory exists
-import { mkdirSync } from "fs";
-mkdirSync(resolve("data"), { recursive: true });
+const dialect: DbDialect = (process.env.DB_DIALECT as DbDialect) || "sqlite";
 
-const sqlite: DatabaseType = new Database(dbPath);
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let db: any;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let schema: any;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let curriculumSchema: any;
 
-// Enable WAL mode for better concurrent read performance
-sqlite.pragma("journal_mode = WAL");
-sqlite.pragma("foreign_keys = ON");
+switch (dialect) {
+  case "postgres": {
+    const pg = await import("./dialects/postgres.js");
+    schema = pg.schema;
+    curriculumSchema = pg.curriculumSchema;
+    db = pg.createConnection();
+    break;
+  }
+  case "mysql": {
+    const my = await import("./dialects/mysql.js");
+    schema = my.schema;
+    curriculumSchema = my.curriculumSchema;
+    db = my.createConnection();
+    break;
+  }
+  default: {
+    const lite = await import("./dialects/sqlite.js");
+    schema = lite.schema;
+    curriculumSchema = lite.curriculumSchema;
+    const conn = lite.createConnection();
+    db = conn.db;
+    break;
+  }
+}
 
-export const db = drizzle(sqlite, {
-  schema: { ...schema, ...curriculumSchema },
-});
-
-export { schema, curriculumSchema };
-export { sqlite };
+export { db, schema, curriculumSchema, dialect };
