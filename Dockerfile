@@ -8,6 +8,7 @@ RUN npm ci
 
 COPY tsconfig.json ./
 COPY src/ ./src/
+COPY modules/ ./modules/
 
 RUN npx tsc
 
@@ -26,4 +27,4 @@ ENV DB_DIALECT=postgres
 
 EXPOSE 3000
 
-CMD ["node", "dist/index.js"]
+CMD ["node", "dist/src/index.js"]
