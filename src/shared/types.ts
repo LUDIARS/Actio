@@ -301,3 +301,21 @@ export interface ScheduleGenerationResult {
     mode: ScheduleMode;
   };
 }
+
+// ─── Module System ──────────────────────────────────────────
+
+import type { Hono } from "hono";
+
+/** Schedula モジュールインターフェース */
+export interface SchulaModule {
+  /** モジュール識別子 */
+  name: string;
+  /** 人間向け説明 */
+  description: string;
+  /** このモジュールが提供する Hono ルーター */
+  routes: Hono;
+  /** マウントされる API パスプレフィックス */
+  basePath: string;
+  /** サブモジュール一覧 (情報用) */
+  submodules: { id: string; name: string; path: string }[];
+}
