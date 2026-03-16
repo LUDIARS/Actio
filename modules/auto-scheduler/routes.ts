@@ -1,15 +1,15 @@
 import { Hono } from "hono";
 import { v4 as uuidv4 } from "uuid";
-import { db, schema, curriculumSchema } from "../../db/connection.js";
+import { db, schema, curriculumSchema } from "../../src/db/connection.js";
 import { eq, and, inArray } from "drizzle-orm";
 import { calculateGroupAvailability, rankMeetingSuggestions } from "./availability.js";
 import {
   createEmptySlotMatrix,
   mergeClassSchedule,
   mergeReservations,
-} from "../m2/integration.js";
-import { DAYS_COUNT, PERIODS_COUNT } from "../../shared/constants.js";
-import type { UnifiedSlot } from "../../shared/types.js";
+} from "../integration/integration.js";
+import { DAYS_COUNT, PERIODS_COUNT } from "../../src/shared/constants.js";
+import type { UnifiedSlot } from "../../src/shared/types.js";
 
 const m3 = new Hono();
 

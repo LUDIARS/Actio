@@ -1,9 +1,9 @@
 import { createHmac } from "crypto";
 import { v4 as uuidv4 } from "uuid";
-import { db, schema } from "../../db/connection.js";
+import { db, schema } from "../../../../src/db/connection.js";
 import { eq } from "drizzle-orm";
-import { WEBHOOK_RETRY_DELAYS, WEBHOOK_MAX_FAILURES } from "../../shared/constants.js";
-import type { WebhookPayload } from "../../shared/types.js";
+import { WEBHOOK_RETRY_DELAYS, WEBHOOK_MAX_FAILURES } from "../../../../src/shared/constants.js";
+import type { WebhookPayload } from "../../../../src/shared/types.js";
 
 /**
  * Generate HMAC-SHA256 signature for webhook payload.

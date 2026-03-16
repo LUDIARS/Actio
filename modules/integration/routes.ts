@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import { db, schema, curriculumSchema } from "../../db/connection.js";
+import { db, schema, curriculumSchema } from "../../src/db/connection.js";
 import { eq, and, not } from "drizzle-orm";
 import {
   createEmptySlotMatrix,
@@ -10,8 +10,8 @@ import {
   applyPrivacyFilter,
   calculateAttendanceDays,
 } from "./integration.js";
-import type { UnifiedSlot } from "../../shared/types.js";
-import { DAYS_COUNT, PERIODS_COUNT } from "../../shared/constants.js";
+import type { UnifiedSlot } from "../../src/shared/types.js";
+import { DAYS_COUNT, PERIODS_COUNT } from "../../src/shared/constants.js";
 
 const m2 = new Hono();
 

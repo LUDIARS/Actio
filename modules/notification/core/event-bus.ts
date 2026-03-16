@@ -1,4 +1,4 @@
-import type { WebhookPayload } from "../../shared/types.js";
+import type { WebhookPayload } from "../../../src/shared/types.js";
 
 type EventHandler = (payload: WebhookPayload) => void | Promise<void>;
 

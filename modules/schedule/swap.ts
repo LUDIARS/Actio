@@ -1,7 +1,7 @@
-import { MAX_SWAP_DEPTH, SKIP_RECALC_THRESHOLD } from "../../shared/constants.js";
-import type { ScheduleEntry, SwapRequest } from "../../shared/types.js";
+import { MAX_SWAP_DEPTH, SKIP_RECALC_THRESHOLD } from "../../src/shared/constants.js";
+import type { ScheduleEntry, SwapRequest } from "../../src/shared/types.js";
 import { ScheduleGenerator } from "./scheduler.js";
-import type { Instructor, Curriculum, Room } from "../../shared/types.js";
+import type { Instructor, Curriculum, Room } from "../../src/shared/types.js";
 
 interface SwapResult {
   success: boolean;

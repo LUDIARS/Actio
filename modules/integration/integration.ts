@@ -1,6 +1,6 @@
-import { DAYS_COUNT, PERIODS_COUNT } from "../../shared/constants.js";
-import type { UnifiedSlot, MemberProfile } from "../../shared/types.js";
-import type { SlotStatus } from "../../shared/constants.js";
+import { DAYS_COUNT, PERIODS_COUNT } from "../../src/shared/constants.js";
+import type { UnifiedSlot, MemberProfile } from "../../src/shared/types.js";
+import type { SlotStatus } from "../../src/shared/constants.js";
 
 /**
  * Create an empty 7×11 slot matrix with all slots free.

@@ -1,12 +1,12 @@
 import { Hono } from "hono";
 import { v4 as uuidv4 } from "uuid";
-import { db, schema, curriculumSchema } from "../../db/connection.js";
+import { db, schema, curriculumSchema } from "../../src/db/connection.js";
 import { eq, and } from "drizzle-orm";
 import { parseInstructorCSV, parseRoomCSV, parseCurriculumCSV } from "./csv-parser.js";
 import { ScheduleGenerator } from "./scheduler.js";
 import { executeSwap } from "./swap.js";
-import type { Instructor, Curriculum, Room, ScheduleEntry, SwapRequest } from "../../shared/types.js";
-import type { ScheduleMode } from "../../shared/constants.js";
+import type { Instructor, Curriculum, Room, ScheduleEntry, SwapRequest } from "../../src/shared/types.js";
+import type { ScheduleMode } from "../../src/shared/constants.js";
 
 const m1 = new Hono();
 

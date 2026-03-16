@@ -1,12 +1,12 @@
-import { DAYS_COUNT, PERIODS_COUNT, SKIP_RECALC_THRESHOLD } from "../../shared/constants.js";
+import { DAYS_COUNT, PERIODS_COUNT, SKIP_RECALC_THRESHOLD } from "../../src/shared/constants.js";
 import type {
   Instructor,
   Curriculum,
   Room,
   ScheduleEntry,
   ScheduleGenerationResult,
-} from "../../shared/types.js";
-import type { ScheduleMode } from "../../shared/constants.js";
+} from "../../src/shared/types.js";
+import type { ScheduleMode } from "../../src/shared/constants.js";
 
 interface SlotKey {
   day: number;
