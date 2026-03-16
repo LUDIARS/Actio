@@ -229,13 +229,13 @@ async function getMemberSlots(
       .where(eq(schema.reservations.status, "confirmed"))
       .all();
 
-    const userRes = reservations.filter((r) =>
+    const userRes = reservations.filter((r: any) =>
       (r.participants as string[]).includes(userId)
     );
 
     matrix = mergeReservations(
       matrix,
-      userRes.map((r) => ({ day: r.day, period: r.period, title: r.title }))
+      userRes.map((r: any) => ({ day: r.day, period: r.period, title: r.title }))
     );
 
     result.push({ userId, slots: matrix });

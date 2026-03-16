@@ -24,7 +24,7 @@ notification.get("/notifications/preferences", async (c) => {
 
   return c.json({
     userId,
-    preferences: prefs.map((p) => ({
+    preferences: prefs.map((p: any) => ({
       channel: p.channel,
       enabledEvents: p.enabledEvents,
       reminder: {

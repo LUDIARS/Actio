@@ -338,6 +338,30 @@ export const planBlocks = pgTable(
   ]
 );
 
+// ─── Schema Exports ──────────────────────────────────────────
+
+export const schema = {
+  users,
+  sessions,
+  rooms,
+  scheduleEntries,
+  unifiedSlots,
+  memberProfiles,
+  groups,
+  reservations,
+  webhookEndpoints,
+  webhookDeliveryLogs,
+  notificationPreferences,
+  notifications,
+};
+
+export const curriculumSchema = {
+  instructors,
+  curricula,
+  curriculumPlans,
+  planBlocks,
+};
+
 // ─── Connection ──────────────────────────────────────────────
 
 export function createConnection() {

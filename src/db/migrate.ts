@@ -2,7 +2,9 @@
  * SQLiteのテーブルを初期化するスクリプト
  * npm run db:init で実行
  */
-import { sqlite } from "./connection.js";
+import { createConnection } from "./dialects/sqlite.js";
+
+const { sqlite } = createConnection();
 
 // Core tables
 sqlite.exec(`
