@@ -41,10 +41,11 @@ export function SchedulePage() {
 
   const handleImport = async (type: string, file: File) => {
     try {
+      const csvText = await file.text();
       let result;
-      if (type === "instructors") result = await m1.importInstructors(file);
-      else if (type === "rooms") result = await m1.importRooms(file);
-      else result = await m1.importCurriculum(file);
+      if (type === "instructors") result = await m1.importInstructors(csvText);
+      else if (type === "rooms") result = await m1.importRooms(csvText);
+      else result = await m1.importCurriculum(csvText);
       showMessage(`${type} imported: ${JSON.stringify(result)}`);
     } catch (e: any) {
       showMessage(`Error: ${e.message}`);
