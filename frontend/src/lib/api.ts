@@ -1,5 +1,38 @@
 import { API_BASE } from "./constants";
 
+// ─── Token Management ──────────────────────────────────────
+
+function getAccessToken(): string | null {
+  return localStorage.getItem("accessToken");
+}
+
+function getRefreshToken(): string | null {
+  return localStorage.getItem("refreshToken");
+}
+
+export function setTokens(access: string, refresh: string) {
+  localStorage.setItem("accessToken", access);
+  localStorage.setItem("refreshToken", refresh);
+}
+
+export function clearTokens() {
+  localStorage.removeItem("accessToken");
+  localStorage.removeItem("refreshToken");
+  localStorage.removeItem("user");
+}
+
+export function getStoredUser(): { id: string; name: string; email: string; role: string } | null {
+  const raw = localStorage.getItem("user");
+  if (!raw) return null;
+  try { return JSON.parse(raw); } catch { return null; }
+}
+
+export function setStoredUser(user: { id: string; name: string; email: string; role: string }) {
+  localStorage.setItem("user", JSON.stringify(user));
+}
+
+// ─── Core Request ──────────────────────────────────────────
+
 async function request<T>(
   path: string,
   options: RequestInit = {}
@@ -10,11 +43,30 @@ async function request<T>(
     ...((options.headers as Record<string, string>) || {}),
   };
 
-  // Add user context header
-  const userId = localStorage.getItem("userId") || "user-1";
-  headers["X-User-Id"] = userId;
+  // Add JWT if available
+  const token = getAccessToken();
+  if (token) {
+    headers["Authorization"] = `Bearer ${token}`;
+  }
 
-  const res = await fetch(url, { ...options, headers });
+  // Fallback: legacy header auth
+  const user = getStoredUser();
+  if (user) {
+    headers["X-User-Id"] = user.id;
+    headers["X-User-Role"] = user.role;
+  }
+
+  let res = await fetch(url, { ...options, headers });
+
+  // If 401, try refresh
+  if (res.status === 401 && getRefreshToken()) {
+    const refreshed = await refreshAccessToken();
+    if (refreshed) {
+      headers["Authorization"] = `Bearer ${getAccessToken()}`;
+      res = await fetch(url, { ...options, headers });
+    }
+  }
+
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
     throw new Error(body.error || `HTTP ${res.status}`);
@@ -22,37 +74,115 @@ async function request<T>(
   return res.json();
 }
 
+async function refreshAccessToken(): Promise<boolean> {
+  const refreshToken = getRefreshToken();
+  if (!refreshToken) return false;
+
+  try {
+    const res = await fetch(`${API_BASE}/api/auth/refresh`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ refreshToken }),
+    });
+    if (!res.ok) {
+      clearTokens();
+      return false;
+    }
+    const data = await res.json();
+    setTokens(data.accessToken, data.refreshToken);
+    return true;
+  } catch {
+    clearTokens();
+    return false;
+  }
+}
+
+// ─── Auth API ──────────────────────────────────────────────
+
+export const auth = {
+  async register(body: { name: string; email: string; password: string; role?: string }) {
+    const res = await fetch(`${API_BASE}/api/auth/register`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Registration failed");
+    setTokens(data.accessToken, data.refreshToken);
+    setStoredUser(data.user);
+    return data;
+  },
+
+  async login(body: { email: string; password: string }) {
+    const res = await fetch(`${API_BASE}/api/auth/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Login failed");
+    setTokens(data.accessToken, data.refreshToken);
+    setStoredUser(data.user);
+    return data;
+  },
+
+  async logout() {
+    const refreshToken = getRefreshToken();
+    try {
+      await fetch(`${API_BASE}/api/auth/logout`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ refreshToken }),
+      });
+    } catch { /* ignore */ }
+    clearTokens();
+  },
+
+  getGoogleAuthUrl() {
+    return `${API_BASE}/api/auth/google`;
+  },
+
+  async me() {
+    return request<any>("/api/auth/me");
+  },
+};
+
 // ─── M1 ─────────────────────────────────────────────────────
 
 export const m1 = {
-  importInstructors(file: File) {
-    const form = new FormData();
-    form.append("file", file);
+  importInstructors(csvText: string) {
     return fetch(`${API_BASE}/api/m1/instructors/import`, {
       method: "POST",
-      body: form,
+      headers: {
+        "Content-Type": "text/plain",
+        ...(getAccessToken() ? { Authorization: `Bearer ${getAccessToken()}` } : {}),
+      },
+      body: csvText,
     }).then((r) => r.json());
   },
-  importRooms(file: File) {
-    const form = new FormData();
-    form.append("file", file);
+  importRooms(csvText: string) {
     return fetch(`${API_BASE}/api/m1/rooms/import`, {
       method: "POST",
-      body: form,
+      headers: {
+        "Content-Type": "text/plain",
+        ...(getAccessToken() ? { Authorization: `Bearer ${getAccessToken()}` } : {}),
+      },
+      body: csvText,
     }).then((r) => r.json());
   },
-  importCurriculum(file: File) {
-    const form = new FormData();
-    form.append("file", file);
+  importCurriculum(csvText: string) {
     return fetch(`${API_BASE}/api/m1/curriculum/import`, {
       method: "POST",
-      body: form,
+      headers: {
+        "Content-Type": "text/plain",
+        ...(getAccessToken() ? { Authorization: `Bearer ${getAccessToken()}` } : {}),
+      },
+      body: csvText,
     }).then((r) => r.json());
   },
   generate(mode: "pack" | "spread") {
-    return request<any>("/api/m1/schedule/generate", {
+    return request<any>(`/api/m1/schedule/generate?mode=${mode}`, {
       method: "POST",
-      body: JSON.stringify({ mode }),
     });
   },
   getSchedule() {

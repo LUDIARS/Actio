@@ -10,7 +10,8 @@
     "start": "node dist/index.js",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
-    "db:push": "drizzle-kit push"
+    "db:push": "drizzle-kit push",
+    "db:init": "tsx src/db/migrate.ts"
   },
   "repository": {
     "type": "git",
@@ -21,13 +22,20 @@
   "license": "ISC",
   "dependencies": {
     "@hono/node-server": "^1.19.11",
+    "bcryptjs": "^3.0.3",
+    "better-sqlite3": "^12.8.0",
     "csv-parse": "^6.1.0",
     "drizzle-orm": "^0.45.1",
     "hono": "^4.12.8",
+    "jsonwebtoken": "^9.0.3",
+    "mysql2": "^3.20.0",
     "postgres": "^3.4.8",
     "uuid": "^13.0.0"
   },
   "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^25.5.0",
     "@types/uuid": "^10.0.0",
     "drizzle-kit": "^0.31.9",

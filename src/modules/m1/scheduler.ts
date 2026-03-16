@@ -52,7 +52,7 @@ export class ScheduleGenerator {
     // Expand curricula: each curriculum needs `weeklySlots` placements
     const placements: { curriculum: Curriculum; index: number }[] = [];
     for (const c of this.curricula) {
-      for (let i = 0; i < c.weeklySlots; i++) {
+      for (let i = 0; i < c.slotsPerSession * c.totalSessions; i++) {
         placements.push({ curriculum: c, index: i });
       }
     }

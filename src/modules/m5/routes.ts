@@ -19,15 +19,16 @@ m5.post("/webhooks", async (c) => {
 
   const secret = randomBytes(32).toString("hex");
 
-  const [webhook] = await db
+  const [webhook] = db
     .insert(schema.webhookEndpoints)
     .values({
+      id: uuidv4(),
       url: body.url,
       events: body.events,
       secret,
       createdBy,
     })
-    .returning();
+    .returning().all();
 
   return c.json(
     {
@@ -47,11 +48,12 @@ m5.get("/webhooks", async (c) => {
   const createdBy = c.req.header("X-User-Id");
 
   const webhooks = createdBy
-    ? await db
+    ? db
         .select()
         .from(schema.webhookEndpoints)
         .where(eq(schema.webhookEndpoints.createdBy, createdBy))
-    : await db.select().from(schema.webhookEndpoints);
+        .all()
+    : db.select().from(schema.webhookEndpoints).all();
 
   // Don't expose secrets in listing
   return c.json({
@@ -76,17 +78,18 @@ m5.put("/webhooks/:id", async (c) => {
     isActive?: boolean;
   }>();
 
-  const [current] = await db
+  const [current] = db
     .select()
     .from(schema.webhookEndpoints)
     .where(eq(schema.webhookEndpoints.id, id))
-    .limit(1);
+    .limit(1)
+    .all();
 
   if (!current) {
     return c.json({ error: "Webhook not found" }, 404);
   }
 
-  const [updated] = await db
+  const [updated] = db
     .update(schema.webhookEndpoints)
     .set({
       url: body.url ?? current.url,
@@ -94,7 +97,7 @@ m5.put("/webhooks/:id", async (c) => {
       isActive: body.isActive ?? current.isActive,
     })
     .where(eq(schema.webhookEndpoints.id, id))
-    .returning();
+    .returning().all();
 
   return c.json({
     id: updated.id,
@@ -108,10 +111,10 @@ m5.put("/webhooks/:id", async (c) => {
 m5.delete("/webhooks/:id", async (c) => {
   const id = c.req.param("id");
 
-  const [deleted] = await db
+  const [deleted] = db
     .delete(schema.webhookEndpoints)
     .where(eq(schema.webhookEndpoints.id, id))
-    .returning();
+    .returning().all();
 
   if (!deleted) {
     return c.json({ error: "Webhook not found" }, 404);
@@ -124,11 +127,12 @@ m5.delete("/webhooks/:id", async (c) => {
 m5.post("/webhooks/:id/test", async (c) => {
   const id = c.req.param("id");
 
-  const [webhook] = await db
+  const [webhook] = db
     .select()
     .from(schema.webhookEndpoints)
     .where(eq(schema.webhookEndpoints.id, id))
-    .limit(1);
+    .limit(1)
+    .all();
 
   if (!webhook) {
     return c.json({ error: "Webhook not found" }, 404);
@@ -161,11 +165,11 @@ m5.post("/webhooks/:id/rotate-secret", async (c) => {
 
   const newSecret = randomBytes(32).toString("hex");
 
-  const [updated] = await db
+  const [updated] = db
     .update(schema.webhookEndpoints)
     .set({ secret: newSecret })
     .where(eq(schema.webhookEndpoints.id, id))
-    .returning();
+    .returning().all();
 
   if (!updated) {
     return c.json({ error: "Webhook not found" }, 404);
@@ -182,10 +186,11 @@ m5.post("/webhooks/:id/rotate-secret", async (c) => {
 m5.get("/webhooks/:id/logs", async (c) => {
   const id = c.req.param("id");
 
-  const logs = await db
+  const logs = db
     .select()
     .from(schema.webhookDeliveryLogs)
-    .where(eq(schema.webhookDeliveryLogs.webhookId, id));
+    .where(eq(schema.webhookDeliveryLogs.webhookId, id))
+    .all();
 
   return c.json({ logs });
 });
@@ -197,10 +202,11 @@ m5.get("/notifications/preferences", async (c) => {
     return c.json({ error: "X-User-Id header required" }, 400);
   }
 
-  const prefs = await db
+  const prefs = db
     .select()
     .from(schema.notificationPreferences)
-    .where(eq(schema.notificationPreferences.userId, userId));
+    .where(eq(schema.notificationPreferences.userId, userId))
+    .all();
 
   return c.json({
     userId,
@@ -244,7 +250,7 @@ m5.put("/notifications/preferences", async (c) => {
   }>();
 
   // Upsert preference
-  const existing = await db
+  const existing = db
     .select()
     .from(schema.notificationPreferences)
     .where(
@@ -253,10 +259,11 @@ m5.put("/notifications/preferences", async (c) => {
         eq(schema.notificationPreferences.channel, body.channel)
       )
     )
-    .limit(1);
+    .limit(1)
+    .all();
 
   if (existing.length > 0) {
-    const [updated] = await db
+    const [updated] = db
       .update(schema.notificationPreferences)
       .set({
         enabledEvents: body.enabledEvents ?? existing[0].enabledEvents,
@@ -277,13 +284,14 @@ m5.put("/notifications/preferences", async (c) => {
         quietHoursEnd: body.quietHoursEnd ?? existing[0].quietHoursEnd,
       })
       .where(eq(schema.notificationPreferences.id, existing[0].id))
-      .returning();
+      .returning().all();
 
     return c.json(updated);
   } else {
-    const [created] = await db
+    const [created] = db
       .insert(schema.notificationPreferences)
       .values({
+        id: uuidv4(),
         userId,
         channel: body.channel,
         enabledEvents: body.enabledEvents || [],
@@ -296,7 +304,7 @@ m5.put("/notifications/preferences", async (c) => {
         quietHoursStart: body.quietHoursStart ?? "22:00",
         quietHoursEnd: body.quietHoursEnd ?? "07:00",
       })
-      .returning();
+      .returning().all();
 
     return c.json(created, 201);
   }
@@ -309,10 +317,11 @@ m5.get("/notifications/history", async (c) => {
     return c.json({ error: "X-User-Id header required" }, 400);
   }
 
-  const history = await db
+  const history = db
     .select()
     .from(schema.notifications)
-    .where(eq(schema.notifications.userId, userId));
+    .where(eq(schema.notifications.userId, userId))
+    .all();
 
   return c.json({ notifications: history });
 });
@@ -321,11 +330,11 @@ m5.get("/notifications/history", async (c) => {
 m5.post("/notifications/:id/read", async (c) => {
   const id = c.req.param("id");
 
-  const [updated] = await db
+  const [updated] = db
     .update(schema.notifications)
     .set({ isRead: true })
     .where(eq(schema.notifications.id, id))
-    .returning();
+    .returning().all();
 
   if (!updated) {
     return c.json({ error: "Notification not found" }, 404);

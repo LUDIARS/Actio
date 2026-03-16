@@ -7,6 +7,7 @@ import { m2 } from "./modules/m2/routes.js";
 import { m3 } from "./modules/m3/routes.js";
 import { m4 } from "./modules/m4/routes.js";
 import { m5 } from "./modules/m5/routes.js";
+import { auth } from "./auth/routes.js";
 import { userContext } from "./middleware/auth.js";
 import { initNotificationHandler } from "./modules/m5/notification-handler.js";
 import { DAY_LABELS, getPeriodTime, PERIODS_COUNT } from "./shared/constants.js";
@@ -17,6 +18,9 @@ const app = new Hono();
 app.use("*", cors());
 app.use("*", logger());
 app.use("/api/*", userContext());
+
+// ─── Auth Routes (認証) ─────────────────────────────────────
+app.route("/api/auth", auth);
 
 // ─── Module Routes ──────────────────────────────────────────
 app.route("/api/m1", m1);

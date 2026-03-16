@@ -46,7 +46,8 @@ export async function deliverWebhook(
     const success = response.ok;
 
     // Log delivery
-    await db.insert(schema.webhookDeliveryLogs).values({
+    db.insert(schema.webhookDeliveryLogs).values({
+      id: uuidv4(),
       webhookId,
       deliveryId,
       event: payload.event,
@@ -54,21 +55,22 @@ export async function deliverWebhook(
       success,
       retryCount: 0,
       latencyMs,
-    });
+    }).run();
 
     if (success) {
       // Reset fail count
-      await db
-        .update(schema.webhookEndpoints)
+      db.update(schema.webhookEndpoints)
         .set({ failCount: 0, lastDeliveredAt: new Date() })
-        .where(eq(schema.webhookEndpoints.id, webhookId));
+        .where(eq(schema.webhookEndpoints.id, webhookId))
+        .run();
     }
 
     return { success, statusCode: response.status, latencyMs };
   } catch (error) {
     const latencyMs = Date.now() - startTime;
 
-    await db.insert(schema.webhookDeliveryLogs).values({
+    db.insert(schema.webhookDeliveryLogs).values({
+      id: uuidv4(),
       webhookId,
       deliveryId,
       event: payload.event,
@@ -76,7 +78,7 @@ export async function deliverWebhook(
       success: false,
       retryCount: 0,
       latencyMs,
-    });
+    }).run();
 
     return { success: false, statusCode: null, latencyMs };
   }
@@ -95,10 +97,10 @@ export async function retryWebhookDelivery(
 ): Promise<void> {
   if (retryCount >= WEBHOOK_RETRY_DELAYS.length) {
     // Max retries exceeded: auto-disable webhook
-    await db
-      .update(schema.webhookEndpoints)
+    db.update(schema.webhookEndpoints)
       .set({ isActive: false })
-      .where(eq(schema.webhookEndpoints.id, webhookId));
+      .where(eq(schema.webhookEndpoints.id, webhookId))
+      .run();
 
     console.error(
       `Webhook ${webhookId} auto-disabled after ${WEBHOOK_MAX_FAILURES} failures`
@@ -130,7 +132,8 @@ export async function retryWebhookDelivery(
 
       const latencyMs = Date.now() - startTime;
 
-      await db.insert(schema.webhookDeliveryLogs).values({
+      db.insert(schema.webhookDeliveryLogs).values({
+        id: uuidv4(),
         webhookId,
         deliveryId: payload.deliveryId,
         event: payload.event,
@@ -138,19 +141,19 @@ export async function retryWebhookDelivery(
         success: response.ok,
         retryCount: retryCount + 1,
         latencyMs,
-      });
+      }).run();
 
       if (response.ok) {
-        await db
-          .update(schema.webhookEndpoints)
+        db.update(schema.webhookEndpoints)
           .set({ failCount: 0, lastDeliveredAt: new Date() })
-          .where(eq(schema.webhookEndpoints.id, webhookId));
+          .where(eq(schema.webhookEndpoints.id, webhookId))
+          .run();
       } else {
         // Increment fail count and retry
-        await db
-          .update(schema.webhookEndpoints)
+        db.update(schema.webhookEndpoints)
           .set({ failCount: retryCount + 1 })
-          .where(eq(schema.webhookEndpoints.id, webhookId));
+          .where(eq(schema.webhookEndpoints.id, webhookId))
+          .run();
 
         await retryWebhookDelivery(
           webhookId,
@@ -161,10 +164,10 @@ export async function retryWebhookDelivery(
         );
       }
     } catch {
-      await db
-        .update(schema.webhookEndpoints)
+      db.update(schema.webhookEndpoints)
         .set({ failCount: retryCount + 1 })
-        .where(eq(schema.webhookEndpoints.id, webhookId));
+        .where(eq(schema.webhookEndpoints.id, webhookId))
+        .run();
 
       await retryWebhookDelivery(
         webhookId,

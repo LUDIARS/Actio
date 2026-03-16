@@ -1,4 +1,5 @@
 import { Hono } from "hono";
+import { v4 as uuidv4 } from "uuid";
 import { db, schema } from "../../db/connection.js";
 import { eq, and } from "drizzle-orm";
 import type { CreateReservationInput } from "../../shared/types.js";
@@ -16,7 +17,7 @@ m4.post("/reservations", async (c) => {
   }
 
   // Optimistic lock: check for conflicts
-  const existing = await db
+  const existing = db
     .select()
     .from(schema.reservations)
     .where(
@@ -27,7 +28,8 @@ m4.post("/reservations", async (c) => {
         eq(schema.reservations.status, "confirmed")
       )
     )
-    .limit(1);
+    .limit(1)
+    .all();
 
   if (existing.length > 0) {
     return c.json(
@@ -41,7 +43,7 @@ m4.post("/reservations", async (c) => {
 
   // Also check against confirmed schedule entries
   const currentTerm = `term-${new Date().getFullYear()}`;
-  const scheduleConflict = await db
+  const scheduleConflict = db
     .select()
     .from(schema.scheduleEntries)
     .where(
@@ -53,7 +55,8 @@ m4.post("/reservations", async (c) => {
         eq(schema.scheduleEntries.isConfirmed, true)
       )
     )
-    .limit(1);
+    .limit(1)
+    .all();
 
   if (scheduleConflict.length > 0) {
     return c.json(
@@ -62,9 +65,10 @@ m4.post("/reservations", async (c) => {
     );
   }
 
-  const [reservation] = await db
+  const [reservation] = db
     .insert(schema.reservations)
     .values({
+      id: uuidv4(),
       groupId: body.groupId,
       title: body.title,
       day: body.day,
@@ -76,7 +80,7 @@ m4.post("/reservations", async (c) => {
       note: body.note || "",
       version: 1,
     })
-    .returning();
+    .returning().all();
 
   return c.json(reservation, 201);
 });
@@ -85,14 +89,13 @@ m4.post("/reservations", async (c) => {
 m4.get("/reservations", async (c) => {
   const groupId = c.req.query("groupId");
 
-  let query = db.select().from(schema.reservations);
-
   const results = groupId
-    ? await db
+    ? db
         .select()
         .from(schema.reservations)
         .where(eq(schema.reservations.groupId, groupId))
-    : await db.select().from(schema.reservations);
+        .all()
+    : db.select().from(schema.reservations).all();
 
   // Public view: exclude private member data
   const publicResults = results.map((r) => ({
@@ -116,11 +119,12 @@ m4.get("/reservations", async (c) => {
 m4.get("/reservations/:id", async (c) => {
   const id = c.req.param("id");
 
-  const [reservation] = await db
+  const [reservation] = db
     .select()
     .from(schema.reservations)
     .where(eq(schema.reservations.id, id))
-    .limit(1);
+    .limit(1)
+    .all();
 
   if (!reservation) {
     return c.json({ error: "Reservation not found" }, 404);
@@ -143,11 +147,12 @@ m4.put("/reservations/:id", async (c) => {
   }>();
 
   // Optimistic lock: check version
-  const [current] = await db
+  const [current] = db
     .select()
     .from(schema.reservations)
     .where(eq(schema.reservations.id, id))
-    .limit(1);
+    .limit(1)
+    .all();
 
   if (!current) {
     return c.json({ error: "Reservation not found" }, 404);
@@ -173,7 +178,7 @@ m4.put("/reservations/:id", async (c) => {
   const newRoomId = body.roomId ?? current.roomId;
 
   if (newDay !== current.day || newPeriod !== current.period || newRoomId !== current.roomId) {
-    const conflict = await db
+    const conflict = db
       .select()
       .from(schema.reservations)
       .where(
@@ -184,7 +189,8 @@ m4.put("/reservations/:id", async (c) => {
           eq(schema.reservations.status, "confirmed")
         )
       )
-      .limit(1);
+      .limit(1)
+      .all();
 
     const hasConflict = conflict.some((r) => r.id !== id);
     if (hasConflict) {
@@ -192,7 +198,7 @@ m4.put("/reservations/:id", async (c) => {
     }
   }
 
-  const [updated] = await db
+  const [updated] = db
     .update(schema.reservations)
     .set({
       title: body.title ?? current.title,
@@ -205,7 +211,7 @@ m4.put("/reservations/:id", async (c) => {
       updatedAt: new Date(),
     })
     .where(eq(schema.reservations.id, id))
-    .returning();
+    .returning().all();
 
   return c.json(updated);
 });
@@ -214,24 +220,25 @@ m4.put("/reservations/:id", async (c) => {
 m4.delete("/reservations/:id", async (c) => {
   const id = c.req.param("id");
 
-  const [current] = await db
+  const [current] = db
     .select()
     .from(schema.reservations)
     .where(eq(schema.reservations.id, id))
-    .limit(1);
+    .limit(1)
+    .all();
 
   if (!current) {
     return c.json({ error: "Reservation not found" }, 404);
   }
 
-  const [cancelled] = await db
+  const [cancelled] = db
     .update(schema.reservations)
     .set({
       status: "cancelled",
       updatedAt: new Date(),
     })
     .where(eq(schema.reservations.id, id))
-    .returning();
+    .returning().all();
 
   return c.json({
     message: "Reservation cancelled",
@@ -243,7 +250,7 @@ m4.delete("/reservations/:id", async (c) => {
 m4.get("/rooms/:roomId/schedule", async (c) => {
   const roomId = c.req.param("roomId");
 
-  const roomReservations = await db
+  const roomReservations = db
     .select()
     .from(schema.reservations)
     .where(
@@ -251,11 +258,12 @@ m4.get("/rooms/:roomId/schedule", async (c) => {
         eq(schema.reservations.roomId, roomId),
         eq(schema.reservations.status, "confirmed")
       )
-    );
+    )
+    .all();
 
   // Also get class schedule
   const currentTerm = `term-${new Date().getFullYear()}`;
-  const classSchedule = await db
+  const classSchedule = db
     .select()
     .from(schema.scheduleEntries)
     .where(
@@ -264,7 +272,8 @@ m4.get("/rooms/:roomId/schedule", async (c) => {
         eq(schema.scheduleEntries.termId, currentTerm),
         eq(schema.scheduleEntries.isConfirmed, true)
       )
-    );
+    )
+    .all();
 
   return c.json({
     roomId,

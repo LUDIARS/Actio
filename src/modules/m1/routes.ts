@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import { v4 as uuidv4 } from "uuid";
-import { db, schema } from "../../db/connection.js";
+import { db, schema, curriculumSchema } from "../../db/connection.js";
 import { eq, and } from "drizzle-orm";
 import { parseInstructorCSV, parseRoomCSV, parseCurriculumCSV } from "./csv-parser.js";
 import { ScheduleGenerator } from "./scheduler.js";
@@ -26,18 +26,20 @@ m1.post("/instructors/import", async (c) => {
     return c.json({ error: "No valid instructor data found" }, 400);
   }
 
-  // Store in DB
+  // Store in DB (curriculum module schema)
   for (const instr of instructors) {
-    await db
-      .insert(schema.instructors)
+    db.insert(curriculumSchema.instructors)
       .values({
         id: instr.id,
         name: instr.name,
         major: instr.major,
         courses: instr.courses,
         availability: instr.availability,
+        availabilityConditionType: instr.availabilityConditionType,
+        availabilityCondition: instr.availabilityCondition,
       })
-      .onConflictDoNothing();
+      .onConflictDoNothing()
+      .run();
   }
 
   workingInstructors = instructors;
@@ -63,8 +65,7 @@ m1.post("/rooms/import", async (c) => {
   }
 
   for (const room of rooms) {
-    await db
-      .insert(schema.rooms)
+    db.insert(schema.rooms)
       .values({
         id: room.id,
         name: room.name,
@@ -72,7 +73,8 @@ m1.post("/rooms/import", async (c) => {
         type: room.type,
         equipment: room.equipment,
       })
-      .onConflictDoNothing();
+      .onConflictDoNothing()
+      .run();
   }
 
   workingRooms = rooms;
@@ -103,18 +105,20 @@ m1.post("/curriculum/import", async (c) => {
   }
 
   for (const curr of curricula) {
-    await db
-      .insert(schema.curricula)
+    db.insert(curriculumSchema.curricula)
       .values({
         id: curr.id,
         name: curr.name,
-        major: curr.major,
+        departmentName: curr.departmentName,
         instructorId: curr.instructorId,
-        weeklySlots: curr.weeklySlots,
+        slotsPerSession: curr.slotsPerSession,
+        totalSessions: curr.totalSessions,
         roomType: curr.roomType,
         editableUntil: curr.editableUntil,
+        termId: curr.termId,
       })
-      .onConflictDoNothing();
+      .onConflictDoNothing()
+      .run();
   }
 
   workingCurricula = curricula;
@@ -124,8 +128,9 @@ m1.post("/curriculum/import", async (c) => {
     curricula: curricula.map((c) => ({
       id: c.id,
       name: c.name,
-      major: c.major,
-      weeklySlots: c.weeklySlots,
+      departmentName: c.departmentName,
+      slotsPerSession: c.slotsPerSession,
+      totalSessions: c.totalSessions,
     })),
   });
 });
@@ -164,10 +169,11 @@ m1.get("/schedule", async (c) => {
     return c.json({ entries: workingEntries, termId: currentTermId });
   }
 
-  const dbEntries = await db
+  const dbEntries = db
     .select()
     .from(schema.scheduleEntries)
-    .where(eq(schema.scheduleEntries.termId, currentTermId));
+    .where(eq(schema.scheduleEntries.termId, currentTermId))
+    .all();
 
   return c.json({ entries: dbEntries, termId: currentTermId });
 });
@@ -202,13 +208,14 @@ m1.post("/schedule/confirm", async (c) => {
   }
 
   // Clear previous confirmed entries for this term
-  await db
-    .delete(schema.scheduleEntries)
-    .where(eq(schema.scheduleEntries.termId, currentTermId));
+  db.delete(schema.scheduleEntries)
+    .where(eq(schema.scheduleEntries.termId, currentTermId))
+    .run();
 
   // Insert confirmed entries
   for (const entry of workingEntries) {
-    await db.insert(schema.scheduleEntries).values({
+    db.insert(schema.scheduleEntries).values({
+      id: uuidv4(),
       day: entry.day,
       period: entry.period,
       curriculumId: entry.curriculumId,
@@ -217,7 +224,7 @@ m1.post("/schedule/confirm", async (c) => {
       candidateCount: entry.candidateCount,
       isConfirmed: true,
       termId: currentTermId,
-    });
+    }).run();
   }
 
   return c.json({

@@ -59,6 +59,8 @@ export function parseInstructorCSV(csvContent: string): Instructor[] {
       major,
       courses,
       availability,
+      availabilityConditionType: "any" as const,
+      availabilityCondition: {},
     };
   });
 }
@@ -90,7 +92,7 @@ export function parseRoomCSV(csvContent: string): Room[] {
 
 /**
  * Parse curriculum CSV.
- * Format: 科目名,専攻,担当講師,週コマ数,教室タイプ
+ * Format: 科目名,学科,担当講師,コマ数/回,開催回数,教室タイプ
  */
 export function parseCurriculumCSV(
   csvContent: string,
@@ -112,11 +114,14 @@ export function parseCurriculumCSV(
     return {
       id: uuidv4(),
       name: row[0]?.trim() || "",
-      major: row[1]?.trim() || "",
+      departmentName: row[1]?.trim() || "",
       instructorId,
-      weeklySlots: parseInt(row[3]?.trim() || "1", 10),
-      roomType: (row[4]?.trim() || "講義室") as RoomType,
+      slotsPerSession: parseInt(row[3]?.trim() || "1", 10),
+      totalSessions: parseInt(row[4]?.trim() || "1", 10),
+      roomType: (row[5]?.trim() || "講義室") as RoomType,
+      roomId: null,
       editableUntil: editableUntil || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+      termId: `term-${new Date().getFullYear()}`,
     };
   });
 }
