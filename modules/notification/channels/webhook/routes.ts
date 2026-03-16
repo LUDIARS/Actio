@@ -56,7 +56,7 @@ webhookRoutes.get("/", async (c) => {
 
   // Don't expose secrets in listing
   return c.json({
-    webhooks: webhooks.map((w) => ({
+    webhooks: webhooks.map((w: any) => ({
       id: w.id,
       url: w.url,
       events: w.events,

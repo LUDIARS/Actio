@@ -98,7 +98,7 @@ m4.get("/reservations", async (c) => {
     : db.select().from(schema.reservations).all();
 
   // Public view: exclude private member data
-  const publicResults = results.map((r) => ({
+  const publicResults = results.map((r: any) => ({
     id: r.id,
     groupId: r.groupId,
     title: r.title,
@@ -192,7 +192,7 @@ m4.put("/reservations/:id", async (c) => {
       .limit(1)
       .all();
 
-    const hasConflict = conflict.some((r) => r.id !== id);
+    const hasConflict = conflict.some((r: any) => r.id !== id);
     if (hasConflict) {
       return c.json({ error: "Conflict: room is already reserved" }, 409);
     }

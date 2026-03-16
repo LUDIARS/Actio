@@ -93,13 +93,13 @@ m2.get("/members/:userId/slots", async (c) => {
     .where(eq(schema.reservations.status, "confirmed"))
     .all();
 
-  const userReservations = activeReservations.filter((r) =>
+  const userReservations = activeReservations.filter((r: any) =>
     (r.participants as string[]).includes(userId)
   );
 
   matrix = mergeReservations(
     matrix,
-    userReservations.map((r) => ({
+    userReservations.map((r: any) => ({
       day: r.day,
       period: r.period,
       title: r.title,
@@ -176,7 +176,7 @@ m2.get("/rooms/availability", async (c) => {
     .all();
 
   // Build room availability matrix
-  const roomAvailability = allRooms.map((room) => {
+  const roomAvailability = allRooms.map((room: any) => {
     const availability: boolean[][] = Array.from({ length: DAYS_COUNT }, () =>
       Array(PERIODS_COUNT).fill(true)
     );
@@ -204,8 +204,8 @@ m2.get("/rooms/availability", async (c) => {
 
   // If specific day/period requested, filter to available rooms only
   if (day >= 0 && period >= 0) {
-    const available = roomAvailability.filter((r) => r.availability === true);
-    return c.json({ day, period, availableRooms: available.map((r) => r.room) });
+    const available = roomAvailability.filter((r: any) => r.availability === true);
+    return c.json({ day, period, availableRooms: available.map((r: any) => r.room) });
   }
 
   return c.json({ rooms: roomAvailability });
