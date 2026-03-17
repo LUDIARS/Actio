@@ -287,6 +287,7 @@ export const curricula = pgTable(
       .notNull(),
     instructorId: text("instructor_id")
       .references(() => instructors.id),
+    credits: integer("credits").notNull().default(1),
     createdAt: timestamp("created_at")
       .$defaultFn(() => new Date())
       .notNull(),
@@ -294,6 +295,25 @@ export const curricula = pgTable(
   (table) => [
     index("idx_curricula_department").on(table.departmentId),
     index("idx_curricula_instructor").on(table.instructorId),
+  ]
+);
+
+// ─── Curriculum Departments (junction table) ─────────────────
+
+export const curriculumDepartments = pgTable(
+  "curriculum_departments",
+  {
+    id: text("id").primaryKey(),
+    curriculumId: text("curriculum_id")
+      .references(() => curricula.id, { onDelete: "cascade" })
+      .notNull(),
+    departmentId: text("department_id")
+      .references(() => departments.id, { onDelete: "cascade" })
+      .notNull(),
+  },
+  (table) => [
+    index("idx_cd_curriculum").on(table.curriculumId),
+    index("idx_cd_department").on(table.departmentId),
   ]
 );
 
@@ -338,6 +358,7 @@ export const curriculumSchema = {
   departments,
   instructors,
   curricula,
+  curriculumDepartments,
   instructorAvailableSlots,
 };
 
@@ -359,6 +380,7 @@ const DB_SCHEMA = {
   departments,
   instructors,
   curricula,
+  curriculumDepartments,
   instructorAvailableSlots,
 };
 

@@ -289,6 +289,7 @@ export const curricula = mysqlTable(
       .notNull(),
     instructorId: varchar("instructor_id", { length: 255 })
       .references(() => instructors.id),
+    credits: int("credits").notNull().default(1),
     createdAt: timestamp("created_at")
       .$defaultFn(() => new Date())
       .notNull(),
@@ -296,6 +297,25 @@ export const curricula = mysqlTable(
   (table) => [
     index("idx_curricula_department").on(table.departmentId),
     index("idx_curricula_instructor").on(table.instructorId),
+  ]
+);
+
+// ─── Curriculum Departments (junction table) ─────────────────
+
+export const curriculumDepartments = mysqlTable(
+  "curriculum_departments",
+  {
+    id: varchar("id", { length: 255 }).primaryKey(),
+    curriculumId: varchar("curriculum_id", { length: 255 })
+      .references(() => curricula.id, { onDelete: "cascade" })
+      .notNull(),
+    departmentId: varchar("department_id", { length: 255 })
+      .references(() => departments.id, { onDelete: "cascade" })
+      .notNull(),
+  },
+  (table) => [
+    index("idx_cd_curriculum").on(table.curriculumId),
+    index("idx_cd_department").on(table.departmentId),
   ]
 );
 
@@ -340,6 +360,7 @@ export const curriculumSchema = {
   departments,
   instructors,
   curricula,
+  curriculumDepartments,
   instructorAvailableSlots,
 };
 
@@ -361,6 +382,7 @@ const allTables = {
   departments,
   instructors,
   curricula,
+  curriculumDepartments,
   instructorAvailableSlots,
 };
 

@@ -45,7 +45,7 @@ export const instructors = sqliteTable("instructors", {
 });
 
 // ─── カリキュラム (Curricula) ─────────────────────────────
-// 学科の下に複数存在。1つの学科 × 1人の講師。
+// 学科の下に複数存在。複数の学科を持てる（学科合同授業対応）。
 
 export const curricula = sqliteTable(
   "curricula",
@@ -53,13 +53,15 @@ export const curricula = sqliteTable(
     id: text("id").primaryKey(),
     /** カリキュラム名 */
     name: text("name").notNull(),
-    /** 所属学科ID */
+    /** 所属学科ID (主学科 / 後方互換) */
     departmentId: text("department_id")
       .references(() => departments.id)
       .notNull(),
     /** 担当講師ID (nullable: 未アサイン状態を許容) */
     instructorId: text("instructor_id")
       .references(() => instructors.id),
+    /** コマ数 (連続する時限数。デフォルト 1) */
+    credits: integer("credits").notNull().default(1),
     createdAt: integer("created_at", { mode: "timestamp" })
       .$defaultFn(() => new Date())
       .notNull(),
@@ -67,6 +69,26 @@ export const curricula = sqliteTable(
   (table) => [
     index("idx_curricula_department").on(table.departmentId),
     index("idx_curricula_instructor").on(table.instructorId),
+  ]
+);
+
+// ─── カリキュラム × 学科 中間テーブル (Curriculum Departments) ──
+// 学科合同授業対応: 1カリキュラムが複数の学科に所属可能。
+
+export const curriculumDepartments = sqliteTable(
+  "curriculum_departments",
+  {
+    id: text("id").primaryKey(),
+    curriculumId: text("curriculum_id")
+      .references(() => curricula.id, { onDelete: "cascade" })
+      .notNull(),
+    departmentId: text("department_id")
+      .references(() => departments.id, { onDelete: "cascade" })
+      .notNull(),
+  },
+  (table) => [
+    index("idx_cd_curriculum").on(table.curriculumId),
+    index("idx_cd_department").on(table.departmentId),
   ]
 );
 

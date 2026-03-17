@@ -295,4 +295,22 @@ sqlite.exec(`
   CREATE INDEX IF NOT EXISTS idx_plan_blocks_curriculum ON plan_blocks(curriculum_id);
 `);
 
+// M1 schema additions: credits column and curriculum_departments junction table
+sqlite.exec(`
+  CREATE TABLE IF NOT EXISTS curriculum_departments (
+    id TEXT PRIMARY KEY,
+    curriculum_id TEXT NOT NULL REFERENCES curricula(id) ON DELETE CASCADE,
+    department_id TEXT NOT NULL REFERENCES departments(id) ON DELETE CASCADE
+  );
+  CREATE INDEX IF NOT EXISTS idx_cd_curriculum ON curriculum_departments(curriculum_id);
+  CREATE INDEX IF NOT EXISTS idx_cd_department ON curriculum_departments(department_id);
+`);
+
+// Add credits column to curricula if not present (idempotent migration)
+try {
+  sqlite.exec(`ALTER TABLE curricula ADD COLUMN credits INTEGER NOT NULL DEFAULT 1`);
+} catch {
+  // Column already exists - ignore
+}
+
 console.log("Database tables initialized successfully.");

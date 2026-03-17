@@ -198,6 +198,34 @@ export const curriculumRepo = {
   },
 };
 
+// ─── M1: Curriculum Departments Repository ──────────────────
+
+export type CurriculumDepartment = typeof curriculumSchema.curriculumDepartments.$inferSelect;
+export type NewCurriculumDepartment = typeof curriculumSchema.curriculumDepartments.$inferInsert;
+
+export const curriculumDepartmentRepo = {
+  async findByCurriculum(curriculumId: string): Promise<CurriculumDepartment[]> {
+    return db
+      .select()
+      .from(curriculumSchema.curriculumDepartments)
+      .where(eq(curriculumSchema.curriculumDepartments.curriculumId, curriculumId));
+  },
+
+  async findAll(): Promise<CurriculumDepartment[]> {
+    return db.select().from(curriculumSchema.curriculumDepartments);
+  },
+
+  async create(data: NewCurriculumDepartment): Promise<void> {
+    await db.insert(curriculumSchema.curriculumDepartments).values(data);
+  },
+
+  async deleteByCurriculum(curriculumId: string): Promise<void> {
+    await db
+      .delete(curriculumSchema.curriculumDepartments)
+      .where(eq(curriculumSchema.curriculumDepartments.curriculumId, curriculumId));
+  },
+};
+
 // ─── M1: Instructor Available Slots Repository ─────────────
 
 export type AvailableSlot = typeof curriculumSchema.instructorAvailableSlots.$inferSelect;
