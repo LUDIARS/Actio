@@ -2,6 +2,7 @@ import {
   mysqlTable,
   varchar,
   int,
+  bigint,
   boolean,
   timestamp,
   json,
@@ -26,7 +27,7 @@ export const users = mysqlTable("users", {
   googleId: varchar("google_id", { length: 255 }).unique(),
   googleAccessToken: text("google_access_token"),
   googleRefreshToken: text("google_refresh_token"),
-  googleTokenExpiresAt: int("google_token_expires_at"),
+  googleTokenExpiresAt: bigint("google_token_expires_at", { mode: "number" }),
 
   calendarAccessId: varchar("calendar_access_id", { length: 255 }),
 
