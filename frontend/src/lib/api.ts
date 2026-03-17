@@ -514,6 +514,24 @@ export const adminApi = {
   },
 };
 
+// ─── Admin DB Viewer (テスト用) ──────────────────────────────
+
+export const adminDbApi = {
+  listTables() {
+    return request<{ tables: string[] }>("/api/admin/db/tables");
+  },
+  getTableData(tableName: string, limit = 50, offset = 0) {
+    return request<{
+      table: string;
+      columns: string[];
+      rows: Record<string, unknown>[];
+      totalRows: number;
+      limit: number;
+      offset: number;
+    }>(`/api/admin/db/tables/${tableName}?limit=${limit}&offset=${offset}`);
+  },
+};
+
 // ─── Groups ──────────────────────────────────────────────────
 
 export const groupApi = {

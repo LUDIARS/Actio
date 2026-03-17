@@ -81,6 +81,10 @@ app.get("/api/timetable", (c) => {
   });
 });
 
+// ─── Admin DB Viewer (テスト用) ──────────────────────────────
+import { dbViewer } from "./admin/db-viewer.js";
+app.route("/api/admin/db", dbViewer);
+
 // ─── Health & Info ──────────────────────────────────────────
 app.get("/", (c) => {
   const registeredModules: Record<string, string> = {};
