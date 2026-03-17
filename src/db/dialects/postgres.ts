@@ -28,6 +28,9 @@ export const users = pgTable("users", {
   googleRefreshToken: text("google_refresh_token"),
   googleTokenExpiresAt: bigint("google_token_expires_at", { mode: "number" }),
 
+  // Google認可スコープ（許可されたパーミッション一覧）
+  googleScopes: jsonb("google_scopes").$type<string[]>(),
+
   calendarAccessId: text("calendar_access_id"),
 
   createdAt: timestamp("created_at")

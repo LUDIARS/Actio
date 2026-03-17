@@ -2,7 +2,8 @@ import { Hono } from "hono";
 import { v4 as uuidv4 } from "uuid";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
-import { userRepo, sessionRepo } from "../db/repository.js";
+import { userRepo } from "../db/repository.js";
+import * as sessionStore from "../session/store.js";
 
 const auth = new Hono();
 
@@ -88,18 +89,11 @@ auth.post("/register", async (c) => {
     const { accessToken, refreshToken } = generateTokens(userId, assignedRole);
     console.log("[auth:register] トークン生成完了");
 
-    // Save session
-    const sessionId = uuidv4();
+    // Save session (Redis優先、DBフォールバック)
     const expiresAt = new Date(Date.now() + REFRESH_TOKEN_EXPIRES_DAYS * 24 * 60 * 60 * 1000);
 
-    console.log("[auth:register] セッション保存中... sessionId:", sessionId);
-    await sessionRepo.create({
-      id: sessionId,
-      userId,
-      refreshToken,
-      expiresAt,
-      createdAt: now,
-    });
+    console.log("[auth:register] セッション保存中...");
+    await sessionStore.createSession(userId, refreshToken, expiresAt);
     console.log("[auth:register] セッション保存完了");
 
     console.log("[auth:register] 登録成功 userId:", userId);
@@ -145,17 +139,10 @@ auth.post("/login", async (c) => {
 
     const { accessToken, refreshToken } = generateTokens(user.id, user.role);
 
-    const sessionId = uuidv4();
     const expiresAt = new Date(Date.now() + REFRESH_TOKEN_EXPIRES_DAYS * 24 * 60 * 60 * 1000);
 
     console.log("[auth:login] セッション保存中...");
-    await sessionRepo.create({
-      id: sessionId,
-      userId: user.id,
-      refreshToken,
-      expiresAt,
-      createdAt: new Date(),
-    });
+    await sessionStore.createSession(user.id, refreshToken, expiresAt);
 
     console.log("[auth:login] ログイン成功 userId:", user.id);
     return c.json({
@@ -183,16 +170,16 @@ auth.post("/refresh", async (c) => {
     }
 
     console.log("[auth:refresh] セッション検索中...");
-    const session = await sessionRepo.findByRefreshToken(body.refreshToken);
+    const session = await sessionStore.findByRefreshToken(body.refreshToken);
 
     if (!session) {
       console.warn("[auth:refresh] セッションが見つからない");
       return c.json({ error: "Invalid refresh token" }, 401);
     }
 
-    if (new Date(session.expiresAt) < new Date()) {
+    if (session.expiresAt < new Date()) {
       console.warn("[auth:refresh] トークン期限切れ sessionId:", session.id);
-      await sessionRepo.deleteById(session.id);
+      await sessionStore.deleteById(session.id);
       return c.json({ error: "Refresh token expired" }, 401);
     }
 
@@ -205,8 +192,9 @@ auth.post("/refresh", async (c) => {
 
     // Rotate refresh token
     const { accessToken, refreshToken: newRefreshToken } = generateTokens(user.id, user.role);
+    const newExpiresAt = new Date(Date.now() + REFRESH_TOKEN_EXPIRES_DAYS * 24 * 60 * 60 * 1000);
 
-    await sessionRepo.updateRefreshToken(session.id, newRefreshToken);
+    await sessionStore.rotateRefreshToken(session.id, body.refreshToken, newRefreshToken, newExpiresAt);
 
     console.log("[auth:refresh] トークン更新成功 userId:", user.id);
     return c.json({ accessToken, refreshToken: newRefreshToken });
@@ -225,7 +213,7 @@ auth.post("/logout", async (c) => {
     const body = await c.req.json<{ refreshToken: string }>();
 
     if (body.refreshToken) {
-      await sessionRepo.deleteByRefreshToken(body.refreshToken);
+      await sessionStore.deleteByRefreshToken(body.refreshToken);
       console.log("[auth:logout] セッション削除完了");
     }
 
@@ -313,6 +301,7 @@ auth.get("/google/callback", async (c) => {
       refresh_token?: string;
       expires_in: number;
       id_token?: string;
+      scope?: string;
     };
 
     if (!tokenRes.ok) {
@@ -345,6 +334,9 @@ auth.get("/google/callback", async (c) => {
 
     const now = new Date();
     const tokenExpiresAt = Date.now() + tokenData.expires_in * 1000;
+    // Googleから付与されたスコープを記録
+    const grantedScopes = tokenData.scope ? tokenData.scope.split(" ") : [];
+    console.log("[auth:google:callback] 付与されたスコープ:", grantedScopes);
 
     if (user) {
       console.log("[auth:google:callback] 既存ユーザ更新 userId:", user.id);
@@ -353,6 +345,7 @@ auth.get("/google/callback", async (c) => {
         googleAccessToken: tokenData.access_token,
         googleRefreshToken: tokenData.refresh_token || user.googleRefreshToken,
         googleTokenExpiresAt: tokenExpiresAt,
+        googleScopes: grantedScopes,
         calendarAccessId: userInfo.id,
         updatedAt: now,
       });
@@ -373,6 +366,7 @@ auth.get("/google/callback", async (c) => {
         googleAccessToken: tokenData.access_token,
         googleRefreshToken: tokenData.refresh_token || null,
         googleTokenExpiresAt: tokenExpiresAt,
+        googleScopes: grantedScopes,
         calendarAccessId: userInfo.id,
         createdAt: now,
         updatedAt: now,
@@ -391,16 +385,8 @@ auth.get("/google/callback", async (c) => {
     // Generate JWT tokens
     const { accessToken, refreshToken } = generateTokens(user.id, user.role);
 
-    const sessionId = uuidv4();
     const expiresAt = new Date(Date.now() + REFRESH_TOKEN_EXPIRES_DAYS * 24 * 60 * 60 * 1000);
-
-    await sessionRepo.create({
-      id: sessionId,
-      userId: user.id,
-      refreshToken,
-      expiresAt,
-      createdAt: now,
-    });
+    await sessionStore.createSession(user.id, refreshToken, expiresAt);
 
     // フロントエンドにリダイレクト（トークンをURLパラメータで渡す）
     const redirectUrl = new URL(FRONTEND_URL);
@@ -449,6 +435,7 @@ auth.get("/me", async (c) => {
       calendarAccessId: user.calendarAccessId,
       hasGoogleAuth: !!user.googleId,
       hasPassword: !!user.passwordHash,
+      googleScopes: user.googleScopes || [],
     });
   } catch (err) {
     console.warn("[auth:me] トークン検証失敗:", err);

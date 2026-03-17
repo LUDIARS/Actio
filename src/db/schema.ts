@@ -19,6 +19,9 @@ export const users = sqliteTable("users", {
   googleRefreshToken: text("google_refresh_token"),
   googleTokenExpiresAt: integer("google_token_expires_at"),
 
+  // Google認可スコープ（許可されたパーミッション一覧）
+  googleScopes: text("google_scopes", { mode: "json" }).$type<string[]>(),
+
   // Google Calendar連携用
   calendarAccessId: text("calendar_access_id"),
 

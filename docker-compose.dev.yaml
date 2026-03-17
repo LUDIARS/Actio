@@ -9,6 +9,10 @@ services:
   db:
     ports: !reset []
 
+  # ─── Redis: don't expose port to host ─────────────────────
+  redis:
+    ports: !reset []
+
   # ─── Backend: tsx watch with source mounts ──────────────────
   backend:
     ports: !reset []

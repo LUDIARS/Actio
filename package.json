@@ -27,6 +27,7 @@
     "csv-parse": "^6.1.0",
     "drizzle-orm": "^0.45.1",
     "hono": "^4.12.8",
+    "ioredis": "^5.10.0",
     "jsonwebtoken": "^9.0.3",
     "mysql2": "^3.20.0",
     "postgres": "^3.4.8",
@@ -35,6 +36,7 @@
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",
     "@types/better-sqlite3": "^7.6.13",
+    "@types/ioredis": "^4.28.10",
     "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^25.5.0",
     "@types/uuid": "^10.0.0",

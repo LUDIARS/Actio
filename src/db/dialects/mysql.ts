@@ -29,6 +29,9 @@ export const users = mysqlTable("users", {
   googleRefreshToken: text("google_refresh_token"),
   googleTokenExpiresAt: bigint("google_token_expires_at", { mode: "number" }),
 
+  // Google認可スコープ（許可されたパーミッション一覧）
+  googleScopes: json("google_scopes").$type<string[]>(),
+
   calendarAccessId: varchar("calendar_access_id", { length: 255 }),
 
   createdAt: timestamp("created_at")

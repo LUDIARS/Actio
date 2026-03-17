@@ -19,6 +19,7 @@ sqlite.exec(`
     google_access_token TEXT,
     google_refresh_token TEXT,
     google_token_expires_at INTEGER,
+    google_scopes TEXT,
     calendar_access_id TEXT,
     created_at INTEGER NOT NULL,
     updated_at INTEGER NOT NULL

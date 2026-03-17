@@ -203,10 +203,17 @@ calendar.get("/status", (c) => {
 
   if (!user) return c.json({ error: "User not found" }, 404);
 
+  const scopes: string[] = user.googleScopes || [];
+  const hasCalendarScope = scopes.some((s: string) =>
+    s.includes("calendar.readonly") || s.includes("calendar.events")
+  );
+
   return c.json({
     connected: !!user.googleId,
     email: user.email,
     hasGoogleAuth: !!user.googleId,
+    googleScopes: scopes,
+    hasCalendarScope,
   });
 });
 
@@ -237,6 +244,7 @@ calendar.post("/disconnect", (c) => {
       googleAccessToken: null,
       googleRefreshToken: null,
       googleTokenExpiresAt: null,
+      googleScopes: null,
       calendarAccessId: null,
       updatedAt: new Date(),
     })
