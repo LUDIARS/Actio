@@ -56,19 +56,33 @@ async function request<T>(
     headers["X-User-Role"] = user.role;
   }
 
-  let res = await fetch(url, { ...options, headers });
+  let res: Response;
+  try {
+    console.log(`[api] ${options.method || "GET"} ${url}`);
+    res = await fetch(url, { ...options, headers });
+  } catch (err) {
+    console.error(`[api] ネットワークエラー: ${options.method || "GET"} ${url}`, err);
+    throw new Error(`ネットワークエラー: ${(err as Error).message}`);
+  }
 
   // If 401, try refresh
   if (res.status === 401 && getRefreshToken()) {
+    console.log("[api] 401 - トークンリフレッシュ試行中...");
     const refreshed = await refreshAccessToken();
     if (refreshed) {
       headers["Authorization"] = `Bearer ${getAccessToken()}`;
-      res = await fetch(url, { ...options, headers });
+      try {
+        res = await fetch(url, { ...options, headers });
+      } catch (err) {
+        console.error(`[api] リトライ時ネットワークエラー: ${url}`, err);
+        throw new Error(`ネットワークエラー: ${(err as Error).message}`);
+      }
     }
   }
 
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
+    console.error(`[api] HTTPエラー: ${res.status} ${url}`, body);
     throw new Error(body.error || `HTTP ${res.status}`);
   }
   return res.json();
@@ -101,32 +115,55 @@ async function refreshAccessToken(): Promise<boolean> {
 
 export const auth = {
   async register(body: { name: string; email: string; password: string; role?: string }) {
-    const res = await fetch(`${API_BASE}/api/auth/register`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
+    console.log("[auth] 登録リクエスト:", body.email);
+    let res: Response;
+    try {
+      res = await fetch(`${API_BASE}/api/auth/register`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+    } catch (err) {
+      console.error("[auth] 登録ネットワークエラー:", err);
+      throw new Error(`ネットワークエラー: ${(err as Error).message}`);
+    }
     const data = await res.json();
-    if (!res.ok) throw new Error(data.error || "Registration failed");
+    if (!res.ok) {
+      console.error("[auth] 登録失敗:", res.status, data);
+      throw new Error(data.error || "Registration failed");
+    }
+    console.log("[auth] 登録成功");
     setTokens(data.accessToken, data.refreshToken);
     setStoredUser(data.user);
     return data;
   },
 
   async login(body: { email: string; password: string }) {
-    const res = await fetch(`${API_BASE}/api/auth/login`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
+    console.log("[auth] ログインリクエスト:", body.email);
+    let res: Response;
+    try {
+      res = await fetch(`${API_BASE}/api/auth/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+    } catch (err) {
+      console.error("[auth] ログインネットワークエラー:", err);
+      throw new Error(`ネットワークエラー: ${(err as Error).message}`);
+    }
     const data = await res.json();
-    if (!res.ok) throw new Error(data.error || "Login failed");
+    if (!res.ok) {
+      console.error("[auth] ログイン失敗:", res.status, data);
+      throw new Error(data.error || "Login failed");
+    }
+    console.log("[auth] ログイン成功");
     setTokens(data.accessToken, data.refreshToken);
     setStoredUser(data.user);
     return data;
   },
 
   async logout() {
+    console.log("[auth] ログアウトリクエスト");
     const refreshToken = getRefreshToken();
     try {
       await fetch(`${API_BASE}/api/auth/logout`, {
@@ -134,12 +171,17 @@ export const auth = {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ refreshToken }),
       });
-    } catch { /* ignore */ }
+      console.log("[auth] ログアウト成功");
+    } catch (err) {
+      console.error("[auth] ログアウトネットワークエラー:", err);
+    }
     clearTokens();
   },
 
   getGoogleAuthUrl() {
-    return `${API_BASE}/api/auth/google`;
+    // Always use relative URL so navigation goes through the frontend proxy (Vite/Nginx)
+    // instead of navigating directly to the backend port
+    return "/api/auth/google";
   },
 
   async me() {

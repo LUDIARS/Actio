@@ -14,7 +14,9 @@ const REFRESH_TOKEN_EXPIRES_DAYS = 30;
 // Google OAuth設定
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || "";
 const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET || "";
-const GOOGLE_REDIRECT_URI = process.env.GOOGLE_REDIRECT_URI || "http://localhost:3000/api/auth/google/callback";
+const GOOGLE_REDIRECT_URI = process.env.GOOGLE_REDIRECT_URI || "http://localhost:8080/api/auth/google/callback";
+// フロントエンドURL（OAuthコールバック後のリダイレクト先）
+const FRONTEND_URL = process.env.FRONTEND_URL || "http://localhost:8080";
 
 // ─── Helper: JWTトークン生成 ────────────────────────────────
 
@@ -263,7 +265,13 @@ auth.post("/logout", async (c) => {
 // Google Calendarデータ同期用の権限も同時に取得
 
 auth.get("/google", (c) => {
+  console.log("[auth:google] OAuthリダイレクト開始");
+  console.log("[auth:google] GOOGLE_CLIENT_ID:", GOOGLE_CLIENT_ID ? "設定済み" : "未設定");
+  console.log("[auth:google] GOOGLE_REDIRECT_URI:", GOOGLE_REDIRECT_URI);
+  console.log("[auth:google] FRONTEND_URL:", FRONTEND_URL);
+
   if (!GOOGLE_CLIENT_ID) {
+    console.error("[auth:google] GOOGLE_CLIENT_IDが未設定");
     return c.json({ error: "Google OAuth is not configured" }, 500);
   }
 
@@ -284,25 +292,35 @@ auth.get("/google", (c) => {
     prompt: "consent",
   });
 
-  return c.redirect(`https://accounts.google.com/o/oauth2/v2/auth?${params}`);
+  const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?${params}`;
+  console.log("[auth:google] Googleへリダイレクト");
+  return c.redirect(authUrl);
 });
 
 // ─── GET /google/callback - Google OAuthコールバック ─────────
 
 auth.get("/google/callback", async (c) => {
+  console.log("[auth:google:callback] リクエスト受信");
   const code = c.req.query("code");
   const error = c.req.query("error");
 
   if (error) {
-    return c.json({ error: `Google OAuth error: ${error}` }, 400);
+    console.warn("[auth:google:callback] Googleエラー:", error);
+    const errorUrl = new URL(FRONTEND_URL);
+    errorUrl.searchParams.set("authError", `Google OAuth error: ${error}`);
+    return c.redirect(errorUrl.toString());
   }
 
   if (!code) {
-    return c.json({ error: "Authorization code not provided" }, 400);
+    console.warn("[auth:google:callback] 認可コード未提供");
+    const errorUrl = new URL(FRONTEND_URL);
+    errorUrl.searchParams.set("authError", "Authorization code not provided");
+    return c.redirect(errorUrl.toString());
   }
 
   try {
     // Exchange code for tokens
+    console.log("[auth:google:callback] Googleトークン交換中...");
     const tokenRes = await fetch("https://oauth2.googleapis.com/token", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -323,10 +341,14 @@ auth.get("/google/callback", async (c) => {
     };
 
     if (!tokenRes.ok) {
-      return c.json({ error: "Failed to exchange authorization code" }, 400);
+      console.error("[auth:google:callback] トークン交換失敗:", tokenData);
+      const errorUrl = new URL(FRONTEND_URL);
+      errorUrl.searchParams.set("authError", "Failed to exchange authorization code");
+      return c.redirect(errorUrl.toString());
     }
 
     // Get user info from Google
+    console.log("[auth:google:callback] Googleユーザ情報取得中...");
     const userInfoRes = await fetch("https://www.googleapis.com/oauth2/v2/userinfo", {
       headers: { Authorization: `Bearer ${tokenData.access_token}` },
     });
@@ -337,6 +359,7 @@ auth.get("/google/callback", async (c) => {
       name: string;
       picture?: string;
     };
+    console.log("[auth:google:callback] Googleユーザ情報:", { id: userInfo.id, email: userInfo.email, name: userInfo.name });
 
     // Check if user already exists by Google ID or email
     let user = db
@@ -357,6 +380,7 @@ auth.get("/google/callback", async (c) => {
     const tokenExpiresAt = Date.now() + tokenData.expires_in * 1000;
 
     if (user) {
+      console.log("[auth:google:callback] 既存ユーザ更新 userId:", user.id);
       // Update existing user with Google tokens
       db.update(schema.users)
         .set({
@@ -371,6 +395,7 @@ auth.get("/google/callback", async (c) => {
         .run();
     } else {
       // Create new user from Google profile
+      console.log("[auth:google:callback] 新規ユーザ作成");
       const userId = uuidv4();
       db.insert(schema.users)
         .values({
@@ -396,7 +421,10 @@ auth.get("/google/callback", async (c) => {
     }
 
     if (!user) {
-      return c.json({ error: "Failed to create/find user" }, 500);
+      console.error("[auth:google:callback] ユーザ作成/検索失敗");
+      const errorUrl = new URL(FRONTEND_URL);
+      errorUrl.searchParams.set("authError", "Failed to create/find user");
+      return c.redirect(errorUrl.toString());
     }
 
     // Generate JWT tokens
@@ -415,17 +443,17 @@ auth.get("/google/callback", async (c) => {
       })
       .run();
 
-    // In production, redirect to frontend with tokens
-    // For now, return JSON
-    return c.json({
-      user: { id: user.id, name: user.name, email: user.email, role: user.role },
-      accessToken,
-      refreshToken,
-      calendarConnected: true,
-    });
+    // フロントエンドにリダイレクト（トークンをURLパラメータで渡す）
+    const redirectUrl = new URL(FRONTEND_URL);
+    redirectUrl.searchParams.set("accessToken", accessToken);
+    redirectUrl.searchParams.set("refreshToken", refreshToken);
+    console.log("[auth:google:callback] フロントエンドにリダイレクト userId:", user.id);
+    return c.redirect(redirectUrl.toString());
   } catch (err) {
-    console.error("Google OAuth callback error:", err);
-    return c.json({ error: "Internal server error during OAuth" }, 500);
+    console.error("[auth:google:callback] エラー発生:", err);
+    const errorUrl = new URL(FRONTEND_URL);
+    errorUrl.searchParams.set("authError", "Internal server error during OAuth");
+    return c.redirect(errorUrl.toString());
   }
 });
 
