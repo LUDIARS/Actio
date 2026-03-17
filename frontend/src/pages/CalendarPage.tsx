@@ -3,7 +3,7 @@ import { useAuth } from "../contexts/AuthContext";
 import { calendarApi } from "../lib/api";
 import { DAY_LABELS, getPeriodLabel } from "../lib/constants";
 
-type Tab = "events" | "plans" | "google";
+type Tab = "events" | "plans" | "google" | "conflicts";
 
 interface PersonalEvent {
   id: string;
@@ -36,6 +36,11 @@ export function CalendarPage() {
   const [plans, setPlans] = useState<Plan[]>([]);
   const [googleConnected, setGoogleConnected] = useState(false);
   const [googleEvents, setGoogleEvents] = useState<any[]>([]);
+  const [conflicts, setConflicts] = useState<Array<{
+    day: number;
+    period: number;
+    items: Array<{ type: string; title: string; source: string }>;
+  }>>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -89,11 +94,21 @@ export function CalendarPage() {
     }
   }, []);
 
+  const loadConflicts = useCallback(async () => {
+    try {
+      const data = await calendarApi.getConflicts();
+      setConflicts(data.conflicts || []);
+    } catch (err) {
+      console.error("[CalendarPage] loadConflicts失敗:", err);
+    }
+  }, []);
+
   useEffect(() => {
     loadEvents();
     loadPlans();
     loadGoogleStatus();
-  }, [loadEvents, loadPlans, loadGoogleStatus]);
+    loadConflicts();
+  }, [loadEvents, loadPlans, loadGoogleStatus, loadConflicts]);
 
   const loadGoogleEvents = async () => {
     setLoading(true);
@@ -230,6 +245,7 @@ export function CalendarPage() {
           { key: "events", label: "手動予定" },
           { key: "plans", label: "プラン" },
           { key: "google", label: "Googleカレンダー" },
+          { key: "conflicts", label: `バッティング${conflicts.length > 0 ? ` (${conflicts.length})` : ""}` },
         ] as const).map((t) => (
           <button
             key={t.key}
@@ -505,6 +521,73 @@ export function CalendarPage() {
                       時限: {getPeriodLabel(plan.startPeriod)}
                       {plan.duration > 1 ? ` 〜 ${plan.duration}コマ` : ""}
                     </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ─── バッティングタブ ─── */}
+      {tab === "conflicts" && (
+        <div>
+          <div className="card" style={{ marginBottom: "1rem" }}>
+            <h3 style={{ fontSize: "0.95rem", fontWeight: 600, marginBottom: "0.5rem" }}>
+              バッティング検出
+            </h3>
+            <p style={{ fontSize: "0.8rem", color: "var(--text-muted)", marginBottom: "0.75rem" }}>
+              個人の予定とグループの予定が重複している箇所です。バッティングマークが表示され、予定を確認している他の人にもわかるようになっています。
+            </p>
+            <button onClick={loadConflicts} style={{ fontSize: "0.8rem" }}>再チェック</button>
+          </div>
+
+          {conflicts.length === 0 ? (
+            <div className="empty-state">
+              <p>バッティングはありません</p>
+            </div>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+              {conflicts.map((conflict, i) => (
+                <div
+                  key={i}
+                  className="card"
+                  style={{
+                    borderLeft: "3px solid var(--red)",
+                  }}
+                >
+                  <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.5rem" }}>
+                    <span style={{ fontSize: "1.2rem" }}>&#x26A0;</span>
+                    <span style={{ fontWeight: 600, fontSize: "0.9rem" }}>
+                      {DAY_LABELS[conflict.day]} {getPeriodLabel(conflict.period)}
+                    </span>
+                    <span className="badge red" style={{ fontSize: "0.65rem" }}>
+                      {conflict.items.length}件重複
+                    </span>
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "0.3rem" }}>
+                    {conflict.items.map((item, j) => (
+                      <div
+                        key={j}
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "0.5rem",
+                          padding: "0.3rem 0.5rem",
+                          background: "var(--bg-surface-2)",
+                          borderRadius: "var(--radius-sm)",
+                          fontSize: "0.8rem",
+                        }}
+                      >
+                        <span className={`badge ${item.type === "personal" ? "orange" : "blue"}`} style={{ fontSize: "0.6rem" }}>
+                          {item.type === "personal" ? "個人" : "グループ"}
+                        </span>
+                        <span style={{ fontWeight: 500 }}>{item.title}</span>
+                        <span style={{ color: "var(--text-muted)", fontSize: "0.7rem", marginLeft: "auto" }}>
+                          {item.source}
+                        </span>
+                      </div>
+                    ))}
                   </div>
                 </div>
               ))}

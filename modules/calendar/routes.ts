@@ -731,4 +731,108 @@ calendar.post("/plans/:id/regenerate", (c) => {
   return c.json({ generatedEvents: createdCount });
 });
 
+// ─── GET /conflicts - バッティング検出 ───────────────────────
+// 個人の予定とグループの予定の重複を検出
+
+calendar.get("/conflicts", (c) => {
+  const userId = c.req.header("X-User-Id");
+  if (!userId) return c.json({ error: "Authentication required" }, 401);
+
+  // 個人の予定を取得
+  const personalEvts = db
+    .select()
+    .from(schema.personalEvents)
+    .where(eq(schema.personalEvents.userId, userId))
+    .all();
+
+  // ユーザーが所属するグループの予定を取得
+  const memberships = db
+    .select()
+    .from(schema.groupMembers)
+    .where(eq(schema.groupMembers.userId, userId))
+    .all();
+
+  const groupScheduleList: Array<{
+    id: string;
+    groupId: string;
+    groupName: string;
+    title: string;
+    day: number;
+    period: number;
+    duration: number;
+  }> = [];
+
+  for (const m of memberships) {
+    const group = db
+      .select()
+      .from(schema.groups)
+      .where(eq(schema.groups.id, m.groupId))
+      .get();
+
+    if (!group) continue;
+
+    const schedules = db
+      .select()
+      .from(schema.groupSchedules)
+      .where(eq(schema.groupSchedules.groupId, m.groupId))
+      .all();
+
+    for (const s of schedules) {
+      groupScheduleList.push({
+        id: s.id,
+        groupId: m.groupId,
+        groupName: group.name,
+        title: s.title,
+        day: s.day,
+        period: s.period,
+        duration: s.duration,
+      });
+    }
+  }
+
+  // バッティング検出
+  const conflicts: Array<{
+    day: number;
+    period: number;
+    items: Array<{ type: string; title: string; source: string }>;
+  }> = [];
+
+  // slot → items のマップ
+  const slotMap = new Map<string, Array<{ type: string; title: string; source: string }>>();
+
+  for (const evt of personalEvts) {
+    const key = `${evt.day}-${evt.period}`;
+    if (!slotMap.has(key)) slotMap.set(key, []);
+    slotMap.get(key)!.push({
+      type: "personal",
+      title: evt.title,
+      source: evt.planId ? "マイプラン" : "手動",
+    });
+  }
+
+  for (const gs of groupScheduleList) {
+    for (let p = 0; p < gs.duration; p++) {
+      const period = gs.period + p;
+      if (period > 10) continue;
+      const key = `${gs.day}-${period}`;
+      if (!slotMap.has(key)) slotMap.set(key, []);
+      slotMap.get(key)!.push({
+        type: "group",
+        title: gs.title,
+        source: gs.groupName,
+      });
+    }
+  }
+
+  // 2つ以上のアイテムがあるスロットがバッティング
+  for (const [key, items] of slotMap.entries()) {
+    if (items.length >= 2) {
+      const [day, period] = key.split("-").map(Number);
+      conflicts.push({ day, period, items });
+    }
+  }
+
+  return c.json({ conflicts });
+});
+
 export { calendar };

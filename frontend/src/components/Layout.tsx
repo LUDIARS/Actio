@@ -3,13 +3,15 @@ import { useAuth } from "../contexts/AuthContext";
 
 const NAV_ITEMS = [
   { to: "/", label: "Dashboard" },
-  { to: "/schedule", label: "M1 時間割" },
-  { to: "/curriculum-plan", label: "カリキュラムプラン" },
-  { to: "/scheduler", label: "M3 スケジューラ" },
-  { to: "/reservations", label: "M4 予約" },
+  { to: "/data-management", label: "M1 データ管理" },
+  { to: "/curriculum-plan", label: "M2 カリキュラムプラン" },
+  { to: "/my-plan", label: "マイプラン" },
+  { to: "/groups", label: "グループ" },
   { to: "/calendar", label: "カレンダー" },
-  { to: "/notifications", label: "M5 通知" },
-  { to: "/voting", label: "M6 日程調整" },
+  { to: "/scheduler", label: "スケジューラ" },
+  { to: "/reservations", label: "予約" },
+  { to: "/notifications", label: "通知" },
+  { to: "/voting", label: "日程調整" },
 ];
 
 export function Layout() {
@@ -42,7 +44,7 @@ export function Layout() {
               color: "var(--text-muted)",
             }}
           >
-            Academic Scheduling
+            Scheduling Platform
           </span>
         </div>
         <nav style={{ display: "flex", flexDirection: "column", gap: 2, flex: 1 }}>

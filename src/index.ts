@@ -46,6 +46,14 @@ for (const mod of modules) {
 import { calendar } from "../modules/calendar/routes.js";
 app.route("/api/calendar", calendar);
 
+// ─── Groups Module (グループ管理) ───────────────────────────
+import { groupRoutes } from "../modules/group/routes.js";
+app.route("/api/groups", groupRoutes);
+
+// ─── MyPlan Module (マイプラン: 週間ルーティーン) ────────────
+import { myPlanRoutes } from "../modules/myplan/routes.js";
+app.route("/api/myplans", myPlanRoutes);
+
 // ─── Legacy Compatibility ───────────────────────────────────
 // 旧パス (/api/m1, /api/m2, ...) への後方互換ルーティング
 // 新規開発では /api/school/m1, /api/reservations, /api/webhooks を使用してください

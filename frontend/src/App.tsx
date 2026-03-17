@@ -3,13 +3,15 @@ import { AuthProvider, useAuth } from "./contexts/AuthContext";
 import { Layout } from "./components/Layout";
 import { LoginPage } from "./pages/LoginPage";
 import { Dashboard } from "./pages/Dashboard";
-import { SchedulePage } from "./pages/SchedulePage";
+import { DataManagementPage } from "./pages/DataManagementPage";
 import { SchedulerPage } from "./pages/SchedulerPage";
 import { ReservationsPage } from "./pages/ReservationsPage";
 import { NotificationsPage } from "./pages/NotificationsPage";
 import { CurriculumPlanPage } from "./pages/CurriculumPlanPage";
 import { VotingPage } from "./pages/VotingPage";
 import { CalendarPage } from "./pages/CalendarPage";
+import { GroupsPage } from "./pages/GroupsPage";
+import { MyPlanPage } from "./pages/MyPlanPage";
 import "./global.css";
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
@@ -41,12 +43,15 @@ function AppRoutes() {
       <Route path="/login" element={user ? <Navigate to="/" replace /> : <LoginPage />} />
       <Route element={<RequireAuth><Layout /></RequireAuth>}>
         <Route index element={<Dashboard />} />
-        <Route path="/schedule" element={<SchedulePage />} />
+        <Route path="/data-management" element={<DataManagementPage />} />
+        <Route path="/schedule" element={<DataManagementPage />} />
+        <Route path="/curriculum-plan" element={<CurriculumPlanPage />} />
+        <Route path="/groups" element={<GroupsPage />} />
+        <Route path="/my-plan" element={<MyPlanPage />} />
         <Route path="/scheduler" element={<SchedulerPage />} />
         <Route path="/reservations" element={<ReservationsPage />} />
         <Route path="/reservations/new" element={<ReservationsPage />} />
         <Route path="/notifications" element={<NotificationsPage />} />
-        <Route path="/curriculum-plan" element={<CurriculumPlanPage />} />
         <Route path="/voting" element={<VotingPage />} />
         <Route path="/calendar" element={<CalendarPage />} />
       </Route>

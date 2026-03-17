@@ -79,17 +79,45 @@ sqlite.exec(`
     created_at INTEGER NOT NULL
   );
 
-  CREATE TABLE IF NOT EXISTS groups_ (
+  CREATE TABLE IF NOT EXISTS "groups" (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
+    description TEXT,
     members TEXT NOT NULL DEFAULT '[]',
     created_by TEXT NOT NULL,
     created_at INTEGER NOT NULL
   );
 
+  CREATE TABLE IF NOT EXISTS group_members (
+    id TEXT PRIMARY KEY,
+    group_id TEXT NOT NULL REFERENCES groups(id),
+    user_id TEXT NOT NULL REFERENCES users(id),
+    role TEXT NOT NULL DEFAULT 'member',
+    joined_at INTEGER NOT NULL,
+    UNIQUE(group_id, user_id)
+  );
+  CREATE INDEX IF NOT EXISTS idx_group_member_user ON group_members(user_id);
+  CREATE INDEX IF NOT EXISTS idx_group_member_group ON group_members(group_id);
+
+  CREATE TABLE IF NOT EXISTS group_schedules (
+    id TEXT PRIMARY KEY,
+    group_id TEXT NOT NULL REFERENCES groups(id),
+    title TEXT NOT NULL,
+    description TEXT,
+    day INTEGER NOT NULL,
+    period INTEGER NOT NULL,
+    duration INTEGER NOT NULL DEFAULT 1,
+    date TEXT,
+    schedule_type TEXT NOT NULL DEFAULT 'recurring',
+    created_by TEXT NOT NULL,
+    created_at INTEGER NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS idx_group_schedule_group ON group_schedules(group_id);
+  CREATE INDEX IF NOT EXISTS idx_group_schedule_date ON group_schedules(date);
+
   CREATE TABLE IF NOT EXISTS reservations (
     id TEXT PRIMARY KEY,
-    group_id TEXT NOT NULL REFERENCES groups_(id),
+    group_id TEXT NOT NULL REFERENCES groups(id),
     title TEXT NOT NULL,
     day INTEGER NOT NULL,
     period INTEGER NOT NULL,
@@ -157,6 +185,57 @@ sqlite.exec(`
     created_at INTEGER NOT NULL
   );
   CREATE INDEX IF NOT EXISTS idx_notification_user ON notifications(user_id);
+
+  CREATE TABLE IF NOT EXISTS personal_events (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL REFERENCES users(id),
+    title TEXT NOT NULL,
+    description TEXT,
+    day INTEGER NOT NULL,
+    period INTEGER NOT NULL,
+    duration INTEGER NOT NULL DEFAULT 1,
+    event_type TEXT NOT NULL DEFAULT 'personal',
+    plan_id TEXT,
+    is_private INTEGER NOT NULL DEFAULT 1,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL,
+    UNIQUE(user_id, day, period)
+  );
+  CREATE INDEX IF NOT EXISTS idx_personal_event_user ON personal_events(user_id);
+  CREATE INDEX IF NOT EXISTS idx_personal_event_plan ON personal_events(plan_id);
+
+  CREATE TABLE IF NOT EXISTS plans (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL REFERENCES users(id),
+    name TEXT NOT NULL,
+    description TEXT,
+    days TEXT NOT NULL DEFAULT '[]',
+    start_period INTEGER NOT NULL,
+    duration INTEGER NOT NULL DEFAULT 1,
+    event_type TEXT NOT NULL DEFAULT 'personal',
+    is_private INTEGER NOT NULL DEFAULT 1,
+    is_active INTEGER NOT NULL DEFAULT 1,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS idx_plan_user ON plans(user_id);
+
+  CREATE TABLE IF NOT EXISTS my_plans (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL REFERENCES users(id),
+    group_id TEXT,
+    name TEXT NOT NULL,
+    pattern_type TEXT NOT NULL DEFAULT 'basic',
+    valid_from TEXT,
+    valid_until TEXT,
+    weekly_schedule TEXT NOT NULL DEFAULT '{}',
+    is_active INTEGER NOT NULL DEFAULT 1,
+    priority INTEGER NOT NULL DEFAULT 0,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS idx_myplan_user ON my_plans(user_id);
+  CREATE INDEX IF NOT EXISTS idx_myplan_group ON my_plans(group_id);
 `);
 
 // Curriculum module tables (enterprise patch)

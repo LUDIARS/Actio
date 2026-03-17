@@ -282,6 +282,9 @@ export const calendarApi = {
   regeneratePlan(id: string) {
     return request<any>(`/api/calendar/plans/${id}/regenerate`, { method: "POST" });
   },
+  getConflicts() {
+    return request<any>("/api/calendar/conflicts");
+  },
 };
 
 // ─── M1 ─────────────────────────────────────────────────────
@@ -491,6 +494,82 @@ export const m5 = {
     return request<any>(`/api/m5/notifications/${id}/read`, {
       method: "POST",
     });
+  },
+};
+
+// ─── Groups ──────────────────────────────────────────────────
+
+export const groupApi = {
+  listMyGroups() {
+    return request<any>("/api/groups/my");
+  },
+  getGroup(groupId: string) {
+    return request<any>(`/api/groups/${groupId}`);
+  },
+  createGroup(body: { name: string; description?: string }) {
+    return request<any>("/api/groups", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  },
+  joinGroup(groupId: string) {
+    return request<any>(`/api/groups/${groupId}/join`, { method: "POST" });
+  },
+  leaveGroup(groupId: string) {
+    return request<any>(`/api/groups/${groupId}/leave`, { method: "POST" });
+  },
+  addSchedule(groupId: string, body: {
+    title: string;
+    day: number;
+    period: number;
+    duration?: number;
+    scheduleType?: string;
+    date?: string;
+  }) {
+    return request<any>(`/api/groups/${groupId}/schedules`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  },
+};
+
+// ─── MyPlan ──────────────────────────────────────────────────
+
+export const myPlanApi = {
+  list() {
+    return request<any>("/api/myplans");
+  },
+  create(body: {
+    name: string;
+    patternType: string;
+    validFrom?: string;
+    validUntil?: string;
+    weeklySchedule: Record<string, Array<{ period: number; duration: number; title: string }>>;
+    groupId?: string;
+  }) {
+    return request<any>("/api/myplans", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  },
+  update(id: string, body: {
+    name?: string;
+    patternType?: string;
+    validFrom?: string;
+    validUntil?: string;
+    weeklySchedule?: Record<string, Array<{ period: number; duration: number; title: string }>>;
+    isActive?: boolean;
+  }) {
+    return request<any>(`/api/myplans/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(body),
+    });
+  },
+  remove(id: string) {
+    return request<any>(`/api/myplans/${id}`, { method: "DELETE" });
+  },
+  generateSchedule(id: string) {
+    return request<any>(`/api/myplans/${id}/generate`, { method: "POST" });
   },
 };
 
