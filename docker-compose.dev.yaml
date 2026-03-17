@@ -11,6 +11,7 @@ services:
 
   # ─── Backend: tsx watch with source mounts ──────────────────
   backend:
+    ports: !reset []
     build:
       context: .
       dockerfile: Dockerfile
@@ -40,4 +41,4 @@ services:
       - ./frontend/tsconfig.node.json:/app/tsconfig.node.json
       - ./frontend/public:/app/public
     environment:
-      VITE_API_BASE: http://localhost:${BACKEND_PORT:-3000}
+      VITE_API_BASE: ""

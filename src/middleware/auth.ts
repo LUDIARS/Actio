@@ -35,6 +35,10 @@ export function requireRole(...allowedRoles: UserRole[]) {
 export function userContext() {
   return createMiddleware(async (c, next) => {
     const authHeader = c.req.header("Authorization");
+    const method = c.req.method;
+    const path = c.req.path;
+
+    console.log(`[middleware:userContext] ${method} ${path}`);
 
     if (authHeader?.startsWith("Bearer ")) {
       try {
@@ -45,10 +49,12 @@ export function userContext() {
         };
         c.set("userId" as never, payload.userId as never);
         c.set("userRole" as never, payload.role as never);
-      } catch {
+        console.log(`[middleware:userContext] JWT認証成功 userId: ${payload.userId}, role: ${payload.role}`);
+      } catch (err) {
         // Invalid token - fall through to header-based auth
         c.set("userId" as never, "anonymous" as never);
         c.set("userRole" as never, "guest" as never);
+        console.warn(`[middleware:userContext] JWT検証失敗:`, err instanceof Error ? err.message : err);
       }
     } else {
       // Legacy header-based auth (development)
@@ -56,6 +62,7 @@ export function userContext() {
       const role = (c.req.header("X-User-Role") as UserRole) || "guest";
       c.set("userId" as never, userId as never);
       c.set("userRole" as never, role as never);
+      console.log(`[middleware:userContext] ヘッダー認証 userId: ${userId}, role: ${role}`);
     }
 
     await next();

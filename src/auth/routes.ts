@@ -29,179 +29,234 @@ function generateTokens(userId: string, role: string) {
 // ─── POST /register - パスワード認証でユーザ登録 ────────────
 
 auth.post("/register", async (c) => {
-  const body = await c.req.json<{
-    name: string;
-    email: string;
-    password: string;
-    role?: string;
-    major?: string;
-  }>();
+  console.log("[auth:register] リクエスト受信");
 
-  if (!body.name || !body.email || !body.password) {
-    return c.json({ error: "name, email, password are required" }, 400);
-  }
+  try {
+    const body = await c.req.json<{
+      name: string;
+      email: string;
+      password: string;
+      role?: string;
+      major?: string;
+    }>();
 
-  if (body.password.length < 8) {
-    return c.json({ error: "Password must be at least 8 characters" }, 400);
-  }
+    console.log("[auth:register] リクエストボディ:", { name: body.name, email: body.email, role: body.role });
 
-  // Check if email already exists
-  const existing = db
-    .select()
-    .from(schema.users)
-    .where(eq(schema.users.email, body.email))
-    .get();
+    if (!body.name || !body.email || !body.password) {
+      console.warn("[auth:register] バリデーションエラー: 必須フィールド不足");
+      return c.json({ error: "name, email, password are required" }, 400);
+    }
 
-  if (existing) {
-    return c.json({ error: "Email already registered" }, 409);
-  }
+    if (body.password.length < 8) {
+      console.warn("[auth:register] バリデーションエラー: パスワードが短い");
+      return c.json({ error: "Password must be at least 8 characters" }, 400);
+    }
 
-  const userId = uuidv4();
-  const passwordHash = await bcrypt.hash(body.password, 12);
-  const now = new Date();
+    // Check if email already exists
+    console.log("[auth:register] メール重複チェック:", body.email);
+    const existing = db
+      .select()
+      .from(schema.users)
+      .where(eq(schema.users.email, body.email))
+      .get();
 
-  db.insert(schema.users)
-    .values({
-      id: userId,
-      name: body.name,
-      email: body.email,
-      role: body.role || "student",
-      major: body.major || null,
-      passwordHash,
-      createdAt: now,
-      updatedAt: now,
-    })
-    .run();
+    if (existing) {
+      console.warn("[auth:register] メール重複:", body.email);
+      return c.json({ error: "Email already registered" }, 409);
+    }
 
-  const { accessToken, refreshToken } = generateTokens(userId, body.role || "student");
+    const userId = uuidv4();
+    console.log("[auth:register] パスワードハッシュ生成中...");
+    const passwordHash = await bcrypt.hash(body.password, 12);
+    const now = new Date();
 
-  // Save session
-  const sessionId = uuidv4();
-  const expiresAt = new Date(Date.now() + REFRESH_TOKEN_EXPIRES_DAYS * 24 * 60 * 60 * 1000);
+    console.log("[auth:register] ユーザレコード挿入中... userId:", userId);
+    db.insert(schema.users)
+      .values({
+        id: userId,
+        name: body.name,
+        email: body.email,
+        role: body.role || "student",
+        major: body.major || null,
+        passwordHash,
+        createdAt: now,
+        updatedAt: now,
+      })
+      .run();
+    console.log("[auth:register] ユーザレコード挿入完了");
 
-  db.insert(schema.sessions)
-    .values({
-      id: sessionId,
-      userId,
+    const { accessToken, refreshToken } = generateTokens(userId, body.role || "student");
+    console.log("[auth:register] トークン生成完了");
+
+    // Save session
+    const sessionId = uuidv4();
+    const expiresAt = new Date(Date.now() + REFRESH_TOKEN_EXPIRES_DAYS * 24 * 60 * 60 * 1000);
+
+    console.log("[auth:register] セッション保存中... sessionId:", sessionId);
+    db.insert(schema.sessions)
+      .values({
+        id: sessionId,
+        userId,
+        refreshToken,
+        expiresAt,
+        createdAt: now,
+      })
+      .run();
+    console.log("[auth:register] セッション保存完了");
+
+    console.log("[auth:register] 登録成功 userId:", userId);
+    return c.json({
+      user: { id: userId, name: body.name, email: body.email, role: body.role || "student" },
+      accessToken,
       refreshToken,
-      expiresAt,
-      createdAt: now,
-    })
-    .run();
-
-  return c.json({
-    user: { id: userId, name: body.name, email: body.email, role: body.role || "student" },
-    accessToken,
-    refreshToken,
-  }, 201);
+    }, 201);
+  } catch (err) {
+    console.error("[auth:register] エラー発生:", err);
+    return c.json({ error: "Internal server error during registration" }, 500);
+  }
 });
 
 // ─── POST /login - パスワードでログイン ─────────────────────
 
 auth.post("/login", async (c) => {
-  const body = await c.req.json<{ email: string; password: string }>();
+  console.log("[auth:login] リクエスト受信");
 
-  if (!body.email || !body.password) {
-    return c.json({ error: "email and password are required" }, 400);
-  }
+  try {
+    const body = await c.req.json<{ email: string; password: string }>();
+    console.log("[auth:login] メール:", body.email);
 
-  const user = db
-    .select()
-    .from(schema.users)
-    .where(eq(schema.users.email, body.email))
-    .get();
+    if (!body.email || !body.password) {
+      console.warn("[auth:login] バリデーションエラー: 必須フィールド不足");
+      return c.json({ error: "email and password are required" }, 400);
+    }
 
-  if (!user || !user.passwordHash) {
-    return c.json({ error: "Invalid email or password" }, 401);
-  }
+    console.log("[auth:login] ユーザ検索中...");
+    const user = db
+      .select()
+      .from(schema.users)
+      .where(eq(schema.users.email, body.email))
+      .get();
 
-  const valid = await bcrypt.compare(body.password, user.passwordHash);
-  if (!valid) {
-    return c.json({ error: "Invalid email or password" }, 401);
-  }
+    if (!user || !user.passwordHash) {
+      console.warn("[auth:login] ユーザが見つからない or パスワード未設定:", body.email);
+      return c.json({ error: "Invalid email or password" }, 401);
+    }
 
-  const { accessToken, refreshToken } = generateTokens(user.id, user.role);
+    console.log("[auth:login] パスワード検証中...");
+    const valid = await bcrypt.compare(body.password, user.passwordHash);
+    if (!valid) {
+      console.warn("[auth:login] パスワード不一致:", body.email);
+      return c.json({ error: "Invalid email or password" }, 401);
+    }
 
-  const sessionId = uuidv4();
-  const expiresAt = new Date(Date.now() + REFRESH_TOKEN_EXPIRES_DAYS * 24 * 60 * 60 * 1000);
+    const { accessToken, refreshToken } = generateTokens(user.id, user.role);
 
-  db.insert(schema.sessions)
-    .values({
-      id: sessionId,
-      userId: user.id,
+    const sessionId = uuidv4();
+    const expiresAt = new Date(Date.now() + REFRESH_TOKEN_EXPIRES_DAYS * 24 * 60 * 60 * 1000);
+
+    console.log("[auth:login] セッション保存中...");
+    db.insert(schema.sessions)
+      .values({
+        id: sessionId,
+        userId: user.id,
+        refreshToken,
+        expiresAt,
+        createdAt: new Date(),
+      })
+      .run();
+
+    console.log("[auth:login] ログイン成功 userId:", user.id);
+    return c.json({
+      user: { id: user.id, name: user.name, email: user.email, role: user.role },
+      accessToken,
       refreshToken,
-      expiresAt,
-      createdAt: new Date(),
-    })
-    .run();
-
-  return c.json({
-    user: { id: user.id, name: user.name, email: user.email, role: user.role },
-    accessToken,
-    refreshToken,
-  });
+    });
+  } catch (err) {
+    console.error("[auth:login] エラー発生:", err);
+    return c.json({ error: "Internal server error during login" }, 500);
+  }
 });
 
 // ─── POST /refresh - リフレッシュトークンでアクセストークン更新 ──
 
 auth.post("/refresh", async (c) => {
-  const body = await c.req.json<{ refreshToken: string }>();
+  console.log("[auth:refresh] リクエスト受信");
 
-  if (!body.refreshToken) {
-    return c.json({ error: "refreshToken is required" }, 400);
-  }
+  try {
+    const body = await c.req.json<{ refreshToken: string }>();
 
-  const session = db
-    .select()
-    .from(schema.sessions)
-    .where(eq(schema.sessions.refreshToken, body.refreshToken))
-    .get();
+    if (!body.refreshToken) {
+      console.warn("[auth:refresh] refreshToken未指定");
+      return c.json({ error: "refreshToken is required" }, 400);
+    }
 
-  if (!session) {
-    return c.json({ error: "Invalid refresh token" }, 401);
-  }
+    console.log("[auth:refresh] セッション検索中...");
+    const session = db
+      .select()
+      .from(schema.sessions)
+      .where(eq(schema.sessions.refreshToken, body.refreshToken))
+      .get();
 
-  if (new Date(session.expiresAt) < new Date()) {
-    // Expired - delete session
-    db.delete(schema.sessions)
+    if (!session) {
+      console.warn("[auth:refresh] セッションが見つからない");
+      return c.json({ error: "Invalid refresh token" }, 401);
+    }
+
+    if (new Date(session.expiresAt) < new Date()) {
+      console.warn("[auth:refresh] トークン期限切れ sessionId:", session.id);
+      db.delete(schema.sessions)
+        .where(eq(schema.sessions.id, session.id))
+        .run();
+      return c.json({ error: "Refresh token expired" }, 401);
+    }
+
+    const user = db
+      .select()
+      .from(schema.users)
+      .where(eq(schema.users.id, session.userId))
+      .get();
+
+    if (!user) {
+      console.warn("[auth:refresh] ユーザが見つからない userId:", session.userId);
+      return c.json({ error: "User not found" }, 401);
+    }
+
+    // Rotate refresh token
+    const { accessToken, refreshToken: newRefreshToken } = generateTokens(user.id, user.role);
+
+    db.update(schema.sessions)
+      .set({ refreshToken: newRefreshToken })
       .where(eq(schema.sessions.id, session.id))
       .run();
-    return c.json({ error: "Refresh token expired" }, 401);
+
+    console.log("[auth:refresh] トークン更新成功 userId:", user.id);
+    return c.json({ accessToken, refreshToken: newRefreshToken });
+  } catch (err) {
+    console.error("[auth:refresh] エラー発生:", err);
+    return c.json({ error: "Internal server error during token refresh" }, 500);
   }
-
-  const user = db
-    .select()
-    .from(schema.users)
-    .where(eq(schema.users.id, session.userId))
-    .get();
-
-  if (!user) {
-    return c.json({ error: "User not found" }, 401);
-  }
-
-  // Rotate refresh token
-  const { accessToken, refreshToken: newRefreshToken } = generateTokens(user.id, user.role);
-
-  db.update(schema.sessions)
-    .set({ refreshToken: newRefreshToken })
-    .where(eq(schema.sessions.id, session.id))
-    .run();
-
-  return c.json({ accessToken, refreshToken: newRefreshToken });
 });
 
 // ─── POST /logout - ログアウト ──────────────────────────────
 
 auth.post("/logout", async (c) => {
-  const body = await c.req.json<{ refreshToken: string }>();
+  console.log("[auth:logout] リクエスト受信");
 
-  if (body.refreshToken) {
-    db.delete(schema.sessions)
-      .where(eq(schema.sessions.refreshToken, body.refreshToken))
-      .run();
+  try {
+    const body = await c.req.json<{ refreshToken: string }>();
+
+    if (body.refreshToken) {
+      db.delete(schema.sessions)
+        .where(eq(schema.sessions.refreshToken, body.refreshToken))
+        .run();
+      console.log("[auth:logout] セッション削除完了");
+    }
+
+    return c.json({ message: "Logged out" });
+  } catch (err) {
+    console.error("[auth:logout] エラー発生:", err);
+    return c.json({ error: "Internal server error during logout" }, 500);
   }
-
-  return c.json({ message: "Logged out" });
 });
 
 // ─── GET /google - Google OAuthリダイレクト ──────────────────
@@ -377,14 +432,18 @@ auth.get("/google/callback", async (c) => {
 // ─── GET /me - 現在のユーザ情報取得 ─────────────────────────
 
 auth.get("/me", (c) => {
+  console.log("[auth:me] リクエスト受信");
+
   const authHeader = c.req.header("Authorization");
   if (!authHeader?.startsWith("Bearer ")) {
+    console.warn("[auth:me] トークン未提供");
     return c.json({ error: "No token provided" }, 401);
   }
 
   try {
     const token = authHeader.slice(7);
     const payload = jwt.verify(token, JWT_SECRET) as { userId: string; role: string };
+    console.log("[auth:me] トークン検証成功 userId:", payload.userId);
 
     const user = db
       .select()
@@ -393,9 +452,11 @@ auth.get("/me", (c) => {
       .get();
 
     if (!user) {
+      console.warn("[auth:me] ユーザが見つからない userId:", payload.userId);
       return c.json({ error: "User not found" }, 404);
     }
 
+    console.log("[auth:me] ユーザ情報返却 userId:", user.id);
     return c.json({
       id: user.id,
       name: user.name,
@@ -406,7 +467,8 @@ auth.get("/me", (c) => {
       hasGoogleAuth: !!user.googleId,
       hasPassword: !!user.passwordHash,
     });
-  } catch {
+  } catch (err) {
+    console.warn("[auth:me] トークン検証失敗:", err);
     return c.json({ error: "Invalid or expired token" }, 401);
   }
 });
