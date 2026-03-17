@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import { v4 as uuidv4 } from "uuid";
 import { db, schema } from "../../src/db/connection.js";
 import { eq, and } from "drizzle-orm";
+import { getUserId } from "../../src/middleware/getUserId.js";
 
 const calendar = new Hono();
 
@@ -67,7 +68,7 @@ async function refreshGoogleToken(userId: string): Promise<string | null> {
 // ─── GET /events - Google Calendarイベント取得 ──────────────
 
 calendar.get("/events", async (c) => {
-  const userId = c.req.header("X-User-Id");
+  const userId = getUserId(c);
   if (!userId) {
     return c.json({ error: "Authentication required" }, 401);
   }
@@ -147,7 +148,7 @@ calendar.get("/events", async (c) => {
 // ─── GET /calendars - Google Calendarリスト取得 ─────────────
 
 calendar.get("/calendars", async (c) => {
-  const userId = c.req.header("X-User-Id");
+  const userId = getUserId(c);
   if (!userId) return c.json({ error: "Authentication required" }, 401);
 
   const accessToken = await refreshGoogleToken(userId);
@@ -191,7 +192,7 @@ calendar.get("/calendars", async (c) => {
 // ─── GET /status - Google Calendar接続状態 ──────────────────
 
 calendar.get("/status", (c) => {
-  const userId = c.req.header("X-User-Id");
+  const userId = getUserId(c);
   if (!userId) return c.json({ error: "Authentication required" }, 401);
 
   const user = db
@@ -202,17 +203,24 @@ calendar.get("/status", (c) => {
 
   if (!user) return c.json({ error: "User not found" }, 404);
 
+  const scopes: string[] = user.googleScopes || [];
+  const hasCalendarScope = scopes.some((s: string) =>
+    s.includes("calendar.readonly") || s.includes("calendar.events")
+  );
+
   return c.json({
     connected: !!user.googleId,
     email: user.email,
     hasGoogleAuth: !!user.googleId,
+    googleScopes: scopes,
+    hasCalendarScope,
   });
 });
 
 // ─── POST /disconnect - Google Calendar連携解除 ─────────────
 
 calendar.post("/disconnect", (c) => {
-  const userId = c.req.header("X-User-Id");
+  const userId = getUserId(c);
   if (!userId) return c.json({ error: "Authentication required" }, 401);
 
   const user = db
@@ -236,6 +244,7 @@ calendar.post("/disconnect", (c) => {
       googleAccessToken: null,
       googleRefreshToken: null,
       googleTokenExpiresAt: null,
+      googleScopes: null,
       calendarAccessId: null,
       updatedAt: new Date(),
     })
@@ -252,7 +261,7 @@ calendar.post("/disconnect", (c) => {
 // ─── GET /personal - 手動予定一覧 ──────────────────────────
 
 calendar.get("/personal", (c) => {
-  const userId = c.req.header("X-User-Id");
+  const userId = getUserId(c);
   if (!userId) return c.json({ error: "Authentication required" }, 401);
 
   const events = db
@@ -267,7 +276,7 @@ calendar.get("/personal", (c) => {
 // ─── POST /personal - 手動予定追加 ─────────────────────────
 
 calendar.post("/personal", async (c) => {
-  const userId = c.req.header("X-User-Id");
+  const userId = getUserId(c);
   if (!userId) return c.json({ error: "Authentication required" }, 401);
 
   const body = await c.req.json<{
@@ -339,7 +348,7 @@ calendar.post("/personal", async (c) => {
 // ─── PUT /personal/:id - 手動予定更新 ─────────────────────
 
 calendar.put("/personal/:id", async (c) => {
-  const userId = c.req.header("X-User-Id");
+  const userId = getUserId(c);
   if (!userId) return c.json({ error: "Authentication required" }, 401);
 
   const eventId = c.req.param("id");
@@ -394,7 +403,7 @@ calendar.put("/personal/:id", async (c) => {
 // ─── DELETE /personal/:id - 手動予定削除 ───────────────────
 
 calendar.delete("/personal/:id", (c) => {
-  const userId = c.req.header("X-User-Id");
+  const userId = getUserId(c);
   if (!userId) return c.json({ error: "Authentication required" }, 401);
 
   const eventId = c.req.param("id");
@@ -497,7 +506,7 @@ function generateEventsFromPlan(
 // ─── GET /plans - プラン一覧 ──────────────────────────────
 
 calendar.get("/plans", (c) => {
-  const userId = c.req.header("X-User-Id");
+  const userId = getUserId(c);
   if (!userId) return c.json({ error: "Authentication required" }, 401);
 
   const planList = db
@@ -512,7 +521,7 @@ calendar.get("/plans", (c) => {
 // ─── POST /plans - プラン作成 + イベント自動生成 ────────────
 
 calendar.post("/plans", async (c) => {
-  const userId = c.req.header("X-User-Id");
+  const userId = getUserId(c);
   if (!userId) return c.json({ error: "Authentication required" }, 401);
 
   const body = await c.req.json<{
@@ -582,7 +591,7 @@ calendar.post("/plans", async (c) => {
 // ─── PUT /plans/:id - プラン更新 + イベント再生成 ──────────
 
 calendar.put("/plans/:id", async (c) => {
-  const userId = c.req.header("X-User-Id");
+  const userId = getUserId(c);
   if (!userId) return c.json({ error: "Authentication required" }, 401);
 
   const planId = c.req.param("id");
@@ -660,7 +669,7 @@ calendar.put("/plans/:id", async (c) => {
 // ─── DELETE /plans/:id - プラン削除 + 関連イベント削除 ─────
 
 calendar.delete("/plans/:id", (c) => {
-  const userId = c.req.header("X-User-Id");
+  const userId = getUserId(c);
   if (!userId) return c.json({ error: "Authentication required" }, 401);
 
   const planId = c.req.param("id");
@@ -698,7 +707,7 @@ calendar.delete("/plans/:id", (c) => {
 // ─── POST /plans/:id/regenerate - プランからイベント再生成 ──
 
 calendar.post("/plans/:id/regenerate", (c) => {
-  const userId = c.req.header("X-User-Id");
+  const userId = getUserId(c);
   if (!userId) return c.json({ error: "Authentication required" }, 401);
 
   const planId = c.req.param("id");
@@ -735,7 +744,7 @@ calendar.post("/plans/:id/regenerate", (c) => {
 // 個人の予定とグループの予定の重複を検出
 
 calendar.get("/conflicts", (c) => {
-  const userId = c.req.header("X-User-Id");
+  const userId = getUserId(c);
   if (!userId) return c.json({ error: "Authentication required" }, 401);
 
   // 個人の予定を取得

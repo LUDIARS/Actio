@@ -3,13 +3,14 @@ import { v4 as uuidv4 } from "uuid";
 import { db, schema } from "../../src/db/connection.js";
 import { eq, and } from "drizzle-orm";
 import type { CreateReservationInput } from "../../src/shared/types.js";
+import { getUserId } from "../../src/middleware/getUserId.js";
 
 const m4 = new Hono();
 
 // ─── POST /api/m4/reservations ──────────────────────────────
 m4.post("/reservations", async (c) => {
   const body = await c.req.json<CreateReservationInput>();
-  const createdBy = c.req.header("X-User-Id") || "anonymous";
+  const createdBy = getUserId(c) || "anonymous";
 
   // Validate day/period
   if (body.day < 0 || body.day > 6 || body.period < 0 || body.period > 10) {

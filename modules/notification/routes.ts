@@ -3,6 +3,7 @@ import { v4 as uuidv4 } from "uuid";
 import { db, schema } from "../../src/db/connection.js";
 import { eq, and } from "drizzle-orm";
 import { webhookRoutes } from "./channels/webhook/routes.js";
+import { getUserId } from "../../src/middleware/getUserId.js";
 
 const notification = new Hono();
 
@@ -11,7 +12,7 @@ notification.route("/webhooks", webhookRoutes);
 
 // ─── GET /notifications/preferences ─────────────────────────
 notification.get("/notifications/preferences", async (c) => {
-  const userId = c.req.header("X-User-Id");
+  const userId = getUserId(c);
   if (!userId) {
     return c.json({ error: "X-User-Id header required" }, 400);
   }
@@ -43,7 +44,7 @@ notification.get("/notifications/preferences", async (c) => {
 
 // ─── PUT /notifications/preferences ─────────────────────────
 notification.put("/notifications/preferences", async (c) => {
-  const userId = c.req.header("X-User-Id");
+  const userId = getUserId(c);
   if (!userId) {
     return c.json({ error: "X-User-Id header required" }, 400);
   }
@@ -126,7 +127,7 @@ notification.put("/notifications/preferences", async (c) => {
 
 // ─── GET /notifications/history ─────────────────────────────
 notification.get("/notifications/history", async (c) => {
-  const userId = c.req.header("X-User-Id");
+  const userId = getUserId(c);
   if (!userId) {
     return c.json({ error: "X-User-Id header required" }, 400);
   }

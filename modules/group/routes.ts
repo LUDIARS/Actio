@@ -3,13 +3,14 @@ import { v4 as uuidv4 } from "uuid";
 import { db, schema } from "../../src/db/connection.js";
 import { eq, and } from "drizzle-orm";
 import { requireRole } from "../../src/middleware/auth.js";
+import { getUserId } from "../../src/middleware/getUserId.js";
 
 const groupRoutes = new Hono();
 
 // ─── GET /my - 自分が所属するグループ一覧 ────────────────────
 
 groupRoutes.get("/my", (c) => {
-  const userId = c.req.header("X-User-Id");
+  const userId = getUserId(c);
   if (!userId) return c.json({ error: "Authentication required" }, 401);
 
   const memberships = db
@@ -49,7 +50,7 @@ groupRoutes.get("/my", (c) => {
 // ─── GET /:id - グループ詳細 ──────────────────────────────────
 
 groupRoutes.get("/:id", (c) => {
-  const userId = c.req.header("X-User-Id");
+  const userId = getUserId(c);
   if (!userId) return c.json({ error: "Authentication required" }, 401);
 
   const groupId = c.req.param("id");
@@ -116,7 +117,7 @@ groupRoutes.get("/:id", (c) => {
 // ─── POST / - グループ作成 (管理者のみ) ──────────────────────
 
 groupRoutes.post("/", requireRole("admin"), async (c) => {
-  const userId = c.req.header("X-User-Id");
+  const userId = getUserId(c);
   if (!userId) return c.json({ error: "Authentication required" }, 401);
 
   const body = await c.req.json<{ name: string; description?: string }>();
@@ -153,7 +154,7 @@ groupRoutes.post("/", requireRole("admin"), async (c) => {
 // ─── POST /:id/join - グループに参加 ─────────────────────────
 
 groupRoutes.post("/:id/join", (c) => {
-  const userId = c.req.header("X-User-Id");
+  const userId = getUserId(c);
   if (!userId) return c.json({ error: "Authentication required" }, 401);
 
   const groupId = c.req.param("id");
@@ -202,7 +203,7 @@ groupRoutes.post("/:id/join", (c) => {
 // ─── POST /:id/leave - グループから脱退 ──────────────────────
 
 groupRoutes.post("/:id/leave", (c) => {
-  const userId = c.req.header("X-User-Id");
+  const userId = getUserId(c);
   if (!userId) return c.json({ error: "Authentication required" }, 401);
 
   const groupId = c.req.param("id");
@@ -251,7 +252,7 @@ groupRoutes.post("/:id/leave", (c) => {
 // グループの予定は削除不可
 
 groupRoutes.post("/:id/schedules", async (c) => {
-  const userId = c.req.header("X-User-Id");
+  const userId = getUserId(c);
   if (!userId) return c.json({ error: "Authentication required" }, 401);
 
   const groupId = c.req.param("id");
