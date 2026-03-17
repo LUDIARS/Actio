@@ -285,6 +285,8 @@ export const curricula = pgTable(
     departmentId: text("department_id")
       .references(() => departments.id)
       .notNull(),
+    /** コマ数 */
+    periods: integer("periods").notNull().default(1),
     instructorId: text("instructor_id")
       .references(() => instructors.id),
     createdAt: timestamp("created_at")
