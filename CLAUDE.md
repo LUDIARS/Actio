@@ -40,12 +40,45 @@ m1.get("/departments", async (c) => {
 
 - `userRepo` / `sessionRepo` — 認証関連
 - `departmentRepo` / `instructorRepo` / `curriculumRepo` / `availableSlotRepo` — M1 カリキュラム関連
+- `personalEventRepo` / `planRepo` / `myPlanRepo` — カレンダー・プラン関連
+- `groupRepo` / `groupMemberRepo` / `groupScheduleRepo` — グループ関連
+- `scheduleEntryRepo` / `roomRepo` — スケジュール・教室関連
+- `schedulingTaskRepo` / `schedulingResultRepo` — スマートスケジューラ関連
+
+## アーキテクチャ
+
+### コア機能 (基本実装)
+
+- **ユーザ** (`src/auth/`) — 認証・ユーザ管理
+- **グループ** (`modules/group/`) — グループ管理 (`/api/groups`)
+- **マイプラン** (`modules/myplan/`) — 週間ルーティーン (`/api/myplans`)
+- **自動配置スケジューラ** (`modules/smart-scheduler/`) — DP自動配置 (`/api/smart-scheduler`)
+- **カレンダー** (`modules/calendar/`) — Google Calendar連携 + 手動予定 (`/api/calendar`)
+
+### M1: 学校カリキュラム管理モジュール
+
+`modules/schedule/` + `modules/school/` — 学校・教育機関向けカリキュラム管理
+
+- 学科・講師・カリキュラムの CRUD
+- カリキュラムに期間 (validFrom / validUntil) を設定可能
+- **マイグレーション機能:**
+  - `POST /api/school/m1/migration/departments-to-groups` — 登録学科をグループに自動登録
+  - `POST /api/school/m1/migration/schedule-to-plans` — カリキュラム配置データをプラン形式に自動変換
+  - `GET /api/school/m1/migration/status` — マイグレーション状態確認
+
+旧 M2 (データ統合) と旧 M3 (オートスケジューラ) は M1 に統合済み。
+
+### その他モジュール
+
+- **予約システム** (`modules/reservation/`) — M4 (`/api/reservations`)
+- **通知** (`modules/notification/`) — M5 (`/api/webhooks`)
+- **日程調整Voting** (`modules/voting/`) — M6 (`/api/voting`)
 
 ## プロジェクト構造
 
 - `src/` — バックエンド (Hono + TypeScript)
 - `frontend/` — フロントエンド (React 19 + Vite)
-- `modules/` — 機能モジュール (M1〜M6)
+- `modules/` — 機能モジュール
 - `src/db/schema.ts` — メインスキーマ
 - `src/db/curriculum-schema.ts` — M1 カリキュラムスキーマ
 - `src/db/repository.ts` — リポジトリ抽象化層

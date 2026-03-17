@@ -133,6 +133,7 @@ export const memberProfiles = pgTable("member_profiles", {
 export const groups = pgTable("groups", {
   id: text("id").primaryKey(),
   name: text("name").notNull(),
+  description: text("description"),
   members: jsonb("members").$type<string[]>().notNull().default([]),
   createdBy: text("created_by").notNull(),
   createdAt: timestamp("created_at")
@@ -555,6 +556,10 @@ export const curricula = pgTable(
     periods: integer("periods").notNull().default(1),
     instructorId: text("instructor_id")
       .references(() => instructors.id),
+    /** カリキュラム期間 開始日 (YYYY-MM-DD) */
+    validFrom: text("valid_from"),
+    /** カリキュラム期間 終了日 (YYYY-MM-DD) */
+    validUntil: text("valid_until"),
     createdAt: timestamp("created_at")
       .$defaultFn(() => new Date())
       .notNull(),

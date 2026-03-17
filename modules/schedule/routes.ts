@@ -1,5 +1,7 @@
 /**
- * M1 Routes — 学科・講師・カリキュラム・出講可能スロットの CRUD
+ * M1 Routes — 学校カリキュラム管理モジュール
+ *
+ * 統合モジュール: 旧M1(カリキュラムCRUD) + 旧M2(データ統合) + 旧M3(オートスケジューラ)
  *
  * 設定メニュー:
  *   - 学科 (departments): トップレイヤ
@@ -9,19 +11,28 @@
  * データ入力:
  *   - カリキュラムに講師をアサイン
  *   - 講師ごとに出講可能曜日・コマを入力
+ *   - カリキュラムに期間 (validFrom / validUntil) を設定
  *
- * 時間割配置は M2 で実施
+ * マイグレーション:
+ *   - 登録学科を自動的にグループ登録
+ *   - カリキュラム配置データをスケジューラのプラン形式に自動変換
  */
 
 import { Hono } from "hono";
 import { v4 as uuidv4 } from "uuid";
 import { requireRole } from "../../src/middleware/auth.js";
+import { getUserId } from "../../src/middleware/getUserId.js";
 import {
   departmentRepo,
   instructorRepo,
   curriculumRepo,
   curriculumDepartmentRepo,
   availableSlotRepo,
+  scheduleEntryRepo,
+  groupRepo,
+  groupMemberRepo,
+  personalEventRepo,
+  planRepo,
 } from "../../src/db/repository.js";
 
 const m1 = new Hono();
@@ -132,14 +143,16 @@ m1.get("/curricula", async (c) => {
   return c.json({ curricula: result });
 });
 
-/** カリキュラム作成 (複数学科・コマ数対応) */
+/** カリキュラム作成 (複数学科・コマ数・期間対応) */
 m1.post("/departments/:departmentId/curricula", async (c) => {
   const { departmentId } = c.req.param();
-  const { name, instructorId, periods, departmentIds } = await c.req.json<{
+  const { name, instructorId, periods, departmentIds, validFrom, validUntil } = await c.req.json<{
     name: string;
     instructorId?: string;
     periods?: number;
     departmentIds?: string[];
+    validFrom?: string;
+    validUntil?: string;
   }>();
   if (!name?.trim()) {
     return c.json({ error: "name is required" }, 400);
@@ -152,6 +165,8 @@ m1.post("/departments/:departmentId/curricula", async (c) => {
     departmentId,
     periods: periodsVal,
     instructorId: instructorId || null,
+    validFrom: validFrom || null,
+    validUntil: validUntil || null,
   });
 
   // 中間テーブルに学科を登録 (departmentIds が指定されなければ主学科のみ)
@@ -168,11 +183,13 @@ m1.post("/departments/:departmentId/curricula", async (c) => {
     id, name: name.trim(), departmentId,
     periods: periodsVal,
     instructorId: instructorId || null,
+    validFrom: validFrom || null,
+    validUntil: validUntil || null,
     departmentIds: deptList,
   }, 201);
 });
 
-/** カリキュラム更新 (名前変更・講師アサイン・コマ数・学科変更) */
+/** カリキュラム更新 (名前変更・講師アサイン・コマ数・学科変更・期間変更) */
 m1.put("/curricula/:id", async (c) => {
   const { id } = c.req.param();
   const body = await c.req.json<{
@@ -180,11 +197,15 @@ m1.put("/curricula/:id", async (c) => {
     instructorId?: string | null;
     periods?: number;
     departmentIds?: string[];
+    validFrom?: string | null;
+    validUntil?: string | null;
   }>();
   const updates: Record<string, unknown> = {};
   if (body.name !== undefined) updates.name = body.name.trim();
   if (body.instructorId !== undefined) updates.instructorId = body.instructorId;
   if (body.periods !== undefined && body.periods > 0) updates.periods = body.periods;
+  if (body.validFrom !== undefined) updates.validFrom = body.validFrom;
+  if (body.validUntil !== undefined) updates.validUntil = body.validUntil;
 
   if (Object.keys(updates).length === 0 && !body.departmentIds) {
     return c.json({ error: "No fields to update" }, 400);
@@ -263,6 +284,224 @@ m1.put("/instructors/:instructorId/availability", async (c) => {
   }
 
   return c.json({ slots: inserted });
+});
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// マイグレーション (Migration)
+// 登録学科→グループ自動登録、カリキュラム配置→プラン自動変換
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+/** マイグレーション状態確認 — 既存グループとの紐付け状況 */
+m1.get("/migration/status", async (c) => {
+  const departments = await departmentRepo.findAll();
+  const groups = await groupRepo.findAll();
+
+  // 学科名で既存グループとマッチング
+  const status = departments.map((dept) => {
+    const matchedGroup = groups.find((g) => g.name === dept.name);
+    return {
+      departmentId: dept.id,
+      departmentName: dept.name,
+      groupId: matchedGroup?.id || null,
+      migrated: !!matchedGroup,
+    };
+  });
+
+  return c.json({
+    departments: status,
+    totalDepartments: departments.length,
+    migratedCount: status.filter((s) => s.migrated).length,
+  });
+});
+
+/**
+ * POST /migration/departments-to-groups
+ *
+ * 登録学科を自動的にグループ登録するマイグレーション
+ * - 各学科に対応するグループを作成
+ * - 管理者(実行ユーザー)を学校主(owner)として登録 (変更不可)
+ * - 既に同名グループが存在する場合はスキップ
+ */
+m1.post("/migration/departments-to-groups", async (c) => {
+  const userId = getUserId(c);
+  if (!userId) return c.json({ error: "Authentication required" }, 401);
+
+  const departments = await departmentRepo.findAll();
+  const existingGroups = await groupRepo.findAll();
+  const existingGroupNames = new Set(existingGroups.map((g) => g.name));
+
+  const created: Array<{ departmentId: string; departmentName: string; groupId: string }> = [];
+  const skipped: Array<{ departmentId: string; departmentName: string; reason: string }> = [];
+
+  for (const dept of departments) {
+    if (existingGroupNames.has(dept.name)) {
+      skipped.push({
+        departmentId: dept.id,
+        departmentName: dept.name,
+        reason: "同名グループが既に存在します",
+      });
+      continue;
+    }
+
+    const groupId = uuidv4();
+    await groupRepo.create({
+      id: groupId,
+      name: dept.name,
+      description: `学科「${dept.name}」から自動生成されたグループ`,
+      members: [],
+      createdBy: userId,
+      createdAt: new Date(),
+    });
+
+    // 管理者を owner として登録 (学校主)
+    await groupMemberRepo.create({
+      id: uuidv4(),
+      groupId,
+      userId,
+      role: "owner",
+      joinedAt: new Date(),
+    });
+
+    created.push({
+      departmentId: dept.id,
+      departmentName: dept.name,
+      groupId,
+    });
+  }
+
+  return c.json({
+    message: `${created.length}件のグループを作成しました`,
+    created,
+    skipped,
+  });
+});
+
+/**
+ * POST /migration/schedule-to-plans
+ *
+ * カリキュラム配置データ(schedule_entries)をスケジューラのプラン形式に自動変換
+ * - 学科ごとにグループのスケジュールとして変換
+ * - 確定済みのスケジュールエントリのみが対象
+ */
+m1.post("/migration/schedule-to-plans", async (c) => {
+  const userId = getUserId(c);
+  if (!userId) return c.json({ error: "Authentication required" }, 401);
+
+  const { termId } = await c.req.json<{ termId?: string }>();
+  const currentTerm = termId || `term-${new Date().getFullYear()}`;
+
+  // 確定済みスケジュールエントリを取得
+  const entries = await scheduleEntryRepo.findConfirmedByTerm(currentTerm);
+
+  if (entries.length === 0) {
+    return c.json({
+      message: "変換対象のスケジュールエントリがありません",
+      converted: 0,
+    });
+  }
+
+  // カリキュラム情報を取得して学科ごとにグルーピング
+  const curricula = await curriculumRepo.findAll();
+  const curriculumMap = new Map(curricula.map((c) => [c.id, c]));
+
+  const departments = await departmentRepo.findAll();
+  const departmentMap = new Map(departments.map((d) => [d.id, d]));
+
+  // 既存グループを取得 (学科名でマッチング)
+  const groups = await groupRepo.findAll();
+  const groupByName = new Map(groups.map((g) => [g.name, g]));
+
+  // 学科ごとにスケジュールエントリをグルーピング
+  const entriesByDepartment = new Map<string, typeof entries>();
+  for (const entry of entries) {
+    const curriculum = curriculumMap.get(entry.curriculumId);
+    if (!curriculum) continue;
+
+    const deptId = curriculum.departmentId;
+    if (!entriesByDepartment.has(deptId)) {
+      entriesByDepartment.set(deptId, []);
+    }
+    entriesByDepartment.get(deptId)!.push(entry);
+  }
+
+  // 学科ごとにプランを作成
+  let convertedCount = 0;
+  const results: Array<{
+    departmentName: string;
+    groupId: string | null;
+    plansCreated: number;
+  }> = [];
+
+  for (const [deptId, deptEntries] of entriesByDepartment) {
+    const dept = departmentMap.get(deptId);
+    if (!dept) continue;
+
+    const group = groupByName.get(dept.name);
+
+    // 曜日ごとにエントリを集約してプランに変換
+    const byDay = new Map<number, number[]>();
+    for (const entry of deptEntries) {
+      if (!byDay.has(entry.day)) byDay.set(entry.day, []);
+      byDay.get(entry.day)!.push(entry.period);
+    }
+
+    // 各曜日の連続コマをプランとして登録
+    let plansCreated = 0;
+    for (const [day, periods] of byDay) {
+      const sorted = [...periods].sort((a, b) => a - b);
+      // 連続するコマをグルーピング
+      const ranges: Array<{ start: number; duration: number }> = [];
+      let rangeStart = sorted[0];
+      let rangeEnd = sorted[0];
+
+      for (let i = 1; i < sorted.length; i++) {
+        if (sorted[i] === rangeEnd + 1) {
+          rangeEnd = sorted[i];
+        } else {
+          ranges.push({ start: rangeStart, duration: rangeEnd - rangeStart + 1 });
+          rangeStart = sorted[i];
+          rangeEnd = sorted[i];
+        }
+      }
+      ranges.push({ start: rangeStart, duration: rangeEnd - rangeStart + 1 });
+
+      for (const range of ranges) {
+        const planId = uuidv4();
+        const now = new Date();
+
+        await planRepo.create({
+          id: planId,
+          userId,
+          name: `${dept.name} カリキュラム (${["月", "火", "水", "木", "金", "土", "日"][day]}${range.start + 1}限)`,
+          description: `学科「${dept.name}」のカリキュラムから自動生成`,
+          days: [day],
+          startPeriod: range.start,
+          duration: range.duration,
+          eventType: "school_event",
+          isPrivate: false,
+          isActive: true,
+          createdAt: now,
+          updatedAt: now,
+        });
+
+        plansCreated++;
+        convertedCount++;
+      }
+    }
+
+    results.push({
+      departmentName: dept.name,
+      groupId: group?.id || null,
+      plansCreated,
+    });
+  }
+
+  return c.json({
+    message: `${convertedCount}件のプランに変換しました`,
+    termId: currentTerm,
+    results,
+    totalConverted: convertedCount,
+  });
 });
 
 export { m1 };
