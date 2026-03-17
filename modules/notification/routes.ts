@@ -1,7 +1,9 @@
 import { Hono } from "hono";
 import { v4 as uuidv4 } from "uuid";
-import { db, schema } from "../../src/db/connection.js";
-import { eq, and } from "drizzle-orm";
+import {
+  notificationPreferenceRepo,
+  notificationRepo,
+} from "../../src/db/repository.js";
 import { webhookRoutes } from "./channels/webhook/routes.js";
 import { getUserId } from "../../src/middleware/getUserId.js";
 
@@ -17,15 +19,11 @@ notification.get("/notifications/preferences", async (c) => {
     return c.json({ error: "X-User-Id header required" }, 400);
   }
 
-  const prefs = db
-    .select()
-    .from(schema.notificationPreferences)
-    .where(eq(schema.notificationPreferences.userId, userId))
-    .all();
+  const prefs = await notificationPreferenceRepo.findByUserId(userId);
 
   return c.json({
     userId,
-    preferences: prefs.map((p: any) => ({
+    preferences: prefs.map((p) => ({
       channel: p.channel,
       enabledEvents: p.enabledEvents,
       reminder: {
@@ -65,61 +63,44 @@ notification.put("/notifications/preferences", async (c) => {
   }>();
 
   // Upsert preference
-  const existing = db
-    .select()
-    .from(schema.notificationPreferences)
-    .where(
-      and(
-        eq(schema.notificationPreferences.userId, userId),
-        eq(schema.notificationPreferences.channel, body.channel)
-      )
-    )
-    .limit(1)
-    .all();
+  const existing = await notificationPreferenceRepo.findByUserAndChannel(userId, body.channel);
 
-  if (existing.length > 0) {
-    const [updated] = db
-      .update(schema.notificationPreferences)
-      .set({
-        enabledEvents: body.enabledEvents ?? existing[0].enabledEvents,
-        reminderDayBefore:
-          body.reminder?.dayBefore ?? existing[0].reminderDayBefore,
-        reminderDayBeforeTime:
-          body.reminder?.dayBeforeTime ?? existing[0].reminderDayBeforeTime,
-        reminderMorningOf:
-          body.reminder?.morningOf ?? existing[0].reminderMorningOf,
-        reminderMorningOfTime:
-          body.reminder?.morningOfTime ?? existing[0].reminderMorningOfTime,
-        reminderBefore:
-          body.reminder?.before ?? existing[0].reminderBefore,
-        reminderBeforeMinutes:
-          body.reminder?.beforeMinutes ?? existing[0].reminderBeforeMinutes,
-        quietHoursStart:
-          body.quietHoursStart ?? existing[0].quietHoursStart,
-        quietHoursEnd: body.quietHoursEnd ?? existing[0].quietHoursEnd,
-      })
-      .where(eq(schema.notificationPreferences.id, existing[0].id))
-      .returning().all();
+  if (existing) {
+    const updated = await notificationPreferenceRepo.update(existing.id, {
+      enabledEvents: body.enabledEvents ?? existing.enabledEvents,
+      reminderDayBefore:
+        body.reminder?.dayBefore ?? existing.reminderDayBefore,
+      reminderDayBeforeTime:
+        body.reminder?.dayBeforeTime ?? existing.reminderDayBeforeTime,
+      reminderMorningOf:
+        body.reminder?.morningOf ?? existing.reminderMorningOf,
+      reminderMorningOfTime:
+        body.reminder?.morningOfTime ?? existing.reminderMorningOfTime,
+      reminderBefore:
+        body.reminder?.before ?? existing.reminderBefore,
+      reminderBeforeMinutes:
+        body.reminder?.beforeMinutes ?? existing.reminderBeforeMinutes,
+      quietHoursStart:
+        body.quietHoursStart ?? existing.quietHoursStart,
+      quietHoursEnd: body.quietHoursEnd ?? existing.quietHoursEnd,
+    });
 
     return c.json(updated);
   } else {
-    const [created] = db
-      .insert(schema.notificationPreferences)
-      .values({
-        id: uuidv4(),
-        userId,
-        channel: body.channel,
-        enabledEvents: body.enabledEvents || [],
-        reminderDayBefore: body.reminder?.dayBefore ?? true,
-        reminderDayBeforeTime: body.reminder?.dayBeforeTime ?? "18:00",
-        reminderMorningOf: body.reminder?.morningOf ?? true,
-        reminderMorningOfTime: body.reminder?.morningOfTime ?? "08:00",
-        reminderBefore: body.reminder?.before ?? true,
-        reminderBeforeMinutes: body.reminder?.beforeMinutes ?? 15,
-        quietHoursStart: body.quietHoursStart ?? "22:00",
-        quietHoursEnd: body.quietHoursEnd ?? "07:00",
-      })
-      .returning().all();
+    const created = await notificationPreferenceRepo.create({
+      id: uuidv4(),
+      userId,
+      channel: body.channel,
+      enabledEvents: body.enabledEvents || [],
+      reminderDayBefore: body.reminder?.dayBefore ?? true,
+      reminderDayBeforeTime: body.reminder?.dayBeforeTime ?? "18:00",
+      reminderMorningOf: body.reminder?.morningOf ?? true,
+      reminderMorningOfTime: body.reminder?.morningOfTime ?? "08:00",
+      reminderBefore: body.reminder?.before ?? true,
+      reminderBeforeMinutes: body.reminder?.beforeMinutes ?? 15,
+      quietHoursStart: body.quietHoursStart ?? "22:00",
+      quietHoursEnd: body.quietHoursEnd ?? "07:00",
+    });
 
     return c.json(created, 201);
   }
@@ -132,24 +113,14 @@ notification.get("/notifications/history", async (c) => {
     return c.json({ error: "X-User-Id header required" }, 400);
   }
 
-  const history = db
-    .select()
-    .from(schema.notifications)
-    .where(eq(schema.notifications.userId, userId))
-    .all();
-
+  const history = await notificationRepo.findByUserId(userId);
   return c.json({ notifications: history });
 });
 
 // ─── POST /notifications/:id/read ───────────────────────────
 notification.post("/notifications/:id/read", async (c) => {
   const id = c.req.param("id");
-
-  const [updated] = db
-    .update(schema.notifications)
-    .set({ isRead: true })
-    .where(eq(schema.notifications.id, id))
-    .returning().all();
+  const updated = await notificationRepo.markAsRead(id);
 
   if (!updated) {
     return c.json({ error: "Notification not found" }, 404);

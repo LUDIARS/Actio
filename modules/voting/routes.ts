@@ -1,7 +1,11 @@
 import { Hono } from "hono";
 import { v4 as uuidv4 } from "uuid";
-import { db, schema } from "../../src/db/connection.js";
-import { eq, and, inArray } from "drizzle-orm";
+import {
+  votingEventRepo,
+  votingCandidateRepo,
+  voteRepo,
+  userListRepo,
+} from "../../src/db/repository.js";
 import { generateAutoReply } from "./auto-reply.js";
 import type { VoteAnswer } from "../../src/shared/constants.js";
 import { getUserId } from "../../src/middleware/getUserId.js";
@@ -23,16 +27,14 @@ m6.post("/events", async (c) => {
   }
 
   const eventId = uuidv4();
-  db.insert(schema.votingEvents)
-    .values({
-      id: eventId,
-      title: body.title,
-      description: body.description || "",
-      createdBy: userId,
-      deadline: body.deadline || null,
-      status: "open",
-    })
-    .run();
+  await votingEventRepo.create({
+    id: eventId,
+    title: body.title,
+    description: body.description || "",
+    createdBy: userId,
+    deadline: body.deadline || null,
+    status: "open",
+  });
 
   const candidateRows = body.candidates.map((label, i) => ({
     id: uuidv4(),
@@ -42,7 +44,7 @@ m6.post("/events", async (c) => {
   }));
 
   for (const row of candidateRows) {
-    db.insert(schema.votingCandidates).values(row).run();
+    await votingCandidateRepo.create(row);
   }
 
   return c.json({
@@ -54,23 +56,14 @@ m6.post("/events", async (c) => {
 
 // ─── GET /events — イベント一覧 ──────────────────────────────
 m6.get("/events", async (c) => {
-  const events = db
-    .select()
-    .from(schema.votingEvents)
-    .orderBy(schema.votingEvents.createdAt)
-    .all();
+  const events = await votingEventRepo.findAll();
 
   // 各イベントの候補を取得
-  const result = events.map((e: any) => {
-    const candidates = db
-      .select()
-      .from(schema.votingCandidates)
-      .where(eq(schema.votingCandidates.eventId, e.id))
-      .orderBy(schema.votingCandidates.sortOrder)
-      .all();
-
-    return { ...e, candidates };
-  });
+  const result = [];
+  for (const e of events) {
+    const candidates = await votingCandidateRepo.findByEventId(e.id);
+    result.push({ ...e, candidates });
+  }
 
   return c.json({ events: result });
 });
@@ -79,29 +72,14 @@ m6.get("/events", async (c) => {
 m6.get("/events/:eventId", async (c) => {
   const eventId = c.req.param("eventId");
 
-  const [event] = db
-    .select()
-    .from(schema.votingEvents)
-    .where(eq(schema.votingEvents.id, eventId))
-    .limit(1)
-    .all();
+  const event = await votingEventRepo.findById(eventId);
 
   if (!event) {
     return c.json({ error: "Event not found" }, 404);
   }
 
-  const candidates = db
-    .select()
-    .from(schema.votingCandidates)
-    .where(eq(schema.votingCandidates.eventId, eventId))
-    .orderBy(schema.votingCandidates.sortOrder)
-    .all();
-
-  const allVotes = db
-    .select()
-    .from(schema.votes)
-    .where(eq(schema.votes.eventId, eventId))
-    .all();
+  const candidates = await votingCandidateRepo.findByEventId(eventId);
+  const allVotes = await voteRepo.findByEventId(eventId);
 
   // 集計
   const summary: Record<string, { ok: number; maybe: number; ng: number }> = {};
@@ -113,28 +91,22 @@ m6.get("/events/:eventId", async (c) => {
   const userIds = new Set<string>();
 
   for (const vote of allVotes) {
-    const v = vote as any;
-    userIds.add(v.userId);
+    userIds.add(vote.userId);
 
-    if (summary[v.candidateId]) {
-      if (v.answer === "ok") summary[v.candidateId].ok++;
-      else if (v.answer === "maybe") summary[v.candidateId].maybe++;
-      else if (v.answer === "ng") summary[v.candidateId].ng++;
+    if (summary[vote.candidateId]) {
+      if (vote.answer === "ok") summary[vote.candidateId].ok++;
+      else if (vote.answer === "maybe") summary[vote.candidateId].maybe++;
+      else if (vote.answer === "ng") summary[vote.candidateId].ng++;
     }
 
-    if (!responses[v.userId]) responses[v.userId] = {};
-    responses[v.userId][v.candidateId] = v;
+    if (!responses[vote.userId]) responses[vote.userId] = {};
+    responses[vote.userId][vote.candidateId] = vote;
   }
 
   // ユーザー名を取得
   const respondents: Record<string, string> = {};
   if (userIds.size > 0) {
-    const users = db
-      .select({ id: schema.users.id, name: schema.users.name })
-      .from(schema.users)
-      .where(inArray(schema.users.id, Array.from(userIds)))
-      .all();
-
+    const users = await userListRepo.findUserNamesById(Array.from(userIds));
     for (const u of users) {
       respondents[u.id] = u.name;
     }
@@ -157,23 +129,18 @@ m6.post("/events/:eventId/votes", async (c) => {
   }>();
 
   // イベント存在・open確認
-  const [event] = db
-    .select()
-    .from(schema.votingEvents)
-    .where(eq(schema.votingEvents.id, eventId))
-    .limit(1)
-    .all();
+  const event = await votingEventRepo.findById(eventId);
 
   if (!event) {
     return c.json({ error: "Event not found" }, 404);
   }
-  if ((event as any).status !== "open") {
+  if (event.status !== "open") {
     return c.json({ error: "Event is closed" }, 400);
   }
 
   // 期限チェック
-  if ((event as any).deadline) {
-    const deadline = new Date((event as any).deadline);
+  if (event.deadline) {
+    const deadline = new Date(event.deadline);
     if (new Date() > deadline) {
       return c.json({ error: "Voting deadline has passed" }, 400);
     }
@@ -182,43 +149,27 @@ m6.post("/events/:eventId/votes", async (c) => {
   const saved: any[] = [];
   for (const v of body.votes) {
     // upsert: 既存回答があれば更新、なければ挿入
-    const [existing] = db
-      .select()
-      .from(schema.votes)
-      .where(
-        and(
-          eq(schema.votes.eventId, eventId),
-          eq(schema.votes.candidateId, v.candidateId),
-          eq(schema.votes.userId, userId)
-        )
-      )
-      .limit(1)
-      .all();
+    const existing = await voteRepo.findExisting(eventId, v.candidateId, userId);
 
     if (existing) {
-      db.update(schema.votes)
-        .set({
-          answer: v.answer,
-          comment: v.comment || "",
-          isAutoReply: false,
-          updatedAt: new Date(),
-        })
-        .where(eq(schema.votes.id, (existing as any).id))
-        .run();
+      await voteRepo.update(existing.id, {
+        answer: v.answer,
+        comment: v.comment || "",
+        isAutoReply: false,
+        updatedAt: new Date(),
+      });
       saved.push({ ...existing, answer: v.answer, comment: v.comment || "" });
     } else {
       const voteId = uuidv4();
-      db.insert(schema.votes)
-        .values({
-          id: voteId,
-          eventId,
-          candidateId: v.candidateId,
-          userId,
-          answer: v.answer,
-          isAutoReply: false,
-          comment: v.comment || "",
-        })
-        .run();
+      await voteRepo.create({
+        id: voteId,
+        eventId,
+        candidateId: v.candidateId,
+        userId,
+        answer: v.answer,
+        isAutoReply: false,
+        comment: v.comment || "",
+      });
       saved.push({ id: voteId, ...v, userId });
     }
   }
@@ -231,78 +182,52 @@ m6.post("/events/:eventId/auto-reply", async (c) => {
   const eventId = c.req.param("eventId");
   const userId = getUserId(c) || "";
 
-  const [event] = db
-    .select()
-    .from(schema.votingEvents)
-    .where(eq(schema.votingEvents.id, eventId))
-    .limit(1)
-    .all();
+  const event = await votingEventRepo.findById(eventId);
 
   if (!event) {
     return c.json({ error: "Event not found" }, 404);
   }
-  if ((event as any).status !== "open") {
+  if (event.status !== "open") {
     return c.json({ error: "Event is closed" }, 400);
   }
 
-  const candidates = db
-    .select()
-    .from(schema.votingCandidates)
-    .where(eq(schema.votingCandidates.eventId, eventId))
-    .orderBy(schema.votingCandidates.sortOrder)
-    .all();
+  const candidates = await votingCandidateRepo.findByEventId(eventId);
 
   const autoVotes: any[] = [];
   const skipped: string[] = [];
 
   for (const cand of candidates) {
-    const answer = await generateAutoReply(userId, (cand as any).label);
+    const answer = await generateAutoReply(userId, cand.label);
 
     if (answer === null) {
-      skipped.push((cand as any).id);
+      skipped.push(cand.id);
       continue;
     }
 
     // upsert
-    const [existing] = db
-      .select()
-      .from(schema.votes)
-      .where(
-        and(
-          eq(schema.votes.eventId, eventId),
-          eq(schema.votes.candidateId, (cand as any).id),
-          eq(schema.votes.userId, userId)
-        )
-      )
-      .limit(1)
-      .all();
+    const existing = await voteRepo.findExisting(eventId, cand.id, userId);
 
     if (existing) {
-      db.update(schema.votes)
-        .set({
-          answer,
-          isAutoReply: true,
-          comment: "自動回答",
-          updatedAt: new Date(),
-        })
-        .where(eq(schema.votes.id, (existing as any).id))
-        .run();
+      await voteRepo.update(existing.id, {
+        answer,
+        isAutoReply: true,
+        comment: "自動回答",
+        updatedAt: new Date(),
+      });
     } else {
       const voteId = uuidv4();
-      db.insert(schema.votes)
-        .values({
-          id: voteId,
-          eventId,
-          candidateId: (cand as any).id,
-          userId,
-          answer,
-          isAutoReply: true,
-          comment: "自動回答",
-        })
-        .run();
+      await voteRepo.create({
+        id: voteId,
+        eventId,
+        candidateId: cand.id,
+        userId,
+        answer,
+        isAutoReply: true,
+        comment: "自動回答",
+      });
     }
 
-    autoVotes.push({ candidateId: (cand as any).id, label: (cand as any).label, answer });
+    autoVotes.push({ candidateId: cand.id, label: cand.label, answer });
   }
 
   return c.json({
@@ -325,17 +250,12 @@ m6.put("/events/:eventId", async (c) => {
     deadline?: string;
   }>();
 
-  const [event] = db
-    .select()
-    .from(schema.votingEvents)
-    .where(eq(schema.votingEvents.id, eventId))
-    .limit(1)
-    .all();
+  const event = await votingEventRepo.findById(eventId);
 
   if (!event) {
     return c.json({ error: "Event not found" }, 404);
   }
-  if ((event as any).createdBy !== userId) {
+  if (event.createdBy !== userId) {
     return c.json({ error: "Only the creator can update this event" }, 403);
   }
 
@@ -345,10 +265,7 @@ m6.put("/events/:eventId", async (c) => {
   if (body.description !== undefined) updates.description = body.description;
   if (body.deadline !== undefined) updates.deadline = body.deadline;
 
-  db.update(schema.votingEvents)
-    .set(updates)
-    .where(eq(schema.votingEvents.id, eventId))
-    .run();
+  await votingEventRepo.update(eventId, updates);
 
   return c.json({ message: "Updated", eventId });
 });
@@ -358,24 +275,19 @@ m6.delete("/events/:eventId", async (c) => {
   const eventId = c.req.param("eventId");
   const userId = getUserId(c) || "";
 
-  const [event] = db
-    .select()
-    .from(schema.votingEvents)
-    .where(eq(schema.votingEvents.id, eventId))
-    .limit(1)
-    .all();
+  const event = await votingEventRepo.findById(eventId);
 
   if (!event) {
     return c.json({ error: "Event not found" }, 404);
   }
-  if ((event as any).createdBy !== userId) {
+  if (event.createdBy !== userId) {
     return c.json({ error: "Only the creator can delete this event" }, 403);
   }
 
   // 関連データを削除 (votes → candidates → event)
-  db.delete(schema.votes).where(eq(schema.votes.eventId, eventId)).run();
-  db.delete(schema.votingCandidates).where(eq(schema.votingCandidates.eventId, eventId)).run();
-  db.delete(schema.votingEvents).where(eq(schema.votingEvents.id, eventId)).run();
+  await voteRepo.deleteByEventId(eventId);
+  await votingCandidateRepo.deleteByEventId(eventId);
+  await votingEventRepo.deleteById(eventId);
 
   return c.json({ message: "Deleted", eventId });
 });

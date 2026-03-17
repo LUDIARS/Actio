@@ -442,9 +442,9 @@ export function Dashboard() {
             </Link>
           </div>
           <div style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem" }}>
-            {conflicts.slice(0, 5).map((c, i) => (
+            {conflicts.slice(0, 5).map((c) => (
               <div
-                key={i}
+                key={`${c.day}-${c.period}`}
                 style={{
                   padding: "0.3rem 0.6rem",
                   background: "rgba(248, 81, 73, 0.08)",
