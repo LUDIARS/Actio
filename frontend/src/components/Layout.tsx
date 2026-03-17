@@ -7,6 +7,7 @@ const NAV_ITEMS = [
   { to: "/curriculum-plan", label: "カリキュラムプラン" },
   { to: "/scheduler", label: "M3 スケジューラ" },
   { to: "/reservations", label: "M4 予約" },
+  { to: "/calendar", label: "カレンダー" },
   { to: "/notifications", label: "M5 通知" },
 ];
 
