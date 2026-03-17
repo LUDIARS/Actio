@@ -1,7 +1,13 @@
 import { useState, useEffect, useCallback } from "react";
 import { useAuth } from "../contexts/AuthContext";
 import { myPlanApi } from "../lib/api";
-import { DAY_LABELS, getPeriodLabel } from "../lib/constants";
+import { DAY_LABELS } from "../lib/constants";
+
+interface ScheduleSlot {
+  startTime: string;
+  endTime: string;
+  title: string;
+}
 
 interface MyPlan {
   id: string;
@@ -9,16 +15,10 @@ interface MyPlan {
   patternType: "basic" | "special";
   validFrom: string | null;
   validUntil: string | null;
-  weeklySchedule: Record<string, Array<{ period: number; duration: number; title: string }>>;
+  weeklySchedule: Record<string, ScheduleSlot[]>;
   isActive: boolean;
   priority: number;
   groupId: string | null;
-}
-
-interface ScheduleSlot {
-  period: number;
-  duration: number;
-  title: string;
 }
 
 export function MyPlanPage() {
@@ -41,8 +41,8 @@ export function MyPlanPage() {
   // 新しいスロット追加用
   const [slotForm, setSlotForm] = useState({
     day: 0,
-    period: 0,
-    duration: 1,
+    startTime: "09:00",
+    endTime: "10:00",
     title: "",
   });
 
@@ -153,16 +153,25 @@ export function MyPlanPage() {
       setError("タイトルを入力してください");
       return;
     }
+    if (slotForm.startTime >= slotForm.endTime) {
+      setError("終了時刻は開始時刻より後にしてください");
+      return;
+    }
     const dayKey = String(slotForm.day);
     const existing = form.weeklySchedule[dayKey] || [];
     setForm((f) => ({
       ...f,
       weeklySchedule: {
         ...f.weeklySchedule,
-        [dayKey]: [...existing, { period: slotForm.period, duration: slotForm.duration, title: slotForm.title }],
+        [dayKey]: [...existing, {
+          startTime: slotForm.startTime,
+          endTime: slotForm.endTime,
+          title: slotForm.title,
+        }],
       },
     }));
-    setSlotForm({ day: 0, period: 0, duration: 1, title: "" });
+    setSlotForm({ day: 0, startTime: "09:00", endTime: "10:00", title: "" });
+    setError("");
   };
 
   const removeSlot = (dayKey: string, index: number) => {
@@ -183,10 +192,9 @@ export function MyPlanPage() {
   const allSlots = Object.entries(form.weeklySchedule).flatMap(([dayKey, slots]) =>
     slots.map((s) => ({ ...s, day: parseInt(dayKey) }))
   );
-  allSlots.sort((a, b) => a.day - b.day || a.period - b.period);
+  allSlots.sort((a, b) => a.day - b.day || a.startTime.localeCompare(b.startTime));
 
   // active plans - sorted by priority (special > basic)
-  const activePlans = plans.filter((p) => p.isActive);
   const basicPlans = plans.filter((p) => p.patternType === "basic");
   const specialPlans = plans.filter((p) => p.patternType === "special");
 
@@ -298,14 +306,14 @@ export function MyPlanPage() {
               </div>
             )}
 
-            {/* 週間スケジュール入力 */}
+            {/* 週間スケジュール入力 (時間ベース) */}
             <div style={{ marginTop: "1rem", borderTop: "1px solid var(--border)", paddingTop: "1rem" }}>
               <h4 style={{ fontSize: "0.85rem", fontWeight: 600, marginBottom: "0.5rem" }}>
                 週間スケジュール
               </h4>
 
               <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap", alignItems: "flex-end", marginBottom: "0.75rem" }}>
-                <div className="form-group" style={{ flex: 1, minWidth: 120 }}>
+                <div className="form-group" style={{ flex: 2, minWidth: 120 }}>
                   <label>タイトル</label>
                   <input
                     type="text"
@@ -326,26 +334,20 @@ export function MyPlanPage() {
                   </select>
                 </div>
                 <div className="form-group" style={{ minWidth: 100 }}>
-                  <label>時限</label>
-                  <select
-                    value={slotForm.period}
-                    onChange={(e) => setSlotForm((f) => ({ ...f, period: parseInt(e.target.value) }))}
-                  >
-                    {Array.from({ length: 11 }, (_, i) => (
-                      <option key={i} value={i}>{getPeriodLabel(i)}</option>
-                    ))}
-                  </select>
+                  <label>開始時刻</label>
+                  <input
+                    type="time"
+                    value={slotForm.startTime}
+                    onChange={(e) => setSlotForm((f) => ({ ...f, startTime: e.target.value }))}
+                  />
                 </div>
-                <div className="form-group" style={{ minWidth: 80 }}>
-                  <label>コマ数</label>
-                  <select
-                    value={slotForm.duration}
-                    onChange={(e) => setSlotForm((f) => ({ ...f, duration: parseInt(e.target.value) }))}
-                  >
-                    {[1, 2, 3, 4].map((n) => (
-                      <option key={n} value={n}>{n}</option>
-                    ))}
-                  </select>
+                <div className="form-group" style={{ minWidth: 100 }}>
+                  <label>終了時刻</label>
+                  <input
+                    type="time"
+                    value={slotForm.endTime}
+                    onChange={(e) => setSlotForm((f) => ({ ...f, endTime: e.target.value }))}
+                  />
                 </div>
                 <button type="button" onClick={addSlot} style={{ marginBottom: "1rem", fontSize: "0.8rem" }}>
                   スロット追加
@@ -357,7 +359,7 @@ export function MyPlanPage() {
                 <div style={{ display: "flex", flexDirection: "column", gap: "0.3rem", marginBottom: "1rem" }}>
                   {allSlots.map((slot, i) => (
                     <div
-                      key={`${slot.day}-${slot.period}-${i}`}
+                      key={`${slot.day}-${slot.startTime}-${i}`}
                       style={{
                         display: "flex",
                         alignItems: "center",
@@ -369,15 +371,10 @@ export function MyPlanPage() {
                       }}
                     >
                       <span className="badge blue" style={{ fontSize: "0.65rem" }}>{DAY_LABELS[slot.day]}</span>
-                      <span style={{ color: "var(--text-muted)", minWidth: 80 }}>
-                        {getPeriodLabel(slot.period).split("(")[0]}
+                      <span style={{ color: "var(--text-muted)", minWidth: 100 }}>
+                        {slot.startTime} – {slot.endTime}
                       </span>
                       <span style={{ fontWeight: 500 }}>{slot.title}</span>
-                      {slot.duration > 1 && (
-                        <span style={{ color: "var(--text-muted)", fontSize: "0.7rem" }}>
-                          ({slot.duration}コマ)
-                        </span>
-                      )}
                       <button
                         type="button"
                         className="danger"
@@ -426,7 +423,7 @@ export function MyPlanPage() {
             const slots = Object.entries(plan.weeklySchedule).flatMap(([dayKey, ss]) =>
               ss.map((s) => ({ ...s, day: parseInt(dayKey) }))
             );
-            slots.sort((a, b) => a.day - b.day || a.period - b.period);
+            slots.sort((a, b) => a.day - b.day || (a.startTime || "").localeCompare(b.startTime || ""));
 
             return (
               <div
@@ -488,8 +485,7 @@ export function MyPlanPage() {
                           fontSize: "0.75rem",
                         }}
                       >
-                        {DAY_LABELS[s.day]} {s.period + 1}限 {s.title}
-                        {s.duration > 1 && ` (${s.duration}コマ)`}
+                        {DAY_LABELS[s.day]} {s.startTime}–{s.endTime} {s.title}
                       </span>
                     ))}
                   </div>

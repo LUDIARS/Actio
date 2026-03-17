@@ -657,7 +657,7 @@ export const myPlanApi = {
     patternType: string;
     validFrom?: string;
     validUntil?: string;
-    weeklySchedule: Record<string, Array<{ period: number; duration: number; title: string }>>;
+    weeklySchedule: Record<string, Array<{ startTime: string; endTime: string; title: string }>>;
     groupId?: string;
   }) {
     return request<any>("/api/myplans", {
@@ -670,7 +670,7 @@ export const myPlanApi = {
     patternType?: string;
     validFrom?: string;
     validUntil?: string;
-    weeklySchedule?: Record<string, Array<{ period: number; duration: number; title: string }>>;
+    weeklySchedule?: Record<string, Array<{ startTime: string; endTime: string; title: string }>>;
     isActive?: boolean;
   }) {
     return request<any>(`/api/myplans/${id}`, {
@@ -683,6 +683,54 @@ export const myPlanApi = {
   },
   generateSchedule(id: string) {
     return request<any>(`/api/myplans/${id}/generate`, { method: "POST" });
+  },
+};
+
+// ─── Smart Scheduler (汎用自動配置) ─────────────────────────
+
+export const smartSchedulerApi = {
+  getTasks(groupId: string) {
+    return request<any>(`/api/smart-scheduler/tasks/${groupId}`);
+  },
+  createTask(body: {
+    groupId: string;
+    title: string;
+    duration?: number;
+    priority?: number;
+    preferredDays?: number[];
+    preferredPeriods?: number[];
+  }) {
+    return request<any>("/api/smart-scheduler/tasks", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  },
+  updateTask(id: string, body: {
+    title?: string;
+    duration?: number;
+    priority?: number;
+    preferredDays?: number[];
+    preferredPeriods?: number[];
+  }) {
+    return request<any>(`/api/smart-scheduler/tasks/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(body),
+    });
+  },
+  deleteTask(id: string) {
+    return request<any>(`/api/smart-scheduler/tasks/${id}`, { method: "DELETE" });
+  },
+  solve(groupId: string) {
+    return request<any>(`/api/smart-scheduler/solve/${groupId}`, { method: "POST" });
+  },
+  confirm(resultId: string) {
+    return request<any>(`/api/smart-scheduler/confirm/${resultId}`, { method: "POST" });
+  },
+  getResults(groupId: string) {
+    return request<any>(`/api/smart-scheduler/results/${groupId}`);
+  },
+  getAvailability(groupId: string) {
+    return request<any>(`/api/smart-scheduler/availability/${groupId}`);
   },
 };
 

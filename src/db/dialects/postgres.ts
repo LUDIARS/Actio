@@ -140,6 +140,57 @@ export const groups = pgTable("groups", {
     .notNull(),
 });
 
+// ─── Group Members ──────────────────────────────────────────
+
+export const groupMembers = pgTable(
+  "group_members",
+  {
+    id: text("id").primaryKey(),
+    groupId: text("group_id")
+      .references(() => groups.id)
+      .notNull(),
+    userId: text("user_id")
+      .references(() => users.id)
+      .notNull(),
+    role: text("role").notNull().default("member"),
+    joinedAt: timestamp("joined_at")
+      .$defaultFn(() => new Date())
+      .notNull(),
+  },
+  (table) => [
+    unique("unique_group_member").on(table.groupId, table.userId),
+    index("idx_group_member_user").on(table.userId),
+    index("idx_group_member_group").on(table.groupId),
+  ]
+);
+
+// ─── Group Schedules ────────────────────────────────────────
+
+export const groupSchedules = pgTable(
+  "group_schedules",
+  {
+    id: text("id").primaryKey(),
+    groupId: text("group_id")
+      .references(() => groups.id)
+      .notNull(),
+    title: text("title").notNull(),
+    description: text("description"),
+    day: integer("day").notNull(),
+    period: integer("period").notNull(),
+    duration: integer("duration").notNull().default(1),
+    date: text("date"),
+    scheduleType: text("schedule_type").notNull().default("recurring"),
+    createdBy: text("created_by").notNull(),
+    createdAt: timestamp("created_at")
+      .$defaultFn(() => new Date())
+      .notNull(),
+  },
+  (table) => [
+    index("idx_group_schedule_group").on(table.groupId),
+    index("idx_group_schedule_date").on(table.date),
+  ]
+);
+
 // ─── Reservations ────────────────────────────────────────────
 
 export const reservations = pgTable(
@@ -255,6 +306,221 @@ export const notifications = pgTable(
   ]
 );
 
+// ─── Personal Events ────────────────────────────────────────
+
+export const personalEvents = pgTable(
+  "personal_events",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .references(() => users.id)
+      .notNull(),
+    title: text("title").notNull(),
+    description: text("description"),
+    day: integer("day").notNull(),
+    period: integer("period").notNull(),
+    duration: integer("duration").notNull().default(1),
+    startTime: text("start_time"),
+    endTime: text("end_time"),
+    eventType: text("event_type").notNull().default("personal"),
+    planId: text("plan_id"),
+    isPrivate: boolean("is_private").notNull().default(true),
+    createdAt: timestamp("created_at")
+      .$defaultFn(() => new Date())
+      .notNull(),
+    updatedAt: timestamp("updated_at")
+      .$defaultFn(() => new Date())
+      .notNull(),
+  },
+  (table) => [
+    index("idx_personal_event_user").on(table.userId),
+    index("idx_personal_event_plan").on(table.planId),
+    unique("unique_personal_slot").on(table.userId, table.day, table.period),
+  ]
+);
+
+// ─── Plans ──────────────────────────────────────────────────
+
+export const plans = pgTable(
+  "plans",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .references(() => users.id)
+      .notNull(),
+    name: text("name").notNull(),
+    description: text("description"),
+    days: jsonb("days").$type<number[]>().notNull().default([]),
+    startPeriod: integer("start_period").notNull(),
+    duration: integer("duration").notNull().default(1),
+    eventType: text("event_type").notNull().default("personal"),
+    isPrivate: boolean("is_private").notNull().default(true),
+    isActive: boolean("is_active").notNull().default(true),
+    createdAt: timestamp("created_at")
+      .$defaultFn(() => new Date())
+      .notNull(),
+    updatedAt: timestamp("updated_at")
+      .$defaultFn(() => new Date())
+      .notNull(),
+  },
+  (table) => [
+    index("idx_plan_user").on(table.userId),
+  ]
+);
+
+// ─── My Plans ───────────────────────────────────────────────
+
+export const myPlans = pgTable(
+  "my_plans",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .references(() => users.id)
+      .notNull(),
+    groupId: text("group_id"),
+    name: text("name").notNull(),
+    patternType: text("pattern_type").notNull().default("basic"),
+    validFrom: text("valid_from"),
+    validUntil: text("valid_until"),
+    weeklySchedule: jsonb("weekly_schedule").$type<
+      Record<string, Array<{ startTime: string; endTime: string; title: string; period?: number; duration?: number }>>
+    >().notNull().default({}),
+    isActive: boolean("is_active").notNull().default(true),
+    priority: integer("priority").notNull().default(0),
+    createdAt: timestamp("created_at")
+      .$defaultFn(() => new Date())
+      .notNull(),
+    updatedAt: timestamp("updated_at")
+      .$defaultFn(() => new Date())
+      .notNull(),
+  },
+  (table) => [
+    index("idx_myplan_user").on(table.userId),
+    index("idx_myplan_group").on(table.groupId),
+  ]
+);
+
+// ─── Smart Scheduler: Tasks ─────────────────────────────────
+
+export const schedulingTasks = pgTable(
+  "scheduling_tasks",
+  {
+    id: text("id").primaryKey(),
+    groupId: text("group_id")
+      .references(() => groups.id)
+      .notNull(),
+    title: text("title").notNull(),
+    duration: integer("duration").notNull().default(1),
+    priority: integer("priority").notNull().default(0),
+    preferredDays: jsonb("preferred_days").$type<number[]>().notNull().default([]),
+    preferredPeriods: jsonb("preferred_periods").$type<number[]>().notNull().default([]),
+    status: text("status").notNull().default("pending"),
+    createdBy: text("created_by").notNull(),
+    createdAt: timestamp("created_at")
+      .$defaultFn(() => new Date())
+      .notNull(),
+    updatedAt: timestamp("updated_at")
+      .$defaultFn(() => new Date())
+      .notNull(),
+  },
+  (table) => [
+    index("idx_schtask_group").on(table.groupId),
+    index("idx_schtask_status").on(table.status),
+  ]
+);
+
+// ─── Smart Scheduler: Results ───────────────────────────────
+
+export const schedulingResults = pgTable(
+  "scheduling_results",
+  {
+    id: text("id").primaryKey(),
+    groupId: text("group_id")
+      .references(() => groups.id)
+      .notNull(),
+    status: text("status").notNull().default("draft"),
+    placements: jsonb("placements").$type<
+      Array<{ taskId: string; title: string; day: number; period: number; duration: number; score: number }>
+    >().notNull().default([]),
+    totalScore: integer("total_score").notNull().default(0),
+    createdBy: text("created_by").notNull(),
+    createdAt: timestamp("created_at")
+      .$defaultFn(() => new Date())
+      .notNull(),
+  },
+  (table) => [
+    index("idx_schresult_group").on(table.groupId),
+  ]
+);
+
+// ─── Voting Events ──────────────────────────────────────────
+
+export const votingEvents = pgTable("voting_events", {
+  id: text("id").primaryKey(),
+  title: text("title").notNull(),
+  description: text("description").notNull().default(""),
+  createdBy: text("created_by")
+    .references(() => users.id)
+    .notNull(),
+  deadline: text("deadline"),
+  status: text("status").notNull().default("open"),
+  createdAt: timestamp("created_at")
+    .$defaultFn(() => new Date())
+    .notNull(),
+  updatedAt: timestamp("updated_at")
+    .$defaultFn(() => new Date())
+    .notNull(),
+});
+
+// ─── Voting Candidates ─────────────────────────────────────
+
+export const votingCandidates = pgTable(
+  "voting_candidates",
+  {
+    id: text("id").primaryKey(),
+    eventId: text("event_id")
+      .references(() => votingEvents.id)
+      .notNull(),
+    label: text("label").notNull(),
+    sortOrder: integer("sort_order").notNull().default(0),
+  },
+  (table) => [
+    index("idx_candidate_event").on(table.eventId),
+  ]
+);
+
+// ─── Votes ──────────────────────────────────────────────────
+
+export const votes = pgTable(
+  "votes",
+  {
+    id: text("id").primaryKey(),
+    eventId: text("event_id")
+      .references(() => votingEvents.id)
+      .notNull(),
+    candidateId: text("candidate_id")
+      .references(() => votingCandidates.id)
+      .notNull(),
+    userId: text("user_id")
+      .references(() => users.id)
+      .notNull(),
+    answer: text("answer").notNull(),
+    isAutoReply: boolean("is_auto_reply").notNull().default(false),
+    comment: text("comment").notNull().default(""),
+    createdAt: timestamp("created_at")
+      .$defaultFn(() => new Date())
+      .notNull(),
+    updatedAt: timestamp("updated_at")
+      .$defaultFn(() => new Date())
+      .notNull(),
+  },
+  (table) => [
+    unique("unique_vote_per_user_candidate").on(table.eventId, table.candidateId, table.userId),
+    index("idx_vote_event").on(table.eventId),
+    index("idx_vote_user").on(table.userId),
+  ]
+);
+
 // ─── Departments ─────────────────────────────────────────────
 
 export const departments = pgTable("departments", {
@@ -348,11 +614,21 @@ export const schema = {
   unifiedSlots,
   memberProfiles,
   groups,
+  groupMembers,
+  groupSchedules,
   reservations,
+  personalEvents,
+  plans,
+  myPlans,
+  schedulingTasks,
+  schedulingResults,
   webhookEndpoints,
   webhookDeliveryLogs,
   notificationPreferences,
   notifications,
+  votingEvents,
+  votingCandidates,
+  votes,
 };
 
 export const curriculumSchema = {
@@ -373,11 +649,21 @@ const DB_SCHEMA = {
   unifiedSlots,
   memberProfiles,
   groups,
+  groupMembers,
+  groupSchedules,
   reservations,
+  personalEvents,
+  plans,
+  myPlans,
+  schedulingTasks,
+  schedulingResults,
   webhookEndpoints,
   webhookDeliveryLogs,
   notificationPreferences,
   notifications,
+  votingEvents,
+  votingCandidates,
+  votes,
   departments,
   instructors,
   curricula,

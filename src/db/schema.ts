@@ -238,9 +238,13 @@ export const personalEvents = sqliteTable(
     title: text("title").notNull(),
     description: text("description"),
     day: integer("day").notNull(), // 0-6 (月〜日)
-    period: integer("period").notNull(), // 0-10
+    period: integer("period").notNull(), // 0-10 (レガシー互換)
     /** 複数コマにまたがる場合のコマ数 */
     duration: integer("duration").notNull().default(1),
+    /** 時間ベースのスケジュール: 開始時刻 (HH:MM) */
+    startTime: text("start_time"),
+    /** 時間ベースのスケジュール: 終了時刻 (HH:MM) */
+    endTime: text("end_time"),
     /** イベント種別: personal / school_event */
     eventType: text("event_type").notNull().default("personal"),
     /** 繰り返し元のプランID (プランから自動生成された場合) */
@@ -315,9 +319,9 @@ export const myPlans = sqliteTable(
     validFrom: text("valid_from"),
     /** 適用終了日 (YYYY-MM-DD)、nullなら無期限 */
     validUntil: text("valid_until"),
-    /** 週間スケジュール: JSON { "0": [{ period, duration, title }], ... } */
+    /** 週間スケジュール: JSON { "0": [{ startTime, endTime, title }], ... } */
     weeklySchedule: text("weekly_schedule", { mode: "json" }).$type<
-      Record<string, Array<{ period: number; duration: number; title: string }>>
+      Record<string, Array<{ startTime: string; endTime: string; title: string; period?: number; duration?: number }>>
     >().notNull().default({}),
     isActive: integer("is_active", { mode: "boolean" }).notNull().default(true),
     /** 優先度（同一期間に複数パターンがある場合の優先順位、大きいほど優先） */
@@ -332,6 +336,67 @@ export const myPlans = sqliteTable(
   (table) => [
     index("idx_myplan_user").on(table.userId),
     index("idx_myplan_group").on(table.groupId),
+  ]
+);
+
+// ─── Smart Scheduler: Tasks (配置したい予定) ─────────────────
+// グループの空き状況を見て自動配置するための「入れたい予定」
+
+export const schedulingTasks = sqliteTable(
+  "scheduling_tasks",
+  {
+    id: text("id").primaryKey(),
+    groupId: text("group_id")
+      .references(() => groups.id)
+      .notNull(),
+    title: text("title").notNull(),
+    /** 所要コマ数 (1コマ=1時間) */
+    duration: integer("duration").notNull().default(1),
+    /** 優先度 (大きいほど優先的に配置) */
+    priority: integer("priority").notNull().default(0),
+    /** 希望曜日 JSON array [0,1,2,...] (空=どの曜日でもOK) */
+    preferredDays: text("preferred_days", { mode: "json" }).$type<number[]>().notNull().default([]),
+    /** 希望コマ JSON array [0,1,2,...] (空=どのコマでもOK) */
+    preferredPeriods: text("preferred_periods", { mode: "json" }).$type<number[]>().notNull().default([]),
+    /** pending=未配置, placed=配置済み, failed=配置不可 */
+    status: text("status").notNull().default("pending"),
+    createdBy: text("created_by").notNull(),
+    createdAt: integer("created_at", { mode: "timestamp" })
+      .$defaultFn(() => new Date())
+      .notNull(),
+    updatedAt: integer("updated_at", { mode: "timestamp" })
+      .$defaultFn(() => new Date())
+      .notNull(),
+  },
+  (table) => [
+    index("idx_schtask_group").on(table.groupId),
+    index("idx_schtask_status").on(table.status),
+  ]
+);
+
+// ─── Smart Scheduler: Results (自動配置結果) ─────────────────
+
+export const schedulingResults = sqliteTable(
+  "scheduling_results",
+  {
+    id: text("id").primaryKey(),
+    groupId: text("group_id")
+      .references(() => groups.id)
+      .notNull(),
+    /** draft=提案中, confirmed=確定, rejected=却下 */
+    status: text("status").notNull().default("draft"),
+    /** 配置結果 JSON: Array<{ taskId, day, period, score }> */
+    placements: text("placements", { mode: "json" }).$type<
+      Array<{ taskId: string; title: string; day: number; period: number; duration: number; score: number }>
+    >().notNull().default([]),
+    totalScore: integer("total_score").notNull().default(0),
+    createdBy: text("created_by").notNull(),
+    createdAt: integer("created_at", { mode: "timestamp" })
+      .$defaultFn(() => new Date())
+      .notNull(),
+  },
+  (table) => [
+    index("idx_schresult_group").on(table.groupId),
   ]
 );
 

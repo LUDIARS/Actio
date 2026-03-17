@@ -12,6 +12,7 @@ import { VotingPage } from "./pages/VotingPage";
 import { CalendarPage } from "./pages/CalendarPage";
 import { GroupsPage } from "./pages/GroupsPage";
 import { MyPlanPage } from "./pages/MyPlanPage";
+import { SmartSchedulerPage } from "./pages/SmartSchedulerPage";
 import { SchemaManagementPage } from "./pages/SchemaManagementPage";
 import { UserManagementPage } from "./pages/UserManagementPage";
 import { DbViewerPage } from "./pages/DbViewerPage";
@@ -53,6 +54,7 @@ function AppRoutes() {
         <Route path="/groups" element={<GroupsPage />} />
         <Route path="/my-plan" element={<MyPlanPage />} />
         <Route path="/scheduler" element={<SchedulerPage />} />
+        <Route path="/smart-scheduler" element={<SmartSchedulerPage />} />
         <Route path="/reservations" element={<ReservationsPage />} />
         <Route path="/reservations/new" element={<ReservationsPage />} />
         <Route path="/notifications" element={<NotificationsPage />} />

@@ -195,6 +195,8 @@ sqlite.exec(`
     day INTEGER NOT NULL,
     period INTEGER NOT NULL,
     duration INTEGER NOT NULL DEFAULT 1,
+    start_time TEXT,
+    end_time TEXT,
     event_type TEXT NOT NULL DEFAULT 'personal',
     plan_id TEXT,
     is_private INTEGER NOT NULL DEFAULT 1,
@@ -237,6 +239,36 @@ sqlite.exec(`
   );
   CREATE INDEX IF NOT EXISTS idx_myplan_user ON my_plans(user_id);
   CREATE INDEX IF NOT EXISTS idx_myplan_group ON my_plans(group_id);
+`);
+
+// Smart Scheduler tables
+sqlite.exec(`
+  CREATE TABLE IF NOT EXISTS scheduling_tasks (
+    id TEXT PRIMARY KEY,
+    group_id TEXT NOT NULL REFERENCES groups(id),
+    title TEXT NOT NULL,
+    duration INTEGER NOT NULL DEFAULT 1,
+    priority INTEGER NOT NULL DEFAULT 0,
+    preferred_days TEXT NOT NULL DEFAULT '[]',
+    preferred_periods TEXT NOT NULL DEFAULT '[]',
+    status TEXT NOT NULL DEFAULT 'pending',
+    created_by TEXT NOT NULL,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS idx_schtask_group ON scheduling_tasks(group_id);
+  CREATE INDEX IF NOT EXISTS idx_schtask_status ON scheduling_tasks(status);
+
+  CREATE TABLE IF NOT EXISTS scheduling_results (
+    id TEXT PRIMARY KEY,
+    group_id TEXT NOT NULL REFERENCES groups(id),
+    status TEXT NOT NULL DEFAULT 'draft',
+    placements TEXT NOT NULL DEFAULT '[]',
+    total_score INTEGER NOT NULL DEFAULT 0,
+    created_by TEXT NOT NULL,
+    created_at INTEGER NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS idx_schresult_group ON scheduling_results(group_id);
 `);
 
 // M1 Curriculum module tables (matches curriculum-schema.ts)

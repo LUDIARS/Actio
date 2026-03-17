@@ -1,19 +1,32 @@
 import { Hono } from "hono";
 import { v4 as uuidv4 } from "uuid";
-import { db, schema } from "../../src/db/connection.js";
-import { eq, and } from "drizzle-orm";
 import { getUserId } from "../../src/middleware/getUserId.js";
+import {
+  userRepo,
+  personalEventRepo,
+  planRepo,
+  groupMemberRepo,
+  groupRepo,
+  groupScheduleRepo,
+} from "../../src/db/repository.js";
+
+// ─── Helper: period → 時刻変換 (09:30 + period * 60min) ─────
+
+function periodToTime(period: number): { startTime: string; endTime: string } {
+  const startHour = 9 + Math.floor((30 + period * 60) / 60);
+  const startMin = (30 + period * 60) % 60;
+  const endHour = startHour + 1;
+  const fmt = (h: number, m: number) =>
+    `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+  return { startTime: fmt(startHour, startMin), endTime: fmt(endHour, startMin) };
+}
 
 const calendar = new Hono();
 
 // ─── Helper: Google Tokenリフレッシュ ────────────────────────
 
 async function refreshGoogleToken(userId: string): Promise<string | null> {
-  const user = db
-    .select()
-    .from(schema.users)
-    .where(eq(schema.users.id, userId))
-    .get();
+  const user = await userRepo.findById(userId);
 
   if (!user?.googleRefreshToken) return null;
 
@@ -49,14 +62,11 @@ async function refreshGoogleToken(userId: string): Promise<string | null> {
 
     const tokenExpiresAt = Date.now() + data.expires_in * 1000;
 
-    db.update(schema.users)
-      .set({
-        googleAccessToken: data.access_token,
-        googleTokenExpiresAt: tokenExpiresAt,
-        updatedAt: new Date(),
-      })
-      .where(eq(schema.users.id, userId))
-      .run();
+    await userRepo.update(userId, {
+      googleAccessToken: data.access_token,
+      googleTokenExpiresAt: tokenExpiresAt,
+      updatedAt: new Date(),
+    });
 
     return data.access_token;
   } catch (err) {
@@ -73,11 +83,7 @@ calendar.get("/events", async (c) => {
     return c.json({ error: "Authentication required" }, 401);
   }
 
-  const user = db
-    .select()
-    .from(schema.users)
-    .where(eq(schema.users.id, userId))
-    .get();
+  const user = await userRepo.findById(userId);
 
   if (!user) {
     return c.json({ error: "User not found" }, 404);
@@ -191,25 +197,21 @@ calendar.get("/calendars", async (c) => {
 
 // ─── GET /status - Google Calendar接続状態 ──────────────────
 
-calendar.get("/status", (c) => {
+calendar.get("/status", async (c) => {
   const userId = getUserId(c);
   if (!userId) return c.json({ error: "Authentication required" }, 401);
 
-  const user = db
-    .select()
-    .from(schema.users)
-    .where(eq(schema.users.id, userId))
-    .get();
+  const user = await userRepo.findById(userId);
 
   if (!user) return c.json({ error: "User not found" }, 404);
 
-  const scopes: string[] = user.googleScopes || [];
+  const scopes: string[] = (user.googleScopes as string[] | null) || [];
   const hasCalendarScope = scopes.some((s: string) =>
     s.includes("calendar.readonly") || s.includes("calendar.events")
   );
 
   return c.json({
-    connected: !!user.googleId,
+    connected: !!user.calendarAccessId,
     email: user.email,
     hasGoogleAuth: !!user.googleId,
     googleScopes: scopes,
@@ -219,15 +221,11 @@ calendar.get("/status", (c) => {
 
 // ─── POST /disconnect - Google Calendar連携解除 ─────────────
 
-calendar.post("/disconnect", (c) => {
+calendar.post("/disconnect", async (c) => {
   const userId = getUserId(c);
   if (!userId) return c.json({ error: "Authentication required" }, 401);
 
-  const user = db
-    .select()
-    .from(schema.users)
-    .where(eq(schema.users.id, userId))
-    .get();
+  const user = await userRepo.findById(userId);
 
   if (!user) return c.json({ error: "User not found" }, 404);
 
@@ -238,18 +236,15 @@ calendar.post("/disconnect", (c) => {
     }, 400);
   }
 
-  db.update(schema.users)
-    .set({
-      googleId: null,
-      googleAccessToken: null,
-      googleRefreshToken: null,
-      googleTokenExpiresAt: null,
-      googleScopes: null,
-      calendarAccessId: null,
-      updatedAt: new Date(),
-    })
-    .where(eq(schema.users.id, userId))
-    .run();
+  await userRepo.update(userId, {
+    googleId: null,
+    googleAccessToken: null,
+    googleRefreshToken: null,
+    googleTokenExpiresAt: null,
+    googleScopes: null,
+    calendarAccessId: null,
+    updatedAt: new Date(),
+  });
 
   return c.json({ message: "Google Calendar disconnected" });
 });
@@ -260,15 +255,11 @@ calendar.post("/disconnect", (c) => {
 
 // ─── GET /personal - 手動予定一覧 ──────────────────────────
 
-calendar.get("/personal", (c) => {
+calendar.get("/personal", async (c) => {
   const userId = getUserId(c);
   if (!userId) return c.json({ error: "Authentication required" }, 401);
 
-  const events = db
-    .select()
-    .from(schema.personalEvents)
-    .where(eq(schema.personalEvents.userId, userId))
-    .all();
+  const events = await personalEventRepo.findByUserId(userId);
 
   return c.json({ events });
 });
@@ -285,6 +276,8 @@ calendar.post("/personal", async (c) => {
     day: number;
     period: number;
     duration?: number;
+    startTime?: string;
+    endTime?: string;
     eventType?: string;
     isPrivate?: boolean;
   }>();
@@ -301,17 +294,7 @@ calendar.post("/personal", async (c) => {
   }
 
   // 重複チェック
-  const existing = db
-    .select()
-    .from(schema.personalEvents)
-    .where(
-      and(
-        eq(schema.personalEvents.userId, userId),
-        eq(schema.personalEvents.day, body.day),
-        eq(schema.personalEvents.period, body.period)
-      )
-    )
-    .get();
+  const existing = await personalEventRepo.findByUserDayPeriod(userId, body.day, body.period);
 
   if (existing) {
     return c.json({ error: "このスロットには既に予定があります" }, 409);
@@ -320,27 +303,28 @@ calendar.post("/personal", async (c) => {
   const id = uuidv4();
   const now = new Date();
 
-  db.insert(schema.personalEvents)
-    .values({
-      id,
-      userId,
-      title: body.title,
-      description: body.description || null,
-      day: body.day,
-      period: body.period,
-      duration: body.duration || 1,
-      eventType: body.eventType || "personal",
-      isPrivate: body.isPrivate !== false,
-      createdAt: now,
-      updatedAt: now,
-    })
-    .run();
+  // 時刻が未指定の場合は period から自動算出
+  const times = body.startTime && body.endTime
+    ? { startTime: body.startTime, endTime: body.endTime }
+    : periodToTime(body.period);
 
-  const created = db
-    .select()
-    .from(schema.personalEvents)
-    .where(eq(schema.personalEvents.id, id))
-    .get();
+  await personalEventRepo.create({
+    id,
+    userId,
+    title: body.title,
+    description: body.description || null,
+    day: body.day,
+    period: body.period,
+    duration: body.duration || 1,
+    startTime: times.startTime,
+    endTime: times.endTime,
+    eventType: body.eventType || "personal",
+    isPrivate: body.isPrivate !== false,
+    createdAt: now,
+    updatedAt: now,
+  });
+
+  const created = await personalEventRepo.findById(id);
 
   return c.json({ event: created }, 201);
 });
@@ -352,16 +336,7 @@ calendar.put("/personal/:id", async (c) => {
   if (!userId) return c.json({ error: "Authentication required" }, 401);
 
   const eventId = c.req.param("id");
-  const existing = db
-    .select()
-    .from(schema.personalEvents)
-    .where(
-      and(
-        eq(schema.personalEvents.id, eventId),
-        eq(schema.personalEvents.userId, userId)
-      )
-    )
-    .get();
+  const existing = await personalEventRepo.findByIdAndUserId(eventId, userId);
 
   if (!existing) {
     return c.json({ error: "Event not found" }, 404);
@@ -386,45 +361,27 @@ calendar.put("/personal/:id", async (c) => {
   if (body.eventType !== undefined) updates.eventType = body.eventType;
   if (body.isPrivate !== undefined) updates.isPrivate = body.isPrivate;
 
-  db.update(schema.personalEvents)
-    .set(updates)
-    .where(eq(schema.personalEvents.id, eventId))
-    .run();
+  await personalEventRepo.update(eventId, updates);
 
-  const updated = db
-    .select()
-    .from(schema.personalEvents)
-    .where(eq(schema.personalEvents.id, eventId))
-    .get();
+  const updated = await personalEventRepo.findById(eventId);
 
   return c.json({ event: updated });
 });
 
 // ─── DELETE /personal/:id - 手動予定削除 ───────────────────
 
-calendar.delete("/personal/:id", (c) => {
+calendar.delete("/personal/:id", async (c) => {
   const userId = getUserId(c);
   if (!userId) return c.json({ error: "Authentication required" }, 401);
 
   const eventId = c.req.param("id");
-  const existing = db
-    .select()
-    .from(schema.personalEvents)
-    .where(
-      and(
-        eq(schema.personalEvents.id, eventId),
-        eq(schema.personalEvents.userId, userId)
-      )
-    )
-    .get();
+  const existing = await personalEventRepo.findByIdAndUserId(eventId, userId);
 
   if (!existing) {
     return c.json({ error: "Event not found" }, 404);
   }
 
-  db.delete(schema.personalEvents)
-    .where(eq(schema.personalEvents.id, eventId))
-    .run();
+  await personalEventRepo.deleteById(eventId);
 
   return c.json({ message: "Event deleted" });
 });
@@ -435,7 +392,7 @@ calendar.delete("/personal/:id", (c) => {
 
 // ─── Helper: プランからイベントを自動生成 ─────────────────────
 
-function generateEventsFromPlan(
+async function generateEventsFromPlan(
   planId: string,
   userId: string,
   plan: {
@@ -448,14 +405,7 @@ function generateEventsFromPlan(
   }
 ) {
   // まず既存のプラン由来イベントを削除
-  db.delete(schema.personalEvents)
-    .where(
-      and(
-        eq(schema.personalEvents.userId, userId),
-        eq(schema.personalEvents.planId, planId)
-      )
-    )
-    .run();
+  await personalEventRepo.deleteByUserAndPlan(userId, planId);
 
   const now = new Date();
   let created = 0;
@@ -466,35 +416,26 @@ function generateEventsFromPlan(
       if (period > 10) continue;
 
       // 既存予定との重複チェック (他のソースの予定)
-      const conflict = db
-        .select()
-        .from(schema.personalEvents)
-        .where(
-          and(
-            eq(schema.personalEvents.userId, userId),
-            eq(schema.personalEvents.day, day),
-            eq(schema.personalEvents.period, period)
-          )
-        )
-        .get();
+      const conflict = await personalEventRepo.findByUserDayPeriod(userId, day, period);
 
       if (conflict) continue;
 
-      db.insert(schema.personalEvents)
-        .values({
-          id: uuidv4(),
-          userId,
-          title: plan.name,
-          day,
-          period,
-          duration: 1,
-          eventType: plan.eventType,
-          planId,
-          isPrivate: plan.isPrivate,
-          createdAt: now,
-          updatedAt: now,
-        })
-        .run();
+      const times = periodToTime(period);
+      await personalEventRepo.create({
+        id: uuidv4(),
+        userId,
+        title: plan.name,
+        day,
+        period,
+        duration: 1,
+        startTime: times.startTime,
+        endTime: times.endTime,
+        eventType: plan.eventType,
+        planId,
+        isPrivate: plan.isPrivate,
+        createdAt: now,
+        updatedAt: now,
+      });
 
       created++;
     }
@@ -505,15 +446,11 @@ function generateEventsFromPlan(
 
 // ─── GET /plans - プラン一覧 ──────────────────────────────
 
-calendar.get("/plans", (c) => {
+calendar.get("/plans", async (c) => {
   const userId = getUserId(c);
   if (!userId) return c.json({ error: "Authentication required" }, 401);
 
-  const planList = db
-    .select()
-    .from(schema.plans)
-    .where(eq(schema.plans.userId, userId))
-    .all();
+  const planList = await planRepo.findByUserId(userId);
 
   return c.json({ plans: planList });
 });
@@ -552,25 +489,23 @@ calendar.post("/plans", async (c) => {
   const eventType = body.eventType || "personal";
   const isPrivate = body.isPrivate !== false;
 
-  db.insert(schema.plans)
-    .values({
-      id: planId,
-      userId,
-      name: body.name,
-      description: body.description || null,
-      days: body.days,
-      startPeriod: body.startPeriod,
-      duration,
-      eventType,
-      isPrivate,
-      isActive: true,
-      createdAt: now,
-      updatedAt: now,
-    })
-    .run();
+  await planRepo.create({
+    id: planId,
+    userId,
+    name: body.name,
+    description: body.description || null,
+    days: body.days,
+    startPeriod: body.startPeriod,
+    duration,
+    eventType,
+    isPrivate,
+    isActive: true,
+    createdAt: now,
+    updatedAt: now,
+  });
 
   // イベント自動生成
-  const createdCount = generateEventsFromPlan(planId, userId, {
+  const createdCount = await generateEventsFromPlan(planId, userId, {
     name: body.name,
     days: body.days,
     startPeriod: body.startPeriod,
@@ -579,11 +514,7 @@ calendar.post("/plans", async (c) => {
     isPrivate,
   });
 
-  const plan = db
-    .select()
-    .from(schema.plans)
-    .where(eq(schema.plans.id, planId))
-    .get();
+  const plan = await planRepo.findById(planId);
 
   return c.json({ plan, generatedEvents: createdCount }, 201);
 });
@@ -595,16 +526,7 @@ calendar.put("/plans/:id", async (c) => {
   if (!userId) return c.json({ error: "Authentication required" }, 401);
 
   const planId = c.req.param("id");
-  const existing = db
-    .select()
-    .from(schema.plans)
-    .where(
-      and(
-        eq(schema.plans.id, planId),
-        eq(schema.plans.userId, userId)
-      )
-    )
-    .get();
+  const existing = await planRepo.findByIdAndUserId(planId, userId);
 
   if (!existing) return c.json({ error: "Plan not found" }, 404);
 
@@ -629,21 +551,14 @@ calendar.put("/plans/:id", async (c) => {
   if (body.isPrivate !== undefined) updates.isPrivate = body.isPrivate;
   if (body.isActive !== undefined) updates.isActive = body.isActive;
 
-  db.update(schema.plans)
-    .set(updates)
-    .where(eq(schema.plans.id, planId))
-    .run();
+  await planRepo.update(planId, updates);
 
-  const updated = db
-    .select()
-    .from(schema.plans)
-    .where(eq(schema.plans.id, planId))
-    .get();
+  const updated = await planRepo.findById(planId);
 
   // プランが有効なら再生成
   let generatedEvents = 0;
-  if (updated.isActive) {
-    generatedEvents = generateEventsFromPlan(planId, userId, {
+  if (updated?.isActive) {
+    generatedEvents = await generateEventsFromPlan(planId, userId, {
       name: updated.name,
       days: updated.days as number[],
       startPeriod: updated.startPeriod,
@@ -653,14 +568,7 @@ calendar.put("/plans/:id", async (c) => {
     });
   } else {
     // 無効化された場合はプラン由来のイベントを削除
-    db.delete(schema.personalEvents)
-      .where(
-        and(
-          eq(schema.personalEvents.userId, userId),
-          eq(schema.personalEvents.planId, planId)
-        )
-      )
-      .run();
+    await personalEventRepo.deleteByUserAndPlan(userId, planId);
   }
 
   return c.json({ plan: updated, generatedEvents });
@@ -668,59 +576,32 @@ calendar.put("/plans/:id", async (c) => {
 
 // ─── DELETE /plans/:id - プラン削除 + 関連イベント削除 ─────
 
-calendar.delete("/plans/:id", (c) => {
+calendar.delete("/plans/:id", async (c) => {
   const userId = getUserId(c);
   if (!userId) return c.json({ error: "Authentication required" }, 401);
 
   const planId = c.req.param("id");
-  const existing = db
-    .select()
-    .from(schema.plans)
-    .where(
-      and(
-        eq(schema.plans.id, planId),
-        eq(schema.plans.userId, userId)
-      )
-    )
-    .get();
+  const existing = await planRepo.findByIdAndUserId(planId, userId);
 
   if (!existing) return c.json({ error: "Plan not found" }, 404);
 
   // プラン由来のイベントを削除
-  db.delete(schema.personalEvents)
-    .where(
-      and(
-        eq(schema.personalEvents.userId, userId),
-        eq(schema.personalEvents.planId, planId)
-      )
-    )
-    .run();
+  await personalEventRepo.deleteByUserAndPlan(userId, planId);
 
   // プラン本体を削除
-  db.delete(schema.plans)
-    .where(eq(schema.plans.id, planId))
-    .run();
+  await planRepo.deleteById(planId);
 
   return c.json({ message: "Plan and associated events deleted" });
 });
 
 // ─── POST /plans/:id/regenerate - プランからイベント再生成 ──
 
-calendar.post("/plans/:id/regenerate", (c) => {
+calendar.post("/plans/:id/regenerate", async (c) => {
   const userId = getUserId(c);
   if (!userId) return c.json({ error: "Authentication required" }, 401);
 
   const planId = c.req.param("id");
-  const plan = db
-    .select()
-    .from(schema.plans)
-    .where(
-      and(
-        eq(schema.plans.id, planId),
-        eq(schema.plans.userId, userId)
-      )
-    )
-    .get();
+  const plan = await planRepo.findByIdAndUserId(planId, userId);
 
   if (!plan) return c.json({ error: "Plan not found" }, 404);
 
@@ -728,7 +609,7 @@ calendar.post("/plans/:id/regenerate", (c) => {
     return c.json({ error: "Plan is not active" }, 400);
   }
 
-  const createdCount = generateEventsFromPlan(planId, userId, {
+  const createdCount = await generateEventsFromPlan(planId, userId, {
     name: plan.name,
     days: plan.days as number[],
     startPeriod: plan.startPeriod,
@@ -743,23 +624,15 @@ calendar.post("/plans/:id/regenerate", (c) => {
 // ─── GET /conflicts - バッティング検出 ───────────────────────
 // 個人の予定とグループの予定の重複を検出
 
-calendar.get("/conflicts", (c) => {
+calendar.get("/conflicts", async (c) => {
   const userId = getUserId(c);
   if (!userId) return c.json({ error: "Authentication required" }, 401);
 
   // 個人の予定を取得
-  const personalEvts = db
-    .select()
-    .from(schema.personalEvents)
-    .where(eq(schema.personalEvents.userId, userId))
-    .all();
+  const personalEvts = await personalEventRepo.findByUserId(userId);
 
   // ユーザーが所属するグループの予定を取得
-  const memberships = db
-    .select()
-    .from(schema.groupMembers)
-    .where(eq(schema.groupMembers.userId, userId))
-    .all();
+  const memberships = await groupMemberRepo.findByUserId(userId);
 
   const groupScheduleList: Array<{
     id: string;
@@ -772,19 +645,11 @@ calendar.get("/conflicts", (c) => {
   }> = [];
 
   for (const m of memberships) {
-    const group = db
-      .select()
-      .from(schema.groups)
-      .where(eq(schema.groups.id, m.groupId))
-      .get();
+    const group = await groupRepo.findById(m.groupId);
 
     if (!group) continue;
 
-    const schedules = db
-      .select()
-      .from(schema.groupSchedules)
-      .where(eq(schema.groupSchedules.groupId, m.groupId))
-      .all();
+    const schedules = await groupScheduleRepo.findByGroupId(m.groupId);
 
     for (const s of schedules) {
       groupScheduleList.push({

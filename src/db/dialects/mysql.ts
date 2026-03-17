@@ -142,6 +142,57 @@ export const groups = mysqlTable("`groups`", {
     .notNull(),
 });
 
+// ─── Group Members ──────────────────────────────────────────
+
+export const groupMembers = mysqlTable(
+  "group_members",
+  {
+    id: varchar("id", { length: 255 }).primaryKey(),
+    groupId: varchar("group_id", { length: 255 })
+      .references(() => groups.id)
+      .notNull(),
+    userId: varchar("user_id", { length: 255 })
+      .references(() => users.id)
+      .notNull(),
+    role: varchar("role", { length: 255 }).notNull().default("member"),
+    joinedAt: timestamp("joined_at")
+      .$defaultFn(() => new Date())
+      .notNull(),
+  },
+  (table) => [
+    unique("unique_group_member").on(table.groupId, table.userId),
+    index("idx_group_member_user").on(table.userId),
+    index("idx_group_member_group").on(table.groupId),
+  ]
+);
+
+// ─── Group Schedules ────────────────────────────────────────
+
+export const groupSchedules = mysqlTable(
+  "group_schedules",
+  {
+    id: varchar("id", { length: 255 }).primaryKey(),
+    groupId: varchar("group_id", { length: 255 })
+      .references(() => groups.id)
+      .notNull(),
+    title: varchar("title", { length: 255 }).notNull(),
+    description: text("description"),
+    day: int("day").notNull(),
+    period: int("period").notNull(),
+    duration: int("duration").notNull().default(1),
+    date: varchar("date", { length: 255 }),
+    scheduleType: varchar("schedule_type", { length: 255 }).notNull().default("recurring"),
+    createdBy: varchar("created_by", { length: 255 }).notNull(),
+    createdAt: timestamp("created_at")
+      .$defaultFn(() => new Date())
+      .notNull(),
+  },
+  (table) => [
+    index("idx_group_schedule_group").on(table.groupId),
+    index("idx_group_schedule_date").on(table.date),
+  ]
+);
+
 // ─── Reservations ───────────────────────────────────────────
 
 export const reservations = mysqlTable(
@@ -257,6 +308,221 @@ export const notifications = mysqlTable(
   ]
 );
 
+// ─── Personal Events ────────────────────────────────────────
+
+export const personalEvents = mysqlTable(
+  "personal_events",
+  {
+    id: varchar("id", { length: 255 }).primaryKey(),
+    userId: varchar("user_id", { length: 255 })
+      .references(() => users.id)
+      .notNull(),
+    title: varchar("title", { length: 255 }).notNull(),
+    description: text("description"),
+    day: int("day").notNull(),
+    period: int("period").notNull(),
+    duration: int("duration").notNull().default(1),
+    startTime: varchar("start_time", { length: 10 }),
+    endTime: varchar("end_time", { length: 10 }),
+    eventType: varchar("event_type", { length: 255 }).notNull().default("personal"),
+    planId: varchar("plan_id", { length: 255 }),
+    isPrivate: boolean("is_private").notNull().default(true),
+    createdAt: timestamp("created_at")
+      .$defaultFn(() => new Date())
+      .notNull(),
+    updatedAt: timestamp("updated_at")
+      .$defaultFn(() => new Date())
+      .notNull(),
+  },
+  (table) => [
+    index("idx_personal_event_user").on(table.userId),
+    index("idx_personal_event_plan").on(table.planId),
+    unique("unique_personal_slot").on(table.userId, table.day, table.period),
+  ]
+);
+
+// ─── Plans ──────────────────────────────────────────────────
+
+export const plans = mysqlTable(
+  "plans",
+  {
+    id: varchar("id", { length: 255 }).primaryKey(),
+    userId: varchar("user_id", { length: 255 })
+      .references(() => users.id)
+      .notNull(),
+    name: varchar("name", { length: 255 }).notNull(),
+    description: text("description"),
+    days: json("days").$type<number[]>().notNull(),
+    startPeriod: int("start_period").notNull(),
+    duration: int("duration").notNull().default(1),
+    eventType: varchar("event_type", { length: 255 }).notNull().default("personal"),
+    isPrivate: boolean("is_private").notNull().default(true),
+    isActive: boolean("is_active").notNull().default(true),
+    createdAt: timestamp("created_at")
+      .$defaultFn(() => new Date())
+      .notNull(),
+    updatedAt: timestamp("updated_at")
+      .$defaultFn(() => new Date())
+      .notNull(),
+  },
+  (table) => [
+    index("idx_plan_user").on(table.userId),
+  ]
+);
+
+// ─── My Plans ───────────────────────────────────────────────
+
+export const myPlans = mysqlTable(
+  "my_plans",
+  {
+    id: varchar("id", { length: 255 }).primaryKey(),
+    userId: varchar("user_id", { length: 255 })
+      .references(() => users.id)
+      .notNull(),
+    groupId: varchar("group_id", { length: 255 }),
+    name: varchar("name", { length: 255 }).notNull(),
+    patternType: varchar("pattern_type", { length: 255 }).notNull().default("basic"),
+    validFrom: varchar("valid_from", { length: 255 }),
+    validUntil: varchar("valid_until", { length: 255 }),
+    weeklySchedule: json("weekly_schedule").$type<
+      Record<string, Array<{ startTime: string; endTime: string; title: string; period?: number; duration?: number }>>
+    >().notNull(),
+    isActive: boolean("is_active").notNull().default(true),
+    priority: int("priority").notNull().default(0),
+    createdAt: timestamp("created_at")
+      .$defaultFn(() => new Date())
+      .notNull(),
+    updatedAt: timestamp("updated_at")
+      .$defaultFn(() => new Date())
+      .notNull(),
+  },
+  (table) => [
+    index("idx_myplan_user").on(table.userId),
+    index("idx_myplan_group").on(table.groupId),
+  ]
+);
+
+// ─── Smart Scheduler: Tasks ─────────────────────────────────
+
+export const schedulingTasks = mysqlTable(
+  "scheduling_tasks",
+  {
+    id: varchar("id", { length: 255 }).primaryKey(),
+    groupId: varchar("group_id", { length: 255 })
+      .references(() => groups.id)
+      .notNull(),
+    title: varchar("title", { length: 255 }).notNull(),
+    duration: int("duration").notNull().default(1),
+    priority: int("priority").notNull().default(0),
+    preferredDays: json("preferred_days").$type<number[]>().notNull(),
+    preferredPeriods: json("preferred_periods").$type<number[]>().notNull(),
+    status: varchar("status", { length: 255 }).notNull().default("pending"),
+    createdBy: varchar("created_by", { length: 255 }).notNull(),
+    createdAt: timestamp("created_at")
+      .$defaultFn(() => new Date())
+      .notNull(),
+    updatedAt: timestamp("updated_at")
+      .$defaultFn(() => new Date())
+      .notNull(),
+  },
+  (table) => [
+    index("idx_schtask_group").on(table.groupId),
+    index("idx_schtask_status").on(table.status),
+  ]
+);
+
+// ─── Smart Scheduler: Results ───────────────────────────────
+
+export const schedulingResults = mysqlTable(
+  "scheduling_results",
+  {
+    id: varchar("id", { length: 255 }).primaryKey(),
+    groupId: varchar("group_id", { length: 255 })
+      .references(() => groups.id)
+      .notNull(),
+    status: varchar("status", { length: 255 }).notNull().default("draft"),
+    placements: json("placements").$type<
+      Array<{ taskId: string; title: string; day: number; period: number; duration: number; score: number }>
+    >().notNull(),
+    totalScore: int("total_score").notNull().default(0),
+    createdBy: varchar("created_by", { length: 255 }).notNull(),
+    createdAt: timestamp("created_at")
+      .$defaultFn(() => new Date())
+      .notNull(),
+  },
+  (table) => [
+    index("idx_schresult_group").on(table.groupId),
+  ]
+);
+
+// ─── Voting Events ──────────────────────────────────────────
+
+export const votingEvents = mysqlTable("voting_events", {
+  id: varchar("id", { length: 255 }).primaryKey(),
+  title: varchar("title", { length: 255 }).notNull(),
+  description: text("description"),
+  createdBy: varchar("created_by", { length: 255 })
+    .references(() => users.id)
+    .notNull(),
+  deadline: varchar("deadline", { length: 255 }),
+  status: varchar("status", { length: 255 }).notNull().default("open"),
+  createdAt: timestamp("created_at")
+    .$defaultFn(() => new Date())
+    .notNull(),
+  updatedAt: timestamp("updated_at")
+    .$defaultFn(() => new Date())
+    .notNull(),
+});
+
+// ─── Voting Candidates ─────────────────────────────────────
+
+export const votingCandidates = mysqlTable(
+  "voting_candidates",
+  {
+    id: varchar("id", { length: 255 }).primaryKey(),
+    eventId: varchar("event_id", { length: 255 })
+      .references(() => votingEvents.id)
+      .notNull(),
+    label: varchar("label", { length: 255 }).notNull(),
+    sortOrder: int("sort_order").notNull().default(0),
+  },
+  (table) => [
+    index("idx_candidate_event").on(table.eventId),
+  ]
+);
+
+// ─── Votes ──────────────────────────────────────────────────
+
+export const votes = mysqlTable(
+  "votes",
+  {
+    id: varchar("id", { length: 255 }).primaryKey(),
+    eventId: varchar("event_id", { length: 255 })
+      .references(() => votingEvents.id)
+      .notNull(),
+    candidateId: varchar("candidate_id", { length: 255 })
+      .references(() => votingCandidates.id)
+      .notNull(),
+    userId: varchar("user_id", { length: 255 })
+      .references(() => users.id)
+      .notNull(),
+    answer: varchar("answer", { length: 255 }).notNull(),
+    isAutoReply: boolean("is_auto_reply").notNull().default(false),
+    comment: text("comment"),
+    createdAt: timestamp("created_at")
+      .$defaultFn(() => new Date())
+      .notNull(),
+    updatedAt: timestamp("updated_at")
+      .$defaultFn(() => new Date())
+      .notNull(),
+  },
+  (table) => [
+    unique("unique_vote_per_user_candidate").on(table.eventId, table.candidateId, table.userId),
+    index("idx_vote_event").on(table.eventId),
+    index("idx_vote_user").on(table.userId),
+  ]
+);
+
 // ─── Departments ────────────────────────────────────────────
 
 export const departments = mysqlTable("departments", {
@@ -350,11 +616,21 @@ export const schema = {
   unifiedSlots,
   memberProfiles,
   groups,
+  groupMembers,
+  groupSchedules,
   reservations,
+  personalEvents,
+  plans,
+  myPlans,
+  schedulingTasks,
+  schedulingResults,
   webhookEndpoints,
   webhookDeliveryLogs,
   notificationPreferences,
   notifications,
+  votingEvents,
+  votingCandidates,
+  votes,
 };
 
 export const curriculumSchema = {
@@ -375,11 +651,21 @@ const allTables = {
   unifiedSlots,
   memberProfiles,
   groups,
+  groupMembers,
+  groupSchedules,
   reservations,
+  personalEvents,
+  plans,
+  myPlans,
+  schedulingTasks,
+  schedulingResults,
   webhookEndpoints,
   webhookDeliveryLogs,
   notificationPreferences,
   notifications,
+  votingEvents,
+  votingCandidates,
+  votes,
   departments,
   instructors,
   curricula,
