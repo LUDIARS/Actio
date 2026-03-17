@@ -1,0 +1,39 @@
+# ─── Development overrides ────────────────────────────────────
+# Usage: docker compose -f docker-compose.yaml -f docker-compose.dev.yaml up
+#
+# This file adds volume mounts and hot-reload for local development.
+# Do NOT use in production.
+
+services:
+  # ─── Backend: tsx watch with source mounts ──────────────────
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: dev
+    volumes:
+      - ./src:/app/src
+      - ./modules:/app/modules
+      - ./tsconfig.json:/app/tsconfig.json
+    environment:
+      NODE_ENV: development
+    command: ["npm", "run", "dev"]
+
+  # ─── Frontend: Vite dev server with HMR ─────────────────────
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      target: dev
+    ports:
+      - "8080:5173"
+    volumes:
+      - ./frontend/src:/app/src
+      - ./frontend/index.html:/app/index.html
+      - ./frontend/vite.config.ts:/app/vite.config.ts
+      - ./frontend/tsconfig.json:/app/tsconfig.json
+      - ./frontend/tsconfig.app.json:/app/tsconfig.app.json
+      - ./frontend/tsconfig.node.json:/app/tsconfig.node.json
+      - ./frontend/public:/app/public
+    environment:
+      VITE_API_BASE: http://localhost:3000
