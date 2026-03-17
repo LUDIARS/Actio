@@ -14,12 +14,20 @@ const ROLE_OPTIONS = [
   { value: "general", label: "一般" },
 ];
 
+interface GroupInfo {
+  id: string;
+  name: string;
+  role: string;
+}
+
 interface UserItem {
   id: string;
   name: string;
   email: string;
   role: string;
+  major: string | null;
   createdAt: string;
+  groups: GroupInfo[];
 }
 
 export function UserManagementPage() {
@@ -28,18 +36,28 @@ export function UserManagementPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [updating, setUpdating] = useState<string | null>(null);
+  const [filterGroup, setFilterGroup] = useState<string>("all");
+  const [searchText, setSearchText] = useState("");
+
+  const isAdmin = user?.role === "admin";
 
   const fetchUsers = useCallback(async () => {
     try {
       setError(null);
-      const data = await adminApi.listUsers();
-      setUsers(data.users);
+      if (isAdmin) {
+        const data = await adminApi.listUsers();
+        // Admin API returns users without groups, add empty groups array
+        setUsers(data.users.map((u: any) => ({ ...u, groups: u.groups || [] })));
+      } else {
+        const data = await adminApi.listUsersByGroup();
+        setUsers(data.users);
+      }
     } catch (err) {
       setError((err as Error).message);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [isAdmin]);
 
   useEffect(() => {
     fetchUsers();
@@ -59,22 +77,31 @@ export function UserManagementPage() {
     }
   };
 
-  if (user?.role !== "admin") {
-    return (
-      <div style={{ padding: "2rem" }}>
-        <h1 style={{ fontSize: "1.25rem", marginBottom: "1rem" }}>アクセス拒否</h1>
-        <p style={{ color: "var(--text-muted)" }}>
-          このページは管理者のみアクセスできます。
-        </p>
-      </div>
-    );
-  }
+  // 全グループ一覧を抽出
+  const allGroups = Array.from(
+    new Map(
+      users.flatMap((u) => u.groups || []).map((g) => [g.id, g])
+    ).values()
+  );
+
+  // フィルタリング
+  const filteredUsers = users.filter((u) => {
+    const matchesGroup =
+      filterGroup === "all" || (u.groups || []).some((g) => g.id === filterGroup);
+    const matchesSearch =
+      !searchText ||
+      u.name.toLowerCase().includes(searchText.toLowerCase()) ||
+      u.email.toLowerCase().includes(searchText.toLowerCase());
+    return matchesGroup && matchesSearch;
+  });
 
   return (
-    <div style={{ padding: "1.5rem", maxWidth: 800 }}>
-      <h1 style={{ fontSize: "1.25rem", marginBottom: "1rem" }}>ユーザー管理</h1>
+    <div style={{ padding: "1.5rem", maxWidth: 900 }}>
+      <h1 style={{ fontSize: "1.25rem", marginBottom: "0.5rem" }}>ユーザー管理</h1>
       <p style={{ fontSize: "0.85rem", color: "var(--text-muted)", marginBottom: "1.5rem" }}>
-        ユーザーのロールを変更できます。管理者はグループリーダーや他の管理者を任命できます。
+        {isAdmin
+          ? "全ユーザーを表示しています。ロールの変更も可能です。"
+          : "同じグループに所属するユーザーを表示しています。"}
       </p>
 
       {error && (
@@ -93,8 +120,63 @@ export function UserManagementPage() {
         </div>
       )}
 
+      {/* フィルター */}
+      <div
+        style={{
+          display: "flex",
+          gap: "0.75rem",
+          marginBottom: "1rem",
+          flexWrap: "wrap",
+          alignItems: "center",
+        }}
+      >
+        <input
+          type="text"
+          placeholder="名前・メールで検索..."
+          value={searchText}
+          onChange={(e) => setSearchText(e.target.value)}
+          style={{
+            padding: "0.4rem 0.75rem",
+            fontSize: "0.85rem",
+            borderRadius: "var(--radius-sm)",
+            border: "1px solid var(--border)",
+            background: "var(--bg-surface)",
+            color: "var(--text)",
+            minWidth: 200,
+          }}
+        />
+        {allGroups.length > 0 && (
+          <select
+            value={filterGroup}
+            onChange={(e) => setFilterGroup(e.target.value)}
+            style={{
+              padding: "0.4rem 0.75rem",
+              fontSize: "0.85rem",
+              borderRadius: "var(--radius-sm)",
+              border: "1px solid var(--border)",
+              background: "var(--bg-surface)",
+              color: "var(--text)",
+            }}
+          >
+            <option value="all">全グループ</option>
+            {allGroups.map((g) => (
+              <option key={g.id} value={g.id}>
+                {g.name}
+              </option>
+            ))}
+          </select>
+        )}
+        <span style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>
+          {filteredUsers.length}件
+        </span>
+      </div>
+
       {loading ? (
         <p style={{ color: "var(--text-muted)" }}>読み込み中...</p>
+      ) : filteredUsers.length === 0 ? (
+        <p style={{ color: "var(--text-muted)", fontSize: "0.85rem" }}>
+          該当するユーザーが見つかりません。
+        </p>
       ) : (
         <table
           style={{
@@ -113,16 +195,30 @@ export function UserManagementPage() {
               <th style={{ padding: "0.5rem" }}>名前</th>
               <th style={{ padding: "0.5rem" }}>メール</th>
               <th style={{ padding: "0.5rem" }}>ロール</th>
-              <th style={{ padding: "0.5rem" }}>操作</th>
+              <th style={{ padding: "0.5rem" }}>グループ</th>
+              {isAdmin && <th style={{ padding: "0.5rem" }}>操作</th>}
             </tr>
           </thead>
           <tbody>
-            {users.map((u) => (
+            {filteredUsers.map((u) => (
               <tr
                 key={u.id}
                 style={{ borderBottom: "1px solid var(--border)" }}
               >
-                <td style={{ padding: "0.5rem" }}>{u.name}</td>
+                <td style={{ padding: "0.5rem" }}>
+                  {u.name}
+                  {u.id === user?.id && (
+                    <span
+                      style={{
+                        marginLeft: "0.5rem",
+                        fontSize: "0.7rem",
+                        color: "var(--accent)",
+                      }}
+                    >
+                      (自分)
+                    </span>
+                  )}
+                </td>
                 <td style={{ padding: "0.5rem", color: "var(--text-muted)" }}>
                   {u.email}
                 </td>
@@ -130,32 +226,59 @@ export function UserManagementPage() {
                   {ROLE_LABELS[u.role] || u.role}
                 </td>
                 <td style={{ padding: "0.5rem" }}>
-                  {u.id === user?.id ? (
+                  {(u.groups || []).length === 0 ? (
                     <span style={{ color: "var(--text-muted)", fontSize: "0.8rem" }}>
-                      (自分)
+                      未所属
                     </span>
                   ) : (
-                    <select
-                      value={u.role}
-                      disabled={updating === u.id}
-                      onChange={(e) => handleRoleChange(u.id, e.target.value)}
-                      style={{
-                        padding: "0.25rem 0.5rem",
-                        fontSize: "0.8rem",
-                        borderRadius: "var(--radius-sm)",
-                        border: "1px solid var(--border)",
-                        background: "var(--bg-surface)",
-                        color: "var(--text)",
-                      }}
-                    >
-                      {ROLE_OPTIONS.map((opt) => (
-                        <option key={opt.value} value={opt.value}>
-                          {opt.label}
-                        </option>
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: "0.25rem" }}>
+                      {u.groups.map((g) => (
+                        <span
+                          key={g.id}
+                          style={{
+                            display: "inline-block",
+                            padding: "0.15rem 0.5rem",
+                            fontSize: "0.75rem",
+                            background: "var(--bg-surface-2)",
+                            borderRadius: "var(--radius-sm)",
+                            border: "1px solid var(--border)",
+                          }}
+                        >
+                          {g.name}
+                        </span>
                       ))}
-                    </select>
+                    </div>
                   )}
                 </td>
+                {isAdmin && (
+                  <td style={{ padding: "0.5rem" }}>
+                    {u.id === user?.id ? (
+                      <span style={{ color: "var(--text-muted)", fontSize: "0.8rem" }}>
+                        -
+                      </span>
+                    ) : (
+                      <select
+                        value={u.role}
+                        disabled={updating === u.id}
+                        onChange={(e) => handleRoleChange(u.id, e.target.value)}
+                        style={{
+                          padding: "0.25rem 0.5rem",
+                          fontSize: "0.8rem",
+                          borderRadius: "var(--radius-sm)",
+                          border: "1px solid var(--border)",
+                          background: "var(--bg-surface)",
+                          color: "var(--text)",
+                        }}
+                      >
+                        {ROLE_OPTIONS.map((opt) => (
+                          <option key={opt.value} value={opt.value}>
+                            {opt.label}
+                          </option>
+                        ))}
+                      </select>
+                    )}
+                  </td>
+                )}
               </tr>
             ))}
           </tbody>

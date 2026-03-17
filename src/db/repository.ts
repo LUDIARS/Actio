@@ -5,7 +5,7 @@
  * ルートハンドラが直接 Drizzle クエリを書かなくて済むようにする。
  */
 
-import { eq, count } from "drizzle-orm";
+import { eq, and, count } from "drizzle-orm";
 import { db, schema, curriculumSchema } from "./connection.js";
 
 // ─── Types ──────────────────────────────────────────────────
@@ -219,5 +219,97 @@ export const availableSlotRepo = {
 
   async create(data: NewAvailableSlot): Promise<void> {
     await db.insert(curriculumSchema.instructorAvailableSlots).values(data);
+  },
+};
+
+// ─── MyPlan Repository ──────────────────────────────────────
+
+export type MyPlan = typeof schema.myPlans.$inferSelect;
+export type NewMyPlan = typeof schema.myPlans.$inferInsert;
+
+export const myPlanRepo = {
+  async findByUserId(userId: string): Promise<MyPlan[]> {
+    return db
+      .select()
+      .from(schema.myPlans)
+      .where(eq(schema.myPlans.userId, userId));
+  },
+
+  async findById(id: string): Promise<MyPlan | undefined> {
+    const [plan] = await db
+      .select()
+      .from(schema.myPlans)
+      .where(eq(schema.myPlans.id, id));
+    return plan;
+  },
+
+  async findByIdAndUserId(id: string, userId: string): Promise<MyPlan | undefined> {
+    const [plan] = await db
+      .select()
+      .from(schema.myPlans)
+      .where(
+        and(
+          eq(schema.myPlans.id, id),
+          eq(schema.myPlans.userId, userId)
+        )
+      );
+    return plan;
+  },
+
+  async create(data: NewMyPlan): Promise<void> {
+    await db.insert(schema.myPlans).values(data);
+  },
+
+  async update(id: string, data: Partial<Omit<NewMyPlan, "id">>): Promise<void> {
+    await db
+      .update(schema.myPlans)
+      .set(data)
+      .where(eq(schema.myPlans.id, id));
+  },
+
+  async deleteById(id: string): Promise<void> {
+    await db
+      .delete(schema.myPlans)
+      .where(eq(schema.myPlans.id, id));
+  },
+};
+
+// ─── PersonalEvent Repository ───────────────────────────────
+
+export type PersonalEvent = typeof schema.personalEvents.$inferSelect;
+export type NewPersonalEvent = typeof schema.personalEvents.$inferInsert;
+
+export const personalEventRepo = {
+  async findByUserDayPeriod(
+    userId: string,
+    day: number,
+    period: number,
+  ): Promise<PersonalEvent | undefined> {
+    const [event] = await db
+      .select()
+      .from(schema.personalEvents)
+      .where(
+        and(
+          eq(schema.personalEvents.userId, userId),
+          eq(schema.personalEvents.day, day),
+          eq(schema.personalEvents.period, period)
+        )
+      );
+    return event;
+  },
+
+  async deleteByUserAndPlan(userId: string, planId: string): Promise<void> {
+    await db
+      .delete(schema.personalEvents)
+      .where(
+        and(
+          eq(schema.personalEvents.userId, userId),
+          eq(schema.personalEvents.planId, planId)
+        )
+      );
+  },
+
+  async create(data: NewPersonalEvent): Promise<void> {
+    await db.insert(schema.personalEvents).values(data);
   },
 };
