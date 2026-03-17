@@ -9,6 +9,7 @@ import { ReservationsPage } from "./pages/ReservationsPage";
 import { NotificationsPage } from "./pages/NotificationsPage";
 import { CurriculumPlanPage } from "./pages/CurriculumPlanPage";
 import { VotingPage } from "./pages/VotingPage";
+import { CalendarPage } from "./pages/CalendarPage";
 import "./global.css";
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
@@ -47,6 +48,7 @@ function AppRoutes() {
         <Route path="/notifications" element={<NotificationsPage />} />
         <Route path="/curriculum-plan" element={<CurriculumPlanPage />} />
         <Route path="/voting" element={<VotingPage />} />
+        <Route path="/calendar" element={<CalendarPage />} />
       </Route>
     </Routes>
   );
