@@ -22,7 +22,6 @@ services:
       - ./tsconfig.json:/app/tsconfig.json
     environment:
       NODE_ENV: development
-      FRONTEND_URL: "http://localhost:${FRONTEND_PORT:-8080}"
     command: ["npm", "run", "dev"]
 
   # ─── Frontend: Vite dev server with HMR ─────────────────────
