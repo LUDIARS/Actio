@@ -9,6 +9,7 @@ const NAV_ITEMS = [
   { to: "/reservations", label: "M4 予約" },
   { to: "/calendar", label: "カレンダー" },
   { to: "/notifications", label: "M5 通知" },
+  { to: "/voting", label: "M6 日程調整" },
 ];
 
 export function Layout() {

@@ -4,6 +4,7 @@ import { logger } from "hono/logger";
 import { serve } from "@hono/node-server";
 import { m4 } from "../modules/reservation/routes.js";
 import { notification } from "../modules/notification/routes.js";
+import { m6 } from "../modules/voting/routes.js";
 import { auth } from "./auth/routes.js";
 import { userContext } from "./middleware/auth.js";
 import { initNotificationHandler } from "../modules/notification/core/handler.js";
@@ -31,6 +32,8 @@ app.route("/api/auth", auth);
 app.route("/api/reservations", m4);
 // Webhook・通知 (Webhooks & Notifications)
 app.route("/api/webhooks", notification);
+// 日程調整Voting (Meeting Voting)
+app.route("/api/voting", m6);
 
 // ─── Optional Modules ───────────────────────────────────────
 const modules: SchulaModule[] = [schoolModule];
@@ -54,6 +57,7 @@ app.route("/api/m2", m2);
 app.route("/api/m3", m3);
 app.route("/api/m4", m4);
 app.route("/api/m5", notification);
+app.route("/api/m6", m6);
 
 // /api/timetable → school モジュールへ移動済み (/api/school/timetable)
 import { DAY_LABELS, getPeriodTime, PERIODS_COUNT } from "./shared/constants.js";
@@ -83,6 +87,7 @@ app.get("/", (c) => {
     core: {
       reservations: "予約システム - /api/reservations",
       webhooks: "Webhook・リマインド通知 - /api/webhooks",
+      voting: "日程調整Voting - /api/voting",
     },
     modules: registeredModules,
   });
