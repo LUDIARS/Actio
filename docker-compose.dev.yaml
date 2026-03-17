@@ -25,7 +25,7 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
       target: dev
-    ports:
+    ports: !override
       - "${FRONTEND_PORT:-8080}:5173"
     volumes:
       - ./frontend/src:/app/src
