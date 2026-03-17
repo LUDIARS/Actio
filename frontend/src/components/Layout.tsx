@@ -27,6 +27,7 @@ const NAV_ITEMS: NavItem[] = [
   { to: "/voting", label: "日程調整" },
   { to: "/users", label: "ユーザー一覧" },
   { to: "/admin/users", label: "ユーザー管理", adminOnly: true },
+  { to: "/admin/db", label: "DB Viewer", adminOnly: true },
 ];
 
 export function Layout() {

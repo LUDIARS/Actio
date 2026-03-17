@@ -14,6 +14,7 @@ import { GroupsPage } from "./pages/GroupsPage";
 import { MyPlanPage } from "./pages/MyPlanPage";
 import { UserManagementPage } from "./pages/UserManagementPage";
 import { UserListPage } from "./pages/UserListPage";
+import { DbViewerPage } from "./pages/DbViewerPage";
 import "./global.css";
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
@@ -58,6 +59,7 @@ function AppRoutes() {
         <Route path="/calendar" element={<CalendarPage />} />
         <Route path="/users" element={<UserListPage />} />
         <Route path="/admin/users" element={<UserManagementPage />} />
+        <Route path="/admin/db" element={<DbViewerPage />} />
       </Route>
     </Routes>
   );
