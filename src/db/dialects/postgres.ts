@@ -320,6 +320,8 @@ export const personalEvents = pgTable(
     day: integer("day").notNull(),
     period: integer("period").notNull(),
     duration: integer("duration").notNull().default(1),
+    startTime: text("start_time"),
+    endTime: text("end_time"),
     eventType: text("event_type").notNull().default("personal"),
     planId: text("plan_id"),
     isPrivate: boolean("is_private").notNull().default(true),
@@ -381,7 +383,7 @@ export const myPlans = pgTable(
     validFrom: text("valid_from"),
     validUntil: text("valid_until"),
     weeklySchedule: jsonb("weekly_schedule").$type<
-      Record<string, Array<{ period: number; duration: number; title: string }>>
+      Record<string, Array<{ startTime: string; endTime: string; title: string; period?: number; duration?: number }>>
     >().notNull().default({}),
     isActive: boolean("is_active").notNull().default(true),
     priority: integer("priority").notNull().default(0),

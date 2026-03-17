@@ -10,6 +10,17 @@ import {
   groupScheduleRepo,
 } from "../../src/db/repository.js";
 
+// ─── Helper: period → 時刻変換 (09:30 + period * 60min) ─────
+
+function periodToTime(period: number): { startTime: string; endTime: string } {
+  const startHour = 9 + Math.floor((30 + period * 60) / 60);
+  const startMin = (30 + period * 60) % 60;
+  const endHour = startHour + 1;
+  const fmt = (h: number, m: number) =>
+    `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+  return { startTime: fmt(startHour, startMin), endTime: fmt(endHour, startMin) };
+}
+
 const calendar = new Hono();
 
 // ─── Helper: Google Tokenリフレッシュ ────────────────────────
@@ -265,6 +276,8 @@ calendar.post("/personal", async (c) => {
     day: number;
     period: number;
     duration?: number;
+    startTime?: string;
+    endTime?: string;
     eventType?: string;
     isPrivate?: boolean;
   }>();
@@ -290,6 +303,11 @@ calendar.post("/personal", async (c) => {
   const id = uuidv4();
   const now = new Date();
 
+  // 時刻が未指定の場合は period から自動算出
+  const times = body.startTime && body.endTime
+    ? { startTime: body.startTime, endTime: body.endTime }
+    : periodToTime(body.period);
+
   await personalEventRepo.create({
     id,
     userId,
@@ -298,6 +316,8 @@ calendar.post("/personal", async (c) => {
     day: body.day,
     period: body.period,
     duration: body.duration || 1,
+    startTime: times.startTime,
+    endTime: times.endTime,
     eventType: body.eventType || "personal",
     isPrivate: body.isPrivate !== false,
     createdAt: now,
@@ -400,6 +420,7 @@ async function generateEventsFromPlan(
 
       if (conflict) continue;
 
+      const times = periodToTime(period);
       await personalEventRepo.create({
         id: uuidv4(),
         userId,
@@ -407,6 +428,8 @@ async function generateEventsFromPlan(
         day,
         period,
         duration: 1,
+        startTime: times.startTime,
+        endTime: times.endTime,
         eventType: plan.eventType,
         planId,
         isPrivate: plan.isPrivate,

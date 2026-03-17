@@ -5,15 +5,39 @@ import { myPlanRepo, personalEventRepo } from "../../src/db/repository.js";
 
 const myPlanRoutes = new Hono();
 
+// ─── Helper: 時刻文字列 "HH:MM" → 分数に変換 ────────────────
+
+function timeToMinutes(time: string): number {
+  const [h, m] = time.split(":").map(Number);
+  return h * 60 + (m || 0);
+}
+
+// ─── Helper: 時刻からperiod番号を算出 (レガシー互換) ──────────
+// period 0 = 09:30, period 1 = 10:30, ...
+
+function timeToPeriod(time: string): number {
+  const minutes = timeToMinutes(time);
+  const periodStart = 9 * 60 + 30; // 09:30
+  return Math.max(0, Math.floor((minutes - periodStart) / 60));
+}
+
 // ─── Helper: マイプランから予定を自動生成 ─────────────────────
-// 基本パターンと特別パターンを考慮し、特別パターンが優先される
+
+interface WeeklySlot {
+  startTime: string;
+  endTime: string;
+  title: string;
+  // レガシー互換
+  period?: number;
+  duration?: number;
+}
 
 async function generateScheduleFromMyPlan(
   planId: string,
   userId: string,
   plan: {
     name: string;
-    weeklySchedule: Record<string, Array<{ period: number; duration: number; title: string }>>;
+    weeklySchedule: Record<string, WeeklySlot[]>;
   }
 ) {
   // まず既存のプラン由来イベントを削除
@@ -27,31 +51,39 @@ async function generateScheduleFromMyPlan(
     if (day < 0 || day > 6) continue;
 
     for (const slot of slots) {
-      for (let p = 0; p < slot.duration; p++) {
-        const period = slot.period + p;
-        if (period > 10) continue;
+      // 時間ベースのスロット
+      const startTime = slot.startTime;
+      const endTime = slot.endTime;
 
-        // 他ソースの予定との重複チェック
-        const conflict = await personalEventRepo.findByUserDayPeriod(userId, day, period);
+      // レガシー互換: period は startTime から算出
+      const period = startTime ? timeToPeriod(startTime) : (slot.period ?? 0);
+      const startMin = startTime ? timeToMinutes(startTime) : undefined;
+      const endMin = endTime ? timeToMinutes(endTime) : undefined;
+      const duration = (startMin != null && endMin != null)
+        ? Math.max(1, Math.ceil((endMin - startMin) / 60))
+        : (slot.duration ?? 1);
 
-        if (conflict) continue;
+      // 重複チェック (period ベース)
+      const conflict = await personalEventRepo.findByUserDayPeriod(userId, day, period);
+      if (conflict) continue;
 
-        await personalEventRepo.create({
-          id: uuidv4(),
-          userId,
-          title: slot.title || plan.name,
-          day,
-          period,
-          duration: 1,
-          eventType: "personal",
-          planId,
-          isPrivate: true,
-          createdAt: now,
-          updatedAt: now,
-        });
+      await personalEventRepo.create({
+        id: uuidv4(),
+        userId,
+        title: slot.title || plan.name,
+        day,
+        period,
+        duration,
+        startTime: startTime || null,
+        endTime: endTime || null,
+        eventType: "personal",
+        planId,
+        isPrivate: true,
+        createdAt: now,
+        updatedAt: now,
+      });
 
-        created++;
-      }
+      created++;
     }
   }
 
@@ -88,7 +120,7 @@ myPlanRoutes.post("/", async (c) => {
     patternType?: string;
     validFrom?: string;
     validUntil?: string;
-    weeklySchedule?: Record<string, Array<{ period: number; duration: number; title: string }>>;
+    weeklySchedule?: Record<string, WeeklySlot[]>;
     groupId?: string;
   }>();
 
@@ -144,7 +176,7 @@ myPlanRoutes.put("/:id", async (c) => {
     patternType?: string;
     validFrom?: string;
     validUntil?: string;
-    weeklySchedule?: Record<string, Array<{ period: number; duration: number; title: string }>>;
+    weeklySchedule?: Record<string, WeeklySlot[]>;
     isActive?: boolean;
   }>();
 
@@ -168,7 +200,7 @@ myPlanRoutes.put("/:id", async (c) => {
   if (updated?.isActive) {
     generatedEvents = await generateScheduleFromMyPlan(planId, userId, {
       name: updated.name,
-      weeklySchedule: updated.weeklySchedule as Record<string, Array<{ period: number; duration: number; title: string }>>,
+      weeklySchedule: updated.weeklySchedule as Record<string, WeeklySlot[]>,
     });
   } else {
     await personalEventRepo.deleteByUserAndPlan(userId, planId);
@@ -211,7 +243,7 @@ myPlanRoutes.post("/:id/generate", async (c) => {
 
   const createdCount = await generateScheduleFromMyPlan(planId, userId, {
     name: plan.name,
-    weeklySchedule: plan.weeklySchedule as Record<string, Array<{ period: number; duration: number; title: string }>>,
+    weeklySchedule: plan.weeklySchedule as Record<string, WeeklySlot[]>,
   });
 
   return c.json({ generatedEvents: createdCount });

@@ -322,6 +322,8 @@ export const personalEvents = mysqlTable(
     day: int("day").notNull(),
     period: int("period").notNull(),
     duration: int("duration").notNull().default(1),
+    startTime: varchar("start_time", { length: 10 }),
+    endTime: varchar("end_time", { length: 10 }),
     eventType: varchar("event_type", { length: 255 }).notNull().default("personal"),
     planId: varchar("plan_id", { length: 255 }),
     isPrivate: boolean("is_private").notNull().default(true),
@@ -383,7 +385,7 @@ export const myPlans = mysqlTable(
     validFrom: varchar("valid_from", { length: 255 }),
     validUntil: varchar("valid_until", { length: 255 }),
     weeklySchedule: json("weekly_schedule").$type<
-      Record<string, Array<{ period: number; duration: number; title: string }>>
+      Record<string, Array<{ startTime: string; endTime: string; title: string; period?: number; duration?: number }>>
     >().notNull(),
     isActive: boolean("is_active").notNull().default(true),
     priority: int("priority").notNull().default(0),

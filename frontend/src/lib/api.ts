@@ -657,7 +657,7 @@ export const myPlanApi = {
     patternType: string;
     validFrom?: string;
     validUntil?: string;
-    weeklySchedule: Record<string, Array<{ period: number; duration: number; title: string }>>;
+    weeklySchedule: Record<string, Array<{ startTime: string; endTime: string; title: string }>>;
     groupId?: string;
   }) {
     return request<any>("/api/myplans", {
@@ -670,7 +670,7 @@ export const myPlanApi = {
     patternType?: string;
     validFrom?: string;
     validUntil?: string;
-    weeklySchedule?: Record<string, Array<{ period: number; duration: number; title: string }>>;
+    weeklySchedule?: Record<string, Array<{ startTime: string; endTime: string; title: string }>>;
     isActive?: boolean;
   }) {
     return request<any>(`/api/myplans/${id}`, {

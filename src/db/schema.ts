@@ -238,9 +238,13 @@ export const personalEvents = sqliteTable(
     title: text("title").notNull(),
     description: text("description"),
     day: integer("day").notNull(), // 0-6 (月〜日)
-    period: integer("period").notNull(), // 0-10
+    period: integer("period").notNull(), // 0-10 (レガシー互換)
     /** 複数コマにまたがる場合のコマ数 */
     duration: integer("duration").notNull().default(1),
+    /** 時間ベースのスケジュール: 開始時刻 (HH:MM) */
+    startTime: text("start_time"),
+    /** 時間ベースのスケジュール: 終了時刻 (HH:MM) */
+    endTime: text("end_time"),
     /** イベント種別: personal / school_event */
     eventType: text("event_type").notNull().default("personal"),
     /** 繰り返し元のプランID (プランから自動生成された場合) */
@@ -315,9 +319,9 @@ export const myPlans = sqliteTable(
     validFrom: text("valid_from"),
     /** 適用終了日 (YYYY-MM-DD)、nullなら無期限 */
     validUntil: text("valid_until"),
-    /** 週間スケジュール: JSON { "0": [{ period, duration, title }], ... } */
+    /** 週間スケジュール: JSON { "0": [{ startTime, endTime, title }], ... } */
     weeklySchedule: text("weekly_schedule", { mode: "json" }).$type<
-      Record<string, Array<{ period: number; duration: number; title: string }>>
+      Record<string, Array<{ startTime: string; endTime: string; title: string; period?: number; duration?: number }>>
     >().notNull().default({}),
     isActive: integer("is_active", { mode: "boolean" }).notNull().default(true),
     /** 優先度（同一期間に複数パターンがある場合の優先順位、大きいほど優先） */

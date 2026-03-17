@@ -195,6 +195,8 @@ sqlite.exec(`
     day INTEGER NOT NULL,
     period INTEGER NOT NULL,
     duration INTEGER NOT NULL DEFAULT 1,
+    start_time TEXT,
+    end_time TEXT,
     event_type TEXT NOT NULL DEFAULT 'personal',
     plan_id TEXT,
     is_private INTEGER NOT NULL DEFAULT 1,

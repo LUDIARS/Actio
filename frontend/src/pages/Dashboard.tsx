@@ -10,6 +10,8 @@ interface PersonalEvent {
   day: number;
   period: number;
   duration: number;
+  startTime: string | null;
+  endTime: string | null;
   eventType: string;
   planId: string | null;
   isPrivate: boolean;
@@ -128,7 +130,13 @@ export function Dashboard() {
 
   // 今日の予定
   const todayEvents = events.filter((e) => e.day === todayDow);
-  todayEvents.sort((a, b) => a.period - b.period);
+  todayEvents.sort((a, b) => {
+    // 時間ベースのソート優先
+    if (a.startTime && b.startTime) return a.startTime.localeCompare(b.startTime);
+    if (a.startTime) return -1;
+    if (b.startTime) return 1;
+    return a.period - b.period;
+  });
 
   // カレンダー内の各日付にイベントがあるか
   const getEventsForDate = (year: number, month: number, day: number) => {
@@ -254,7 +262,9 @@ export function Dashboard() {
                   color: "var(--text-muted)",
                   minWidth: 90,
                 }}>
-                  {getPeriodLabel(evt.period).split("(")[1]?.replace(")", "") || getPeriodLabel(evt.period)}
+                  {evt.startTime && evt.endTime
+                    ? `${evt.startTime}–${evt.endTime}`
+                    : getPeriodLabel(evt.period).split("(")[1]?.replace(")", "") || getPeriodLabel(evt.period)}
                 </span>
                 <span style={{ fontWeight: 500 }}>{evt.title}</span>
                 <span className={`badge ${evt.eventType === "personal" ? "orange" : "purple"}`} style={{ fontSize: "0.65rem", marginLeft: "auto" }}>
