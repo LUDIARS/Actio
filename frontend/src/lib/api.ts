@@ -287,7 +287,85 @@ export const calendarApi = {
   },
 };
 
-// ─── M1 ─────────────────────────────────────────────────────
+// ─── M1 Schema CRUD (学科・講師・カリキュラム・出講可能スロット) ──
+
+export const m1Schema = {
+  // 学科 (Departments)
+  getDepartments() {
+    return request<{ departments: any[] }>("/api/m1/departments");
+  },
+  createDepartment(name: string) {
+    return request<any>("/api/m1/departments", {
+      method: "POST",
+      body: JSON.stringify({ name }),
+    });
+  },
+  updateDepartment(id: string, name: string) {
+    return request<any>(`/api/m1/departments/${id}`, {
+      method: "PUT",
+      body: JSON.stringify({ name }),
+    });
+  },
+  deleteDepartment(id: string) {
+    return request<any>(`/api/m1/departments/${id}`, { method: "DELETE" });
+  },
+
+  // 講師 (Instructors)
+  getInstructors() {
+    return request<{ instructors: any[] }>("/api/m1/instructors");
+  },
+  createInstructor(name: string) {
+    return request<any>("/api/m1/instructors", {
+      method: "POST",
+      body: JSON.stringify({ name }),
+    });
+  },
+  updateInstructor(id: string, name: string) {
+    return request<any>(`/api/m1/instructors/${id}`, {
+      method: "PUT",
+      body: JSON.stringify({ name }),
+    });
+  },
+  deleteInstructor(id: string) {
+    return request<any>(`/api/m1/instructors/${id}`, { method: "DELETE" });
+  },
+
+  // カリキュラム (Curricula)
+  getCurricula() {
+    return request<{ curricula: any[] }>("/api/m1/curricula");
+  },
+  getCurriculaByDepartment(departmentId: string) {
+    return request<{ curricula: any[] }>(`/api/m1/departments/${departmentId}/curricula`);
+  },
+  createCurriculum(departmentId: string, name: string, instructorId?: string) {
+    return request<any>(`/api/m1/departments/${departmentId}/curricula`, {
+      method: "POST",
+      body: JSON.stringify({ name, instructorId }),
+    });
+  },
+  updateCurriculum(id: string, body: { name?: string; instructorId?: string | null }) {
+    return request<any>(`/api/m1/curricula/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(body),
+    });
+  },
+  deleteCurriculum(id: string) {
+    return request<any>(`/api/m1/curricula/${id}`, { method: "DELETE" });
+  },
+
+  // 出講可能スロット (Instructor Available Slots)
+  getAvailability(instructorId: string) {
+    return request<{ slots: any[] }>(`/api/m1/instructors/${instructorId}/availability`);
+  },
+  setAvailability(instructorId: string, slots: { day: number; periods: number[] }[]) {
+    return request<any>(`/api/m1/instructors/${instructorId}/availability`, {
+      method: "PUT",
+      body: JSON.stringify({ slots }),
+    });
+  },
+};
+
+// ─── M1 (Legacy CSV/Generate) ────────────────────────────────
 
 export const m1 = {
   async importInstructors(csvText: string) {

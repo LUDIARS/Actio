@@ -16,6 +16,7 @@ interface NavItem {
 
 const NAV_ITEMS: NavItem[] = [
   { to: "/", label: "Dashboard" },
+  { to: "/schema-management", label: "M1 スキーマ管理", adminOnly: true },
   { to: "/data-management", label: "M1 データ管理", adminOnly: true },
   { to: "/curriculum-plan", label: "M2 カリキュラムプラン" },
   { to: "/my-plan", label: "マイプラン" },

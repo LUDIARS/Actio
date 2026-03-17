@@ -6,7 +6,7 @@
  */
 
 import { eq, count } from "drizzle-orm";
-import { db, schema } from "./connection.js";
+import { db, schema, curriculumSchema } from "./connection.js";
 
 // ─── Types ──────────────────────────────────────────────────
 
@@ -101,5 +101,123 @@ export const sessionRepo = {
     await db
       .delete(schema.sessions)
       .where(eq(schema.sessions.refreshToken, refreshToken));
+  },
+};
+
+// ─── M1: Department Repository ─────────────────────────────
+
+export type Department = typeof curriculumSchema.departments.$inferSelect;
+export type NewDepartment = typeof curriculumSchema.departments.$inferInsert;
+
+export const departmentRepo = {
+  async findAll(): Promise<Department[]> {
+    return db.select().from(curriculumSchema.departments);
+  },
+
+  async create(data: NewDepartment): Promise<void> {
+    await db.insert(curriculumSchema.departments).values(data);
+  },
+
+  async update(id: string, data: { name: string }): Promise<void> {
+    await db
+      .update(curriculumSchema.departments)
+      .set(data)
+      .where(eq(curriculumSchema.departments.id, id));
+  },
+
+  async deleteById(id: string): Promise<void> {
+    await db
+      .delete(curriculumSchema.departments)
+      .where(eq(curriculumSchema.departments.id, id));
+  },
+};
+
+// ─── M1: Instructor Repository ─────────────────────────────
+
+export type Instructor = typeof curriculumSchema.instructors.$inferSelect;
+export type NewInstructor = typeof curriculumSchema.instructors.$inferInsert;
+
+export const instructorRepo = {
+  async findAll(): Promise<Instructor[]> {
+    return db.select().from(curriculumSchema.instructors);
+  },
+
+  async create(data: NewInstructor): Promise<void> {
+    await db.insert(curriculumSchema.instructors).values(data);
+  },
+
+  async update(id: string, data: { name: string }): Promise<void> {
+    await db
+      .update(curriculumSchema.instructors)
+      .set(data)
+      .where(eq(curriculumSchema.instructors.id, id));
+  },
+
+  async deleteById(id: string): Promise<void> {
+    await db
+      .delete(curriculumSchema.instructors)
+      .where(eq(curriculumSchema.instructors.id, id));
+  },
+};
+
+// ─── M1: Curriculum Repository ─────────────────────────────
+
+export type Curriculum = typeof curriculumSchema.curricula.$inferSelect;
+export type NewCurriculum = typeof curriculumSchema.curricula.$inferInsert;
+
+export const curriculumRepo = {
+  async findAll(): Promise<Curriculum[]> {
+    return db.select().from(curriculumSchema.curricula);
+  },
+
+  async findByDepartment(departmentId: string): Promise<Curriculum[]> {
+    return db
+      .select()
+      .from(curriculumSchema.curricula)
+      .where(eq(curriculumSchema.curricula.departmentId, departmentId));
+  },
+
+  async create(data: NewCurriculum): Promise<void> {
+    await db.insert(curriculumSchema.curricula).values(data);
+  },
+
+  async update(
+    id: string,
+    data: Partial<Omit<NewCurriculum, "id">>,
+  ): Promise<void> {
+    await db
+      .update(curriculumSchema.curricula)
+      .set(data)
+      .where(eq(curriculumSchema.curricula.id, id));
+  },
+
+  async deleteById(id: string): Promise<void> {
+    await db
+      .delete(curriculumSchema.curricula)
+      .where(eq(curriculumSchema.curricula.id, id));
+  },
+};
+
+// ─── M1: Instructor Available Slots Repository ─────────────
+
+export type AvailableSlot = typeof curriculumSchema.instructorAvailableSlots.$inferSelect;
+export type NewAvailableSlot = typeof curriculumSchema.instructorAvailableSlots.$inferInsert;
+
+export const availableSlotRepo = {
+  async findByInstructor(instructorId: string): Promise<AvailableSlot[]> {
+    return db
+      .select()
+      .from(curriculumSchema.instructorAvailableSlots)
+      .where(eq(curriculumSchema.instructorAvailableSlots.instructorId, instructorId));
+  },
+
+  async deleteByInstructor(instructorId: string): Promise<void> {
+    await db
+      .delete(curriculumSchema.instructorAvailableSlots)
+      .where(eq(curriculumSchema.instructorAvailableSlots.instructorId, instructorId));
+  },
+
+  async create(data: NewAvailableSlot): Promise<void> {
+    await db.insert(curriculumSchema.instructorAvailableSlots).values(data);
   },
 };

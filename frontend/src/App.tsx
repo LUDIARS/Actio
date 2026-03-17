@@ -12,6 +12,7 @@ import { VotingPage } from "./pages/VotingPage";
 import { CalendarPage } from "./pages/CalendarPage";
 import { GroupsPage } from "./pages/GroupsPage";
 import { MyPlanPage } from "./pages/MyPlanPage";
+import { SchemaManagementPage } from "./pages/SchemaManagementPage";
 import { UserManagementPage } from "./pages/UserManagementPage";
 import { UserListPage } from "./pages/UserListPage";
 import { DbViewerPage } from "./pages/DbViewerPage";
@@ -47,6 +48,7 @@ function AppRoutes() {
       <Route element={<RequireAuth><Layout /></RequireAuth>}>
         <Route index element={<Dashboard />} />
         <Route path="/data-management" element={<DataManagementPage />} />
+        <Route path="/schema-management" element={<SchemaManagementPage />} />
         <Route path="/schedule" element={<DataManagementPage />} />
         <Route path="/curriculum-plan" element={<CurriculumPlanPage />} />
         <Route path="/groups" element={<GroupsPage />} />

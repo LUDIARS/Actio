@@ -2,6 +2,7 @@ import { DAY_LABELS, DAYS_COUNT, PERIODS_COUNT, getPeriodLabel } from "../lib/co
 
 export interface GridSlot {
   label?: string;
+  sublabel?: string;
   status?: string;
   color?: string;
   highlight?: boolean;
@@ -61,7 +62,14 @@ export function TimetableGrid({ slots, onSlotClick, renderCell }: Props) {
               >
                 {renderCell
                   ? renderCell(day, period, slot)
-                  : slot.label || ""}
+                  : <>
+                      {slot.label || ""}
+                      {slot.sublabel && (
+                        <div style={{ fontSize: "0.6rem", opacity: 0.7, marginTop: 1 }}>
+                          {slot.sublabel}
+                        </div>
+                      )}
+                    </>}
               </div>
             );
           })}
