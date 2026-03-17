@@ -259,9 +259,13 @@ calendar.get("/personal", async (c) => {
   const userId = getUserId(c);
   if (!userId) return c.json({ error: "Authentication required" }, 401);
 
-  const events = await personalEventRepo.findByUserId(userId);
-
-  return c.json({ events });
+  try {
+    const events = await personalEventRepo.findByUserId(userId);
+    return c.json({ events });
+  } catch (err) {
+    console.error("[calendar] /personal query error:", err);
+    return c.json({ events: [] });
+  }
 });
 
 // ─── POST /personal - 手動予定追加 ─────────────────────────
@@ -628,85 +632,90 @@ calendar.get("/conflicts", async (c) => {
   const userId = getUserId(c);
   if (!userId) return c.json({ error: "Authentication required" }, 401);
 
-  // 個人の予定を取得
-  const personalEvts = await personalEventRepo.findByUserId(userId);
+  try {
+    // 個人の予定を取得
+    const personalEvts = await personalEventRepo.findByUserId(userId);
 
-  // ユーザーが所属するグループの予定を取得
-  const memberships = await groupMemberRepo.findByUserId(userId);
+    // ユーザーが所属するグループの予定を取得
+    const memberships = await groupMemberRepo.findByUserId(userId);
 
-  const groupScheduleList: Array<{
-    id: string;
-    groupId: string;
-    groupName: string;
-    title: string;
-    day: number;
-    period: number;
-    duration: number;
-  }> = [];
+    const groupScheduleList: Array<{
+      id: string;
+      groupId: string;
+      groupName: string;
+      title: string;
+      day: number;
+      period: number;
+      duration: number;
+    }> = [];
 
-  for (const m of memberships) {
-    const group = await groupRepo.findById(m.groupId);
+    for (const m of memberships) {
+      const group = await groupRepo.findById(m.groupId);
 
-    if (!group) continue;
+      if (!group) continue;
 
-    const schedules = await groupScheduleRepo.findByGroupId(m.groupId);
+      const schedules = await groupScheduleRepo.findByGroupId(m.groupId);
 
-    for (const s of schedules) {
-      groupScheduleList.push({
-        id: s.id,
-        groupId: m.groupId,
-        groupName: group.name,
-        title: s.title,
-        day: s.day,
-        period: s.period,
-        duration: s.duration,
-      });
+      for (const s of schedules) {
+        groupScheduleList.push({
+          id: s.id,
+          groupId: m.groupId,
+          groupName: group.name,
+          title: s.title,
+          day: s.day,
+          period: s.period,
+          duration: s.duration,
+        });
+      }
     }
-  }
 
-  // バッティング検出
-  const conflicts: Array<{
-    day: number;
-    period: number;
-    items: Array<{ type: string; title: string; source: string }>;
-  }> = [];
+    // バッティング検出
+    const conflicts: Array<{
+      day: number;
+      period: number;
+      items: Array<{ type: string; title: string; source: string }>;
+    }> = [];
 
-  // slot → items のマップ
-  const slotMap = new Map<string, Array<{ type: string; title: string; source: string }>>();
+    // slot → items のマップ
+    const slotMap = new Map<string, Array<{ type: string; title: string; source: string }>>();
 
-  for (const evt of personalEvts) {
-    const key = `${evt.day}-${evt.period}`;
-    if (!slotMap.has(key)) slotMap.set(key, []);
-    slotMap.get(key)!.push({
-      type: "personal",
-      title: evt.title,
-      source: evt.planId ? "マイプラン" : "手動",
-    });
-  }
-
-  for (const gs of groupScheduleList) {
-    for (let p = 0; p < gs.duration; p++) {
-      const period = gs.period + p;
-      if (period > 10) continue;
-      const key = `${gs.day}-${period}`;
+    for (const evt of personalEvts) {
+      const key = `${evt.day}-${evt.period}`;
       if (!slotMap.has(key)) slotMap.set(key, []);
       slotMap.get(key)!.push({
-        type: "group",
-        title: gs.title,
-        source: gs.groupName,
+        type: "personal",
+        title: evt.title,
+        source: evt.planId ? "マイプラン" : "手動",
       });
     }
-  }
 
-  // 2つ以上のアイテムがあるスロットがバッティング
-  for (const [key, items] of slotMap.entries()) {
-    if (items.length >= 2) {
-      const [day, period] = key.split("-").map(Number);
-      conflicts.push({ day, period, items });
+    for (const gs of groupScheduleList) {
+      for (let p = 0; p < gs.duration; p++) {
+        const period = gs.period + p;
+        if (period > 10) continue;
+        const key = `${gs.day}-${period}`;
+        if (!slotMap.has(key)) slotMap.set(key, []);
+        slotMap.get(key)!.push({
+          type: "group",
+          title: gs.title,
+          source: gs.groupName,
+        });
+      }
     }
-  }
 
-  return c.json({ conflicts });
+    // 2つ以上のアイテムがあるスロットがバッティング
+    for (const [key, items] of slotMap.entries()) {
+      if (items.length >= 2) {
+        const [day, period] = key.split("-").map(Number);
+        conflicts.push({ day, period, items });
+      }
+    }
+
+    return c.json({ conflicts });
+  } catch (err) {
+    console.error("[calendar] /conflicts query error:", err);
+    return c.json({ conflicts: [] });
+  }
 });
 
 export { calendar };

@@ -1,13 +1,10 @@
-import { db, schema, curriculumSchema } from "../../src/db/connection.js";
-import { eq, and } from "drizzle-orm";
 import {
-  createEmptySlotMatrix,
-  mergeClassSchedule,
-  mergeReservations,
-} from "../integration/integration.js";
+  personalEventRepo,
+  groupMemberRepo,
+  groupScheduleRepo,
+} from "../../src/db/repository.js";
 import { DAYS_COUNT, PERIODS_COUNT, DAY_LABELS } from "../../src/shared/constants.js";
 import type { VoteAnswer } from "../../src/shared/constants.js";
-import type { UnifiedSlot } from "../../src/shared/types.js";
 
 /**
  * 候補ラベルからday/periodを推定し、ユーザーの予定と照合して自動回答を生成する。
@@ -27,96 +24,38 @@ export async function generateAutoReply(
   const slot = parseCandidateLabel(candidateLabel);
   if (!slot) return null;
 
-  const matrix = await getUserSlotMatrix(userId);
-  const userSlot = matrix[slot.day]?.[slot.period];
+  const isBusy = await isUserBusy(userId, slot.day, slot.period);
 
-  if (!userSlot) return null;
-
-  if (userSlot.status === "free") {
-    return "ok";
+  if (isBusy) {
+    return "ng";
   }
-  return "ng";
+  return "ok";
 }
 
 /**
- * ユーザーの統合スケジュールマトリクスを取得する。
- * M3 の getMemberSlots と同様のロジック。
+ * ユーザーが指定スロットで busy かどうかを判定する。
+ * リポジトリ層のみ使用 (PostgreSQL対応)。
  */
-async function getUserSlotMatrix(userId: string): Promise<UnifiedSlot[][]> {
-  let matrix = createEmptySlotMatrix();
-  const currentTerm = `term-${new Date().getFullYear()}`;
+async function isUserBusy(userId: string, day: number, period: number): Promise<boolean> {
+  // 個人予定をチェック
+  const personalEvent = await personalEventRepo.findByUserDayPeriod(userId, day, period);
+  if (personalEvent) return true;
 
-  // メンバープロファイル取得
-  const [profile] = db
-    .select()
-    .from(schema.memberProfiles)
-    .where(eq(schema.memberProfiles.userId, userId))
-    .limit(1)
-    .all();
-
-  if (profile) {
-    // 授業スケジュールをマージ
-    const classEntries = db
-      .select({
-        day: schema.scheduleEntries.day,
-        period: schema.scheduleEntries.period,
-        major: curriculumSchema.curricula.departmentName,
-      })
-      .from(schema.scheduleEntries)
-      .innerJoin(curriculumSchema.curricula, eq(schema.scheduleEntries.curriculumId, curriculumSchema.curricula.id))
-      .where(
-        and(
-          eq(schema.scheduleEntries.termId, currentTerm),
-          eq(schema.scheduleEntries.isConfirmed, true),
-          eq(curriculumSchema.curricula.departmentName, profile.major)
-        )
-      )
-      .all();
-
-    matrix = mergeClassSchedule(matrix, classEntries);
-  }
-
-  // キャッシュ済み統合スロットをマージ
-  const cachedSlots = db
-    .select()
-    .from(schema.unifiedSlots)
-    .where(eq(schema.unifiedSlots.userId, userId))
-    .all();
-
-  for (const slot of cachedSlots) {
-    if (
-      slot.day >= 0 && slot.day < DAYS_COUNT &&
-      slot.period >= 0 && slot.period < PERIODS_COUNT &&
-      matrix[slot.day][slot.period].status === "free"
-    ) {
-      matrix[slot.day][slot.period] = {
-        day: slot.day,
-        period: slot.period,
-        status: slot.status as UnifiedSlot["status"],
-        majorLabel: slot.majorLabel,
-        isPrivate: slot.isPrivate,
-        sourceModule: slot.sourceModule,
-      };
+  // ユーザーが所属するグループのスケジュールをチェック
+  const memberships = await groupMemberRepo.findByUserId(userId);
+  for (const m of memberships) {
+    const schedules = await groupScheduleRepo.findByGroupId(m.groupId);
+    for (const s of schedules) {
+      if (s.day === day) {
+        // durationを考慮したスロット重複判定
+        if (period >= s.period && period < s.period + s.duration) {
+          return true;
+        }
+      }
     }
   }
 
-  // 予約をマージ
-  const reservations = db
-    .select()
-    .from(schema.reservations)
-    .where(eq(schema.reservations.status, "confirmed"))
-    .all();
-
-  const userRes = reservations.filter((r) =>
-    (r.participants as string[]).includes(userId)
-  );
-
-  matrix = mergeReservations(
-    matrix,
-    userRes.map((r) => ({ day: r.day, period: r.period, title: r.title }))
-  );
-
-  return matrix;
+  return false;
 }
 
 /**

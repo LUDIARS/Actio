@@ -24,49 +24,46 @@ app.use("*", cors());
 app.use("*", logger());
 app.use("/api/*", userContext());
 
-// ─── Auth Routes (認証) ─────────────────────────────────────
+// ─── Auth Routes (認証) — コア ──────────────────────────────
 app.route("/api/auth", auth);
 
-// ─── Core Platform ──────────────────────────────────────────
-// 予約システム (Reservations)
+// ─── Core: Groups (グループ管理) ────────────────────────────
+import { groupRoutes } from "../modules/group/routes.js";
+app.route("/api/groups", groupRoutes);
+
+// ─── Core: Calendar (Google Calendar + 手動予定 + プラン) ────
+import { calendar } from "../modules/calendar/routes.js";
+app.route("/api/calendar", calendar);
+
+// ─── Core: MyPlan (マイプラン: 週間ルーティーン) ─────────────
+import { myPlanRoutes } from "../modules/myplan/routes.js";
+app.route("/api/myplans", myPlanRoutes);
+
+// ─── Core: Smart Scheduler (自動配置スケジューラ) ────────────
+import { smartScheduler } from "../modules/smart-scheduler/routes.js";
+app.route("/api/smart-scheduler", smartScheduler);
+
+// ─── Module: Reservations (予約システム) ─────────────────────
 app.route("/api/reservations", m4);
-// Webhook・通知 (Webhooks & Notifications)
+
+// ─── Module: Webhooks & Notifications ───────────────────────
 app.route("/api/webhooks", notification);
-// 日程調整Voting (Meeting Voting)
+
+// ─── Module: Voting (日程調整) ──────────────────────────────
 app.route("/api/voting", m6);
 
-// ─── Optional Modules ───────────────────────────────────────
+// ─── School Module (学校カリキュラム管理: M1) ────────────────
 const modules: SchulaModule[] = [schoolModule];
 
 for (const mod of modules) {
   app.route(mod.basePath, mod.routes);
 }
 
-// ─── Calendar Module (Google Calendar + 手動予定 + プラン) ───
-import { calendar } from "../modules/calendar/routes.js";
-app.route("/api/calendar", calendar);
-
-// ─── Groups Module (グループ管理) ───────────────────────────
-import { groupRoutes } from "../modules/group/routes.js";
-app.route("/api/groups", groupRoutes);
-
-// ─── MyPlan Module (マイプラン: 週間ルーティーン) ────────────
-import { myPlanRoutes } from "../modules/myplan/routes.js";
-app.route("/api/myplans", myPlanRoutes);
-
-// ─── Smart Scheduler (汎用自動配置) ─────────────────────────
-import { smartScheduler } from "../modules/smart-scheduler/routes.js";
-app.route("/api/smart-scheduler", smartScheduler);
-
 // ─── Legacy Compatibility ───────────────────────────────────
-// 旧パス (/api/m1, /api/m2, ...) への後方互換ルーティング
-// 新規開発では /api/school/m1, /api/reservations, /api/webhooks を使用してください
+// 旧パス (/api/m1) への後方互換ルーティング
+// M2/M3 は M1 に統合済みのため廃止
 import { m1 } from "../modules/schedule/routes.js";
-import { m2 } from "../modules/integration/routes.js";
-import { m3 } from "../modules/auto-scheduler/routes.js";
 app.route("/api/m1", m1);
-app.route("/api/m2", m2);
-app.route("/api/m3", m3);
 app.route("/api/m4", m4);
 app.route("/api/m5", notification);
 app.route("/api/m6", m6);
@@ -101,11 +98,18 @@ app.get("/", (c) => {
     description: "汎用スケジューリング & 予約プラットフォーム",
     version: "1.0.0",
     core: {
+      auth: "認証 - /api/auth",
+      groups: "グループ管理 - /api/groups",
+      calendar: "カレンダー & 手動予定 - /api/calendar",
+      myplans: "マイプラン - /api/myplans",
+      smartScheduler: "自動配置スケジューラ - /api/smart-scheduler",
+    },
+    modules: {
+      ...registeredModules,
       reservations: "予約システム - /api/reservations",
       webhooks: "Webhook・リマインド通知 - /api/webhooks",
       voting: "日程調整Voting - /api/voting",
     },
-    modules: registeredModules,
   });
 });
 

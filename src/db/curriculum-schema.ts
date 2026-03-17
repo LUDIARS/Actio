@@ -62,6 +62,10 @@ export const curricula = sqliteTable(
     /** 担当講師ID (nullable: 未アサイン状態を許容) */
     instructorId: text("instructor_id")
       .references(() => instructors.id),
+    /** カリキュラム期間 開始日 (YYYY-MM-DD) — プランの期間指定と同じ */
+    validFrom: text("valid_from"),
+    /** カリキュラム期間 終了日 (YYYY-MM-DD) */
+    validUntil: text("valid_until"),
     createdAt: integer("created_at", { mode: "timestamp" })
       .$defaultFn(() => new Date())
       .notNull(),
