@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import { v4 as uuidv4 } from "uuid";
 import { db, schema } from "../../src/db/connection.js";
 import { eq, and } from "drizzle-orm";
+import { getUserId } from "../../src/middleware/getUserId.js";
 
 const myPlanRoutes = new Hono();
 
@@ -80,7 +81,7 @@ function generateScheduleFromMyPlan(
 // ─── GET / - マイプラン一覧 ──────────────────────────────────
 
 myPlanRoutes.get("/", (c) => {
-  const userId = c.req.header("X-User-Id");
+  const userId = getUserId(c);
   if (!userId) return c.json({ error: "Authentication required" }, 401);
 
   const plans = db
@@ -103,7 +104,7 @@ myPlanRoutes.get("/", (c) => {
 // ─── POST / - マイプラン作成 + 予定自動生成 ──────────────────
 
 myPlanRoutes.post("/", async (c) => {
-  const userId = c.req.header("X-User-Id");
+  const userId = getUserId(c);
   if (!userId) return c.json({ error: "Authentication required" }, 401);
 
   const body = await c.req.json<{
@@ -160,7 +161,7 @@ myPlanRoutes.post("/", async (c) => {
 // ─── PUT /:id - マイプラン更新 + 予定再生成 ──────────────────
 
 myPlanRoutes.put("/:id", async (c) => {
-  const userId = c.req.header("X-User-Id");
+  const userId = getUserId(c);
   if (!userId) return c.json({ error: "Authentication required" }, 401);
 
   const planId = c.req.param("id");
@@ -232,7 +233,7 @@ myPlanRoutes.put("/:id", async (c) => {
 // ─── DELETE /:id - マイプラン削除 ────────────────────────────
 
 myPlanRoutes.delete("/:id", (c) => {
-  const userId = c.req.header("X-User-Id");
+  const userId = getUserId(c);
   if (!userId) return c.json({ error: "Authentication required" }, 401);
 
   const planId = c.req.param("id");
@@ -270,7 +271,7 @@ myPlanRoutes.delete("/:id", (c) => {
 // ─── POST /:id/generate - マイプランから予定を生成 ────────────
 
 myPlanRoutes.post("/:id/generate", (c) => {
-  const userId = c.req.header("X-User-Id");
+  const userId = getUserId(c);
   if (!userId) return c.json({ error: "Authentication required" }, 401);
 
   const planId = c.req.param("id");

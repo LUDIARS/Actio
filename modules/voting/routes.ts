@@ -4,12 +4,13 @@ import { db, schema } from "../../src/db/connection.js";
 import { eq, and, inArray } from "drizzle-orm";
 import { generateAutoReply } from "./auto-reply.js";
 import type { VoteAnswer } from "../../src/shared/constants.js";
+import { getUserId } from "../../src/middleware/getUserId.js";
 
 const m6 = new Hono();
 
 // ─── POST /events — イベント作成 ─────────────────────────────
 m6.post("/events", async (c) => {
-  const userId = c.req.header("X-User-Id") || "";
+  const userId = getUserId(c) || "";
   const body = await c.req.json<{
     title: string;
     description?: string;
@@ -150,7 +151,7 @@ m6.get("/events/:eventId", async (c) => {
 // ─── POST /events/:eventId/votes — 回答を送信 ───────────────
 m6.post("/events/:eventId/votes", async (c) => {
   const eventId = c.req.param("eventId");
-  const userId = c.req.header("X-User-Id") || "";
+  const userId = getUserId(c) || "";
   const body = await c.req.json<{
     votes: { candidateId: string; answer: VoteAnswer; comment?: string }[];
   }>();
@@ -228,7 +229,7 @@ m6.post("/events/:eventId/votes", async (c) => {
 // ─── POST /events/:eventId/auto-reply — 自動回答 ────────────
 m6.post("/events/:eventId/auto-reply", async (c) => {
   const eventId = c.req.param("eventId");
-  const userId = c.req.header("X-User-Id") || "";
+  const userId = getUserId(c) || "";
 
   const [event] = db
     .select()
@@ -316,7 +317,7 @@ m6.post("/events/:eventId/auto-reply", async (c) => {
 // ─── PUT /events/:eventId — イベント更新 (close等) ──────────
 m6.put("/events/:eventId", async (c) => {
   const eventId = c.req.param("eventId");
-  const userId = c.req.header("X-User-Id") || "";
+  const userId = getUserId(c) || "";
   const body = await c.req.json<{
     status?: string;
     title?: string;
@@ -355,7 +356,7 @@ m6.put("/events/:eventId", async (c) => {
 // ─── DELETE /events/:eventId — イベント削除 ──────────────────
 m6.delete("/events/:eventId", async (c) => {
   const eventId = c.req.param("eventId");
-  const userId = c.req.header("X-User-Id") || "";
+  const userId = getUserId(c) || "";
 
   const [event] = db
     .select()

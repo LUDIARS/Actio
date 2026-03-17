@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import { db, schema, curriculumSchema } from "../../src/db/connection.js";
 import { eq, and, not } from "drizzle-orm";
+import { getUserId } from "../../src/middleware/getUserId.js";
 import {
   createEmptySlotMatrix,
   mergeClassSchedule,
@@ -18,7 +19,7 @@ const m2 = new Hono();
 // ─── GET /api/m2/members/:userId/slots ──────────────────────
 m2.get("/members/:userId/slots", async (c) => {
   const userId = c.req.param("userId");
-  const requesterId = c.req.header("X-User-Id") || userId;
+  const requesterId = getUserId(c) || userId;
   const isOwner = requesterId === userId;
 
   // Start with empty matrix
@@ -162,7 +163,7 @@ m2.get("/members/:userId/attendance", async (c) => {
 
 // ─── POST /api/m2/sync/gcal ────────────────────────────────
 m2.post("/sync/gcal", async (c) => {
-  const userId = c.req.header("X-User-Id");
+  const userId = getUserId(c);
   if (!userId) {
     return c.json({ error: "Authentication required" }, 401);
   }

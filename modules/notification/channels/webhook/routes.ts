@@ -5,6 +5,7 @@ import { db, schema } from "../../../../src/db/connection.js";
 import { eq } from "drizzle-orm";
 import { deliverWebhook, signPayload } from "./delivery.js";
 import type { WebhookPayload } from "../../../../src/shared/types.js";
+import { getUserId } from "../../../../src/middleware/getUserId.js";
 
 const webhookRoutes = new Hono();
 
@@ -14,7 +15,7 @@ webhookRoutes.post("/", async (c) => {
     url: string;
     events: string[];
   }>();
-  const createdBy = c.req.header("X-User-Id") || "anonymous";
+  const createdBy = getUserId(c) || "anonymous";
 
   const secret = randomBytes(32).toString("hex");
 
@@ -44,7 +45,7 @@ webhookRoutes.post("/", async (c) => {
 
 // ─── GET /webhooks ──────────────────────────────────────────
 webhookRoutes.get("/", async (c) => {
-  const createdBy = c.req.header("X-User-Id");
+  const createdBy = getUserId(c);
 
   const webhooks = createdBy
     ? db
