@@ -251,19 +251,21 @@ export const notifications = pgTable(
   ]
 );
 
+// ─── Departments ─────────────────────────────────────────────
+
+export const departments = pgTable("departments", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  createdAt: timestamp("created_at")
+    .$defaultFn(() => new Date())
+    .notNull(),
+});
+
 // ─── Instructors ─────────────────────────────────────────────
 
 export const instructors = pgTable("instructors", {
   id: text("id").primaryKey(),
   name: text("name").notNull(),
-  major: text("major").notNull(),
-  courses: jsonb("courses").$type<string[]>().notNull().default([]),
-  availability: jsonb("availability").$type<boolean[][]>().notNull(),
-  availabilityConditionType: text("availability_condition_type").notNull().default("any"),
-  availabilityCondition: jsonb("availability_condition")
-    .$type<Record<string, unknown>>()
-    .notNull()
-    .default({}),
   createdAt: timestamp("created_at")
     .$defaultFn(() => new Date())
     .notNull(),
@@ -271,70 +273,43 @@ export const instructors = pgTable("instructors", {
 
 // ─── Curricula ───────────────────────────────────────────────
 
-export const curricula = pgTable("curricula", {
-  id: text("id").primaryKey(),
-  departmentName: text("department_name").notNull(),
-  name: text("name").notNull(),
-  instructorId: text("instructor_id")
-    .references(() => instructors.id)
-    .notNull(),
-  slotsPerSession: integer("slots_per_session").notNull().default(1),
-  totalSessions: integer("total_sessions").notNull(),
-  roomType: text("room_type").notNull(),
-  roomId: text("room_id"),
-  editableUntil: timestamp("editable_until").notNull(),
-  termId: text("term_id").notNull(),
-  createdAt: timestamp("created_at")
-    .$defaultFn(() => new Date())
-    .notNull(),
-});
-
-// ─── Curriculum Plans ────────────────────────────────────────
-
-export const curriculumPlans = pgTable("curriculum_plans", {
-  id: text("id").primaryKey(),
-  curriculumId: text("curriculum_id")
-    .references(() => curricula.id)
-    .notNull(),
-  name: text("name").notNull(),
-  termId: text("term_id").notNull(),
-  status: text("status").notNull().default("draft"),
-  createdAt: timestamp("created_at")
-    .$defaultFn(() => new Date())
-    .notNull(),
-  updatedAt: timestamp("updated_at")
-    .$defaultFn(() => new Date())
-    .notNull(),
-});
-
-// ─── Plan Blocks ─────────────────────────────────────────────
-
-export const planBlocks = pgTable(
-  "plan_blocks",
+export const curricula = pgTable(
+  "curricula",
   {
     id: text("id").primaryKey(),
-    planId: text("plan_id")
-      .references(() => curriculumPlans.id)
+    name: text("name").notNull(),
+    departmentId: text("department_id")
+      .references(() => departments.id)
       .notNull(),
-    curriculumId: text("curriculum_id")
-      .references(() => curricula.id)
-      .notNull(),
-    sessionNumber: integer("session_number").notNull(),
-    placementStatus: text("placement_status").notNull().default("unplaced"),
-    day: integer("day"),
-    period: integer("period"),
-    blockSize: integer("block_size").notNull().default(1),
-    errorMessage: text("error_message"),
-    color: text("color"),
-    sortOrder: integer("sort_order").notNull().default(0),
+    instructorId: text("instructor_id")
+      .references(() => instructors.id),
     createdAt: timestamp("created_at")
       .$defaultFn(() => new Date())
       .notNull(),
   },
   (table) => [
-    index("idx_plan_blocks_plan").on(table.planId),
-    index("idx_plan_blocks_curriculum").on(table.curriculumId),
-    unique("unique_plan_session").on(table.planId, table.curriculumId, table.sessionNumber),
+    index("idx_curricula_department").on(table.departmentId),
+    index("idx_curricula_instructor").on(table.instructorId),
+  ]
+);
+
+// ─── Instructor Available Slots ──────────────────────────────
+
+export const instructorAvailableSlots = pgTable(
+  "instructor_available_slots",
+  {
+    id: text("id").primaryKey(),
+    instructorId: text("instructor_id")
+      .references(() => instructors.id)
+      .notNull(),
+    day: integer("day").notNull(),
+    periods: jsonb("periods").$type<number[]>().notNull(),
+    createdAt: timestamp("created_at")
+      .$defaultFn(() => new Date())
+      .notNull(),
+  },
+  (table) => [
+    index("idx_available_slots_instructor").on(table.instructorId),
   ]
 );
 
@@ -356,10 +331,10 @@ export const schema = {
 };
 
 export const curriculumSchema = {
+  departments,
   instructors,
   curricula,
-  curriculumPlans,
-  planBlocks,
+  instructorAvailableSlots,
 };
 
 // ─── Connection ──────────────────────────────────────────────
@@ -377,10 +352,10 @@ const DB_SCHEMA = {
   webhookDeliveryLogs,
   notificationPreferences,
   notifications,
+  departments,
   instructors,
   curricula,
-  curriculumPlans,
-  planBlocks,
+  instructorAvailableSlots,
 };
 
 /**
