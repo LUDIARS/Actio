@@ -31,6 +31,11 @@
   --slot-reserved: #2d1a2a;
 }
 
+html,
+body {
+  overflow-x: hidden;
+}
+
 body {
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial,
     sans-serif;
@@ -310,22 +315,44 @@ label {
   display: none;
 }
 
+/* ─── Mobile header ─── */
+.mobile-header {
+  display: none;
+}
+
 /* ─── Mobile (768px以下) ─── */
 @media (max-width: 768px) {
+  .mobile-header {
+    display: flex;
+    align-items: center;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 48px;
+    z-index: 1100;
+    background: var(--bg-surface);
+    border-bottom: 1px solid var(--border);
+    padding: 0 0.75rem;
+    gap: 0.75rem;
+  }
+
+  .mobile-header-title {
+    font-size: 0.9rem;
+    font-weight: 700;
+    color: var(--text);
+  }
+
   .hamburger-btn {
     display: flex;
     align-items: center;
     justify-content: center;
-    position: fixed;
-    top: 0.6rem;
-    left: 0.6rem;
-    z-index: 1100;
-    width: 40px;
-    height: 40px;
+    width: 36px;
+    height: 36px;
     padding: 0;
-    background: var(--bg-surface);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-sm);
+    background: transparent;
+    border: none;
+    flex-shrink: 0;
   }
 
   .hamburger-icon {
@@ -372,6 +399,7 @@ label {
     transform: translateX(-100%);
     transition: transform 0.25s ease;
     box-shadow: 4px 0 24px rgba(0, 0, 0, 0.4);
+    overflow-y: auto;
   }
 
   .sidebar--open {
@@ -381,5 +409,7 @@ label {
   .main-content {
     padding: 3.5rem 1rem 1rem;
     width: 100%;
+    max-width: 100vw;
+    overflow-x: hidden;
   }
 }

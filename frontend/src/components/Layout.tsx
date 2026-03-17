@@ -35,18 +35,21 @@ export function Layout() {
 
   return (
     <div className="layout-root">
-      {/* Hamburger button - visible only on mobile */}
-      <button
-        className="hamburger-btn"
-        onClick={toggleSidebar}
-        aria-label="メニューを開く"
-      >
-        <span className={`hamburger-icon ${sidebarOpen ? "open" : ""}`}>
-          <span />
-          <span />
-          <span />
-        </span>
-      </button>
+      {/* Fixed header bar - visible only on mobile */}
+      <div className="mobile-header">
+        <button
+          className="hamburger-btn"
+          onClick={toggleSidebar}
+          aria-label="メニューを開く"
+        >
+          <span className={`hamburger-icon ${sidebarOpen ? "open" : ""}`}>
+            <span />
+            <span />
+            <span />
+          </span>
+        </button>
+        <span className="mobile-header-title">Schedula</span>
+      </div>
 
       {/* Overlay backdrop - mobile only */}
       {sidebarOpen && (
