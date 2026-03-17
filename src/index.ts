@@ -54,6 +54,10 @@ app.route("/api/groups", groupRoutes);
 import { myPlanRoutes } from "../modules/myplan/routes.js";
 app.route("/api/myplans", myPlanRoutes);
 
+// ─── Smart Scheduler (汎用自動配置) ─────────────────────────
+import { smartScheduler } from "../modules/smart-scheduler/routes.js";
+app.route("/api/smart-scheduler", smartScheduler);
+
 // ─── Legacy Compatibility ───────────────────────────────────
 // 旧パス (/api/m1, /api/m2, ...) への後方互換ルーティング
 // 新規開発では /api/school/m1, /api/reservations, /api/webhooks を使用してください

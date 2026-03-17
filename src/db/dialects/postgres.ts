@@ -400,6 +400,59 @@ export const myPlans = pgTable(
   ]
 );
 
+// ─── Smart Scheduler: Tasks ─────────────────────────────────
+
+export const schedulingTasks = pgTable(
+  "scheduling_tasks",
+  {
+    id: text("id").primaryKey(),
+    groupId: text("group_id")
+      .references(() => groups.id)
+      .notNull(),
+    title: text("title").notNull(),
+    duration: integer("duration").notNull().default(1),
+    priority: integer("priority").notNull().default(0),
+    preferredDays: jsonb("preferred_days").$type<number[]>().notNull().default([]),
+    preferredPeriods: jsonb("preferred_periods").$type<number[]>().notNull().default([]),
+    status: text("status").notNull().default("pending"),
+    createdBy: text("created_by").notNull(),
+    createdAt: timestamp("created_at")
+      .$defaultFn(() => new Date())
+      .notNull(),
+    updatedAt: timestamp("updated_at")
+      .$defaultFn(() => new Date())
+      .notNull(),
+  },
+  (table) => [
+    index("idx_schtask_group").on(table.groupId),
+    index("idx_schtask_status").on(table.status),
+  ]
+);
+
+// ─── Smart Scheduler: Results ───────────────────────────────
+
+export const schedulingResults = pgTable(
+  "scheduling_results",
+  {
+    id: text("id").primaryKey(),
+    groupId: text("group_id")
+      .references(() => groups.id)
+      .notNull(),
+    status: text("status").notNull().default("draft"),
+    placements: jsonb("placements").$type<
+      Array<{ taskId: string; title: string; day: number; period: number; duration: number; score: number }>
+    >().notNull().default([]),
+    totalScore: integer("total_score").notNull().default(0),
+    createdBy: text("created_by").notNull(),
+    createdAt: timestamp("created_at")
+      .$defaultFn(() => new Date())
+      .notNull(),
+  },
+  (table) => [
+    index("idx_schresult_group").on(table.groupId),
+  ]
+);
+
 // ─── Voting Events ──────────────────────────────────────────
 
 export const votingEvents = pgTable("voting_events", {
@@ -567,6 +620,8 @@ export const schema = {
   personalEvents,
   plans,
   myPlans,
+  schedulingTasks,
+  schedulingResults,
   webhookEndpoints,
   webhookDeliveryLogs,
   notificationPreferences,
@@ -600,6 +655,8 @@ const DB_SCHEMA = {
   personalEvents,
   plans,
   myPlans,
+  schedulingTasks,
+  schedulingResults,
   webhookEndpoints,
   webhookDeliveryLogs,
   notificationPreferences,

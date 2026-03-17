@@ -402,6 +402,59 @@ export const myPlans = mysqlTable(
   ]
 );
 
+// ─── Smart Scheduler: Tasks ─────────────────────────────────
+
+export const schedulingTasks = mysqlTable(
+  "scheduling_tasks",
+  {
+    id: varchar("id", { length: 255 }).primaryKey(),
+    groupId: varchar("group_id", { length: 255 })
+      .references(() => groups.id)
+      .notNull(),
+    title: varchar("title", { length: 255 }).notNull(),
+    duration: int("duration").notNull().default(1),
+    priority: int("priority").notNull().default(0),
+    preferredDays: json("preferred_days").$type<number[]>().notNull(),
+    preferredPeriods: json("preferred_periods").$type<number[]>().notNull(),
+    status: varchar("status", { length: 255 }).notNull().default("pending"),
+    createdBy: varchar("created_by", { length: 255 }).notNull(),
+    createdAt: timestamp("created_at")
+      .$defaultFn(() => new Date())
+      .notNull(),
+    updatedAt: timestamp("updated_at")
+      .$defaultFn(() => new Date())
+      .notNull(),
+  },
+  (table) => [
+    index("idx_schtask_group").on(table.groupId),
+    index("idx_schtask_status").on(table.status),
+  ]
+);
+
+// ─── Smart Scheduler: Results ───────────────────────────────
+
+export const schedulingResults = mysqlTable(
+  "scheduling_results",
+  {
+    id: varchar("id", { length: 255 }).primaryKey(),
+    groupId: varchar("group_id", { length: 255 })
+      .references(() => groups.id)
+      .notNull(),
+    status: varchar("status", { length: 255 }).notNull().default("draft"),
+    placements: json("placements").$type<
+      Array<{ taskId: string; title: string; day: number; period: number; duration: number; score: number }>
+    >().notNull(),
+    totalScore: int("total_score").notNull().default(0),
+    createdBy: varchar("created_by", { length: 255 }).notNull(),
+    createdAt: timestamp("created_at")
+      .$defaultFn(() => new Date())
+      .notNull(),
+  },
+  (table) => [
+    index("idx_schresult_group").on(table.groupId),
+  ]
+);
+
 // ─── Voting Events ──────────────────────────────────────────
 
 export const votingEvents = mysqlTable("voting_events", {
@@ -569,6 +622,8 @@ export const schema = {
   personalEvents,
   plans,
   myPlans,
+  schedulingTasks,
+  schedulingResults,
   webhookEndpoints,
   webhookDeliveryLogs,
   notificationPreferences,
@@ -602,6 +657,8 @@ const allTables = {
   personalEvents,
   plans,
   myPlans,
+  schedulingTasks,
+  schedulingResults,
   webhookEndpoints,
   webhookDeliveryLogs,
   notificationPreferences,

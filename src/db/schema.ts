@@ -339,6 +339,67 @@ export const myPlans = sqliteTable(
   ]
 );
 
+// ─── Smart Scheduler: Tasks (配置したい予定) ─────────────────
+// グループの空き状況を見て自動配置するための「入れたい予定」
+
+export const schedulingTasks = sqliteTable(
+  "scheduling_tasks",
+  {
+    id: text("id").primaryKey(),
+    groupId: text("group_id")
+      .references(() => groups.id)
+      .notNull(),
+    title: text("title").notNull(),
+    /** 所要コマ数 (1コマ=1時間) */
+    duration: integer("duration").notNull().default(1),
+    /** 優先度 (大きいほど優先的に配置) */
+    priority: integer("priority").notNull().default(0),
+    /** 希望曜日 JSON array [0,1,2,...] (空=どの曜日でもOK) */
+    preferredDays: text("preferred_days", { mode: "json" }).$type<number[]>().notNull().default([]),
+    /** 希望コマ JSON array [0,1,2,...] (空=どのコマでもOK) */
+    preferredPeriods: text("preferred_periods", { mode: "json" }).$type<number[]>().notNull().default([]),
+    /** pending=未配置, placed=配置済み, failed=配置不可 */
+    status: text("status").notNull().default("pending"),
+    createdBy: text("created_by").notNull(),
+    createdAt: integer("created_at", { mode: "timestamp" })
+      .$defaultFn(() => new Date())
+      .notNull(),
+    updatedAt: integer("updated_at", { mode: "timestamp" })
+      .$defaultFn(() => new Date())
+      .notNull(),
+  },
+  (table) => [
+    index("idx_schtask_group").on(table.groupId),
+    index("idx_schtask_status").on(table.status),
+  ]
+);
+
+// ─── Smart Scheduler: Results (自動配置結果) ─────────────────
+
+export const schedulingResults = sqliteTable(
+  "scheduling_results",
+  {
+    id: text("id").primaryKey(),
+    groupId: text("group_id")
+      .references(() => groups.id)
+      .notNull(),
+    /** draft=提案中, confirmed=確定, rejected=却下 */
+    status: text("status").notNull().default("draft"),
+    /** 配置結果 JSON: Array<{ taskId, day, period, score }> */
+    placements: text("placements", { mode: "json" }).$type<
+      Array<{ taskId: string; title: string; day: number; period: number; duration: number; score: number }>
+    >().notNull().default([]),
+    totalScore: integer("total_score").notNull().default(0),
+    createdBy: text("created_by").notNull(),
+    createdAt: integer("created_at", { mode: "timestamp" })
+      .$defaultFn(() => new Date())
+      .notNull(),
+  },
+  (table) => [
+    index("idx_schresult_group").on(table.groupId),
+  ]
+);
+
 // ─── M5: Webhook Endpoints ──────────────────────────────────
 
 export const webhookEndpoints = sqliteTable("webhook_endpoints", {

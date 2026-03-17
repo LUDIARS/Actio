@@ -435,6 +435,96 @@ export const planRepo = {
   },
 };
 
+// ─── Scheduling Task Repository ─────────────────────────────
+
+export type SchedulingTask = typeof schema.schedulingTasks.$inferSelect;
+export type NewSchedulingTask = typeof schema.schedulingTasks.$inferInsert;
+
+export const schedulingTaskRepo = {
+  async findByGroupId(groupId: string): Promise<SchedulingTask[]> {
+    return db
+      .select()
+      .from(schema.schedulingTasks)
+      .where(eq(schema.schedulingTasks.groupId, groupId));
+  },
+
+  async findById(id: string): Promise<SchedulingTask | undefined> {
+    const [task] = await db
+      .select()
+      .from(schema.schedulingTasks)
+      .where(eq(schema.schedulingTasks.id, id));
+    return task;
+  },
+
+  async findPendingByGroupId(groupId: string): Promise<SchedulingTask[]> {
+    return db
+      .select()
+      .from(schema.schedulingTasks)
+      .where(
+        and(
+          eq(schema.schedulingTasks.groupId, groupId),
+          eq(schema.schedulingTasks.status, "pending")
+        )
+      );
+  },
+
+  async create(data: NewSchedulingTask): Promise<void> {
+    await db.insert(schema.schedulingTasks).values(data);
+  },
+
+  async update(id: string, data: Partial<Omit<NewSchedulingTask, "id">>): Promise<void> {
+    await db
+      .update(schema.schedulingTasks)
+      .set(data)
+      .where(eq(schema.schedulingTasks.id, id));
+  },
+
+  async deleteById(id: string): Promise<void> {
+    await db
+      .delete(schema.schedulingTasks)
+      .where(eq(schema.schedulingTasks.id, id));
+  },
+};
+
+// ─── Scheduling Result Repository ───────────────────────────
+
+export type SchedulingResult = typeof schema.schedulingResults.$inferSelect;
+export type NewSchedulingResult = typeof schema.schedulingResults.$inferInsert;
+
+export const schedulingResultRepo = {
+  async findByGroupId(groupId: string): Promise<SchedulingResult[]> {
+    return db
+      .select()
+      .from(schema.schedulingResults)
+      .where(eq(schema.schedulingResults.groupId, groupId));
+  },
+
+  async findById(id: string): Promise<SchedulingResult | undefined> {
+    const [result] = await db
+      .select()
+      .from(schema.schedulingResults)
+      .where(eq(schema.schedulingResults.id, id));
+    return result;
+  },
+
+  async create(data: NewSchedulingResult): Promise<void> {
+    await db.insert(schema.schedulingResults).values(data);
+  },
+
+  async update(id: string, data: Partial<Omit<NewSchedulingResult, "id">>): Promise<void> {
+    await db
+      .update(schema.schedulingResults)
+      .set(data)
+      .where(eq(schema.schedulingResults.id, id));
+  },
+
+  async deleteById(id: string): Promise<void> {
+    await db
+      .delete(schema.schedulingResults)
+      .where(eq(schema.schedulingResults.id, id));
+  },
+};
+
 // ─── Group Member Repository ────────────────────────────────
 
 export const groupMemberRepo = {
@@ -443,6 +533,13 @@ export const groupMemberRepo = {
       .select()
       .from(schema.groupMembers)
       .where(eq(schema.groupMembers.userId, userId));
+  },
+
+  async findByGroupId(groupId: string) {
+    return db
+      .select()
+      .from(schema.groupMembers)
+      .where(eq(schema.groupMembers.groupId, groupId));
   },
 };
 

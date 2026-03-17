@@ -23,6 +23,7 @@ const NAV_ITEMS: NavItem[] = [
   { to: "/groups", label: "グループ" },
   { to: "/calendar", label: "カレンダー" },
   { to: "/scheduler", label: "スケジューラ" },
+  { to: "/smart-scheduler", label: "自動配置" },
   { to: "/reservations", label: "予約" },
   { to: "/notifications", label: "通知" },
   { to: "/voting", label: "日程調整" },

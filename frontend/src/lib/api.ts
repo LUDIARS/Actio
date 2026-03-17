@@ -686,6 +686,54 @@ export const myPlanApi = {
   },
 };
 
+// ─── Smart Scheduler (汎用自動配置) ─────────────────────────
+
+export const smartSchedulerApi = {
+  getTasks(groupId: string) {
+    return request<any>(`/api/smart-scheduler/tasks/${groupId}`);
+  },
+  createTask(body: {
+    groupId: string;
+    title: string;
+    duration?: number;
+    priority?: number;
+    preferredDays?: number[];
+    preferredPeriods?: number[];
+  }) {
+    return request<any>("/api/smart-scheduler/tasks", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  },
+  updateTask(id: string, body: {
+    title?: string;
+    duration?: number;
+    priority?: number;
+    preferredDays?: number[];
+    preferredPeriods?: number[];
+  }) {
+    return request<any>(`/api/smart-scheduler/tasks/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(body),
+    });
+  },
+  deleteTask(id: string) {
+    return request<any>(`/api/smart-scheduler/tasks/${id}`, { method: "DELETE" });
+  },
+  solve(groupId: string) {
+    return request<any>(`/api/smart-scheduler/solve/${groupId}`, { method: "POST" });
+  },
+  confirm(resultId: string) {
+    return request<any>(`/api/smart-scheduler/confirm/${resultId}`, { method: "POST" });
+  },
+  getResults(groupId: string) {
+    return request<any>(`/api/smart-scheduler/results/${groupId}`);
+  },
+  getAvailability(groupId: string) {
+    return request<any>(`/api/smart-scheduler/availability/${groupId}`);
+  },
+};
+
 // ─── M6: Voting ─────────────────────────────────────────────
 
 export const m6Voting = {
