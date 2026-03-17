@@ -24,11 +24,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Check for OAuth callback tokens in URL
+    // Check for OAuth callback tokens or errors in URL
     const params = new URLSearchParams(window.location.search);
     const accessToken = params.get("accessToken");
     const refreshToken = params.get("refreshToken");
+    const authError = params.get("authError");
+
+    if (authError) {
+      console.error("[AuthContext] OAuthエラー:", authError);
+      // Clean URL
+      window.history.replaceState({}, "", window.location.pathname);
+    }
+
     if (accessToken && refreshToken) {
+      console.log("[AuthContext] OAuthコールバックトークン検出");
       setTokens(accessToken, refreshToken);
       // Clean URL
       window.history.replaceState({}, "", window.location.pathname);
@@ -36,13 +45,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     // Validate stored session
     const stored = getStoredUser();
-    if (stored) {
+    if (stored || (accessToken && refreshToken)) {
+      console.log("[AuthContext] セッション検証中...");
       authApi.me()
         .then((me) => {
+          console.log("[AuthContext] セッション有効 userId:", me.id);
           setUser({ id: me.id, name: me.name, email: me.email, role: me.role });
           setStoredUser({ id: me.id, name: me.name, email: me.email, role: me.role });
         })
-        .catch(() => {
+        .catch((err) => {
+          console.error("[AuthContext] セッション検証失敗:", err);
           // Token expired/invalid
           setUser(null);
         })
