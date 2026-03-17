@@ -78,8 +78,36 @@ app.get("/", (c) => {
   });
 });
 
-app.get("/api/health", (c) => {
-  return c.json({ status: "ok", timestamp: new Date().toISOString() });
+app.get("/api/health", async (c) => {
+  const health: Record<string, unknown> = {
+    status: "ok",
+    timestamp: new Date().toISOString(),
+  };
+
+  // DB 接続チェック（postgres の場合のみ）
+  try {
+    const { db, dialect } = await import("./db/connection.js");
+    health.db_dialect = dialect;
+    if (dialect === "postgres") {
+      const result = await db.execute(
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (await import("drizzle-orm")).sql`SELECT 1 AS ok`
+      );
+      health.db_status = "connected";
+      console.log("[health] DB check OK");
+    } else {
+      health.db_status = "connected";
+    }
+  } catch (err) {
+    health.status = "degraded";
+    health.db_status = "disconnected";
+    health.db_error =
+      err instanceof Error ? err.message : String(err);
+    console.error(`[health] DB check FAILED: ${health.db_error}`);
+  }
+
+  const statusCode = health.status === "ok" ? 200 : 503;
+  return c.json(health, statusCode);
 });
 
 // ─── Initialize Notification Handler ────────────────────────
@@ -88,8 +116,9 @@ initNotificationHandler();
 // ─── Server ─────────────────────────────────────────────────
 const port = parseInt(process.env.PORT || "3000", 10);
 
+console.log(`[server] 起動中... ポート ${port}`);
 serve({ fetch: app.fetch, port }, (info) => {
-  console.log(`Schedula server running on http://localhost:${info.port}`);
+  console.log(`[server] Schedula server running on http://localhost:${info.port}`);
 });
 
 export { app };
