@@ -74,6 +74,37 @@ m1.get("/departments", async (c) => {
 - **通知** (`modules/notification/`) — M5 (`/api/webhooks`)
 - **日程調整Voting** (`modules/voting/`) — M6 (`/api/voting`)
 
+## モジュール修正ルール
+
+**モジュール (`modules/`) のバックエンドを修正する際は、対応するフロントエンド (`frontend/`) も必ず合わせて修正すること。**
+
+### なぜ？
+
+- バックエンドの API レスポンス形式やエンドポイントを変更した場合、フロントエンドが壊れる
+- 新機能追加時にフロントエンド側の UI を忘れると、ユーザが機能にアクセスできない
+- バックエンドとフロントエンドの整合性を常に保つことで、動作確認・レビューがスムーズになる
+
+### やること
+
+1. バックエンドの API を追加・変更・削除した場合、`frontend/src/lib/api.ts` の対応する API 呼び出しも更新する
+2. 新しいエンドポイントを追加した場合、対応するフロントエンドページ (`frontend/src/pages/`) に UI を追加する
+3. レスポンス形式を変更した場合、フロントエンド側の型定義とデータ処理も合わせて修正する
+4. バックエンドのバリデーションルールを変更した場合、フロントエンドのフォームバリデーションも同期する
+
+### 対応関係
+
+| バックエンドモジュール | フロントエンドページ | API定義 |
+|----------------------|--------------------|---------|
+| `modules/schedule/` + `modules/school/` | `frontend/src/pages/DataManagementPage.tsx`, `SchemaManagementPage.tsx` | `api.ts` の `m1` |
+| `modules/calendar/` | `frontend/src/pages/CalendarPage.tsx` | `api.ts` の `calendar` |
+| `modules/group/` | `frontend/src/pages/GroupsPage.tsx` | `api.ts` の `groups` |
+| `modules/myplan/` | `frontend/src/pages/MyPlanPage.tsx` | `api.ts` の `myplan` |
+| `modules/smart-scheduler/` | `frontend/src/pages/SmartSchedulerPage.tsx` | `api.ts` の `smartScheduler` |
+| `modules/reservation/` | `frontend/src/pages/ReservationsPage.tsx` | `api.ts` の `m4` |
+| `modules/notification/` | `frontend/src/pages/NotificationsPage.tsx` | `api.ts` の `m5` |
+| `modules/voting/` | `frontend/src/pages/VotingPage.tsx` | `api.ts` の `m6Voting` |
+| `src/auth/` | `frontend/src/pages/LoginPage.tsx`, `UserManagementPage.tsx` | `api.ts` の `auth` |
+
 ## プロジェクト構造
 
 - `src/` — バックエンド (Hono + TypeScript)
