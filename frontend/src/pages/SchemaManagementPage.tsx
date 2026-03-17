@@ -20,6 +20,7 @@ interface Curriculum {
   id: string;
   name: string;
   departmentId: string;
+  periods: number;
   instructorId: string | null;
   createdAt: string;
 }
@@ -454,12 +455,14 @@ function CurriculaTab({ showMessage }: { showMessage: (msg: string, type?: "succ
   const [newName, setNewName] = useState("");
   const [newDeptId, setNewDeptId] = useState("");
   const [newInstId, setNewInstId] = useState("");
+  const [newPeriods, setNewPeriods] = useState<number>(1);
   const [loading, setLoading] = useState(false);
 
   // Edit state
   const [editId, setEditId] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
   const [editInstId, setEditInstId] = useState<string>("");
+  const [editPeriods, setEditPeriods] = useState<number>(1);
 
   const fetchAll = useCallback(async () => {
     try {
@@ -488,9 +491,10 @@ function CurriculaTab({ showMessage }: { showMessage: (msg: string, type?: "succ
     }
     setLoading(true);
     try {
-      await m1Schema.createCurriculum(newDeptId, newName.trim(), newInstId || undefined);
+      await m1Schema.createCurriculum(newDeptId, newName.trim(), newInstId || undefined, newPeriods);
       setNewName("");
       setNewInstId("");
+      setNewPeriods(1);
       showMessage(`カリキュラム「${newName.trim()}」を作成しました`);
       fetchAll();
     } catch (e: any) {
@@ -504,6 +508,7 @@ function CurriculaTab({ showMessage }: { showMessage: (msg: string, type?: "succ
       await m1Schema.updateCurriculum(id, {
         name: editName.trim() || undefined,
         instructorId: editInstId || null,
+        periods: editPeriods,
       });
       setEditId(null);
       showMessage("カリキュラムを更新しました");
@@ -570,6 +575,16 @@ function CurriculaTab({ showMessage }: { showMessage: (msg: string, type?: "succ
                 ))}
               </select>
             </div>
+            <div className="form-group" style={{ flex: 0, minWidth: 80 }}>
+              <label>コマ数</label>
+              <input
+                type="number"
+                min={1}
+                value={newPeriods}
+                onChange={(e) => setNewPeriods(Math.max(1, parseInt(e.target.value) || 1))}
+                style={{ width: 70 }}
+              />
+            </div>
             <button type="submit" className="primary" disabled={loading} style={{ marginBottom: "1rem" }}>
               追加
             </button>
@@ -601,6 +616,7 @@ function CurriculaTab({ showMessage }: { showMessage: (msg: string, type?: "succ
               <tr>
                 <th>科目名</th>
                 <th>学科</th>
+                <th>コマ数</th>
                 <th>担当講師</th>
                 <th>操作</th>
               </tr>
@@ -622,6 +638,19 @@ function CurriculaTab({ showMessage }: { showMessage: (msg: string, type?: "succ
                     )}
                   </td>
                   <td style={{ fontSize: "0.8rem" }}>{getDeptName(c.departmentId)}</td>
+                  <td style={{ fontSize: "0.8rem", textAlign: "center" }}>
+                    {editId === c.id ? (
+                      <input
+                        type="number"
+                        min={1}
+                        value={editPeriods}
+                        onChange={(e) => setEditPeriods(Math.max(1, parseInt(e.target.value) || 1))}
+                        style={{ width: 50, padding: "0.2rem 0.4rem", fontSize: "0.8rem" }}
+                      />
+                    ) : (
+                      c.periods ?? 1
+                    )}
+                  </td>
                   <td>
                     {editId === c.id ? (
                       <select
@@ -670,6 +699,7 @@ function CurriculaTab({ showMessage }: { showMessage: (msg: string, type?: "succ
                               setEditId(c.id);
                               setEditName(c.name);
                               setEditInstId(c.instructorId || "");
+                              setEditPeriods(c.periods ?? 1);
                             }}
                           >
                             編集

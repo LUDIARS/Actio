@@ -126,30 +126,34 @@ m1.get("/curricula", async (c) => {
 /** カリキュラム作成 */
 m1.post("/departments/:departmentId/curricula", async (c) => {
   const { departmentId } = c.req.param();
-  const { name, instructorId } = await c.req.json<{
+  const { name, instructorId, periods } = await c.req.json<{
     name: string;
     instructorId?: string;
+    periods?: number;
   }>();
   if (!name?.trim()) {
     return c.json({ error: "name is required" }, 400);
   }
   const id = uuidv4();
+  const periodsVal = periods != null && periods > 0 ? periods : 1;
   await curriculumRepo.create({
     id,
     name: name.trim(),
     departmentId,
+    periods: periodsVal,
     instructorId: instructorId || null,
   });
-  return c.json({ id, name: name.trim(), departmentId, instructorId: instructorId || null }, 201);
+  return c.json({ id, name: name.trim(), departmentId, periods: periodsVal, instructorId: instructorId || null }, 201);
 });
 
 /** カリキュラム更新 (名前変更・講師アサイン) */
 m1.put("/curricula/:id", async (c) => {
   const { id } = c.req.param();
-  const body = await c.req.json<{ name?: string; instructorId?: string | null }>();
+  const body = await c.req.json<{ name?: string; instructorId?: string | null; periods?: number }>();
   const updates: Record<string, unknown> = {};
   if (body.name !== undefined) updates.name = body.name.trim();
   if (body.instructorId !== undefined) updates.instructorId = body.instructorId;
+  if (body.periods !== undefined && body.periods > 0) updates.periods = body.periods;
 
   if (Object.keys(updates).length === 0) {
     return c.json({ error: "No fields to update" }, 400);
