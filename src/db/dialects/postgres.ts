@@ -364,28 +364,110 @@ export const curriculumSchema = {
 
 // ─── Connection ──────────────────────────────────────────────
 
+const DB_SCHEMA = {
+  users,
+  sessions,
+  rooms,
+  scheduleEntries,
+  unifiedSlots,
+  memberProfiles,
+  groups,
+  reservations,
+  webhookEndpoints,
+  webhookDeliveryLogs,
+  notificationPreferences,
+  notifications,
+  instructors,
+  curricula,
+  curriculumPlans,
+  planBlocks,
+};
+
+/**
+ * PostgreSQL 接続をリトライ付きで確立する
+ * "invalid length of startup packet" エラーを防ぐため、接続確認まで行う
+ */
+export async function waitForPostgres(
+  connectionString: string,
+  maxRetries = 10,
+  baseDelayMs = 1000
+): Promise<ReturnType<typeof postgres>> {
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    let client: ReturnType<typeof postgres> | null = null;
+    try {
+      console.log(
+        `[db:postgres] 接続試行 ${attempt}/${maxRetries} → ${connectionString.replace(/\/\/.*@/, "//***:***@")}`
+      );
+      client = postgres(connectionString, {
+        connect_timeout: 10,
+        max: 10,
+        idle_timeout: 30,
+      });
+
+      // 実際にクエリを実行して接続を検証する
+      const result = await client`SELECT 1 AS ok`;
+      console.log(
+        `[db:postgres] 接続成功 (attempt ${attempt}) — SELECT 1 = ${JSON.stringify(result)}`
+      );
+      return client;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      console.error(
+        `[db:postgres] 接続失敗 (attempt ${attempt}/${maxRetries}): ${message}`
+      );
+
+      // 失敗した接続を閉じる
+      if (client) {
+        try {
+          await client.end();
+        } catch {
+          // ignore cleanup errors
+        }
+      }
+
+      if (attempt < maxRetries) {
+        const delay = baseDelayMs * Math.pow(2, attempt - 1); // exponential backoff
+        console.log(`[db:postgres] ${delay}ms 後にリトライします...`);
+        await new Promise((resolve) => setTimeout(resolve, delay));
+      } else {
+        console.error(
+          `[db:postgres] ${maxRetries} 回の試行すべて失敗。起動を中止します。`
+        );
+        throw new Error(
+          `PostgreSQL への接続に失敗しました (${maxRetries} 回試行): ${message}`
+        );
+      }
+    }
+  }
+
+  // unreachable, but TypeScript needs this
+  throw new Error("unreachable");
+}
+
 export function createConnection() {
   const connectionString =
     process.env.DATABASE_URL || "postgresql://localhost:5432/schedula";
-  const client = postgres(connectionString);
-  return drizzle(client, {
-    schema: {
-      users,
-      sessions,
-      rooms,
-      scheduleEntries,
-      unifiedSlots,
-      memberProfiles,
-      groups,
-      reservations,
-      webhookEndpoints,
-      webhookDeliveryLogs,
-      notificationPreferences,
-      notifications,
-      instructors,
-      curricula,
-      curriculumPlans,
-      planBlocks,
-    },
+  console.log(
+    `[db:postgres] createConnection called (lazy — 接続は初回クエリ時に確立されます)`
+  );
+  const client = postgres(connectionString, {
+    connect_timeout: 10,
+    max: 10,
+    idle_timeout: 30,
   });
+  return drizzle(client, { schema: DB_SCHEMA });
+}
+
+/**
+ * リトライ付き接続を使用して Drizzle インスタンスを生成する
+ */
+export async function createConnectionWithRetry() {
+  const connectionString =
+    process.env.DATABASE_URL || "postgresql://localhost:5432/schedula";
+  console.log("[db:postgres] createConnectionWithRetry 開始");
+  const client = await waitForPostgres(connectionString);
+  console.log("[db:postgres] Drizzle ORM インスタンスを作成中...");
+  const drizzleDb = drizzle(client, { schema: DB_SCHEMA });
+  console.log("[db:postgres] Drizzle ORM インスタンス作成完了");
+  return drizzleDb;
 }
