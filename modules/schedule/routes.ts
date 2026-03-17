@@ -15,9 +15,13 @@
 
 import { Hono } from "hono";
 import { v4 as uuidv4 } from "uuid";
-import { db, curriculumSchema } from "../../src/db/connection.js";
-import { eq } from "drizzle-orm";
 import { requireRole } from "../../src/middleware/auth.js";
+import {
+  departmentRepo,
+  instructorRepo,
+  curriculumRepo,
+  availableSlotRepo,
+} from "../../src/db/repository.js";
 
 const m1 = new Hono();
 
@@ -30,8 +34,8 @@ m1.use("*", requireRole("admin"));
 
 /** 学科一覧 */
 m1.get("/departments", async (c) => {
-  const rows = db.select().from(curriculumSchema.departments).all();
-  return c.json({ departments: rows });
+  const departments = await departmentRepo.findAll();
+  return c.json({ departments });
 });
 
 /** 学科作成 */
@@ -41,9 +45,7 @@ m1.post("/departments", async (c) => {
     return c.json({ error: "name is required" }, 400);
   }
   const id = uuidv4();
-  db.insert(curriculumSchema.departments)
-    .values({ id, name: name.trim() })
-    .run();
+  await departmentRepo.create({ id, name: name.trim() });
   return c.json({ id, name: name.trim() }, 201);
 });
 
@@ -54,19 +56,14 @@ m1.put("/departments/:id", async (c) => {
   if (!name?.trim()) {
     return c.json({ error: "name is required" }, 400);
   }
-  db.update(curriculumSchema.departments)
-    .set({ name: name.trim() })
-    .where(eq(curriculumSchema.departments.id, id))
-    .run();
+  await departmentRepo.update(id, { name: name.trim() });
   return c.json({ id, name: name.trim() });
 });
 
 /** 学科削除 */
 m1.delete("/departments/:id", async (c) => {
   const { id } = c.req.param();
-  db.delete(curriculumSchema.departments)
-    .where(eq(curriculumSchema.departments.id, id))
-    .run();
+  await departmentRepo.deleteById(id);
   return c.json({ deleted: id });
 });
 
@@ -76,8 +73,8 @@ m1.delete("/departments/:id", async (c) => {
 
 /** 講師一覧 */
 m1.get("/instructors", async (c) => {
-  const rows = db.select().from(curriculumSchema.instructors).all();
-  return c.json({ instructors: rows });
+  const instructors = await instructorRepo.findAll();
+  return c.json({ instructors });
 });
 
 /** 講師作成 */
@@ -87,9 +84,7 @@ m1.post("/instructors", async (c) => {
     return c.json({ error: "name is required" }, 400);
   }
   const id = uuidv4();
-  db.insert(curriculumSchema.instructors)
-    .values({ id, name: name.trim() })
-    .run();
+  await instructorRepo.create({ id, name: name.trim() });
   return c.json({ id, name: name.trim() }, 201);
 });
 
@@ -100,19 +95,14 @@ m1.put("/instructors/:id", async (c) => {
   if (!name?.trim()) {
     return c.json({ error: "name is required" }, 400);
   }
-  db.update(curriculumSchema.instructors)
-    .set({ name: name.trim() })
-    .where(eq(curriculumSchema.instructors.id, id))
-    .run();
+  await instructorRepo.update(id, { name: name.trim() });
   return c.json({ id, name: name.trim() });
 });
 
 /** 講師削除 */
 m1.delete("/instructors/:id", async (c) => {
   const { id } = c.req.param();
-  db.delete(curriculumSchema.instructors)
-    .where(eq(curriculumSchema.instructors.id, id))
-    .run();
+  await instructorRepo.deleteById(id);
   return c.json({ deleted: id });
 });
 
@@ -123,18 +113,14 @@ m1.delete("/instructors/:id", async (c) => {
 /** 学科に属するカリキュラム一覧 */
 m1.get("/departments/:departmentId/curricula", async (c) => {
   const { departmentId } = c.req.param();
-  const rows = db
-    .select()
-    .from(curriculumSchema.curricula)
-    .where(eq(curriculumSchema.curricula.departmentId, departmentId))
-    .all();
-  return c.json({ curricula: rows });
+  const curricula = await curriculumRepo.findByDepartment(departmentId);
+  return c.json({ curricula });
 });
 
 /** カリキュラム全件取得 */
 m1.get("/curricula", async (c) => {
-  const rows = db.select().from(curriculumSchema.curricula).all();
-  return c.json({ curricula: rows });
+  const curricula = await curriculumRepo.findAll();
+  return c.json({ curricula });
 });
 
 /** カリキュラム作成 */
@@ -148,14 +134,12 @@ m1.post("/departments/:departmentId/curricula", async (c) => {
     return c.json({ error: "name is required" }, 400);
   }
   const id = uuidv4();
-  db.insert(curriculumSchema.curricula)
-    .values({
-      id,
-      name: name.trim(),
-      departmentId,
-      instructorId: instructorId || null,
-    })
-    .run();
+  await curriculumRepo.create({
+    id,
+    name: name.trim(),
+    departmentId,
+    instructorId: instructorId || null,
+  });
   return c.json({ id, name: name.trim(), departmentId, instructorId: instructorId || null }, 201);
 });
 
@@ -171,19 +155,14 @@ m1.put("/curricula/:id", async (c) => {
     return c.json({ error: "No fields to update" }, 400);
   }
 
-  db.update(curriculumSchema.curricula)
-    .set(updates)
-    .where(eq(curriculumSchema.curricula.id, id))
-    .run();
+  await curriculumRepo.update(id, updates);
   return c.json({ id, ...updates });
 });
 
 /** カリキュラム削除 */
 m1.delete("/curricula/:id", async (c) => {
   const { id } = c.req.param();
-  db.delete(curriculumSchema.curricula)
-    .where(eq(curriculumSchema.curricula.id, id))
-    .run();
+  await curriculumRepo.deleteById(id);
   return c.json({ deleted: id });
 });
 
@@ -194,12 +173,8 @@ m1.delete("/curricula/:id", async (c) => {
 /** 講師の出講可能スロット一覧 */
 m1.get("/instructors/:instructorId/availability", async (c) => {
   const { instructorId } = c.req.param();
-  const rows = db
-    .select()
-    .from(curriculumSchema.instructorAvailableSlots)
-    .where(eq(curriculumSchema.instructorAvailableSlots.instructorId, instructorId))
-    .all();
-  return c.json({ slots: rows });
+  const slots = await availableSlotRepo.findByInstructor(instructorId);
+  return c.json({ slots });
 });
 
 /** 講師の出講可能スロットを一括設定 (既存データを置換) */
@@ -214,9 +189,7 @@ m1.put("/instructors/:instructorId/availability", async (c) => {
   }
 
   // 既存データ削除
-  db.delete(curriculumSchema.instructorAvailableSlots)
-    .where(eq(curriculumSchema.instructorAvailableSlots.instructorId, instructorId))
-    .run();
+  await availableSlotRepo.deleteByInstructor(instructorId);
 
   // 新規挿入
   const inserted = [];
@@ -225,14 +198,12 @@ m1.put("/instructors/:instructorId/availability", async (c) => {
     if (!Array.isArray(slot.periods) || slot.periods.length === 0) continue;
 
     const id = uuidv4();
-    db.insert(curriculumSchema.instructorAvailableSlots)
-      .values({
-        id,
-        instructorId,
-        day: slot.day,
-        periods: slot.periods,
-      })
-      .run();
+    await availableSlotRepo.create({
+      id,
+      instructorId,
+      day: slot.day,
+      periods: slot.periods,
+    });
     inserted.push({ id, instructorId, day: slot.day, periods: slot.periods });
   }
 
