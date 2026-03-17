@@ -22,6 +22,7 @@ interface Curriculum {
   departmentId: string;
   periods: number;
   instructorId: string | null;
+  departmentIds?: string[];
   createdAt: string;
 }
 
@@ -454,6 +455,7 @@ function CurriculaTab({ showMessage }: { showMessage: (msg: string, type?: "succ
   // Create form
   const [newName, setNewName] = useState("");
   const [newDeptId, setNewDeptId] = useState("");
+  const [newDeptIds, setNewDeptIds] = useState<string[]>([]);
   const [newInstId, setNewInstId] = useState("");
   const [newPeriods, setNewPeriods] = useState<number>(1);
   const [loading, setLoading] = useState(false);
@@ -463,6 +465,7 @@ function CurriculaTab({ showMessage }: { showMessage: (msg: string, type?: "succ
   const [editName, setEditName] = useState("");
   const [editInstId, setEditInstId] = useState<string>("");
   const [editPeriods, setEditPeriods] = useState<number>(1);
+  const [editDeptIds, setEditDeptIds] = useState<string[]>([]);
 
   const fetchAll = useCallback(async () => {
     try {
@@ -491,10 +494,14 @@ function CurriculaTab({ showMessage }: { showMessage: (msg: string, type?: "succ
     }
     setLoading(true);
     try {
-      await m1Schema.createCurriculum(newDeptId, newName.trim(), newInstId || undefined, newPeriods);
+      const deptIds = newDeptIds.length > 0 ? newDeptIds : [newDeptId];
+      await m1Schema.createCurriculum(
+        newDeptId, newName.trim(), newInstId || undefined, newPeriods, deptIds
+      );
       setNewName("");
       setNewInstId("");
       setNewPeriods(1);
+      setNewDeptIds([]);
       showMessage(`カリキュラム「${newName.trim()}」を作成しました`);
       fetchAll();
     } catch (e: any) {
@@ -509,6 +516,7 @@ function CurriculaTab({ showMessage }: { showMessage: (msg: string, type?: "succ
         name: editName.trim() || undefined,
         instructorId: editInstId || null,
         periods: editPeriods,
+        departmentIds: editDeptIds.length > 0 ? editDeptIds : undefined,
       });
       setEditId(null);
       showMessage("カリキュラムを更新しました");
@@ -558,8 +566,13 @@ function CurriculaTab({ showMessage }: { showMessage: (msg: string, type?: "succ
               />
             </div>
             <div className="form-group" style={{ flex: 1, minWidth: 140 }}>
-              <label>学科</label>
-              <select value={newDeptId} onChange={(e) => setNewDeptId(e.target.value)} required>
+              <label>主学科</label>
+              <select value={newDeptId} onChange={(e) => {
+                setNewDeptId(e.target.value);
+                if (e.target.value && !newDeptIds.includes(e.target.value)) {
+                  setNewDeptIds((prev) => [...prev, e.target.value]);
+                }
+              }} required>
                 <option value="">選択してください</option>
                 {departments.map((d) => (
                   <option key={d.id} value={d.id}>{d.name}</option>
@@ -589,6 +602,32 @@ function CurriculaTab({ showMessage }: { showMessage: (msg: string, type?: "succ
               追加
             </button>
           </div>
+          {/* 合同学科 (複数選択) */}
+          {departments.length > 1 && (
+            <div style={{ marginTop: "0.5rem" }}>
+              <label style={{ fontSize: "0.8rem", color: "var(--text-muted)", display: "block", marginBottom: "0.3rem" }}>
+                対象学科 (合同授業の場合、複数選択)
+              </label>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem" }}>
+                {departments.map((d) => (
+                  <label key={d.id} style={{ fontSize: "0.8rem", display: "flex", alignItems: "center", gap: "0.25rem", cursor: "pointer" }}>
+                    <input
+                      type="checkbox"
+                      checked={newDeptIds.includes(d.id)}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          setNewDeptIds((prev) => [...prev, d.id]);
+                        } else {
+                          setNewDeptIds((prev) => prev.filter((id) => id !== d.id));
+                        }
+                      }}
+                    />
+                    {d.name}
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
         </form>
       </div>
 
@@ -622,7 +661,11 @@ function CurriculaTab({ showMessage }: { showMessage: (msg: string, type?: "succ
               </tr>
             </thead>
             <tbody>
-              {filteredCurricula.map((c) => (
+              {filteredCurricula.map((c) => {
+                const deptNames = (c.departmentIds && c.departmentIds.length > 0)
+                  ? c.departmentIds.map((id) => getDeptName(id)).join(", ")
+                  : getDeptName(c.departmentId);
+                return (
                 <tr key={c.id}>
                   <td>
                     {editId === c.id ? (
@@ -637,7 +680,30 @@ function CurriculaTab({ showMessage }: { showMessage: (msg: string, type?: "succ
                       <span style={{ fontWeight: 500 }}>{c.name}</span>
                     )}
                   </td>
-                  <td style={{ fontSize: "0.8rem" }}>{getDeptName(c.departmentId)}</td>
+                  <td style={{ fontSize: "0.8rem" }}>
+                    {editId === c.id ? (
+                      <div style={{ display: "flex", flexDirection: "column", gap: "0.2rem" }}>
+                        {departments.map((d) => (
+                          <label key={d.id} style={{ fontSize: "0.75rem", display: "flex", alignItems: "center", gap: "0.2rem", cursor: "pointer" }}>
+                            <input
+                              type="checkbox"
+                              checked={editDeptIds.includes(d.id)}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setEditDeptIds((prev) => [...prev, d.id]);
+                                } else {
+                                  setEditDeptIds((prev) => prev.filter((id) => id !== d.id));
+                                }
+                              }}
+                            />
+                            {d.name}
+                          </label>
+                        ))}
+                      </div>
+                    ) : (
+                      deptNames
+                    )}
+                  </td>
                   <td style={{ fontSize: "0.8rem", textAlign: "center" }}>
                     {editId === c.id ? (
                       <input
@@ -700,6 +766,7 @@ function CurriculaTab({ showMessage }: { showMessage: (msg: string, type?: "succ
                               setEditName(c.name);
                               setEditInstId(c.instructorId || "");
                               setEditPeriods(c.periods ?? 1);
+                              setEditDeptIds(c.departmentIds || [c.departmentId]);
                             }}
                           >
                             編集
@@ -716,7 +783,8 @@ function CurriculaTab({ showMessage }: { showMessage: (msg: string, type?: "succ
                     </div>
                   </td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         )}

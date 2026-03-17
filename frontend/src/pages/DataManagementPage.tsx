@@ -1,10 +1,9 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { TimetableGrid, type GridSlot } from "../components/TimetableGrid";
 import {
   DAY_LABELS,
   DAYS_COUNT,
   PERIODS_COUNT,
-  CANDIDATE_COLORS,
   getPeriodLabel,
 } from "../lib/constants";
 import { m1Schema } from "../lib/api";
@@ -24,11 +23,8 @@ interface Curriculum {
   name: string;
   departmentId: string;
   instructorId: string | null;
-}
-
-interface AvailableSlot {
-  day: number;
-  periods: number[];
+  periods: number;
+  departmentIds?: string[];
 }
 
 interface PlacedEntry {
@@ -38,8 +34,202 @@ interface PlacedEntry {
   curriculumName: string;
   instructorId: string;
   instructorName: string;
-  departmentName: string;
+  departmentIds: string[];
+  departmentNames: string;
+  periods: number;
 }
+
+// ─── 配置ロジック (コマ数・全学科空き考慮) ──────────────────
+
+/** 指定スロットに配置可能か判定 */
+function canPlace(
+  entries: PlacedEntry[],
+  curriculum: Curriculum,
+  day: number,
+  startPeriod: number,
+  departments: Department[],
+): string | null {
+  const periods = curriculum.periods || 1;
+  const deptIds = (curriculum.departmentIds && curriculum.departmentIds.length > 0)
+    ? curriculum.departmentIds
+    : [curriculum.departmentId];
+
+  // 連続コマが範囲内か
+  if (startPeriod + periods > PERIODS_COUNT) {
+    return `${periods}コマの連続配置が時間割の範囲外です`;
+  }
+
+  for (let p = 0; p < periods; p++) {
+    const period = startPeriod + p;
+    // 全学科について空きチェック
+    for (const deptId of deptIds) {
+      const conflict = entries.find(
+        (e) => e.day === day && e.period === period && e.departmentIds.includes(deptId)
+      );
+      if (conflict) {
+        const deptName = departments.find((d) => d.id === deptId)?.name || deptId;
+        return `${DAY_LABELS[day]} ${period + 1}限: 学科「${deptName}」は「${conflict.curriculumName}」で使用中`;
+      }
+    }
+    // 講師の重複チェック
+    if (curriculum.instructorId) {
+      const instConflict = entries.find(
+        (e) => e.day === day && e.period === period && e.instructorId === curriculum.instructorId
+      );
+      if (instConflict) {
+        return `${DAY_LABELS[day]} ${period + 1}限: 講師が「${instConflict.curriculumName}」と重複`;
+      }
+    }
+  }
+
+  return null; // OK
+}
+
+/** 1つのカリキュラムを配置し、エントリ配列を返す */
+function placeOne(
+  curriculum: Curriculum,
+  day: number,
+  startPeriod: number,
+  departments: Department[],
+  instructors: Instructor[],
+): PlacedEntry[] {
+  const periods = curriculum.periods || 1;
+  const deptIds = (curriculum.departmentIds && curriculum.departmentIds.length > 0)
+    ? curriculum.departmentIds
+    : [curriculum.departmentId];
+  const deptNames = deptIds.map((id) => departments.find((d) => d.id === id)?.name || "-").join(", ");
+  const instName = curriculum.instructorId
+    ? (instructors.find((i) => i.id === curriculum.instructorId)?.name || "-")
+    : "未アサイン";
+
+  const result: PlacedEntry[] = [];
+  for (let p = 0; p < periods; p++) {
+    result.push({
+      day,
+      period: startPeriod + p,
+      curriculumId: curriculum.id,
+      curriculumName: curriculum.name,
+      instructorId: curriculum.instructorId || "",
+      instructorName: instName,
+      departmentIds: deptIds,
+      departmentNames: deptNames,
+      periods,
+    });
+  }
+  return result;
+}
+
+// ─── 自動配置エンジン ────────────────────────────────────────
+
+interface AutoPlaceResult {
+  entries: PlacedEntry[];
+  placed: number;
+  failed: string[];
+}
+
+function autoPlaceAll(
+  curricula: Curriculum[],
+  departments: Department[],
+  instructors: Instructor[],
+  existingEntries: PlacedEntry[],
+): AutoPlaceResult {
+  const entries = [...existingEntries];
+  const placedIds = new Set(entries.map((e) => e.curriculumId));
+  const unplaced = curricula.filter((c) => !placedIds.has(c.id));
+  let placed = 0;
+  const failed: string[] = [];
+
+  // ソート: コマ数大 → 学科数多 → 講師あり優先
+  const sorted = [...unplaced].sort((a, b) => {
+    const ac = a.periods || 1;
+    const bc = b.periods || 1;
+    if (ac !== bc) return bc - ac;
+    const ad = (a.departmentIds?.length || 1);
+    const bd = (b.departmentIds?.length || 1);
+    if (ad !== bd) return bd - ad;
+    return (b.instructorId ? 1 : 0) - (a.instructorId ? 1 : 0);
+  });
+
+  for (const cur of sorted) {
+    let didPlace = false;
+    for (let day = 0; day < DAYS_COUNT && !didPlace; day++) {
+      for (let period = 0; period <= PERIODS_COUNT - (cur.periods || 1) && !didPlace; period++) {
+        const err = canPlace(entries, cur, day, period, departments);
+        if (!err) {
+          const newEntries = placeOne(cur, day, period, departments, instructors);
+          entries.push(...newEntries);
+          placed++;
+          didPlace = true;
+        }
+      }
+    }
+    if (!didPlace) {
+      failed.push(cur.name);
+    }
+  }
+
+  return { entries, placed, failed };
+}
+
+// ─── リトライモード (ランダム配置 × N回) ─────────────────────
+
+interface RetryResult {
+  bestEntries: PlacedEntry[];
+  bestPlaced: number;
+  bestFailed: string[];
+  totalAttempts: number;
+  success: boolean;
+}
+
+function tryPlaceRandomOnce(
+  curricula: Curriculum[],
+  departments: Department[],
+  instructors: Instructor[],
+  existingEntries: PlacedEntry[],
+): AutoPlaceResult {
+  const entries = [...existingEntries];
+  const placedIds = new Set(entries.map((e) => e.curriculumId));
+  const unplaced = curricula.filter((c) => !placedIds.has(c.id));
+  let placed = 0;
+  const failed: string[] = [];
+
+  // ランダムに順番を変える
+  const shuffled = [...unplaced].sort(() => Math.random() - 0.5);
+
+  for (const cur of shuffled) {
+    // ランダムに開始位置を決定
+    const slots: [number, number][] = [];
+    for (let day = 0; day < DAYS_COUNT; day++) {
+      for (let period = 0; period <= PERIODS_COUNT - (cur.periods || 1); period++) {
+        slots.push([day, period]);
+      }
+    }
+    // シャッフル
+    for (let i = slots.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [slots[i], slots[j]] = [slots[j], slots[i]];
+    }
+
+    let didPlace = false;
+    for (const [day, period] of slots) {
+      const err = canPlace(entries, cur, day, period, departments);
+      if (!err) {
+        const newEntries = placeOne(cur, day, period, departments, instructors);
+        entries.push(...newEntries);
+        placed++;
+        didPlace = true;
+        break;
+      }
+    }
+    if (!didPlace) {
+      failed.push(cur.name);
+    }
+  }
+
+  return { entries, placed, failed };
+}
+
+// ─── Component ───────────────────────────────────────────────
 
 export function DataManagementPage() {
   // Master data
@@ -63,8 +253,18 @@ export function DataManagementPage() {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
   const [messageType, setMessageType] = useState<"success" | "error">("success");
-  const [tab, setTab] = useState<"manual" | "overview">("manual");
+  const [tab, setTab] = useState<"manual" | "overview" | "auto">("manual");
   const [filterDept, setFilterDept] = useState("");
+
+  // Auto-place / retry mode
+  const [retrying, setRetrying] = useState(false);
+  const [retryProgress, setRetryProgress] = useState(0);
+  const [retryMax] = useState(10000);
+  const [retryResult, setRetryResult] = useState<RetryResult | null>(null);
+  const cancelRef = useRef(false);
+
+  // Disassemble mode
+  const [disassembleDept, setDisassembleDept] = useState("");
 
   const showMessage = (msg: string, type: "success" | "error" = "success") => {
     setMessage(msg);
@@ -108,40 +308,25 @@ export function DataManagementPage() {
       return;
     }
 
-    // Check for existing entry at the same slot
-    const existing = entries.find(
-      (ent) => ent.day === manualDay && ent.period === manualPeriod
-    );
-    if (existing) {
-      showMessage(
-        `${DAY_LABELS[manualDay]} ${manualPeriod + 1}限には「${existing.curriculumName}」が既に配置されています`,
-        "error"
-      );
-      return;
-    }
-
     const curriculum = curricula.find((c) => c.id === selectedCurriculum);
     if (!curriculum) return;
 
-    const newEntry: PlacedEntry = {
-      day: manualDay,
-      period: manualPeriod,
-      curriculumId: curriculum.id,
-      curriculumName: curriculum.name,
-      instructorId: curriculum.instructorId || "",
-      instructorName: getInstName(curriculum.instructorId),
-      departmentName: getDeptName(curriculum.departmentId),
-    };
+    const err = canPlace(entries, curriculum, manualDay, manualPeriod, departments);
+    if (err) {
+      showMessage(err, "error");
+      return;
+    }
 
-    setEntries((prev) => [...prev, newEntry]);
-    showMessage(`「${curriculum.name}」を ${DAY_LABELS[manualDay]} ${manualPeriod + 1}限に配置しました`);
+    const newEntries = placeOne(curriculum, manualDay, manualPeriod, departments, instructors);
+    setEntries((prev) => [...prev, ...newEntries]);
+    showMessage(`「${curriculum.name}」を ${DAY_LABELS[manualDay]} ${manualPeriod + 1}限に配置しました (${curriculum.periods || 1}コマ)`);
   };
 
-  const handleRemoveEntry = (day: number, period: number) => {
-    const entry = entries.find((e) => e.day === day && e.period === period);
-    setEntries((prev) => prev.filter((e) => !(e.day === day && e.period === period)));
+  const handleRemoveEntry = (curriculumId: string) => {
+    const entry = entries.find((e) => e.curriculumId === curriculumId);
+    setEntries((prev) => prev.filter((e) => e.curriculumId !== curriculumId));
     if (entry) {
-      showMessage(`「${entry.curriculumName}」を ${DAY_LABELS[day]} ${period + 1}限から削除しました`);
+      showMessage(`「${entry.curriculumName}」を削除しました`);
     }
   };
 
@@ -152,14 +337,15 @@ export function DataManagementPage() {
       return;
     }
 
+    if (tab !== "overview") return;
+
     const entry = entries.find((e) => e.day === day && e.period === period);
     if (selectedSlot) {
-      // Swap mode
       if (selectedSlot.day === day && selectedSlot.period === period) {
         setSelectedSlot(null);
         return;
       }
-      // Perform swap
+      // Perform swap (swap the curriculum blocks)
       const fromEntry = entries.find(
         (e) => e.day === selectedSlot.day && e.period === selectedSlot.period
       );
@@ -185,19 +371,135 @@ export function DataManagementPage() {
 
   // Filter curricula by department
   const filteredCurricula = filterDept
-    ? curricula.filter((c) => c.departmentId === filterDept)
+    ? curricula.filter((c) => {
+        const deptIds = c.departmentIds && c.departmentIds.length > 0
+          ? c.departmentIds : [c.departmentId];
+        return deptIds.includes(filterDept);
+      })
     : curricula;
 
-  // Unplaced curricula (not yet on the timetable)
+  // Unplaced curricula
   const placedIds = new Set(entries.map((e) => e.curriculumId));
   const unplacedCurricula = filteredCurricula.filter((c) => !placedIds.has(c.id));
+
+  // ─── 一括配置 ──────────────────────────────────────────────
+  const handleAutoPlace = () => {
+    const result = autoPlaceAll(curricula, departments, instructors, entries);
+    setEntries(result.entries);
+    if (result.failed.length === 0) {
+      showMessage(`${result.placed}件を一括配置しました`);
+    } else {
+      showMessage(
+        `${result.placed}件配置、${result.failed.length}件配置不可: ${result.failed.join(", ")}`,
+        "error"
+      );
+    }
+  };
+
+  // ─── バラし再構築 ──────────────────────────────────────────
+  const handleDisassemble = () => {
+    if (!disassembleDept) {
+      showMessage("学科を選択してください", "error");
+      return;
+    }
+    // 指定学科のエントリだけ削除
+    const removed = entries.filter((e) => e.departmentIds.includes(disassembleDept));
+    const remaining = entries.filter((e) => !e.departmentIds.includes(disassembleDept));
+    const removedCurrIds = new Set(removed.map((e) => e.curriculumId));
+
+    // 残ったエントリで再配置を試みる
+    const toReplace = curricula.filter((c) => removedCurrIds.has(c.id));
+    const result = autoPlaceAll(toReplace, departments, instructors, remaining);
+    setEntries(result.entries);
+
+    if (result.failed.length === 0) {
+      showMessage(`学科「${getDeptName(disassembleDept)}」を再構築しました (${toReplace.length}件)`);
+    } else {
+      showMessage(
+        `再構築: ${result.placed}件配置、${result.failed.length}件失敗: ${result.failed.join(", ")}`,
+        "error"
+      );
+    }
+  };
+
+  // ─── リトライモード ────────────────────────────────────────
+  const handleRetryMode = async () => {
+    setRetrying(true);
+    setRetryProgress(0);
+    setRetryResult(null);
+    cancelRef.current = false;
+
+    // 既に配置済みのカリキュラムを保持する (固定エントリ)
+    const fixedEntries = [...entries];
+
+    let bestResult: AutoPlaceResult = { entries: fixedEntries, placed: 0, failed: curricula.map((c) => c.name) };
+    let success = false;
+    const totalUnplaced = curricula.filter((c) => !placedIds.has(c.id)).length;
+
+    for (let i = 0; i < retryMax; i++) {
+      if (cancelRef.current) break;
+
+      const result = tryPlaceRandomOnce(curricula, departments, instructors, fixedEntries);
+      if (result.placed > bestResult.placed) {
+        bestResult = result;
+      }
+      if (result.failed.length === 0) {
+        success = true;
+        bestResult = result;
+        break;
+      }
+
+      // プログレス更新 (毎100回)
+      if (i % 100 === 0 || i === retryMax - 1) {
+        setRetryProgress(i + 1);
+        // UIに制御を返す
+        await new Promise((r) => setTimeout(r, 0));
+      }
+    }
+
+    setRetryProgress(success ? retryMax : retryMax);
+    setRetryResult({
+      bestEntries: bestResult.entries,
+      bestPlaced: bestResult.placed,
+      bestFailed: bestResult.failed,
+      totalAttempts: retryMax,
+      success,
+    });
+    setRetrying(false);
+  };
+
+  const applyRetryResult = () => {
+    if (retryResult) {
+      setEntries(retryResult.bestEntries);
+      setRetryResult(null);
+      showMessage(
+        retryResult.success
+          ? "全科目の配置に成功しました"
+          : `最善パターン (${retryResult.bestPlaced}件配置) を適用しました`
+      );
+    }
+  };
+
+  // ─── Grid ──────────────────────────────────────────────────
 
   const buildSlots = useCallback((): GridSlot[][] => {
     const grid: GridSlot[][] = Array.from({ length: DAYS_COUNT }, () =>
       Array.from({ length: PERIODS_COUNT }, () => ({}))
     );
 
+    // 学科ごとの色 (一意な色を生成)
+    const deptColorMap = new Map<string, string>();
+    const palette = [
+      "#3B82F6", "#10B981", "#F59E0B", "#EF4444", "#8B5CF6",
+      "#EC4899", "#06B6D4", "#84CC16", "#F97316", "#6366F1",
+    ];
+    departments.forEach((d, i) => {
+      deptColorMap.set(d.id, palette[i % palette.length]);
+    });
+
     for (const entry of entries) {
+      const primaryDept = entry.departmentIds[0];
+      const color = deptColorMap.get(primaryDept) || undefined;
       grid[entry.day][entry.period] = {
         label: entry.curriculumName,
         sublabel: entry.instructorName,
@@ -206,12 +508,16 @@ export function DataManagementPage() {
           selectedSlot?.day === entry.day &&
           selectedSlot?.period === entry.period
             ? "var(--accent)"
-            : undefined,
+            : color ? `${color}33` : undefined,
       };
     }
 
     return grid;
-  }, [entries, selectedSlot]);
+  }, [entries, selectedSlot, departments]);
+
+  // ─── 未配置コマ数合計 ──────────────────────────────────────
+  const totalUnplacedPeriods = unplacedCurricula.reduce((sum, c) => sum + (c.periods || 1), 0);
+  const allUnplaced = curricula.filter((c) => !placedIds.has(c.id));
 
   return (
     <div>
@@ -245,6 +551,7 @@ export function DataManagementPage() {
         {([
           { key: "manual" as const, label: "配置" },
           { key: "overview" as const, label: "一覧・スワップ" },
+          { key: "auto" as const, label: "自動配置" },
         ]).map((t) => (
           <button
             key={t.key}
@@ -269,12 +576,12 @@ export function DataManagementPage() {
       {tab === "manual" && (
         <div>
           {/* Master data stats */}
-          <div style={{ display: "flex", gap: "0.75rem", marginBottom: "1rem", fontSize: "0.8rem" }}>
+          <div style={{ display: "flex", gap: "0.75rem", marginBottom: "1rem", fontSize: "0.8rem", flexWrap: "wrap" }}>
             <span className="badge blue">学科: {departments.length}</span>
             <span className="badge green">講師: {instructors.length}</span>
             <span className="badge blue">科目: {curricula.length}</span>
-            <span className="badge green">配置済: {entries.length}</span>
-            <span className="badge red">未配置: {curricula.length - entries.length}</span>
+            <span className="badge green">配置済: {placedIds.size}</span>
+            <span className="badge red">未配置: {allUnplaced.length} ({totalUnplacedPeriods}コマ)</span>
           </div>
 
           <div className="card" style={{ marginBottom: "1rem" }}>
@@ -300,11 +607,16 @@ export function DataManagementPage() {
                     required
                   >
                     <option value="">選択してください</option>
-                    {unplacedCurricula.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.name} ({getDeptName(c.departmentId)}) - {getInstName(c.instructorId)}
-                      </option>
-                    ))}
+                    {unplacedCurricula.map((c) => {
+                      const deptNames = (c.departmentIds && c.departmentIds.length > 0)
+                        ? c.departmentIds.map((id) => getDeptName(id)).join(",")
+                        : getDeptName(c.departmentId);
+                      return (
+                        <option key={c.id} value={c.id}>
+                          {c.name} [{deptNames}] {getInstName(c.instructorId)} ({c.periods || 1}コマ)
+                        </option>
+                      );
+                    })}
                   </select>
                 </div>
                 <div className="form-group" style={{ flex: 0, minWidth: 80 }}>
@@ -335,7 +647,8 @@ export function DataManagementPage() {
               </div>
             </form>
             <p style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>
-              グリッドのセルをクリックすると曜日・時限が自動設定されます
+              グリッドのセルをクリックすると曜日・時限が自動設定されます。
+              コマ数が2以上の科目は連続する時限に自動配置されます。
             </p>
           </div>
 
@@ -343,7 +656,7 @@ export function DataManagementPage() {
           {entries.length > 0 && (
             <div className="card" style={{ marginBottom: "1rem" }}>
               <h3 style={{ fontSize: "0.85rem", marginBottom: "0.75rem", color: "var(--text-muted)" }}>
-                配置済み ({entries.length}件)
+                配置済み ({placedIds.size}件)
               </h3>
               <table className="table">
                 <thead>
@@ -353,28 +666,36 @@ export function DataManagementPage() {
                     <th>講師</th>
                     <th>曜日</th>
                     <th>時限</th>
+                    <th>コマ</th>
                     <th></th>
                   </tr>
                 </thead>
                 <tbody>
-                  {entries.map((entry, i) => (
-                    <tr key={i}>
-                      <td style={{ fontWeight: 500 }}>{entry.curriculumName}</td>
-                      <td style={{ fontSize: "0.8rem" }}>{entry.departmentName}</td>
-                      <td style={{ fontSize: "0.8rem" }}>{entry.instructorName}</td>
-                      <td>{DAY_LABELS[entry.day]}</td>
-                      <td>{getPeriodLabel(entry.period)}</td>
-                      <td>
-                        <button
-                          className="danger"
-                          style={{ padding: "0.2rem 0.5rem", fontSize: "0.75rem" }}
-                          onClick={() => handleRemoveEntry(entry.day, entry.period)}
-                        >
-                          削除
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
+                  {/* グループ化: 同じcurriculumIdのエントリは1行にまとめる */}
+                  {Array.from(new Set(entries.map((e) => e.curriculumId))).map((curId) => {
+                    const group = entries.filter((e) => e.curriculumId === curId);
+                    const first = group[0];
+                    const periods = group.map((e) => e.period).sort((a, b) => a - b);
+                    return (
+                      <tr key={curId}>
+                        <td style={{ fontWeight: 500 }}>{first.curriculumName}</td>
+                        <td style={{ fontSize: "0.8rem" }}>{first.departmentNames}</td>
+                        <td style={{ fontSize: "0.8rem" }}>{first.instructorName}</td>
+                        <td>{DAY_LABELS[first.day]}</td>
+                        <td>{periods.map((p) => `${p + 1}限`).join("-")}</td>
+                        <td style={{ textAlign: "center" }}>{first.periods}</td>
+                        <td>
+                          <button
+                            className="danger"
+                            style={{ padding: "0.2rem 0.5rem", fontSize: "0.75rem" }}
+                            onClick={() => handleRemoveEntry(curId)}
+                          >
+                            削除
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -398,6 +719,181 @@ export function DataManagementPage() {
               </p>
             </div>
           )}
+        </div>
+      )}
+
+      {/* 自動配置タブ */}
+      {tab === "auto" && (
+        <div>
+          <div style={{ display: "flex", gap: "0.75rem", marginBottom: "1rem", fontSize: "0.8rem", flexWrap: "wrap" }}>
+            <span className="badge green">配置済: {placedIds.size}</span>
+            <span className="badge red">未配置: {allUnplaced.length}</span>
+          </div>
+
+          {/* 一括配置 */}
+          <div className="card" style={{ marginBottom: "1rem" }}>
+            <h3 style={{ fontSize: "0.85rem", marginBottom: "0.5rem", color: "var(--text-muted)" }}>
+              未配置を一括配置
+            </h3>
+            <p style={{ fontSize: "0.75rem", color: "var(--text-muted)", marginBottom: "0.75rem" }}>
+              未配置の科目を先頭から順に空きスロットに配置します。コマ数の多い科目、学科数の多い科目を優先します。
+            </p>
+            <button
+              className="primary"
+              onClick={handleAutoPlace}
+              disabled={allUnplaced.length === 0 || retrying}
+            >
+              一括配置 ({allUnplaced.length}件)
+            </button>
+          </div>
+
+          {/* バラし再構築 */}
+          <div className="card" style={{ marginBottom: "1rem" }}>
+            <h3 style={{ fontSize: "0.85rem", marginBottom: "0.5rem", color: "var(--text-muted)" }}>
+              特定学科をバラして再構築
+            </h3>
+            <p style={{ fontSize: "0.75rem", color: "var(--text-muted)", marginBottom: "0.75rem" }}>
+              指定した学科に関連するカリキュラムを全て取り除き、再配置を試みます。
+            </p>
+            <div style={{ display: "flex", gap: "0.75rem", alignItems: "flex-end", flexWrap: "wrap" }}>
+              <div className="form-group" style={{ minWidth: 150 }}>
+                <label>対象学科</label>
+                <select value={disassembleDept} onChange={(e) => setDisassembleDept(e.target.value)}>
+                  <option value="">選択してください</option>
+                  {departments.map((d) => {
+                    const count = entries.filter((e) => e.departmentIds.includes(d.id)).length;
+                    return (
+                      <option key={d.id} value={d.id}>{d.name} ({count}コマ配置中)</option>
+                    );
+                  })}
+                </select>
+              </div>
+              <button
+                onClick={handleDisassemble}
+                disabled={!disassembleDept || retrying}
+                style={{ marginBottom: "1rem" }}
+              >
+                バラして再構築
+              </button>
+            </div>
+          </div>
+
+          {/* リトライモード */}
+          <div className="card" style={{ marginBottom: "1rem" }}>
+            <h3 style={{ fontSize: "0.85rem", marginBottom: "0.5rem", color: "var(--text-muted)" }}>
+              配置リトライモード
+            </h3>
+            <p style={{ fontSize: "0.75rem", color: "var(--text-muted)", marginBottom: "0.75rem" }}>
+              ランダムな順番で最大{retryMax.toLocaleString()}回配置を試み、全科目が配置できるパターンを探索します。
+              失敗時は最も多く配置できたパターンを表示します。
+            </p>
+
+            {retrying ? (
+              <div>
+                <div style={{
+                  background: "var(--bg-surface-2)",
+                  borderRadius: "var(--radius-sm)",
+                  overflow: "hidden",
+                  height: 24,
+                  marginBottom: "0.5rem",
+                  position: "relative",
+                }}>
+                  <div style={{
+                    background: "var(--accent)",
+                    height: "100%",
+                    width: `${(retryProgress / retryMax) * 100}%`,
+                    transition: "width 0.2s",
+                    borderRadius: "var(--radius-sm)",
+                  }} />
+                  <span style={{
+                    position: "absolute",
+                    top: "50%",
+                    left: "50%",
+                    transform: "translate(-50%, -50%)",
+                    fontSize: "0.7rem",
+                    fontWeight: 600,
+                    color: "var(--text)",
+                  }}>
+                    {retryProgress.toLocaleString()} / {retryMax.toLocaleString()}
+                  </span>
+                </div>
+                <button
+                  className="danger"
+                  onClick={() => { cancelRef.current = true; }}
+                  style={{ fontSize: "0.8rem" }}
+                >
+                  中止
+                </button>
+              </div>
+            ) : (
+              <div>
+                <button
+                  className="primary"
+                  onClick={handleRetryMode}
+                  disabled={allUnplaced.length === 0}
+                >
+                  リトライ開始
+                </button>
+              </div>
+            )}
+
+            {/* リトライ結果 */}
+            {retryResult && (
+              <div style={{
+                marginTop: "1rem",
+                padding: "0.75rem",
+                background: retryResult.success ? "rgba(63, 185, 80, 0.1)" : "rgba(248, 81, 73, 0.1)",
+                borderRadius: "var(--radius-sm)",
+                border: `1px solid ${retryResult.success ? "var(--green)" : "var(--red)"}`,
+              }}>
+                {retryResult.success ? (
+                  <div>
+                    <p style={{ fontSize: "0.85rem", fontWeight: 600, color: "var(--green)", marginBottom: "0.5rem" }}>
+                      全科目の配置に成功しました
+                    </p>
+                  </div>
+                ) : (
+                  <div>
+                    <p style={{ fontSize: "0.85rem", fontWeight: 600, color: "var(--red)", marginBottom: "0.3rem" }}>
+                      全パターンを試しましたが、完全な配置は見つかりませんでした
+                    </p>
+                    <p style={{ fontSize: "0.8rem", color: "var(--text-muted)", marginBottom: "0.3rem" }}>
+                      最善結果: {retryResult.bestPlaced}件配置 / {retryResult.bestFailed.length}件失敗
+                    </p>
+                    {retryResult.bestFailed.length > 0 && (
+                      <p style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>
+                        配置不可: {retryResult.bestFailed.join(", ")}
+                      </p>
+                    )}
+                  </div>
+                )}
+                <button
+                  className="primary"
+                  onClick={applyRetryResult}
+                  style={{ marginTop: "0.5rem", fontSize: "0.8rem" }}
+                >
+                  この結果を適用する
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* 全クリア */}
+          <div className="card">
+            <button
+              className="danger"
+              onClick={() => {
+                if (confirm("全ての配置をクリアしますか？")) {
+                  setEntries([]);
+                  showMessage("全配置をクリアしました");
+                }
+              }}
+              disabled={entries.length === 0 || retrying}
+              style={{ fontSize: "0.8rem" }}
+            >
+              全配置をクリア
+            </button>
+          </div>
         </div>
       )}
 

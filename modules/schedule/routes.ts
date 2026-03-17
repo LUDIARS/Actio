@@ -20,6 +20,7 @@ import {
   departmentRepo,
   instructorRepo,
   curriculumRepo,
+  curriculumDepartmentRepo,
   availableSlotRepo,
 } from "../../src/db/repository.js";
 
@@ -117,19 +118,28 @@ m1.get("/departments/:departmentId/curricula", async (c) => {
   return c.json({ curricula });
 });
 
-/** カリキュラム全件取得 */
+/** カリキュラム全件取得 (学科情報付き) */
 m1.get("/curricula", async (c) => {
   const curricula = await curriculumRepo.findAll();
-  return c.json({ curricula });
+  const allCd = await curriculumDepartmentRepo.findAll();
+  // 各カリキュラムに departmentIds を付与
+  const result = curricula.map((cur) => ({
+    ...cur,
+    departmentIds: allCd
+      .filter((cd) => cd.curriculumId === cur.id)
+      .map((cd) => cd.departmentId),
+  }));
+  return c.json({ curricula: result });
 });
 
-/** カリキュラム作成 */
+/** カリキュラム作成 (複数学科・コマ数対応) */
 m1.post("/departments/:departmentId/curricula", async (c) => {
   const { departmentId } = c.req.param();
-  const { name, instructorId, periods } = await c.req.json<{
+  const { name, instructorId, periods, departmentIds } = await c.req.json<{
     name: string;
     instructorId?: string;
     periods?: number;
+    departmentIds?: string[];
   }>();
   if (!name?.trim()) {
     return c.json({ error: "name is required" }, 400);
@@ -143,29 +153,70 @@ m1.post("/departments/:departmentId/curricula", async (c) => {
     periods: periodsVal,
     instructorId: instructorId || null,
   });
-  return c.json({ id, name: name.trim(), departmentId, periods: periodsVal, instructorId: instructorId || null }, 201);
+
+  // 中間テーブルに学科を登録 (departmentIds が指定されなければ主学科のみ)
+  const deptList = departmentIds && departmentIds.length > 0 ? departmentIds : [departmentId];
+  for (const dId of deptList) {
+    await curriculumDepartmentRepo.create({
+      id: uuidv4(),
+      curriculumId: id,
+      departmentId: dId,
+    });
+  }
+
+  return c.json({
+    id, name: name.trim(), departmentId,
+    periods: periodsVal,
+    instructorId: instructorId || null,
+    departmentIds: deptList,
+  }, 201);
 });
 
-/** カリキュラム更新 (名前変更・講師アサイン) */
+/** カリキュラム更新 (名前変更・講師アサイン・コマ数・学科変更) */
 m1.put("/curricula/:id", async (c) => {
   const { id } = c.req.param();
-  const body = await c.req.json<{ name?: string; instructorId?: string | null; periods?: number }>();
+  const body = await c.req.json<{
+    name?: string;
+    instructorId?: string | null;
+    periods?: number;
+    departmentIds?: string[];
+  }>();
   const updates: Record<string, unknown> = {};
   if (body.name !== undefined) updates.name = body.name.trim();
   if (body.instructorId !== undefined) updates.instructorId = body.instructorId;
   if (body.periods !== undefined && body.periods > 0) updates.periods = body.periods;
 
-  if (Object.keys(updates).length === 0) {
+  if (Object.keys(updates).length === 0 && !body.departmentIds) {
     return c.json({ error: "No fields to update" }, 400);
   }
 
-  await curriculumRepo.update(id, updates);
-  return c.json({ id, ...updates });
+  if (Object.keys(updates).length > 0) {
+    await curriculumRepo.update(id, updates);
+  }
+
+  // 学科の更新
+  if (body.departmentIds) {
+    await curriculumDepartmentRepo.deleteByCurriculum(id);
+    for (const dId of body.departmentIds) {
+      await curriculumDepartmentRepo.create({
+        id: uuidv4(),
+        curriculumId: id,
+        departmentId: dId,
+      });
+    }
+    // 主学科も更新 (最初の学科を主学科とする)
+    if (body.departmentIds.length > 0) {
+      await curriculumRepo.update(id, { departmentId: body.departmentIds[0] });
+    }
+  }
+
+  return c.json({ id, ...updates, departmentIds: body.departmentIds });
 });
 
 /** カリキュラム削除 */
 m1.delete("/curricula/:id", async (c) => {
   const { id } = c.req.param();
+  await curriculumDepartmentRepo.deleteByCurriculum(id);
   await curriculumRepo.deleteById(id);
   return c.json({ deleted: id });
 });
