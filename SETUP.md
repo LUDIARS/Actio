@@ -45,7 +45,8 @@ JWT_SECRET=your-secret-key-change-in-production
 # Google OAuth (任意)
 GOOGLE_CLIENT_ID=
 GOOGLE_CLIENT_SECRET=
-GOOGLE_REDIRECT_URI=http://localhost:3000/api/auth/google/callback
+GOOGLE_REDIRECT_URI=http://localhost:8080/api/auth/google/callback
+FRONTEND_URL=http://localhost:8080
 ```
 
 > **注意**: `JWT_SECRET` は本番環境では必ず安全なランダム文字列に変更してください。
