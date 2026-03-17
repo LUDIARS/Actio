@@ -25,6 +25,7 @@ const NAV_ITEMS: NavItem[] = [
   { to: "/reservations", label: "予約" },
   { to: "/notifications", label: "通知" },
   { to: "/voting", label: "日程調整" },
+  { to: "/users", label: "ユーザー一覧" },
   { to: "/admin/users", label: "ユーザー管理", adminOnly: true },
 ];
 

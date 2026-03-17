@@ -456,6 +456,138 @@ auth.get("/me", async (c) => {
   }
 });
 
+// ─── GET /users/list - ユーザー一覧取得 (全ユーザー対応) ──────
+// 管理者: 全ユーザーを返す
+// 一般ユーザー・グループリーダー: 同じグループに所属するユーザーのみ返す
+
+auth.get("/users/list", async (c) => {
+  console.log("[auth:users:list] リクエスト受信");
+
+  const authHeader = c.req.header("Authorization");
+  if (!authHeader?.startsWith("Bearer ")) {
+    return c.json({ error: "No token provided" }, 401);
+  }
+
+  try {
+    const token = authHeader.slice(7);
+    const payload = jwt.verify(token, JWT_SECRET) as { userId: string; role: string };
+
+    const { db, schema } = await import("../db/connection.js");
+    const { eq, inArray } = await import("drizzle-orm");
+
+    if (payload.role === "admin") {
+      // 管理者は全ユーザーを取得
+      const users = db.select({
+        id: schema.users.id,
+        name: schema.users.name,
+        email: schema.users.email,
+        role: schema.users.role,
+        major: schema.users.major,
+        createdAt: schema.users.createdAt,
+      }).from(schema.users).all();
+
+      // 各ユーザーの所属グループ情報を取得
+      const usersWithGroups = users.map((u) => {
+        const memberships = db.select({
+          groupId: schema.groupMembers.groupId,
+          groupRole: schema.groupMembers.role,
+        }).from(schema.groupMembers)
+          .where(eq(schema.groupMembers.userId, u.id))
+          .all();
+
+        const groupDetails = memberships.map((m) => {
+          const group = db.select({
+            id: schema.groups.id,
+            name: schema.groups.name,
+          }).from(schema.groups)
+            .where(eq(schema.groups.id, m.groupId))
+            .get();
+          return group ? { id: group.id, name: group.name, role: m.groupRole } : null;
+        }).filter(Boolean);
+
+        return { ...u, groups: groupDetails };
+      });
+
+      return c.json({ users: usersWithGroups });
+    }
+
+    // 一般ユーザー・グループリーダー: 同じグループのユーザーのみ
+    // 1. 自分が所属するグループIDを取得
+    const myMemberships = db.select({
+      groupId: schema.groupMembers.groupId,
+    }).from(schema.groupMembers)
+      .where(eq(schema.groupMembers.userId, payload.userId))
+      .all();
+
+    const myGroupIds = myMemberships.map((m) => m.groupId);
+
+    if (myGroupIds.length === 0) {
+      // グループ未所属の場合は自分だけ返す
+      const me = db.select({
+        id: schema.users.id,
+        name: schema.users.name,
+        email: schema.users.email,
+        role: schema.users.role,
+        major: schema.users.major,
+        createdAt: schema.users.createdAt,
+      }).from(schema.users)
+        .where(eq(schema.users.id, payload.userId))
+        .all();
+
+      return c.json({ users: me.map((u) => ({ ...u, groups: [] })) });
+    }
+
+    // 2. 同じグループに所属するユーザーIDを取得
+    const sameGroupMembers = db.select({
+      userId: schema.groupMembers.userId,
+    }).from(schema.groupMembers)
+      .where(inArray(schema.groupMembers.groupId, myGroupIds))
+      .all();
+
+    const userIds = [...new Set(sameGroupMembers.map((m) => m.userId))];
+
+    // 3. ユーザー情報を取得
+    const users = db.select({
+      id: schema.users.id,
+      name: schema.users.name,
+      email: schema.users.email,
+      role: schema.users.role,
+      major: schema.users.major,
+      createdAt: schema.users.createdAt,
+    }).from(schema.users)
+      .where(inArray(schema.users.id, userIds))
+      .all();
+
+    // 同じグループに属するグループ情報のみ付与
+    const usersWithGroups = users.map((u) => {
+      const memberships = db.select({
+        groupId: schema.groupMembers.groupId,
+        groupRole: schema.groupMembers.role,
+      }).from(schema.groupMembers)
+        .where(eq(schema.groupMembers.userId, u.id))
+        .all()
+        .filter((m) => myGroupIds.includes(m.groupId));
+
+      const groupDetails = memberships.map((m) => {
+        const group = db.select({
+          id: schema.groups.id,
+          name: schema.groups.name,
+        }).from(schema.groups)
+          .where(eq(schema.groups.id, m.groupId))
+          .get();
+        return group ? { id: group.id, name: group.name, role: m.groupRole } : null;
+      }).filter(Boolean);
+
+      return { ...u, groups: groupDetails };
+    });
+
+    return c.json({ users: usersWithGroups });
+  } catch (err) {
+    console.error("[auth:users:list] エラー:", err);
+    return c.json({ error: "Invalid or expired token" }, 401);
+  }
+});
+
 // ─── GET /users - ユーザー一覧取得 (管理者のみ) ─────────────
 
 auth.get("/users", async (c) => {

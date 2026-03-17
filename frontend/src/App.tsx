@@ -13,6 +13,7 @@ import { CalendarPage } from "./pages/CalendarPage";
 import { GroupsPage } from "./pages/GroupsPage";
 import { MyPlanPage } from "./pages/MyPlanPage";
 import { UserManagementPage } from "./pages/UserManagementPage";
+import { UserListPage } from "./pages/UserListPage";
 import "./global.css";
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
@@ -55,6 +56,7 @@ function AppRoutes() {
         <Route path="/notifications" element={<NotificationsPage />} />
         <Route path="/voting" element={<VotingPage />} />
         <Route path="/calendar" element={<CalendarPage />} />
+        <Route path="/users" element={<UserListPage />} />
         <Route path="/admin/users" element={<UserManagementPage />} />
       </Route>
     </Routes>
