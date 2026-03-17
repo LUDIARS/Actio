@@ -503,6 +503,9 @@ export const adminApi = {
   listUsers() {
     return request<any>("/api/auth/users");
   },
+  listUsersByGroup() {
+    return request<any>("/api/auth/users/list");
+  },
   updateUserRole(userId: string, role: string) {
     return request<any>(`/api/auth/users/${userId}/role`, {
       method: "PUT",
