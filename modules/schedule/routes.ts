@@ -17,8 +17,12 @@ import { Hono } from "hono";
 import { v4 as uuidv4 } from "uuid";
 import { db, curriculumSchema } from "../../src/db/connection.js";
 import { eq } from "drizzle-orm";
+import { requireRole } from "../../src/middleware/auth.js";
 
 const m1 = new Hono();
+
+// M1モジュールは管理者のみ実行可能
+m1.use("*", requireRole("admin"));
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // 学科 (Departments)

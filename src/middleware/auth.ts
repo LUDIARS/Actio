@@ -9,7 +9,7 @@ const JWT_SECRET = process.env.JWT_SECRET || "schedula-dev-secret-change-in-prod
  */
 export function requireRole(...allowedRoles: UserRole[]) {
   return createMiddleware(async (c, next) => {
-    const role = (c.get("userRole" as never) as UserRole) || "guest";
+    const role = (c.get("userRole" as never) as UserRole) || "general";
 
     if (!allowedRoles.includes(role)) {
       return c.json(
@@ -53,13 +53,13 @@ export function userContext() {
       } catch (err) {
         // Invalid token - fall through to header-based auth
         c.set("userId" as never, "anonymous" as never);
-        c.set("userRole" as never, "guest" as never);
+        c.set("userRole" as never, "general" as never);
         console.warn(`[middleware:userContext] JWT検証失敗:`, err instanceof Error ? err.message : err);
       }
     } else {
       // Legacy header-based auth (development)
       const userId = c.req.header("X-User-Id") || "anonymous";
-      const role = (c.req.header("X-User-Role") as UserRole) || "guest";
+      const role = (c.req.header("X-User-Role") as UserRole) || "general";
       c.set("userId" as never, userId as never);
       c.set("userRole" as never, role as never);
       console.log(`[middleware:userContext] ヘッダー認証 userId: ${userId}, role: ${role}`);

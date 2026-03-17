@@ -497,6 +497,20 @@ export const m5 = {
   },
 };
 
+// ─── Admin (ユーザー管理) ──────────────────────────────────────
+
+export const adminApi = {
+  listUsers() {
+    return request<any>("/api/auth/users");
+  },
+  updateUserRole(userId: string, role: string) {
+    return request<any>(`/api/auth/users/${userId}/role`, {
+      method: "PUT",
+      body: JSON.stringify({ role }),
+    });
+  },
+};
+
 // ─── Groups ──────────────────────────────────────────────────
 
 export const groupApi = {
