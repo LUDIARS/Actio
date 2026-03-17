@@ -1,4 +1,5 @@
-import { NavLink, Outlet } from "react-router-dom";
+import { useState, useCallback, useEffect } from "react";
+import { NavLink, Outlet, useLocation } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 
 const NAV_ITEMS = [
@@ -16,27 +17,44 @@ const NAV_ITEMS = [
 
 export function Layout() {
   const { user, logout } = useAuth();
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const location = useLocation();
+
+  // Close sidebar on route change
+  useEffect(() => {
+    setSidebarOpen(false);
+  }, [location.pathname]);
+
+  const toggleSidebar = useCallback(() => {
+    setSidebarOpen((prev) => !prev);
+  }, []);
+
+  const closeSidebar = useCallback(() => {
+    setSidebarOpen(false);
+  }, []);
 
   return (
-    <div style={{ display: "flex", minHeight: "100vh" }}>
-      <aside
-        style={{
-          width: 220,
-          background: "var(--bg-surface)",
-          borderRight: "1px solid var(--border)",
-          padding: "1rem 0",
-          flexShrink: 0,
-          display: "flex",
-          flexDirection: "column",
-        }}
+    <div className="layout-root">
+      {/* Hamburger button - visible only on mobile */}
+      <button
+        className="hamburger-btn"
+        onClick={toggleSidebar}
+        aria-label="メニューを開く"
       >
-        <div
-          style={{
-            padding: "0 1rem 1rem",
-            borderBottom: "1px solid var(--border)",
-            marginBottom: "0.5rem",
-          }}
-        >
+        <span className={`hamburger-icon ${sidebarOpen ? "open" : ""}`}>
+          <span />
+          <span />
+          <span />
+        </span>
+      </button>
+
+      {/* Overlay backdrop - mobile only */}
+      {sidebarOpen && (
+        <div className="sidebar-overlay" onClick={closeSidebar} />
+      )}
+
+      <aside className={`sidebar ${sidebarOpen ? "sidebar--open" : ""}`}>
+        <div className="sidebar-header">
           <h2 style={{ fontSize: "1rem", fontWeight: 700 }}>Schedula</h2>
           <span
             style={{
@@ -103,7 +121,7 @@ export function Layout() {
           </div>
         )}
       </aside>
-      <main style={{ flex: 1, padding: "1.5rem 2rem", overflow: "auto" }}>
+      <main className="main-content">
         <Outlet />
       </main>
     </div>
