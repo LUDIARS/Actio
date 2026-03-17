@@ -10,7 +10,7 @@ import {
   personalEventRepo,
 } from "../../src/db/repository.js";
 import { solve, type TaskInput } from "./solver.js";
-import { calculateGroupAvailability } from "../auto-scheduler/availability.js";
+import { calculateGroupAvailability } from "./availability.js";
 import { DAYS_COUNT, PERIODS_COUNT } from "../../src/shared/constants.js";
 import type { UnifiedSlot, AvailabilitySlot } from "../../src/shared/types.js";
 

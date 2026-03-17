@@ -525,6 +525,40 @@ export const schedulingResultRepo = {
   },
 };
 
+// ─── Schedule Entry Repository ───────────────────────────────
+
+export type ScheduleEntry = typeof schema.scheduleEntries.$inferSelect;
+export type NewScheduleEntry = typeof schema.scheduleEntries.$inferInsert;
+
+export const scheduleEntryRepo = {
+  async findByTerm(termId: string): Promise<ScheduleEntry[]> {
+    return db
+      .select()
+      .from(schema.scheduleEntries)
+      .where(eq(schema.scheduleEntries.termId, termId));
+  },
+
+  async findConfirmedByTerm(termId: string): Promise<ScheduleEntry[]> {
+    return db
+      .select()
+      .from(schema.scheduleEntries)
+      .where(
+        and(
+          eq(schema.scheduleEntries.termId, termId),
+          eq(schema.scheduleEntries.isConfirmed, true)
+        )
+      );
+  },
+};
+
+// ─── Room Repository ────────────────────────────────────────
+
+export const roomRepo = {
+  async findAll() {
+    return db.select().from(schema.rooms);
+  },
+};
+
 // ─── Group Member Repository ────────────────────────────────
 
 export const groupMemberRepo = {
@@ -541,17 +575,42 @@ export const groupMemberRepo = {
       .from(schema.groupMembers)
       .where(eq(schema.groupMembers.groupId, groupId));
   },
+
+  async findByGroupAndUser(groupId: string, userId: string) {
+    const [member] = await db
+      .select()
+      .from(schema.groupMembers)
+      .where(
+        and(
+          eq(schema.groupMembers.groupId, groupId),
+          eq(schema.groupMembers.userId, userId)
+        )
+      );
+    return member;
+  },
+
+  async create(data: typeof schema.groupMembers.$inferInsert) {
+    await db.insert(schema.groupMembers).values(data);
+  },
 };
 
 // ─── Group Repository ───────────────────────────────────────
 
 export const groupRepo = {
+  async findAll() {
+    return db.select().from(schema.groups);
+  },
+
   async findById(id: string) {
     const [group] = await db
       .select()
       .from(schema.groups)
       .where(eq(schema.groups.id, id));
     return group;
+  },
+
+  async create(data: typeof schema.groups.$inferInsert) {
+    await db.insert(schema.groups).values(data);
   },
 };
 
