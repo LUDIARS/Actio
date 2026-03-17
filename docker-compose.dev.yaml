@@ -26,7 +26,7 @@ services:
       dockerfile: Dockerfile
       target: dev
     ports:
-      - "8080:5173"
+      - "${FRONTEND_PORT:-8080}:5173"
     volumes:
       - ./frontend/src:/app/src
       - ./frontend/index.html:/app/index.html
@@ -36,4 +36,4 @@ services:
       - ./frontend/tsconfig.node.json:/app/tsconfig.node.json
       - ./frontend/public:/app/public
     environment:
-      VITE_API_BASE: http://localhost:3000
+      VITE_API_BASE: http://localhost:${BACKEND_PORT:-3000}
