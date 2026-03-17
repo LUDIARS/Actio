@@ -5,6 +5,10 @@
 # Do NOT use in production.
 
 services:
+  # ─── DB: don't expose port to host (containers use internal network) ──
+  db:
+    ports: !reset []
+
   # ─── Backend: tsx watch with source mounts ──────────────────
   backend:
     build:
@@ -25,7 +29,7 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
       target: dev
-    ports:
+    ports: !override
       - "${FRONTEND_PORT:-8080}:5173"
     volumes:
       - ./frontend/src:/app/src
