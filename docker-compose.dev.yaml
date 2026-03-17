@@ -5,6 +5,10 @@
 # Do NOT use in production.
 
 services:
+  # ─── DB: don't expose port to host (containers use internal network) ──
+  db:
+    ports: !reset []
+
   # ─── Backend: tsx watch with source mounts ──────────────────
   backend:
     build:
