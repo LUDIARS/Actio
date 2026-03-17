@@ -415,14 +415,13 @@ auth.get("/google/callback", async (c) => {
       })
       .run();
 
-    // In production, redirect to frontend with tokens
-    // For now, return JSON
-    return c.json({
-      user: { id: user.id, name: user.name, email: user.email, role: user.role },
+    // フロントエンドにトークンを渡してリダイレクト
+    const frontendUrl = process.env.FRONTEND_URL || "http://localhost:5173";
+    const params = new URLSearchParams({
       accessToken,
       refreshToken,
-      calendarConnected: true,
     });
+    return c.redirect(`${frontendUrl}/?${params}`);
   } catch (err) {
     console.error("Google OAuth callback error:", err);
     return c.json({ error: "Internal server error during OAuth" }, 500);

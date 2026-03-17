@@ -39,6 +39,10 @@ for (const mod of modules) {
   app.route(mod.basePath, mod.routes);
 }
 
+// ─── Calendar Module (Google Calendar + 手動予定 + プラン) ───
+import { calendar } from "../modules/calendar/routes.js";
+app.route("/api/calendar", calendar);
+
 // ─── Legacy Compatibility ───────────────────────────────────
 // 旧パス (/api/m1, /api/m2, ...) への後方互換ルーティング
 // 新規開発では /api/school/m1, /api/reservations, /api/webhooks を使用してください
