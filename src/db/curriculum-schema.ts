@@ -57,11 +57,11 @@ export const curricula = sqliteTable(
     departmentId: text("department_id")
       .references(() => departments.id)
       .notNull(),
+    /** コマ数 (この科目が必要とする総コマ数) */
+    periods: integer("periods").notNull().default(1),
     /** 担当講師ID (nullable: 未アサイン状態を許容) */
     instructorId: text("instructor_id")
       .references(() => instructors.id),
-    /** コマ数 (連続する時限数。デフォルト 1) */
-    credits: integer("credits").notNull().default(1),
     createdAt: integer("created_at", { mode: "timestamp" })
       .$defaultFn(() => new Date())
       .notNull(),

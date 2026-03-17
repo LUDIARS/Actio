@@ -23,7 +23,7 @@ interface Curriculum {
   name: string;
   departmentId: string;
   instructorId: string | null;
-  credits: number;
+  periods: number;
   departmentIds?: string[];
 }
 
@@ -36,7 +36,7 @@ interface PlacedEntry {
   instructorName: string;
   departmentIds: string[];
   departmentNames: string;
-  credits: number;
+  periods: number;
 }
 
 // ─── 配置ロジック (コマ数・全学科空き考慮) ──────────────────
@@ -49,17 +49,17 @@ function canPlace(
   startPeriod: number,
   departments: Department[],
 ): string | null {
-  const credits = curriculum.credits || 1;
+  const periods = curriculum.periods || 1;
   const deptIds = (curriculum.departmentIds && curriculum.departmentIds.length > 0)
     ? curriculum.departmentIds
     : [curriculum.departmentId];
 
   // 連続コマが範囲内か
-  if (startPeriod + credits > PERIODS_COUNT) {
-    return `${credits}コマの連続配置が時間割の範囲外です`;
+  if (startPeriod + periods > PERIODS_COUNT) {
+    return `${periods}コマの連続配置が時間割の範囲外です`;
   }
 
-  for (let p = 0; p < credits; p++) {
+  for (let p = 0; p < periods; p++) {
     const period = startPeriod + p;
     // 全学科について空きチェック
     for (const deptId of deptIds) {
@@ -93,7 +93,7 @@ function placeOne(
   departments: Department[],
   instructors: Instructor[],
 ): PlacedEntry[] {
-  const credits = curriculum.credits || 1;
+  const periods = curriculum.periods || 1;
   const deptIds = (curriculum.departmentIds && curriculum.departmentIds.length > 0)
     ? curriculum.departmentIds
     : [curriculum.departmentId];
@@ -103,7 +103,7 @@ function placeOne(
     : "未アサイン";
 
   const result: PlacedEntry[] = [];
-  for (let p = 0; p < credits; p++) {
+  for (let p = 0; p < periods; p++) {
     result.push({
       day,
       period: startPeriod + p,
@@ -113,7 +113,7 @@ function placeOne(
       instructorName: instName,
       departmentIds: deptIds,
       departmentNames: deptNames,
-      credits,
+      periods,
     });
   }
   return result;
@@ -141,8 +141,8 @@ function autoPlaceAll(
 
   // ソート: コマ数大 → 学科数多 → 講師あり優先
   const sorted = [...unplaced].sort((a, b) => {
-    const ac = a.credits || 1;
-    const bc = b.credits || 1;
+    const ac = a.periods || 1;
+    const bc = b.periods || 1;
     if (ac !== bc) return bc - ac;
     const ad = (a.departmentIds?.length || 1);
     const bd = (b.departmentIds?.length || 1);
@@ -153,7 +153,7 @@ function autoPlaceAll(
   for (const cur of sorted) {
     let didPlace = false;
     for (let day = 0; day < DAYS_COUNT && !didPlace; day++) {
-      for (let period = 0; period <= PERIODS_COUNT - (cur.credits || 1) && !didPlace; period++) {
+      for (let period = 0; period <= PERIODS_COUNT - (cur.periods || 1) && !didPlace; period++) {
         const err = canPlace(entries, cur, day, period, departments);
         if (!err) {
           const newEntries = placeOne(cur, day, period, departments, instructors);
@@ -200,7 +200,7 @@ function tryPlaceRandomOnce(
     // ランダムに開始位置を決定
     const slots: [number, number][] = [];
     for (let day = 0; day < DAYS_COUNT; day++) {
-      for (let period = 0; period <= PERIODS_COUNT - (cur.credits || 1); period++) {
+      for (let period = 0; period <= PERIODS_COUNT - (cur.periods || 1); period++) {
         slots.push([day, period]);
       }
     }
@@ -319,7 +319,7 @@ export function DataManagementPage() {
 
     const newEntries = placeOne(curriculum, manualDay, manualPeriod, departments, instructors);
     setEntries((prev) => [...prev, ...newEntries]);
-    showMessage(`「${curriculum.name}」を ${DAY_LABELS[manualDay]} ${manualPeriod + 1}限に配置しました (${curriculum.credits || 1}コマ)`);
+    showMessage(`「${curriculum.name}」を ${DAY_LABELS[manualDay]} ${manualPeriod + 1}限に配置しました (${curriculum.periods || 1}コマ)`);
   };
 
   const handleRemoveEntry = (curriculumId: string) => {
@@ -516,7 +516,7 @@ export function DataManagementPage() {
   }, [entries, selectedSlot, departments]);
 
   // ─── 未配置コマ数合計 ──────────────────────────────────────
-  const totalUnplacedCredits = unplacedCurricula.reduce((sum, c) => sum + (c.credits || 1), 0);
+  const totalUnplacedPeriods = unplacedCurricula.reduce((sum, c) => sum + (c.periods || 1), 0);
   const allUnplaced = curricula.filter((c) => !placedIds.has(c.id));
 
   return (
@@ -581,7 +581,7 @@ export function DataManagementPage() {
             <span className="badge green">講師: {instructors.length}</span>
             <span className="badge blue">科目: {curricula.length}</span>
             <span className="badge green">配置済: {placedIds.size}</span>
-            <span className="badge red">未配置: {allUnplaced.length} ({totalUnplacedCredits}コマ)</span>
+            <span className="badge red">未配置: {allUnplaced.length} ({totalUnplacedPeriods}コマ)</span>
           </div>
 
           <div className="card" style={{ marginBottom: "1rem" }}>
@@ -613,7 +613,7 @@ export function DataManagementPage() {
                         : getDeptName(c.departmentId);
                       return (
                         <option key={c.id} value={c.id}>
-                          {c.name} [{deptNames}] {getInstName(c.instructorId)} ({c.credits || 1}コマ)
+                          {c.name} [{deptNames}] {getInstName(c.instructorId)} ({c.periods || 1}コマ)
                         </option>
                       );
                     })}
@@ -683,7 +683,7 @@ export function DataManagementPage() {
                         <td style={{ fontSize: "0.8rem" }}>{first.instructorName}</td>
                         <td>{DAY_LABELS[first.day]}</td>
                         <td>{periods.map((p) => `${p + 1}限`).join("-")}</td>
-                        <td style={{ textAlign: "center" }}>{first.credits}</td>
+                        <td style={{ textAlign: "center" }}>{first.periods}</td>
                         <td>
                           <button
                             className="danger"

@@ -287,9 +287,10 @@ export const curricula = mysqlTable(
     departmentId: varchar("department_id", { length: 255 })
       .references(() => departments.id)
       .notNull(),
+    /** コマ数 */
+    periods: int("periods").notNull().default(1),
     instructorId: varchar("instructor_id", { length: 255 })
       .references(() => instructors.id),
-    credits: int("credits").notNull().default(1),
     createdAt: timestamp("created_at")
       .$defaultFn(() => new Date())
       .notNull(),

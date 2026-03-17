@@ -337,13 +337,13 @@ export const m1Schema = {
   getCurriculaByDepartment(departmentId: string) {
     return request<{ curricula: any[] }>(`/api/m1/departments/${departmentId}/curricula`);
   },
-  createCurriculum(departmentId: string, name: string, instructorId?: string, credits?: number, departmentIds?: string[]) {
+  createCurriculum(departmentId: string, name: string, instructorId?: string, periods?: number, departmentIds?: string[]) {
     return request<any>(`/api/m1/departments/${departmentId}/curricula`, {
       method: "POST",
-      body: JSON.stringify({ name, instructorId, credits, departmentIds }),
+      body: JSON.stringify({ name, instructorId, periods, departmentIds }),
     });
   },
-  updateCurriculum(id: string, body: { name?: string; instructorId?: string | null; credits?: number; departmentIds?: string[] }) {
+  updateCurriculum(id: string, body: { name?: string; instructorId?: string | null; periods?: number; departmentIds?: string[] }) {
     return request<any>(`/api/m1/curricula/${id}`, {
       method: "PUT",
       body: JSON.stringify(body),

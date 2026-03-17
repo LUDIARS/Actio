@@ -135,22 +135,23 @@ m1.get("/curricula", async (c) => {
 /** カリキュラム作成 (複数学科・コマ数対応) */
 m1.post("/departments/:departmentId/curricula", async (c) => {
   const { departmentId } = c.req.param();
-  const { name, instructorId, credits, departmentIds } = await c.req.json<{
+  const { name, instructorId, periods, departmentIds } = await c.req.json<{
     name: string;
     instructorId?: string;
-    credits?: number;
+    periods?: number;
     departmentIds?: string[];
   }>();
   if (!name?.trim()) {
     return c.json({ error: "name is required" }, 400);
   }
   const id = uuidv4();
+  const periodsVal = periods != null && periods > 0 ? periods : 1;
   await curriculumRepo.create({
     id,
     name: name.trim(),
     departmentId,
+    periods: periodsVal,
     instructorId: instructorId || null,
-    credits: credits || 1,
   });
 
   // 中間テーブルに学科を登録 (departmentIds が指定されなければ主学科のみ)
@@ -165,8 +166,8 @@ m1.post("/departments/:departmentId/curricula", async (c) => {
 
   return c.json({
     id, name: name.trim(), departmentId,
+    periods: periodsVal,
     instructorId: instructorId || null,
-    credits: credits || 1,
     departmentIds: deptList,
   }, 201);
 });
@@ -177,13 +178,13 @@ m1.put("/curricula/:id", async (c) => {
   const body = await c.req.json<{
     name?: string;
     instructorId?: string | null;
-    credits?: number;
+    periods?: number;
     departmentIds?: string[];
   }>();
   const updates: Record<string, unknown> = {};
   if (body.name !== undefined) updates.name = body.name.trim();
   if (body.instructorId !== undefined) updates.instructorId = body.instructorId;
-  if (body.credits !== undefined) updates.credits = body.credits;
+  if (body.periods !== undefined && body.periods > 0) updates.periods = body.periods;
 
   if (Object.keys(updates).length === 0 && !body.departmentIds) {
     return c.json({ error: "No fields to update" }, 400);

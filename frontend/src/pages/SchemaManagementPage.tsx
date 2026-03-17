@@ -20,8 +20,8 @@ interface Curriculum {
   id: string;
   name: string;
   departmentId: string;
+  periods: number;
   instructorId: string | null;
-  credits: number;
   departmentIds?: string[];
   createdAt: string;
 }
@@ -457,14 +457,14 @@ function CurriculaTab({ showMessage }: { showMessage: (msg: string, type?: "succ
   const [newDeptId, setNewDeptId] = useState("");
   const [newDeptIds, setNewDeptIds] = useState<string[]>([]);
   const [newInstId, setNewInstId] = useState("");
-  const [newCredits, setNewCredits] = useState(1);
+  const [newPeriods, setNewPeriods] = useState<number>(1);
   const [loading, setLoading] = useState(false);
 
   // Edit state
   const [editId, setEditId] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
   const [editInstId, setEditInstId] = useState<string>("");
-  const [editCredits, setEditCredits] = useState(1);
+  const [editPeriods, setEditPeriods] = useState<number>(1);
   const [editDeptIds, setEditDeptIds] = useState<string[]>([]);
 
   const fetchAll = useCallback(async () => {
@@ -496,11 +496,11 @@ function CurriculaTab({ showMessage }: { showMessage: (msg: string, type?: "succ
     try {
       const deptIds = newDeptIds.length > 0 ? newDeptIds : [newDeptId];
       await m1Schema.createCurriculum(
-        newDeptId, newName.trim(), newInstId || undefined, newCredits, deptIds
+        newDeptId, newName.trim(), newInstId || undefined, newPeriods, deptIds
       );
       setNewName("");
       setNewInstId("");
-      setNewCredits(1);
+      setNewPeriods(1);
       setNewDeptIds([]);
       showMessage(`カリキュラム「${newName.trim()}」を作成しました`);
       fetchAll();
@@ -515,7 +515,7 @@ function CurriculaTab({ showMessage }: { showMessage: (msg: string, type?: "succ
       await m1Schema.updateCurriculum(id, {
         name: editName.trim() || undefined,
         instructorId: editInstId || null,
-        credits: editCredits,
+        periods: editPeriods,
         departmentIds: editDeptIds.length > 0 ? editDeptIds : undefined,
       });
       setEditId(null);
@@ -590,11 +590,13 @@ function CurriculaTab({ showMessage }: { showMessage: (msg: string, type?: "succ
             </div>
             <div className="form-group" style={{ flex: 0, minWidth: 80 }}>
               <label>コマ数</label>
-              <select value={newCredits} onChange={(e) => setNewCredits(parseInt(e.target.value))}>
-                {[1, 2, 3, 4].map((n) => (
-                  <option key={n} value={n}>{n}</option>
-                ))}
-              </select>
+              <input
+                type="number"
+                min={1}
+                value={newPeriods}
+                onChange={(e) => setNewPeriods(Math.max(1, parseInt(e.target.value) || 1))}
+                style={{ width: 70 }}
+              />
             </div>
             <button type="submit" className="primary" disabled={loading} style={{ marginBottom: "1rem" }}>
               追加
@@ -653,8 +655,8 @@ function CurriculaTab({ showMessage }: { showMessage: (msg: string, type?: "succ
               <tr>
                 <th>科目名</th>
                 <th>学科</th>
+                <th>コマ数</th>
                 <th>担当講師</th>
-                <th>コマ</th>
                 <th>操作</th>
               </tr>
             </thead>
@@ -702,6 +704,19 @@ function CurriculaTab({ showMessage }: { showMessage: (msg: string, type?: "succ
                       deptNames
                     )}
                   </td>
+                  <td style={{ fontSize: "0.8rem", textAlign: "center" }}>
+                    {editId === c.id ? (
+                      <input
+                        type="number"
+                        min={1}
+                        value={editPeriods}
+                        onChange={(e) => setEditPeriods(Math.max(1, parseInt(e.target.value) || 1))}
+                        style={{ width: 50, padding: "0.2rem 0.4rem", fontSize: "0.8rem" }}
+                      />
+                    ) : (
+                      c.periods ?? 1
+                    )}
+                  </td>
                   <td>
                     {editId === c.id ? (
                       <select
@@ -722,21 +737,6 @@ function CurriculaTab({ showMessage }: { showMessage: (msg: string, type?: "succ
                       }}>
                         {getInstName(c.instructorId)}
                       </span>
-                    )}
-                  </td>
-                  <td style={{ textAlign: "center" }}>
-                    {editId === c.id ? (
-                      <select
-                        value={editCredits}
-                        onChange={(e) => setEditCredits(parseInt(e.target.value))}
-                        style={{ padding: "0.2rem 0.3rem", fontSize: "0.8rem", width: 45 }}
-                      >
-                        {[1, 2, 3, 4].map((n) => (
-                          <option key={n} value={n}>{n}</option>
-                        ))}
-                      </select>
-                    ) : (
-                      <span style={{ fontSize: "0.8rem" }}>{c.credits || 1}</span>
                     )}
                   </td>
                   <td>
@@ -765,7 +765,7 @@ function CurriculaTab({ showMessage }: { showMessage: (msg: string, type?: "succ
                               setEditId(c.id);
                               setEditName(c.name);
                               setEditInstId(c.instructorId || "");
-                              setEditCredits(c.credits || 1);
+                              setEditPeriods(c.periods ?? 1);
                               setEditDeptIds(c.departmentIds || [c.departmentId]);
                             }}
                           >

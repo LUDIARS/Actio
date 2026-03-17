@@ -239,63 +239,42 @@ sqlite.exec(`
   CREATE INDEX IF NOT EXISTS idx_myplan_group ON my_plans(group_id);
 `);
 
-// Curriculum module tables (enterprise patch)
+// M1 Curriculum module tables (matches curriculum-schema.ts)
 sqlite.exec(`
+  CREATE TABLE IF NOT EXISTS departments (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    created_at INTEGER NOT NULL
+  );
+
   CREATE TABLE IF NOT EXISTS instructors (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
-    major TEXT NOT NULL,
-    courses TEXT NOT NULL DEFAULT '[]',
-    availability TEXT NOT NULL,
-    availability_condition_type TEXT NOT NULL DEFAULT 'any',
-    availability_condition TEXT NOT NULL DEFAULT '{}',
     created_at INTEGER NOT NULL
   );
 
   CREATE TABLE IF NOT EXISTS curricula (
     id TEXT PRIMARY KEY,
-    department_name TEXT NOT NULL,
     name TEXT NOT NULL,
-    instructor_id TEXT NOT NULL REFERENCES instructors(id),
-    slots_per_session INTEGER NOT NULL DEFAULT 1,
-    total_sessions INTEGER NOT NULL,
-    room_type TEXT NOT NULL,
-    room_id TEXT,
-    editable_until INTEGER NOT NULL,
-    term_id TEXT NOT NULL,
+    department_id TEXT NOT NULL REFERENCES departments(id),
+    periods INTEGER NOT NULL DEFAULT 1,
+    instructor_id TEXT REFERENCES instructors(id),
     created_at INTEGER NOT NULL
   );
+  CREATE INDEX IF NOT EXISTS idx_curricula_department ON curricula(department_id);
+  CREATE INDEX IF NOT EXISTS idx_curricula_instructor ON curricula(instructor_id);
 
-  CREATE TABLE IF NOT EXISTS curriculum_plans (
+  CREATE TABLE IF NOT EXISTS instructor_available_slots (
     id TEXT PRIMARY KEY,
-    curriculum_id TEXT NOT NULL REFERENCES curricula(id),
-    name TEXT NOT NULL,
-    term_id TEXT NOT NULL,
-    status TEXT NOT NULL DEFAULT 'draft',
-    created_at INTEGER NOT NULL,
-    updated_at INTEGER NOT NULL
+    instructor_id TEXT NOT NULL REFERENCES instructors(id),
+    day INTEGER NOT NULL,
+    periods TEXT NOT NULL,
+    created_at INTEGER NOT NULL
   );
-
-  CREATE TABLE IF NOT EXISTS plan_blocks (
-    id TEXT PRIMARY KEY,
-    plan_id TEXT NOT NULL REFERENCES curriculum_plans(id),
-    curriculum_id TEXT NOT NULL REFERENCES curricula(id),
-    session_number INTEGER NOT NULL,
-    placement_status TEXT NOT NULL DEFAULT 'unplaced',
-    day INTEGER,
-    period INTEGER,
-    block_size INTEGER NOT NULL DEFAULT 1,
-    error_message TEXT,
-    color TEXT,
-    sort_order INTEGER NOT NULL DEFAULT 0,
-    created_at INTEGER NOT NULL,
-    UNIQUE(plan_id, curriculum_id, session_number)
-  );
-  CREATE INDEX IF NOT EXISTS idx_plan_blocks_plan ON plan_blocks(plan_id);
-  CREATE INDEX IF NOT EXISTS idx_plan_blocks_curriculum ON plan_blocks(curriculum_id);
+  CREATE INDEX IF NOT EXISTS idx_available_slots_instructor ON instructor_available_slots(instructor_id);
 `);
 
-// M1 schema additions: credits column and curriculum_departments junction table
+// M1 schema additions: curriculum_departments junction table
 sqlite.exec(`
   CREATE TABLE IF NOT EXISTS curriculum_departments (
     id TEXT PRIMARY KEY,
@@ -305,12 +284,5 @@ sqlite.exec(`
   CREATE INDEX IF NOT EXISTS idx_cd_curriculum ON curriculum_departments(curriculum_id);
   CREATE INDEX IF NOT EXISTS idx_cd_department ON curriculum_departments(department_id);
 `);
-
-// Add credits column to curricula if not present (idempotent migration)
-try {
-  sqlite.exec(`ALTER TABLE curricula ADD COLUMN credits INTEGER NOT NULL DEFAULT 1`);
-} catch {
-  // Column already exists - ignore
-}
 
 console.log("Database tables initialized successfully.");
