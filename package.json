@@ -11,7 +11,11 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:push": "drizzle-kit push",
-    "db:init": "tsx src/db/migrate.ts"
+    "db:init": "tsx src/db/migrate.ts",
+    "redis:export": "tsx scripts/redis-export.ts",
+    "redis:import": "tsx scripts/redis-import.ts",
+    "db:export": "tsx scripts/db-export.ts",
+    "db:import": "tsx scripts/db-import.ts"
   },
   "repository": {
     "type": "git",

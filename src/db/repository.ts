@@ -326,6 +326,34 @@ export const personalEventRepo = {
     return event;
   },
 
+  async findByUserId(userId: string): Promise<PersonalEvent[]> {
+    return db
+      .select()
+      .from(schema.personalEvents)
+      .where(eq(schema.personalEvents.userId, userId));
+  },
+
+  async findById(id: string): Promise<PersonalEvent | undefined> {
+    const [event] = await db
+      .select()
+      .from(schema.personalEvents)
+      .where(eq(schema.personalEvents.id, id));
+    return event;
+  },
+
+  async findByIdAndUserId(id: string, userId: string): Promise<PersonalEvent | undefined> {
+    const [event] = await db
+      .select()
+      .from(schema.personalEvents)
+      .where(
+        and(
+          eq(schema.personalEvents.id, id),
+          eq(schema.personalEvents.userId, userId)
+        )
+      );
+    return event;
+  },
+
   async deleteByUserAndPlan(userId: string, planId: string): Promise<void> {
     await db
       .delete(schema.personalEvents)
@@ -337,7 +365,106 @@ export const personalEventRepo = {
       );
   },
 
+  async deleteById(id: string): Promise<void> {
+    await db
+      .delete(schema.personalEvents)
+      .where(eq(schema.personalEvents.id, id));
+  },
+
   async create(data: NewPersonalEvent): Promise<void> {
     await db.insert(schema.personalEvents).values(data);
+  },
+
+  async update(id: string, data: Partial<Omit<NewPersonalEvent, "id">>): Promise<void> {
+    await db
+      .update(schema.personalEvents)
+      .set(data)
+      .where(eq(schema.personalEvents.id, id));
+  },
+};
+
+// ─── Plan Repository ────────────────────────────────────────
+
+export type Plan = typeof schema.plans.$inferSelect;
+export type NewPlan = typeof schema.plans.$inferInsert;
+
+export const planRepo = {
+  async findByUserId(userId: string): Promise<Plan[]> {
+    return db
+      .select()
+      .from(schema.plans)
+      .where(eq(schema.plans.userId, userId));
+  },
+
+  async findById(id: string): Promise<Plan | undefined> {
+    const [plan] = await db
+      .select()
+      .from(schema.plans)
+      .where(eq(schema.plans.id, id));
+    return plan;
+  },
+
+  async findByIdAndUserId(id: string, userId: string): Promise<Plan | undefined> {
+    const [plan] = await db
+      .select()
+      .from(schema.plans)
+      .where(
+        and(
+          eq(schema.plans.id, id),
+          eq(schema.plans.userId, userId)
+        )
+      );
+    return plan;
+  },
+
+  async create(data: NewPlan): Promise<void> {
+    await db.insert(schema.plans).values(data);
+  },
+
+  async update(id: string, data: Partial<Omit<NewPlan, "id">>): Promise<void> {
+    await db
+      .update(schema.plans)
+      .set(data)
+      .where(eq(schema.plans.id, id));
+  },
+
+  async deleteById(id: string): Promise<void> {
+    await db
+      .delete(schema.plans)
+      .where(eq(schema.plans.id, id));
+  },
+};
+
+// ─── Group Member Repository ────────────────────────────────
+
+export const groupMemberRepo = {
+  async findByUserId(userId: string) {
+    return db
+      .select()
+      .from(schema.groupMembers)
+      .where(eq(schema.groupMembers.userId, userId));
+  },
+};
+
+// ─── Group Repository ───────────────────────────────────────
+
+export const groupRepo = {
+  async findById(id: string) {
+    const [group] = await db
+      .select()
+      .from(schema.groups)
+      .where(eq(schema.groups.id, id));
+    return group;
+  },
+};
+
+// ─── Group Schedule Repository ──────────────────────────────
+
+export const groupScheduleRepo = {
+  async findByGroupId(groupId: string) {
+    return db
+      .select()
+      .from(schema.groupSchedules)
+      .where(eq(schema.groupSchedules.groupId, groupId));
   },
 };
