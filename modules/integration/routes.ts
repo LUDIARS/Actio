@@ -86,6 +86,30 @@ m2.get("/members/:userId/slots", async (c) => {
     }
   }
 
+  // Merge personal events (手動予定 + プラン由来)
+  const personalEvents = db
+    .select()
+    .from(schema.personalEvents)
+    .where(eq(schema.personalEvents.userId, userId))
+    .all();
+
+  for (const evt of personalEvents) {
+    if (
+      evt.day >= 0 && evt.day < DAYS_COUNT &&
+      evt.period >= 0 && evt.period < PERIODS_COUNT &&
+      matrix[evt.day][evt.period].status === "free"
+    ) {
+      matrix[evt.day][evt.period] = {
+        day: evt.day,
+        period: evt.period,
+        status: (evt.eventType === "personal" ? "personal" : "event") as UnifiedSlot["status"],
+        majorLabel: evt.title,
+        isPrivate: evt.isPrivate,
+        sourceModule: "personal",
+      };
+    }
+  }
+
   // Merge M4 reservations
   const activeReservations = db
     .select()
@@ -138,12 +162,30 @@ m2.get("/members/:userId/attendance", async (c) => {
 
 // ─── POST /api/m2/sync/gcal ────────────────────────────────
 m2.post("/sync/gcal", async (c) => {
-  // Placeholder for Google Calendar sync
-  // In production, this would use Google Calendar API with OAuth
+  const userId = c.req.header("X-User-Id");
+  if (!userId) {
+    return c.json({ error: "Authentication required" }, 401);
+  }
+
+  // Googleトークンがあるか確認
+  const user = db
+    .select()
+    .from(schema.users)
+    .where(eq(schema.users.id, userId))
+    .get();
+
+  if (!user?.googleAccessToken) {
+    return c.json({
+      message: "Google Calendar not connected",
+      status: "skipped",
+      note: "カレンダーページからGoogleカレンダーを接続するか、手動で予定を追加してください",
+    });
+  }
+
   return c.json({
-    message: "Google Calendar sync triggered",
-    status: "pending",
-    note: "Google Calendar API integration requires OAuth setup",
+    message: "Google Calendar sync available",
+    status: "ready",
+    note: "/api/calendar/events で予定を取得できます",
   });
 });
 

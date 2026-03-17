@@ -167,6 +167,76 @@ export const reservations = sqliteTable(
   ]
 );
 
+// ─── Personal Events (手動予定) ─────────────────────────────
+// Google認証なしでも手動で予定を追加可能
+
+export const personalEvents = sqliteTable(
+  "personal_events",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .references(() => users.id)
+      .notNull(),
+    title: text("title").notNull(),
+    description: text("description"),
+    day: integer("day").notNull(), // 0-6 (月〜日)
+    period: integer("period").notNull(), // 0-10
+    /** 複数コマにまたがる場合のコマ数 */
+    duration: integer("duration").notNull().default(1),
+    /** イベント種別: personal / school_event */
+    eventType: text("event_type").notNull().default("personal"),
+    /** 繰り返し元のプランID (プランから自動生成された場合) */
+    planId: text("plan_id"),
+    isPrivate: integer("is_private", { mode: "boolean" }).notNull().default(true),
+    createdAt: integer("created_at", { mode: "timestamp" })
+      .$defaultFn(() => new Date())
+      .notNull(),
+    updatedAt: integer("updated_at", { mode: "timestamp" })
+      .$defaultFn(() => new Date())
+      .notNull(),
+  },
+  (table) => [
+    index("idx_personal_event_user").on(table.userId),
+    index("idx_personal_event_plan").on(table.planId),
+    unique("unique_personal_slot").on(table.userId, table.day, table.period),
+  ]
+);
+
+// ─── Plans (プラン: 繰り返し予定の自動生成) ──────────────────
+// プランを設定すると対応する personalEvents が自動生成される
+
+export const plans = sqliteTable(
+  "plans",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .references(() => users.id)
+      .notNull(),
+    name: text("name").notNull(),
+    description: text("description"),
+    /** 繰り返し対象の曜日 JSON array [0,1,2,...] (0=月) */
+    days: text("days", { mode: "json" }).$type<number[]>().notNull().default([]),
+    /** 開始コマ (0-10) */
+    startPeriod: integer("start_period").notNull(),
+    /** コマ数 */
+    duration: integer("duration").notNull().default(1),
+    /** イベント種別 */
+    eventType: text("event_type").notNull().default("personal"),
+    isPrivate: integer("is_private", { mode: "boolean" }).notNull().default(true),
+    /** プラン有効/無効 */
+    isActive: integer("is_active", { mode: "boolean" }).notNull().default(true),
+    createdAt: integer("created_at", { mode: "timestamp" })
+      .$defaultFn(() => new Date())
+      .notNull(),
+    updatedAt: integer("updated_at", { mode: "timestamp" })
+      .$defaultFn(() => new Date())
+      .notNull(),
+  },
+  (table) => [
+    index("idx_plan_user").on(table.userId),
+  ]
+);
+
 // ─── M5: Webhook Endpoints ──────────────────────────────────
 
 export const webhookEndpoints = sqliteTable("webhook_endpoints", {

@@ -189,6 +189,101 @@ export const auth = {
   },
 };
 
+// ─── Calendar (Google Calendar + 手動予定 + プラン) ────────
+
+export const calendarApi = {
+  // Google Calendar
+  getEvents(params?: { timeMin?: string; timeMax?: string }) {
+    const query = params ? `?${new URLSearchParams(params as Record<string, string>)}` : "";
+    return request<any>(`/api/calendar/events${query}`);
+  },
+  getCalendars() {
+    return request<any>("/api/calendar/calendars");
+  },
+  getStatus() {
+    return request<any>("/api/calendar/status");
+  },
+  disconnect() {
+    return request<any>("/api/calendar/disconnect", { method: "POST" });
+  },
+
+  // Personal Events (手動予定)
+  getPersonalEvents() {
+    return request<any>("/api/calendar/personal");
+  },
+  createPersonalEvent(body: {
+    title: string;
+    description?: string;
+    day: number;
+    period: number;
+    duration?: number;
+    eventType?: string;
+    isPrivate?: boolean;
+  }) {
+    return request<any>("/api/calendar/personal", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  },
+  updatePersonalEvent(id: string, body: {
+    title?: string;
+    description?: string;
+    day?: number;
+    period?: number;
+    duration?: number;
+    eventType?: string;
+    isPrivate?: boolean;
+  }) {
+    return request<any>(`/api/calendar/personal/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(body),
+    });
+  },
+  deletePersonalEvent(id: string) {
+    return request<any>(`/api/calendar/personal/${id}`, { method: "DELETE" });
+  },
+
+  // Plans (プラン)
+  getPlans() {
+    return request<any>("/api/calendar/plans");
+  },
+  createPlan(body: {
+    name: string;
+    description?: string;
+    days: number[];
+    startPeriod: number;
+    duration?: number;
+    eventType?: string;
+    isPrivate?: boolean;
+  }) {
+    return request<any>("/api/calendar/plans", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  },
+  updatePlan(id: string, body: {
+    name?: string;
+    description?: string;
+    days?: number[];
+    startPeriod?: number;
+    duration?: number;
+    eventType?: string;
+    isPrivate?: boolean;
+    isActive?: boolean;
+  }) {
+    return request<any>(`/api/calendar/plans/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(body),
+    });
+  },
+  deletePlan(id: string) {
+    return request<any>(`/api/calendar/plans/${id}`, { method: "DELETE" });
+  },
+  regeneratePlan(id: string) {
+    return request<any>(`/api/calendar/plans/${id}/regenerate`, { method: "POST" });
+  },
+};
+
 // ─── M1 ─────────────────────────────────────────────────────
 
 export const m1 = {
