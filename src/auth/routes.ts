@@ -2,8 +2,7 @@ import { Hono } from "hono";
 import { v4 as uuidv4 } from "uuid";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
-import { db, schema } from "../db/connection.js";
-import { eq } from "drizzle-orm";
+import { userRepo, sessionRepo } from "../db/repository.js";
 
 const auth = new Hono();
 
@@ -56,11 +55,7 @@ auth.post("/register", async (c) => {
 
     // Check if email already exists
     console.log("[auth:register] メール重複チェック:", body.email);
-    const existing = db
-      .select()
-      .from(schema.users)
-      .where(eq(schema.users.email, body.email))
-      .get();
+    const existing = await userRepo.findByEmail(body.email);
 
     if (existing) {
       console.warn("[auth:register] メール重複:", body.email);
@@ -73,18 +68,16 @@ auth.post("/register", async (c) => {
     const now = new Date();
 
     console.log("[auth:register] ユーザレコード挿入中... userId:", userId);
-    db.insert(schema.users)
-      .values({
-        id: userId,
-        name: body.name,
-        email: body.email,
-        role: body.role || "student",
-        major: body.major || null,
-        passwordHash,
-        createdAt: now,
-        updatedAt: now,
-      })
-      .run();
+    await userRepo.create({
+      id: userId,
+      name: body.name,
+      email: body.email,
+      role: body.role || "student",
+      major: body.major || null,
+      passwordHash,
+      createdAt: now,
+      updatedAt: now,
+    });
     console.log("[auth:register] ユーザレコード挿入完了");
 
     const { accessToken, refreshToken } = generateTokens(userId, body.role || "student");
@@ -95,15 +88,13 @@ auth.post("/register", async (c) => {
     const expiresAt = new Date(Date.now() + REFRESH_TOKEN_EXPIRES_DAYS * 24 * 60 * 60 * 1000);
 
     console.log("[auth:register] セッション保存中... sessionId:", sessionId);
-    db.insert(schema.sessions)
-      .values({
-        id: sessionId,
-        userId,
-        refreshToken,
-        expiresAt,
-        createdAt: now,
-      })
-      .run();
+    await sessionRepo.create({
+      id: sessionId,
+      userId,
+      refreshToken,
+      expiresAt,
+      createdAt: now,
+    });
     console.log("[auth:register] セッション保存完了");
 
     console.log("[auth:register] 登録成功 userId:", userId);
@@ -133,11 +124,7 @@ auth.post("/login", async (c) => {
     }
 
     console.log("[auth:login] ユーザ検索中...");
-    const user = db
-      .select()
-      .from(schema.users)
-      .where(eq(schema.users.email, body.email))
-      .get();
+    const user = await userRepo.findByEmail(body.email);
 
     if (!user || !user.passwordHash) {
       console.warn("[auth:login] ユーザが見つからない or パスワード未設定:", body.email);
@@ -157,15 +144,13 @@ auth.post("/login", async (c) => {
     const expiresAt = new Date(Date.now() + REFRESH_TOKEN_EXPIRES_DAYS * 24 * 60 * 60 * 1000);
 
     console.log("[auth:login] セッション保存中...");
-    db.insert(schema.sessions)
-      .values({
-        id: sessionId,
-        userId: user.id,
-        refreshToken,
-        expiresAt,
-        createdAt: new Date(),
-      })
-      .run();
+    await sessionRepo.create({
+      id: sessionId,
+      userId: user.id,
+      refreshToken,
+      expiresAt,
+      createdAt: new Date(),
+    });
 
     console.log("[auth:login] ログイン成功 userId:", user.id);
     return c.json({
@@ -193,11 +178,7 @@ auth.post("/refresh", async (c) => {
     }
 
     console.log("[auth:refresh] セッション検索中...");
-    const session = db
-      .select()
-      .from(schema.sessions)
-      .where(eq(schema.sessions.refreshToken, body.refreshToken))
-      .get();
+    const session = await sessionRepo.findByRefreshToken(body.refreshToken);
 
     if (!session) {
       console.warn("[auth:refresh] セッションが見つからない");
@@ -206,17 +187,11 @@ auth.post("/refresh", async (c) => {
 
     if (new Date(session.expiresAt) < new Date()) {
       console.warn("[auth:refresh] トークン期限切れ sessionId:", session.id);
-      db.delete(schema.sessions)
-        .where(eq(schema.sessions.id, session.id))
-        .run();
+      await sessionRepo.deleteById(session.id);
       return c.json({ error: "Refresh token expired" }, 401);
     }
 
-    const user = db
-      .select()
-      .from(schema.users)
-      .where(eq(schema.users.id, session.userId))
-      .get();
+    const user = await userRepo.findById(session.userId);
 
     if (!user) {
       console.warn("[auth:refresh] ユーザが見つからない userId:", session.userId);
@@ -226,10 +201,7 @@ auth.post("/refresh", async (c) => {
     // Rotate refresh token
     const { accessToken, refreshToken: newRefreshToken } = generateTokens(user.id, user.role);
 
-    db.update(schema.sessions)
-      .set({ refreshToken: newRefreshToken })
-      .where(eq(schema.sessions.id, session.id))
-      .run();
+    await sessionRepo.updateRefreshToken(session.id, newRefreshToken);
 
     console.log("[auth:refresh] トークン更新成功 userId:", user.id);
     return c.json({ accessToken, refreshToken: newRefreshToken });
@@ -248,9 +220,7 @@ auth.post("/logout", async (c) => {
     const body = await c.req.json<{ refreshToken: string }>();
 
     if (body.refreshToken) {
-      db.delete(schema.sessions)
-        .where(eq(schema.sessions.refreshToken, body.refreshToken))
-        .run();
+      await sessionRepo.deleteByRefreshToken(body.refreshToken);
       console.log("[auth:logout] セッション削除完了");
     }
 
@@ -362,18 +332,10 @@ auth.get("/google/callback", async (c) => {
     console.log("[auth:google:callback] Googleユーザ情報:", { id: userInfo.id, email: userInfo.email, name: userInfo.name });
 
     // Check if user already exists by Google ID or email
-    let user = db
-      .select()
-      .from(schema.users)
-      .where(eq(schema.users.googleId, userInfo.id))
-      .get();
+    let user = await userRepo.findByGoogleId(userInfo.id);
 
     if (!user) {
-      user = db
-        .select()
-        .from(schema.users)
-        .where(eq(schema.users.email, userInfo.email))
-        .get();
+      user = await userRepo.findByEmail(userInfo.email);
     }
 
     const now = new Date();
@@ -381,43 +343,33 @@ auth.get("/google/callback", async (c) => {
 
     if (user) {
       console.log("[auth:google:callback] 既存ユーザ更新 userId:", user.id);
-      // Update existing user with Google tokens
-      db.update(schema.users)
-        .set({
-          googleId: userInfo.id,
-          googleAccessToken: tokenData.access_token,
-          googleRefreshToken: tokenData.refresh_token || user.googleRefreshToken,
-          googleTokenExpiresAt: tokenExpiresAt,
-          calendarAccessId: userInfo.id,
-          updatedAt: now,
-        })
-        .where(eq(schema.users.id, user.id))
-        .run();
+      await userRepo.update(user.id, {
+        googleId: userInfo.id,
+        googleAccessToken: tokenData.access_token,
+        googleRefreshToken: tokenData.refresh_token || user.googleRefreshToken,
+        googleTokenExpiresAt: tokenExpiresAt,
+        calendarAccessId: userInfo.id,
+        updatedAt: now,
+      });
     } else {
       // Create new user from Google profile
       console.log("[auth:google:callback] 新規ユーザ作成");
       const userId = uuidv4();
-      db.insert(schema.users)
-        .values({
-          id: userId,
-          name: userInfo.name,
-          email: userInfo.email,
-          role: "student",
-          googleId: userInfo.id,
-          googleAccessToken: tokenData.access_token,
-          googleRefreshToken: tokenData.refresh_token || null,
-          googleTokenExpiresAt: tokenExpiresAt,
-          calendarAccessId: userInfo.id,
-          createdAt: now,
-          updatedAt: now,
-        })
-        .run();
+      await userRepo.create({
+        id: userId,
+        name: userInfo.name,
+        email: userInfo.email,
+        role: "student",
+        googleId: userInfo.id,
+        googleAccessToken: tokenData.access_token,
+        googleRefreshToken: tokenData.refresh_token || null,
+        googleTokenExpiresAt: tokenExpiresAt,
+        calendarAccessId: userInfo.id,
+        createdAt: now,
+        updatedAt: now,
+      });
 
-      user = db
-        .select()
-        .from(schema.users)
-        .where(eq(schema.users.email, userInfo.email))
-        .get();
+      user = await userRepo.findByEmail(userInfo.email);
     }
 
     if (!user) {
@@ -433,15 +385,13 @@ auth.get("/google/callback", async (c) => {
     const sessionId = uuidv4();
     const expiresAt = new Date(Date.now() + REFRESH_TOKEN_EXPIRES_DAYS * 24 * 60 * 60 * 1000);
 
-    db.insert(schema.sessions)
-      .values({
-        id: sessionId,
-        userId: user.id,
-        refreshToken,
-        expiresAt,
-        createdAt: now,
-      })
-      .run();
+    await sessionRepo.create({
+      id: sessionId,
+      userId: user.id,
+      refreshToken,
+      expiresAt,
+      createdAt: now,
+    });
 
     // フロントエンドにリダイレクト（トークンをURLパラメータで渡す）
     const redirectUrl = new URL(FRONTEND_URL);
@@ -459,7 +409,7 @@ auth.get("/google/callback", async (c) => {
 
 // ─── GET /me - 現在のユーザ情報取得 ─────────────────────────
 
-auth.get("/me", (c) => {
+auth.get("/me", async (c) => {
   console.log("[auth:me] リクエスト受信");
 
   const authHeader = c.req.header("Authorization");
@@ -473,11 +423,7 @@ auth.get("/me", (c) => {
     const payload = jwt.verify(token, JWT_SECRET) as { userId: string; role: string };
     console.log("[auth:me] トークン検証成功 userId:", payload.userId);
 
-    const user = db
-      .select()
-      .from(schema.users)
-      .where(eq(schema.users.id, payload.userId))
-      .get();
+    const user = await userRepo.findById(payload.userId);
 
     if (!user) {
       console.warn("[auth:me] ユーザが見つからない userId:", payload.userId);

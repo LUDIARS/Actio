@@ -287,35 +287,77 @@ export const calendarApi = {
 // ─── M1 ─────────────────────────────────────────────────────
 
 export const m1 = {
-  importInstructors(csvText: string) {
-    return fetch(`${API_BASE}/api/m1/instructors/import`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "text/plain",
-        ...(getAccessToken() ? { Authorization: `Bearer ${getAccessToken()}` } : {}),
-      },
-      body: csvText,
-    }).then((r) => r.json());
+  async importInstructors(csvText: string) {
+    const url = `${API_BASE}/api/m1/instructors/import`;
+    console.log(`[api] POST ${url}`);
+    let res: Response;
+    try {
+      res = await fetch(url, {
+        method: "POST",
+        headers: {
+          "Content-Type": "text/plain",
+          ...(getAccessToken() ? { Authorization: `Bearer ${getAccessToken()}` } : {}),
+        },
+        body: csvText,
+      });
+    } catch (err) {
+      console.error(`[api] ネットワークエラー: POST ${url}`, err);
+      throw new Error(`ネットワークエラー: ${(err as Error).message}`);
+    }
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      console.error(`[api] HTTPエラー: ${res.status} ${url}`, body);
+      throw new Error(body.error || `HTTP ${res.status}`);
+    }
+    return res.json();
   },
-  importRooms(csvText: string) {
-    return fetch(`${API_BASE}/api/m1/rooms/import`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "text/plain",
-        ...(getAccessToken() ? { Authorization: `Bearer ${getAccessToken()}` } : {}),
-      },
-      body: csvText,
-    }).then((r) => r.json());
+  async importRooms(csvText: string) {
+    const url = `${API_BASE}/api/m1/rooms/import`;
+    console.log(`[api] POST ${url}`);
+    let res: Response;
+    try {
+      res = await fetch(url, {
+        method: "POST",
+        headers: {
+          "Content-Type": "text/plain",
+          ...(getAccessToken() ? { Authorization: `Bearer ${getAccessToken()}` } : {}),
+        },
+        body: csvText,
+      });
+    } catch (err) {
+      console.error(`[api] ネットワークエラー: POST ${url}`, err);
+      throw new Error(`ネットワークエラー: ${(err as Error).message}`);
+    }
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      console.error(`[api] HTTPエラー: ${res.status} ${url}`, body);
+      throw new Error(body.error || `HTTP ${res.status}`);
+    }
+    return res.json();
   },
-  importCurriculum(csvText: string) {
-    return fetch(`${API_BASE}/api/m1/curriculum/import`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "text/plain",
-        ...(getAccessToken() ? { Authorization: `Bearer ${getAccessToken()}` } : {}),
-      },
-      body: csvText,
-    }).then((r) => r.json());
+  async importCurriculum(csvText: string) {
+    const url = `${API_BASE}/api/m1/curriculum/import`;
+    console.log(`[api] POST ${url}`);
+    let res: Response;
+    try {
+      res = await fetch(url, {
+        method: "POST",
+        headers: {
+          "Content-Type": "text/plain",
+          ...(getAccessToken() ? { Authorization: `Bearer ${getAccessToken()}` } : {}),
+        },
+        body: csvText,
+      });
+    } catch (err) {
+      console.error(`[api] ネットワークエラー: POST ${url}`, err);
+      throw new Error(`ネットワークエラー: ${(err as Error).message}`);
+    }
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      console.error(`[api] HTTPエラー: ${res.status} ${url}`, body);
+      throw new Error(body.error || `HTTP ${res.status}`);
+    }
+    return res.json();
   },
   generate(mode: "pack" | "spread") {
     return request<any>(`/api/m1/schedule/generate?mode=${mode}`, {

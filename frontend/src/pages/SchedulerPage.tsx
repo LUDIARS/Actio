@@ -61,6 +61,7 @@ export function SchedulerPage() {
       setShowCreate(false);
       showMsg(`Group created: ${result.name}`);
     } catch (e: any) {
+      console.error("[SchedulerPage] handleCreateGroup失敗:", e);
       showMsg(`Error: ${e.message}`);
     }
   };
@@ -81,6 +82,7 @@ export function SchedulerPage() {
       setAvailability(avail.availability || []);
       setSuggestions(sugg.suggestions || []);
     } catch (e: any) {
+      console.error("[SchedulerPage] handleLoadGroup失敗:", e);
       showMsg(`Error: ${e.message}`);
     }
     setLoading(false);
