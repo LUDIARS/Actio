@@ -2,6 +2,7 @@ import {
   pgTable,
   text,
   integer,
+  bigint,
   boolean,
   timestamp,
   jsonb,
@@ -25,7 +26,7 @@ export const users = pgTable("users", {
   googleId: text("google_id").unique(),
   googleAccessToken: text("google_access_token"),
   googleRefreshToken: text("google_refresh_token"),
-  googleTokenExpiresAt: integer("google_token_expires_at"),
+  googleTokenExpiresAt: bigint("google_token_expires_at", { mode: "number" }),
 
   calendarAccessId: text("calendar_access_id"),
 
