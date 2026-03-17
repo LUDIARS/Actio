@@ -607,13 +607,13 @@ auth.get("/users", async (c) => {
     }
 
     const { db, schema } = await import("../db/connection.js");
-    const users = db.select({
+    const users = await db.select({
       id: schema.users.id,
       name: schema.users.name,
       email: schema.users.email,
       role: schema.users.role,
       createdAt: schema.users.createdAt,
-    }).from(schema.users).all();
+    }).from(schema.users);
 
     return c.json({ users });
   } catch (err) {
