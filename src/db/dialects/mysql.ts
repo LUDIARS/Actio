@@ -254,16 +254,21 @@ export const notifications = mysqlTable(
   ]
 );
 
+// ─── Departments ────────────────────────────────────────────
+
+export const departments = mysqlTable("departments", {
+  id: varchar("id", { length: 255 }).primaryKey(),
+  name: varchar("name", { length: 255 }).notNull(),
+  createdAt: timestamp("created_at")
+    .$defaultFn(() => new Date())
+    .notNull(),
+});
+
 // ─── Instructors ────────────────────────────────────────────
 
 export const instructors = mysqlTable("instructors", {
   id: varchar("id", { length: 255 }).primaryKey(),
   name: varchar("name", { length: 255 }).notNull(),
-  major: varchar("major", { length: 255 }).notNull(),
-  courses: json("courses").$type<string[]>().notNull(),
-  availability: json("availability").$type<boolean[][]>().notNull(),
-  availabilityConditionType: varchar("availability_condition_type", { length: 255 }).notNull().default("any"),
-  availabilityCondition: json("availability_condition").$type<Record<string, unknown>>().notNull(),
   createdAt: timestamp("created_at")
     .$defaultFn(() => new Date())
     .notNull(),
@@ -271,70 +276,43 @@ export const instructors = mysqlTable("instructors", {
 
 // ─── Curricula ──────────────────────────────────────────────
 
-export const curricula = mysqlTable("curricula", {
-  id: varchar("id", { length: 255 }).primaryKey(),
-  departmentName: varchar("department_name", { length: 255 }).notNull(),
-  name: varchar("name", { length: 255 }).notNull(),
-  instructorId: varchar("instructor_id", { length: 255 })
-    .references(() => instructors.id)
-    .notNull(),
-  slotsPerSession: int("slots_per_session").notNull().default(1),
-  totalSessions: int("total_sessions").notNull(),
-  roomType: varchar("room_type", { length: 255 }).notNull(),
-  roomId: varchar("room_id", { length: 255 }),
-  editableUntil: timestamp("editable_until").notNull(),
-  termId: varchar("term_id", { length: 255 }).notNull(),
-  createdAt: timestamp("created_at")
-    .$defaultFn(() => new Date())
-    .notNull(),
-});
-
-// ─── Curriculum Plans ───────────────────────────────────────
-
-export const curriculumPlans = mysqlTable("curriculum_plans", {
-  id: varchar("id", { length: 255 }).primaryKey(),
-  curriculumId: varchar("curriculum_id", { length: 255 })
-    .references(() => curricula.id)
-    .notNull(),
-  name: varchar("name", { length: 255 }).notNull(),
-  termId: varchar("term_id", { length: 255 }).notNull(),
-  status: varchar("status", { length: 255 }).notNull().default("draft"),
-  createdAt: timestamp("created_at")
-    .$defaultFn(() => new Date())
-    .notNull(),
-  updatedAt: timestamp("updated_at")
-    .$defaultFn(() => new Date())
-    .notNull(),
-});
-
-// ─── Plan Blocks ────────────────────────────────────────────
-
-export const planBlocks = mysqlTable(
-  "plan_blocks",
+export const curricula = mysqlTable(
+  "curricula",
   {
     id: varchar("id", { length: 255 }).primaryKey(),
-    planId: varchar("plan_id", { length: 255 })
-      .references(() => curriculumPlans.id)
+    name: varchar("name", { length: 255 }).notNull(),
+    departmentId: varchar("department_id", { length: 255 })
+      .references(() => departments.id)
       .notNull(),
-    curriculumId: varchar("curriculum_id", { length: 255 })
-      .references(() => curricula.id)
-      .notNull(),
-    sessionNumber: int("session_number").notNull(),
-    placementStatus: varchar("placement_status", { length: 255 }).notNull().default("unplaced"),
-    day: int("day"),
-    period: int("period"),
-    blockSize: int("block_size").notNull().default(1),
-    errorMessage: text("error_message"),
-    color: varchar("color", { length: 255 }),
-    sortOrder: int("sort_order").notNull().default(0),
+    instructorId: varchar("instructor_id", { length: 255 })
+      .references(() => instructors.id),
     createdAt: timestamp("created_at")
       .$defaultFn(() => new Date())
       .notNull(),
   },
   (table) => [
-    index("idx_plan_blocks_plan").on(table.planId),
-    index("idx_plan_blocks_curriculum").on(table.curriculumId),
-    unique("unique_plan_session").on(table.planId, table.curriculumId, table.sessionNumber),
+    index("idx_curricula_department").on(table.departmentId),
+    index("idx_curricula_instructor").on(table.instructorId),
+  ]
+);
+
+// ─── Instructor Available Slots ─────────────────────────────
+
+export const instructorAvailableSlots = mysqlTable(
+  "instructor_available_slots",
+  {
+    id: varchar("id", { length: 255 }).primaryKey(),
+    instructorId: varchar("instructor_id", { length: 255 })
+      .references(() => instructors.id)
+      .notNull(),
+    day: int("day").notNull(),
+    periods: json("periods").$type<number[]>().notNull(),
+    createdAt: timestamp("created_at")
+      .$defaultFn(() => new Date())
+      .notNull(),
+  },
+  (table) => [
+    index("idx_available_slots_instructor").on(table.instructorId),
   ]
 );
 
@@ -356,10 +334,10 @@ export const schema = {
 };
 
 export const curriculumSchema = {
+  departments,
   instructors,
   curricula,
-  curriculumPlans,
-  planBlocks,
+  instructorAvailableSlots,
 };
 
 // ─── Connection ─────────────────────────────────────────────
@@ -377,10 +355,10 @@ const allTables = {
   webhookDeliveryLogs,
   notificationPreferences,
   notifications,
+  departments,
   instructors,
   curricula,
-  curriculumPlans,
-  planBlocks,
+  instructorAvailableSlots,
 };
 
 export function createConnection() {
