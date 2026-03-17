@@ -206,6 +206,80 @@ export const webhookDeliveryLogs = sqliteTable(
   (table) => [index("idx_delivery_webhook").on(table.webhookId)]
 );
 
+// ─── M6: Voting Events (日程調整) ──────────────────────────
+
+export const votingEvents = sqliteTable("voting_events", {
+  id: text("id").primaryKey(),
+  title: text("title").notNull(),
+  description: text("description").notNull().default(""),
+  createdBy: text("created_by")
+    .references(() => users.id)
+    .notNull(),
+  /** 回答期限 (ISO 8601) */
+  deadline: text("deadline"),
+  /** open / closed */
+  status: text("status").notNull().default("open"),
+  createdAt: integer("created_at", { mode: "timestamp" })
+    .$defaultFn(() => new Date())
+    .notNull(),
+  updatedAt: integer("updated_at", { mode: "timestamp" })
+    .$defaultFn(() => new Date())
+    .notNull(),
+});
+
+// ─── M6: Voting Candidates (候補日時) ────────────────────────
+
+export const votingCandidates = sqliteTable(
+  "voting_candidates",
+  {
+    id: text("id").primaryKey(),
+    eventId: text("event_id")
+      .references(() => votingEvents.id)
+      .notNull(),
+    /** 候補ラベル (例: "3/20(木) 10:00〜11:00") */
+    label: text("label").notNull(),
+    /** ソート用 */
+    sortOrder: integer("sort_order").notNull().default(0),
+  },
+  (table) => [
+    index("idx_candidate_event").on(table.eventId),
+  ]
+);
+
+// ─── M6: Votes (回答) ───────────────────────────────────────
+
+export const votes = sqliteTable(
+  "votes",
+  {
+    id: text("id").primaryKey(),
+    eventId: text("event_id")
+      .references(() => votingEvents.id)
+      .notNull(),
+    candidateId: text("candidate_id")
+      .references(() => votingCandidates.id)
+      .notNull(),
+    userId: text("user_id")
+      .references(() => users.id)
+      .notNull(),
+    /** ok=○, maybe=△, ng=× */
+    answer: text("answer").notNull(),
+    /** 自動回答かどうか */
+    isAutoReply: integer("is_auto_reply", { mode: "boolean" }).notNull().default(false),
+    comment: text("comment").notNull().default(""),
+    createdAt: integer("created_at", { mode: "timestamp" })
+      .$defaultFn(() => new Date())
+      .notNull(),
+    updatedAt: integer("updated_at", { mode: "timestamp" })
+      .$defaultFn(() => new Date())
+      .notNull(),
+  },
+  (table) => [
+    unique("unique_vote_per_user_candidate").on(table.eventId, table.candidateId, table.userId),
+    index("idx_vote_event").on(table.eventId),
+    index("idx_vote_user").on(table.userId),
+  ]
+);
+
 // ─── M5: Notification Preferences ───────────────────────────
 
 export const notificationPreferences = sqliteTable(

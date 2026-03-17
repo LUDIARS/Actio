@@ -111,3 +111,18 @@ export const WEBHOOK_RETRY_DELAYS = [
 
 /** Max webhook consecutive failures before auto-disable */
 export const WEBHOOK_MAX_FAILURES = 5;
+
+/** M6: Voting answer values (○△×) */
+export const VOTE_ANSWERS = ["ok", "maybe", "ng"] as const;
+export type VoteAnswer = (typeof VOTE_ANSWERS)[number];
+
+/** M6: Voting event statuses */
+export const VOTING_STATUSES = ["open", "closed"] as const;
+export type VotingStatus = (typeof VOTING_STATUSES)[number];
+
+/** M6: Vote answer display labels */
+export const VOTE_ANSWER_LABELS: Record<VoteAnswer, string> = {
+  ok: "○",
+  maybe: "△",
+  ng: "×",
+};
