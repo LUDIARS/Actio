@@ -299,6 +299,25 @@ export const curricula = pgTable(
   ]
 );
 
+// ─── Curriculum Departments (junction table) ─────────────────
+
+export const curriculumDepartments = pgTable(
+  "curriculum_departments",
+  {
+    id: text("id").primaryKey(),
+    curriculumId: text("curriculum_id")
+      .references(() => curricula.id, { onDelete: "cascade" })
+      .notNull(),
+    departmentId: text("department_id")
+      .references(() => departments.id, { onDelete: "cascade" })
+      .notNull(),
+  },
+  (table) => [
+    index("idx_cd_curriculum").on(table.curriculumId),
+    index("idx_cd_department").on(table.departmentId),
+  ]
+);
+
 // ─── Instructor Available Slots ──────────────────────────────
 
 export const instructorAvailableSlots = pgTable(
@@ -340,6 +359,7 @@ export const curriculumSchema = {
   departments,
   instructors,
   curricula,
+  curriculumDepartments,
   instructorAvailableSlots,
 };
 
@@ -361,6 +381,7 @@ const DB_SCHEMA = {
   departments,
   instructors,
   curricula,
+  curriculumDepartments,
   instructorAvailableSlots,
 };
 

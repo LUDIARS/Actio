@@ -1,15 +1,14 @@
 import { Hono } from "hono";
 import { v4 as uuidv4 } from "uuid";
-import { db, schema } from "../../src/db/connection.js";
-import { eq, and } from "drizzle-orm";
 import { getUserId } from "../../src/middleware/getUserId.js";
+import { myPlanRepo, personalEventRepo } from "../../src/db/repository.js";
 
 const myPlanRoutes = new Hono();
 
 // ─── Helper: マイプランから予定を自動生成 ─────────────────────
 // 基本パターンと特別パターンを考慮し、特別パターンが優先される
 
-function generateScheduleFromMyPlan(
+async function generateScheduleFromMyPlan(
   planId: string,
   userId: string,
   plan: {
@@ -18,14 +17,7 @@ function generateScheduleFromMyPlan(
   }
 ) {
   // まず既存のプラン由来イベントを削除
-  db.delete(schema.personalEvents)
-    .where(
-      and(
-        eq(schema.personalEvents.userId, userId),
-        eq(schema.personalEvents.planId, planId)
-      )
-    )
-    .run();
+  await personalEventRepo.deleteByUserAndPlan(userId, planId);
 
   const now = new Date();
   let created = 0;
@@ -40,35 +32,23 @@ function generateScheduleFromMyPlan(
         if (period > 10) continue;
 
         // 他ソースの予定との重複チェック
-        const conflict = db
-          .select()
-          .from(schema.personalEvents)
-          .where(
-            and(
-              eq(schema.personalEvents.userId, userId),
-              eq(schema.personalEvents.day, day),
-              eq(schema.personalEvents.period, period)
-            )
-          )
-          .get();
+        const conflict = await personalEventRepo.findByUserDayPeriod(userId, day, period);
 
         if (conflict) continue;
 
-        db.insert(schema.personalEvents)
-          .values({
-            id: uuidv4(),
-            userId,
-            title: slot.title || plan.name,
-            day,
-            period,
-            duration: 1,
-            eventType: "personal",
-            planId,
-            isPrivate: true,
-            createdAt: now,
-            updatedAt: now,
-          })
-          .run();
+        await personalEventRepo.create({
+          id: uuidv4(),
+          userId,
+          title: slot.title || plan.name,
+          day,
+          period,
+          duration: 1,
+          eventType: "personal",
+          planId,
+          isPrivate: true,
+          createdAt: now,
+          updatedAt: now,
+        });
 
         created++;
       }
@@ -80,15 +60,11 @@ function generateScheduleFromMyPlan(
 
 // ─── GET / - マイプラン一覧 ──────────────────────────────────
 
-myPlanRoutes.get("/", (c) => {
+myPlanRoutes.get("/", async (c) => {
   const userId = getUserId(c);
   if (!userId) return c.json({ error: "Authentication required" }, 401);
 
-  const plans = db
-    .select()
-    .from(schema.myPlans)
-    .where(eq(schema.myPlans.userId, userId))
-    .all();
+  const plans = await myPlanRepo.findByUserId(userId);
 
   // 優先度でソート（specialが先）
   plans.sort((a, b) => {
@@ -123,37 +99,31 @@ myPlanRoutes.post("/", async (c) => {
   const patternType = body.patternType || "basic";
   const priority = patternType === "special" ? 10 : 0;
 
-  db.insert(schema.myPlans)
-    .values({
-      id: planId,
-      userId,
-      groupId: body.groupId || null,
-      name: body.name,
-      patternType,
-      validFrom: body.validFrom || null,
-      validUntil: body.validUntil || null,
-      weeklySchedule: body.weeklySchedule || {},
-      isActive: true,
-      priority,
-      createdAt: now,
-      updatedAt: now,
-    })
-    .run();
+  await myPlanRepo.create({
+    id: planId,
+    userId,
+    groupId: body.groupId || null,
+    name: body.name,
+    patternType,
+    validFrom: body.validFrom || null,
+    validUntil: body.validUntil || null,
+    weeklySchedule: body.weeklySchedule || {},
+    isActive: true,
+    priority,
+    createdAt: now,
+    updatedAt: now,
+  });
 
   // 予定を自動生成
   let generatedEvents = 0;
   if (body.weeklySchedule && Object.keys(body.weeklySchedule).length > 0) {
-    generatedEvents = generateScheduleFromMyPlan(planId, userId, {
+    generatedEvents = await generateScheduleFromMyPlan(planId, userId, {
       name: body.name,
       weeklySchedule: body.weeklySchedule,
     });
   }
 
-  const plan = db
-    .select()
-    .from(schema.myPlans)
-    .where(eq(schema.myPlans.id, planId))
-    .get();
+  const plan = await myPlanRepo.findById(planId);
 
   return c.json({ plan, generatedEvents }, 201);
 });
@@ -165,16 +135,7 @@ myPlanRoutes.put("/:id", async (c) => {
   if (!userId) return c.json({ error: "Authentication required" }, 401);
 
   const planId = c.req.param("id");
-  const existing = db
-    .select()
-    .from(schema.myPlans)
-    .where(
-      and(
-        eq(schema.myPlans.id, planId),
-        eq(schema.myPlans.userId, userId)
-      )
-    )
-    .get();
+  const existing = await myPlanRepo.findByIdAndUserId(planId, userId);
 
   if (!existing) return c.json({ error: "MyPlan not found" }, 404);
 
@@ -198,33 +159,19 @@ myPlanRoutes.put("/:id", async (c) => {
   if (body.weeklySchedule !== undefined) updates.weeklySchedule = body.weeklySchedule;
   if (body.isActive !== undefined) updates.isActive = body.isActive;
 
-  db.update(schema.myPlans)
-    .set(updates)
-    .where(eq(schema.myPlans.id, planId))
-    .run();
+  await myPlanRepo.update(planId, updates);
 
-  const updated = db
-    .select()
-    .from(schema.myPlans)
-    .where(eq(schema.myPlans.id, planId))
-    .get();
+  const updated = await myPlanRepo.findById(planId);
 
   // 有効なら再生成、無効なら関連イベント削除
   let generatedEvents = 0;
-  if (updated.isActive) {
-    generatedEvents = generateScheduleFromMyPlan(planId, userId, {
+  if (updated?.isActive) {
+    generatedEvents = await generateScheduleFromMyPlan(planId, userId, {
       name: updated.name,
       weeklySchedule: updated.weeklySchedule as Record<string, Array<{ period: number; duration: number; title: string }>>,
     });
   } else {
-    db.delete(schema.personalEvents)
-      .where(
-        and(
-          eq(schema.personalEvents.userId, userId),
-          eq(schema.personalEvents.planId, planId)
-        )
-      )
-      .run();
+    await personalEventRepo.deleteByUserAndPlan(userId, planId);
   }
 
   return c.json({ plan: updated, generatedEvents });
@@ -232,64 +179,37 @@ myPlanRoutes.put("/:id", async (c) => {
 
 // ─── DELETE /:id - マイプラン削除 ────────────────────────────
 
-myPlanRoutes.delete("/:id", (c) => {
+myPlanRoutes.delete("/:id", async (c) => {
   const userId = getUserId(c);
   if (!userId) return c.json({ error: "Authentication required" }, 401);
 
   const planId = c.req.param("id");
-  const existing = db
-    .select()
-    .from(schema.myPlans)
-    .where(
-      and(
-        eq(schema.myPlans.id, planId),
-        eq(schema.myPlans.userId, userId)
-      )
-    )
-    .get();
+  const existing = await myPlanRepo.findByIdAndUserId(planId, userId);
 
   if (!existing) return c.json({ error: "MyPlan not found" }, 404);
 
   // プラン由来のイベントを削除
-  db.delete(schema.personalEvents)
-    .where(
-      and(
-        eq(schema.personalEvents.userId, userId),
-        eq(schema.personalEvents.planId, planId)
-      )
-    )
-    .run();
+  await personalEventRepo.deleteByUserAndPlan(userId, planId);
 
   // プラン本体を削除
-  db.delete(schema.myPlans)
-    .where(eq(schema.myPlans.id, planId))
-    .run();
+  await myPlanRepo.deleteById(planId);
 
   return c.json({ message: "MyPlan and associated events deleted" });
 });
 
 // ─── POST /:id/generate - マイプランから予定を生成 ────────────
 
-myPlanRoutes.post("/:id/generate", (c) => {
+myPlanRoutes.post("/:id/generate", async (c) => {
   const userId = getUserId(c);
   if (!userId) return c.json({ error: "Authentication required" }, 401);
 
   const planId = c.req.param("id");
-  const plan = db
-    .select()
-    .from(schema.myPlans)
-    .where(
-      and(
-        eq(schema.myPlans.id, planId),
-        eq(schema.myPlans.userId, userId)
-      )
-    )
-    .get();
+  const plan = await myPlanRepo.findByIdAndUserId(planId, userId);
 
   if (!plan) return c.json({ error: "MyPlan not found" }, 404);
   if (!plan.isActive) return c.json({ error: "MyPlan is not active" }, 400);
 
-  const createdCount = generateScheduleFromMyPlan(planId, userId, {
+  const createdCount = await generateScheduleFromMyPlan(planId, userId, {
     name: plan.name,
     weeklySchedule: plan.weeklySchedule as Record<string, Array<{ period: number; duration: number; title: string }>>,
   });
