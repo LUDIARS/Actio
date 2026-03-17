@@ -223,116 +223,74 @@ export function Dashboard() {
         )}
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem", marginBottom: "1rem" }}>
-        {/* 今日の予定 */}
-        <div className="card">
-          <h3 style={{ fontSize: "0.9rem", fontWeight: 600, marginBottom: "0.75rem" }}>
-            今日の予定 ({DAY_LABELS[todayDow]}曜日)
-          </h3>
-          {loading ? (
-            <div style={{ color: "var(--text-muted)", fontSize: "0.85rem" }}>読み込み中...</div>
-          ) : todayEvents.length === 0 ? (
-            <div className="empty-state" style={{ padding: "1rem" }}>
-              <p>今日の予定はありません</p>
-            </div>
-          ) : (
-            <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-              {todayEvents.map((evt) => (
-                <div
-                  key={evt.id}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "0.5rem",
-                    padding: "0.4rem 0.5rem",
-                    background: "var(--bg-surface-2)",
-                    borderRadius: "var(--radius-sm)",
-                    fontSize: "0.8rem",
-                  }}
-                >
-                  <span style={{
-                    fontSize: "0.7rem",
-                    color: "var(--text-muted)",
-                    minWidth: 90,
-                  }}>
-                    {getPeriodLabel(evt.period).split("(")[1]?.replace(")", "") || getPeriodLabel(evt.period)}
-                  </span>
-                  <span style={{ fontWeight: 500 }}>{evt.title}</span>
-                  <span className={`badge ${evt.eventType === "personal" ? "orange" : "purple"}`} style={{ fontSize: "0.65rem", marginLeft: "auto" }}>
-                    {evt.eventType === "personal" ? "個人" : "イベント"}
-                  </span>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* Google Calendar 直近のイベント */}
-          {googleEvents.length > 0 && (
-            <div style={{ marginTop: "0.75rem", borderTop: "1px solid var(--border)", paddingTop: "0.75rem" }}>
-              <h4 style={{ fontSize: "0.8rem", color: "var(--text-muted)", marginBottom: "0.5rem" }}>
-                Google Calendar (直近)
-              </h4>
-              {googleEvents.slice(0, 5).map((evt) => (
-                <div
-                  key={evt.id}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "0.5rem",
-                    padding: "0.3rem 0.5rem",
-                    fontSize: "0.75rem",
-                    color: "var(--text-muted)",
-                  }}
-                >
-                  <span style={{ minWidth: 90 }}>
-                    {evt.start ? new Date(evt.start).toLocaleDateString("ja-JP", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }) : ""}
-                  </span>
-                  <span style={{ color: "var(--text)" }}>{evt.title}</span>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* クイックアクセス */}
-        <div className="card">
-          <h3 style={{ fontSize: "0.9rem", fontWeight: 600, marginBottom: "0.75rem" }}>
-            クイックアクセス
-          </h3>
+      {/* 今日の予定 */}
+      <div className="card" style={{ marginBottom: "1rem" }}>
+        <h3 style={{ fontSize: "0.9rem", fontWeight: 600, marginBottom: "0.75rem" }}>
+          今日の予定 ({DAY_LABELS[todayDow]}曜日)
+        </h3>
+        {loading ? (
+          <div style={{ color: "var(--text-muted)", fontSize: "0.85rem" }}>読み込み中...</div>
+        ) : todayEvents.length === 0 ? (
+          <div className="empty-state" style={{ padding: "1rem" }}>
+            <p>今日の予定はありません</p>
+          </div>
+        ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-            {[
-              { to: "/data-management", label: "M1 データ管理", desc: "CSV取込・手動入力", color: "var(--accent)" },
-              { to: "/curriculum-plan", label: "M2 カリキュラムプラン", desc: "時間割組立", color: "var(--purple)" },
-              { to: "/my-plan", label: "マイプラン", desc: "週間ルーティーン設定", color: "var(--green)" },
-              { to: "/groups", label: "グループ", desc: "グループ管理・予定", color: "var(--orange)" },
-              { to: "/calendar", label: "カレンダー", desc: "予定・プラン管理", color: "#58a6ff" },
-            ].map((item) => (
-              <Link
-                key={item.to}
-                to={item.to}
+            {todayEvents.map((evt) => (
+              <div
+                key={evt.id}
                 style={{
                   display: "flex",
                   alignItems: "center",
-                  gap: "0.75rem",
-                  padding: "0.5rem 0.75rem",
+                  gap: "0.5rem",
+                  padding: "0.4rem 0.5rem",
                   background: "var(--bg-surface-2)",
                   borderRadius: "var(--radius-sm)",
-                  borderLeft: `3px solid ${item.color}`,
-                  textDecoration: "none",
-                  color: "inherit",
-                  transition: "transform 0.15s",
+                  fontSize: "0.8rem",
                 }}
-                onMouseEnter={(e) => (e.currentTarget.style.transform = "translateX(4px)")}
-                onMouseLeave={(e) => (e.currentTarget.style.transform = "none")}
               >
-                <div>
-                  <div style={{ fontSize: "0.85rem", fontWeight: 600 }}>{item.label}</div>
-                  <div style={{ fontSize: "0.7rem", color: "var(--text-muted)" }}>{item.desc}</div>
-                </div>
-              </Link>
+                <span style={{
+                  fontSize: "0.7rem",
+                  color: "var(--text-muted)",
+                  minWidth: 90,
+                }}>
+                  {getPeriodLabel(evt.period).split("(")[1]?.replace(")", "") || getPeriodLabel(evt.period)}
+                </span>
+                <span style={{ fontWeight: 500 }}>{evt.title}</span>
+                <span className={`badge ${evt.eventType === "personal" ? "orange" : "purple"}`} style={{ fontSize: "0.65rem", marginLeft: "auto" }}>
+                  {evt.eventType === "personal" ? "個人" : "イベント"}
+                </span>
+              </div>
             ))}
           </div>
-        </div>
+        )}
+
+        {/* Google Calendar 直近のイベント */}
+        {googleEvents.length > 0 && (
+          <div style={{ marginTop: "0.75rem", borderTop: "1px solid var(--border)", paddingTop: "0.75rem" }}>
+            <h4 style={{ fontSize: "0.8rem", color: "var(--text-muted)", marginBottom: "0.5rem" }}>
+              Google Calendar (直近)
+            </h4>
+            {googleEvents.slice(0, 5).map((evt) => (
+              <div
+                key={evt.id}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "0.5rem",
+                  padding: "0.3rem 0.5rem",
+                  fontSize: "0.75rem",
+                  color: "var(--text-muted)",
+                }}
+              >
+                <span style={{ minWidth: 90 }}>
+                  {evt.start ? new Date(evt.start).toLocaleDateString("ja-JP", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }) : ""}
+                </span>
+                <span style={{ color: "var(--text)" }}>{evt.title}</span>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* バッティング警告 */}
@@ -524,6 +482,30 @@ export function Dashboard() {
           </span>
         </div>
       </div>
+
+      {/* クイックアクセス */}
+      <Link
+        to="/my-plan"
+        className="card"
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: "0.75rem",
+          marginTop: "1rem",
+          padding: "0.75rem 1rem",
+          borderLeft: "3px solid var(--green)",
+          textDecoration: "none",
+          color: "inherit",
+          transition: "transform 0.15s",
+        }}
+        onMouseEnter={(e) => (e.currentTarget.style.transform = "translateX(4px)")}
+        onMouseLeave={(e) => (e.currentTarget.style.transform = "none")}
+      >
+        <div>
+          <div style={{ fontSize: "0.85rem", fontWeight: 600 }}>マイプラン</div>
+          <div style={{ fontSize: "0.7rem", color: "var(--text-muted)" }}>週間ルーティーン設定</div>
+        </div>
+      </Link>
     </div>
   );
 }
