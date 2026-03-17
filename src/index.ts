@@ -12,6 +12,12 @@ import type { SchulaModule } from "./shared/types.js";
 
 const app = new Hono();
 
+// ─── Global Error Handler ───────────────────────────────────
+app.onError((err, c) => {
+  console.error(`[server] 未処理エラー: ${c.req.method} ${c.req.path}`, err);
+  return c.json({ error: "Internal server error", message: err.message }, 500);
+});
+
 // ─── Global Middleware ──────────────────────────────────────
 app.use("*", cors());
 app.use("*", logger());
