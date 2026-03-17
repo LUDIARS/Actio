@@ -1,107 +1,72 @@
 import { Hono } from "hono";
 import { v4 as uuidv4 } from "uuid";
-import { db, schema } from "../../src/db/connection.js";
-import { eq, and } from "drizzle-orm";
-import { requireRole } from "../../src/middleware/auth.js";
 import { getUserId } from "../../src/middleware/getUserId.js";
+import {
+  groupRepo,
+  groupMemberRepo,
+  groupScheduleRepo,
+  userRepo,
+} from "../../src/db/repository.js";
 
 const groupRoutes = new Hono();
 
 // ─── GET /my - 自分が所属するグループ一覧 ────────────────────
 
-groupRoutes.get("/my", (c) => {
+groupRoutes.get("/my", async (c) => {
   const userId = getUserId(c);
   if (!userId) return c.json({ error: "Authentication required" }, 401);
 
-  const memberships = db
-    .select()
-    .from(schema.groupMembers)
-    .where(eq(schema.groupMembers.userId, userId))
-    .all();
+  const memberships = await groupMemberRepo.findByUserId(userId);
 
-  const groups = memberships.map((m) => {
-    const group = db
-      .select()
-      .from(schema.groups)
-      .where(eq(schema.groups.id, m.groupId))
-      .get();
+  const groups = [];
+  for (const m of memberships) {
+    const group = await groupRepo.findById(m.groupId);
+    if (!group) continue;
 
-    if (!group) return null;
-
-    const memberCount = db
-      .select()
-      .from(schema.groupMembers)
-      .where(eq(schema.groupMembers.groupId, m.groupId))
-      .all().length;
-
-    return {
+    const members = await groupMemberRepo.findByGroupId(m.groupId);
+    groups.push({
       id: group.id,
       name: group.name,
       description: group.description,
-      memberCount,
+      memberCount: members.length,
       role: m.role,
       createdAt: group.createdAt,
-    };
-  }).filter(Boolean);
+    });
+  }
 
   return c.json({ groups });
 });
 
 // ─── GET /:id - グループ詳細 ──────────────────────────────────
 
-groupRoutes.get("/:id", (c) => {
+groupRoutes.get("/:id", async (c) => {
   const userId = getUserId(c);
   if (!userId) return c.json({ error: "Authentication required" }, 401);
 
   const groupId = c.req.param("id");
-  const group = db
-    .select()
-    .from(schema.groups)
-    .where(eq(schema.groups.id, groupId))
-    .get();
+  const group = await groupRepo.findById(groupId);
 
   if (!group) return c.json({ error: "Group not found" }, 404);
 
   // メンバーシップ確認
-  const membership = db
-    .select()
-    .from(schema.groupMembers)
-    .where(
-      and(
-        eq(schema.groupMembers.groupId, groupId),
-        eq(schema.groupMembers.userId, userId)
-      )
-    )
-    .get();
-
+  const membership = await groupMemberRepo.findByGroupAndUser(groupId, userId);
   if (!membership) return c.json({ error: "Not a member of this group" }, 403);
 
   // メンバー一覧
-  const members = db
-    .select()
-    .from(schema.groupMembers)
-    .where(eq(schema.groupMembers.groupId, groupId))
-    .all()
-    .map((m) => {
-      const user = db
-        .select()
-        .from(schema.users)
-        .where(eq(schema.users.id, m.userId))
-        .get();
-      return {
-        userId: m.userId,
-        name: user?.name || "Unknown",
-        email: user?.email || "",
-        role: m.role,
-      };
+  const memberRows = await groupMemberRepo.findByGroupId(groupId);
+  const members = [];
+  for (const m of memberRows) {
+    const user = await userRepo.findById(m.userId);
+    members.push({
+      userId: m.userId,
+      name: user?.name || "Unknown",
+      email: user?.email || "",
+      role: m.role,
     });
+  }
 
   // グループの予定
-  const schedules = db
-    .select()
-    .from(schema.groupSchedules)
-    .where(eq(schema.groupSchedules.groupId, groupId))
-    .all();
+  const schedules = await groupScheduleRepo.findByGroupId(groupId);
 
   return c.json({
     group: {
@@ -114,9 +79,9 @@ groupRoutes.get("/:id", (c) => {
   });
 });
 
-// ─── POST / - グループ作成 (管理者のみ) ──────────────────────
+// ─── POST / - グループ作成 ──────────────────────────────────
 
-groupRoutes.post("/", requireRole("admin"), async (c) => {
+groupRoutes.post("/", async (c) => {
   const userId = getUserId(c);
   if (!userId) return c.json({ error: "Authentication required" }, 401);
 
@@ -126,130 +91,81 @@ groupRoutes.post("/", requireRole("admin"), async (c) => {
   const groupId = uuidv4();
   const now = new Date();
 
-  db.insert(schema.groups)
-    .values({
-      id: groupId,
-      name: body.name,
-      description: body.description || null,
-      members: [userId],
-      createdBy: userId,
-      createdAt: now,
-    })
-    .run();
+  await groupRepo.create({
+    id: groupId,
+    name: body.name,
+    description: body.description || null,
+    members: [userId],
+    createdBy: userId,
+    createdAt: now,
+  });
 
   // 作成者をownerとして追加
-  db.insert(schema.groupMembers)
-    .values({
-      id: uuidv4(),
-      groupId,
-      userId,
-      role: "owner",
-      joinedAt: now,
-    })
-    .run();
+  await groupMemberRepo.create({
+    id: uuidv4(),
+    groupId,
+    userId,
+    role: "owner",
+    joinedAt: now,
+  });
 
   return c.json({ groupId, message: "Group created" }, 201);
 });
 
 // ─── POST /:id/join - グループに参加 ─────────────────────────
 
-groupRoutes.post("/:id/join", (c) => {
+groupRoutes.post("/:id/join", async (c) => {
   const userId = getUserId(c);
   if (!userId) return c.json({ error: "Authentication required" }, 401);
 
   const groupId = c.req.param("id");
-  const group = db
-    .select()
-    .from(schema.groups)
-    .where(eq(schema.groups.id, groupId))
-    .get();
+  const group = await groupRepo.findById(groupId);
 
   if (!group) return c.json({ error: "Group not found" }, 404);
 
   // 既存メンバーかチェック
-  const existing = db
-    .select()
-    .from(schema.groupMembers)
-    .where(
-      and(
-        eq(schema.groupMembers.groupId, groupId),
-        eq(schema.groupMembers.userId, userId)
-      )
-    )
-    .get();
-
+  const existing = await groupMemberRepo.findByGroupAndUser(groupId, userId);
   if (existing) return c.json({ error: "Already a member" }, 409);
 
-  db.insert(schema.groupMembers)
-    .values({
-      id: uuidv4(),
-      groupId,
-      userId,
-      role: "member",
-      joinedAt: new Date(),
-    })
-    .run();
+  await groupMemberRepo.create({
+    id: uuidv4(),
+    groupId,
+    userId,
+    role: "member",
+    joinedAt: new Date(),
+  });
 
   // groups.members JSON も更新
   const currentMembers = (group.members as string[]) || [];
-  db.update(schema.groups)
-    .set({ members: [...currentMembers, userId] })
-    .where(eq(schema.groups.id, groupId))
-    .run();
+  await groupRepo.update(groupId, { members: [...currentMembers, userId] });
 
   return c.json({ message: "Joined group" });
 });
 
 // ─── POST /:id/leave - グループから脱退 ──────────────────────
 
-groupRoutes.post("/:id/leave", (c) => {
+groupRoutes.post("/:id/leave", async (c) => {
   const userId = getUserId(c);
   if (!userId) return c.json({ error: "Authentication required" }, 401);
 
   const groupId = c.req.param("id");
 
-  const membership = db
-    .select()
-    .from(schema.groupMembers)
-    .where(
-      and(
-        eq(schema.groupMembers.groupId, groupId),
-        eq(schema.groupMembers.userId, userId)
-      )
-    )
-    .get();
-
+  const membership = await groupMemberRepo.findByGroupAndUser(groupId, userId);
   if (!membership) return c.json({ error: "Not a member" }, 404);
 
-  db.delete(schema.groupMembers)
-    .where(
-      and(
-        eq(schema.groupMembers.groupId, groupId),
-        eq(schema.groupMembers.userId, userId)
-      )
-    )
-    .run();
+  await groupMemberRepo.deleteByGroupAndUser(groupId, userId);
 
   // groups.members JSON も更新
-  const group = db
-    .select()
-    .from(schema.groups)
-    .where(eq(schema.groups.id, groupId))
-    .get();
-
+  const group = await groupRepo.findById(groupId);
   if (group) {
     const updatedMembers = ((group.members as string[]) || []).filter((m) => m !== userId);
-    db.update(schema.groups)
-      .set({ members: updatedMembers })
-      .where(eq(schema.groups.id, groupId))
-      .run();
+    await groupRepo.update(groupId, { members: updatedMembers });
   }
 
   return c.json({ message: "Left group" });
 });
 
 // ─── POST /:id/schedules - グループ予定追加 ──────────────────
-// グループの予定は削除不可
 
 groupRoutes.post("/:id/schedules", async (c) => {
   const userId = getUserId(c);
@@ -258,17 +174,7 @@ groupRoutes.post("/:id/schedules", async (c) => {
   const groupId = c.req.param("id");
 
   // メンバーシップ確認
-  const membership = db
-    .select()
-    .from(schema.groupMembers)
-    .where(
-      and(
-        eq(schema.groupMembers.groupId, groupId),
-        eq(schema.groupMembers.userId, userId)
-      )
-    )
-    .get();
-
+  const membership = await groupMemberRepo.findByGroupAndUser(groupId, userId);
   if (!membership) return c.json({ error: "Not a member" }, 403);
 
   const body = await c.req.json<{
@@ -289,26 +195,20 @@ groupRoutes.post("/:id/schedules", async (c) => {
 
   const id = uuidv4();
 
-  db.insert(schema.groupSchedules)
-    .values({
-      id,
-      groupId,
-      title: body.title,
-      day: body.day,
-      period: body.period,
-      duration: body.duration || 1,
-      date: body.date || null,
-      scheduleType: body.scheduleType || "recurring",
-      createdBy: userId,
-      createdAt: new Date(),
-    })
-    .run();
+  await groupScheduleRepo.create({
+    id,
+    groupId,
+    title: body.title,
+    day: body.day,
+    period: body.period,
+    duration: body.duration || 1,
+    date: body.date || null,
+    scheduleType: body.scheduleType || "recurring",
+    createdBy: userId,
+    createdAt: new Date(),
+  });
 
-  const created = db
-    .select()
-    .from(schema.groupSchedules)
-    .where(eq(schema.groupSchedules.id, id))
-    .get();
+  const created = await groupScheduleRepo.findById(id);
 
   return c.json({ schedule: created }, 201);
 });

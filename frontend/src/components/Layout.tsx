@@ -12,28 +12,46 @@ interface NavItem {
   to: string;
   label: string;
   adminOnly?: boolean;
+  removable?: boolean;
 }
 
 const NAV_ITEMS: NavItem[] = [
   { to: "/", label: "Dashboard" },
-  { to: "/schema-management", label: "M1 スキーマ管理", adminOnly: true },
-  { to: "/data-management", label: "M1 データ管理", adminOnly: true },
-  { to: "/curriculum-plan", label: "M2 カリキュラムプラン" },
-  { to: "/my-plan", label: "マイプラン" },
-  { to: "/groups", label: "グループ" },
-  { to: "/calendar", label: "カレンダー" },
-  { to: "/scheduler", label: "スケジューラ" },
-  { to: "/smart-scheduler", label: "自動配置" },
-  { to: "/reservations", label: "予約" },
-  { to: "/notifications", label: "通知" },
-  { to: "/voting", label: "日程調整" },
+  { to: "/schema-management", label: "M1 スキーマ管理", adminOnly: true, removable: true },
+  { to: "/data-management", label: "M1 データ管理", adminOnly: true, removable: true },
+  { to: "/curriculum-plan", label: "M2 カリキュラムプラン", removable: true },
+  { to: "/my-plan", label: "マイプラン", removable: true },
+  { to: "/groups", label: "グループ", removable: true },
+  { to: "/calendar", label: "カレンダー", removable: true },
+  { to: "/scheduler", label: "スケジューラ", removable: true },
+  { to: "/smart-scheduler", label: "自動配置", removable: true },
+  { to: "/reservations", label: "M4 予約", removable: true },
+  { to: "/notifications", label: "M5 通知", removable: true },
+  { to: "/voting", label: "M6 日程調整", removable: true },
   { to: "/admin/users", label: "ユーザー管理" },
   { to: "/admin/db", label: "DB Viewer", adminOnly: true },
 ];
 
+const HIDDEN_MODULES_KEY = "schedula_hidden_modules";
+
+function getHiddenModules(): string[] {
+  try {
+    const raw = localStorage.getItem(HIDDEN_MODULES_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
+function setHiddenModules(hidden: string[]) {
+  localStorage.setItem(HIDDEN_MODULES_KEY, JSON.stringify(hidden));
+}
+
 export function Layout() {
   const { user, logout } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [editMode, setEditMode] = useState(false);
+  const [hiddenModules, setHiddenModulesState] = useState<string[]>(getHiddenModules);
   const location = useLocation();
 
   // Close sidebar on route change
@@ -48,6 +66,20 @@ export function Layout() {
   const closeSidebar = useCallback(() => {
     setSidebarOpen(false);
   }, []);
+
+  const toggleModule = (to: string) => {
+    setHiddenModulesState((prev) => {
+      const next = prev.includes(to) ? prev.filter((m) => m !== to) : [...prev, to];
+      setHiddenModules(next);
+      return next;
+    });
+  };
+
+  const visibleItems = NAV_ITEMS.filter((item) => {
+    if (item.adminOnly && user?.role !== "admin") return false;
+    if (!editMode && hiddenModules.includes(item.to)) return false;
+    return true;
+  });
 
   return (
     <div className="layout-root">
@@ -74,7 +106,24 @@ export function Layout() {
 
       <aside className={`sidebar ${sidebarOpen ? "sidebar--open" : ""}`}>
         <div className="sidebar-header">
-          <h2 style={{ fontSize: "1rem", fontWeight: 700 }}>Schedula</h2>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <h2 style={{ fontSize: "1rem", fontWeight: 700 }}>Schedula</h2>
+            <button
+              onClick={() => setEditMode((prev) => !prev)}
+              style={{
+                background: editMode ? "var(--accent)" : "var(--bg-surface-2)",
+                border: "1px solid var(--border)",
+                borderRadius: "var(--radius-sm)",
+                padding: "0.15rem 0.4rem",
+                fontSize: "0.65rem",
+                color: editMode ? "#000" : "var(--text-muted)",
+                cursor: "pointer",
+              }}
+              title="モジュールの表示/非表示を切り替え"
+            >
+              {editMode ? "完了" : "編集"}
+            </button>
+          </div>
           <span
             style={{
               fontSize: "0.7rem",
@@ -85,27 +134,52 @@ export function Layout() {
           </span>
         </div>
         <nav style={{ display: "flex", flexDirection: "column", gap: 2, flex: 1 }}>
-          {NAV_ITEMS
-            .filter((item) => !item.adminOnly || user?.role === "admin")
-            .map((item) => (
-            <NavLink
-              key={item.to}
-              to={item.to}
-              end={item.to === "/"}
-              style={({ isActive }) => ({
-                padding: "0.5rem 1rem",
-                fontSize: "0.85rem",
-                color: isActive ? "var(--text)" : "var(--text-muted)",
-                background: isActive ? "var(--bg-surface-2)" : "transparent",
-                borderLeft: isActive
-                  ? "2px solid var(--accent)"
-                  : "2px solid transparent",
-                textDecoration: "none",
-                transition: "all 0.15s",
-              })}
-            >
-              {item.label}
-            </NavLink>
+          {visibleItems.map((item) => (
+            <div key={item.to} style={{ display: "flex", alignItems: "center" }}>
+              {editMode && item.removable && (
+                <button
+                  onClick={() => toggleModule(item.to)}
+                  style={{
+                    background: "transparent",
+                    border: "none",
+                    cursor: "pointer",
+                    padding: "0.3rem 0.25rem 0.3rem 0.5rem",
+                    fontSize: "0.75rem",
+                    color: hiddenModules.includes(item.to) ? "var(--green)" : "var(--red)",
+                    flexShrink: 0,
+                  }}
+                  title={hiddenModules.includes(item.to) ? "表示する" : "非表示にする"}
+                >
+                  {hiddenModules.includes(item.to) ? "+" : "−"}
+                </button>
+              )}
+              <NavLink
+                to={item.to}
+                end={item.to === "/"}
+                style={({ isActive }) => ({
+                  padding: "0.5rem 1rem",
+                  fontSize: "0.85rem",
+                  color: hiddenModules.includes(item.to)
+                    ? "var(--text-muted)"
+                    : isActive ? "var(--text)" : "var(--text-muted)",
+                  background: isActive && !hiddenModules.includes(item.to) ? "var(--bg-surface-2)" : "transparent",
+                  borderLeft: isActive && !hiddenModules.includes(item.to)
+                    ? "2px solid var(--accent)"
+                    : "2px solid transparent",
+                  textDecoration: hiddenModules.includes(item.to) ? "line-through" : "none",
+                  opacity: hiddenModules.includes(item.to) ? 0.5 : 1,
+                  transition: "all 0.15s",
+                  flex: 1,
+                })}
+                onClick={(e) => {
+                  if (editMode && hiddenModules.includes(item.to)) {
+                    e.preventDefault();
+                  }
+                }}
+              >
+                {item.label}
+              </NavLink>
+            </div>
           ))}
         </nav>
 
