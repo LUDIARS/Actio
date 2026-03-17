@@ -30,6 +30,10 @@ services:
       DB_DIALECT: postgres
       DATABASE_URL: postgresql://schedula:schedula@db:5432/schedula
       JWT_SECRET: ${JWT_SECRET:-change-me-in-production}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      GOOGLE_REDIRECT_URI: ${GOOGLE_REDIRECT_URI:-}
+      FRONTEND_URL: ${FRONTEND_URL:-}
     depends_on:
       db:
         condition: service_healthy
