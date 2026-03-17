@@ -120,18 +120,73 @@ export const memberProfiles = sqliteTable("member_profiles", {
     .notNull(),
 });
 
-// ─── M3: Groups ─────────────────────────────────────────────
+// ─── Groups ─────────────────────────────────────────────────
 
 export const groups = sqliteTable("groups", {
   id: text("id").primaryKey(),
   name: text("name").notNull(),
-  /** JSON array of member user IDs */
+  description: text("description"),
+  /** JSON array of member user IDs (legacy, kept for backward compat) */
   members: text("members", { mode: "json" }).$type<string[]>().notNull().default([]),
   createdBy: text("created_by").notNull(),
   createdAt: integer("created_at", { mode: "timestamp" })
     .$defaultFn(() => new Date())
     .notNull(),
 });
+
+// ─── Group Members (多対多: ユーザーは複数グループに所属可) ─────
+
+export const groupMembers = sqliteTable(
+  "group_members",
+  {
+    id: text("id").primaryKey(),
+    groupId: text("group_id")
+      .references(() => groups.id)
+      .notNull(),
+    userId: text("user_id")
+      .references(() => users.id)
+      .notNull(),
+    role: text("role").notNull().default("member"), // owner / admin / member
+    joinedAt: integer("joined_at", { mode: "timestamp" })
+      .$defaultFn(() => new Date())
+      .notNull(),
+  },
+  (table) => [
+    unique("unique_group_member").on(table.groupId, table.userId),
+    index("idx_group_member_user").on(table.userId),
+    index("idx_group_member_group").on(table.groupId),
+  ]
+);
+
+// ─── Group Schedules (グループ固有の予定) ────────────────────
+// グループの予定は削除不可（個人の予定のみ個別に追加・削除可能）
+
+export const groupSchedules = sqliteTable(
+  "group_schedules",
+  {
+    id: text("id").primaryKey(),
+    groupId: text("group_id")
+      .references(() => groups.id)
+      .notNull(),
+    title: text("title").notNull(),
+    description: text("description"),
+    day: integer("day").notNull(), // 0-6
+    period: integer("period").notNull(), // 0-10
+    duration: integer("duration").notNull().default(1),
+    /** 特定日付の予定の場合 (YYYY-MM-DD) */
+    date: text("date"),
+    /** recurring = 毎週繰り返し, oneshot = 特定日のみ */
+    scheduleType: text("schedule_type").notNull().default("recurring"),
+    createdBy: text("created_by").notNull(),
+    createdAt: integer("created_at", { mode: "timestamp" })
+      .$defaultFn(() => new Date())
+      .notNull(),
+  },
+  (table) => [
+    index("idx_group_schedule_group").on(table.groupId),
+    index("idx_group_schedule_date").on(table.date),
+  ]
+);
 
 // ─── M4: Reservations ───────────────────────────────────────
 
@@ -234,6 +289,46 @@ export const plans = sqliteTable(
   },
   (table) => [
     index("idx_plan_user").on(table.userId),
+  ]
+);
+
+// ─── My Plans (マイプラン: 週間ルーティーン) ──────────────────
+// 基本パターンと特別パターンを持ち、特別パターンが優先される
+// マイプランを設定すると今後の予定が自動的に生成される
+
+export const myPlans = sqliteTable(
+  "my_plans",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .references(() => users.id)
+      .notNull(),
+    /** グループ用マイプランの場合 */
+    groupId: text("group_id"),
+    name: text("name").notNull(),
+    /** basic = 基本パターン, special = 特別パターン（優先） */
+    patternType: text("pattern_type").notNull().default("basic"),
+    /** 適用開始日 (YYYY-MM-DD) */
+    validFrom: text("valid_from"),
+    /** 適用終了日 (YYYY-MM-DD)、nullなら無期限 */
+    validUntil: text("valid_until"),
+    /** 週間スケジュール: JSON { "0": [{ period, duration, title }], ... } */
+    weeklySchedule: text("weekly_schedule", { mode: "json" }).$type<
+      Record<string, Array<{ period: number; duration: number; title: string }>>
+    >().notNull().default({}),
+    isActive: integer("is_active", { mode: "boolean" }).notNull().default(true),
+    /** 優先度（同一期間に複数パターンがある場合の優先順位、大きいほど優先） */
+    priority: integer("priority").notNull().default(0),
+    createdAt: integer("created_at", { mode: "timestamp" })
+      .$defaultFn(() => new Date())
+      .notNull(),
+    updatedAt: integer("updated_at", { mode: "timestamp" })
+      .$defaultFn(() => new Date())
+      .notNull(),
+  },
+  (table) => [
+    index("idx_myplan_user").on(table.userId),
+    index("idx_myplan_group").on(table.groupId),
   ]
 );
 
