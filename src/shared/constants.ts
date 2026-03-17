@@ -57,11 +57,17 @@ export type ReservationStatus = (typeof RESERVATION_STATUSES)[number];
 /** User roles */
 export const USER_ROLES = [
   "admin",
-  "teacher",
-  "student",
-  "guest",
+  "group_leader",
+  "general",
 ] as const;
 export type UserRole = (typeof USER_ROLES)[number];
+
+/** ロール表示ラベル (日本語) */
+export const USER_ROLE_LABELS: Record<UserRole, string> = {
+  admin: "管理者",
+  group_leader: "グループリーダー",
+  general: "一般",
+};
 
 /** Schedule generation modes */
 export const SCHEDULE_MODES = ["pack", "spread"] as const;

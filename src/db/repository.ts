@@ -5,7 +5,7 @@
  * ルートハンドラが直接 Drizzle クエリを書かなくて済むようにする。
  */
 
-import { eq } from "drizzle-orm";
+import { eq, count } from "drizzle-orm";
 import { db, schema } from "./connection.js";
 
 // ─── Types ──────────────────────────────────────────────────
@@ -40,6 +40,13 @@ export const userRepo = {
       .from(schema.users)
       .where(eq(schema.users.googleId, googleId));
     return user;
+  },
+
+  async countAll(): Promise<number> {
+    const [result] = await db
+      .select({ value: count() })
+      .from(schema.users);
+    return result?.value ?? 0;
   },
 
   async create(data: NewUser): Promise<void> {

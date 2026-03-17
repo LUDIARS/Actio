@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import { v4 as uuidv4 } from "uuid";
 import { db, schema } from "../../src/db/connection.js";
 import { eq, and } from "drizzle-orm";
+import { requireRole } from "../../src/middleware/auth.js";
 
 const groupRoutes = new Hono();
 
@@ -112,9 +113,9 @@ groupRoutes.get("/:id", (c) => {
   });
 });
 
-// ─── POST / - グループ作成 ────────────────────────────────────
+// ─── POST / - グループ作成 (管理者のみ) ──────────────────────
 
-groupRoutes.post("/", async (c) => {
+groupRoutes.post("/", requireRole("admin"), async (c) => {
   const userId = c.req.header("X-User-Id");
   if (!userId) return c.json({ error: "Authentication required" }, 401);
 

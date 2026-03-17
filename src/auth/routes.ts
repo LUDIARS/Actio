@@ -67,12 +67,17 @@ auth.post("/register", async (c) => {
     const passwordHash = await bcrypt.hash(body.password, 12);
     const now = new Date();
 
+    // 最初のユーザーは自動的に管理者(admin)になる
+    const userCount = await userRepo.countAll();
+    const assignedRole = userCount === 0 ? "admin" : "general";
+    console.log(`[auth:register] ロール決定: ${assignedRole} (既存ユーザー数: ${userCount})`);
+
     console.log("[auth:register] ユーザレコード挿入中... userId:", userId);
     await userRepo.create({
       id: userId,
       name: body.name,
       email: body.email,
-      role: body.role || "student",
+      role: assignedRole,
       major: body.major || null,
       passwordHash,
       createdAt: now,
@@ -80,7 +85,7 @@ auth.post("/register", async (c) => {
     });
     console.log("[auth:register] ユーザレコード挿入完了");
 
-    const { accessToken, refreshToken } = generateTokens(userId, body.role || "student");
+    const { accessToken, refreshToken } = generateTokens(userId, assignedRole);
     console.log("[auth:register] トークン生成完了");
 
     // Save session
@@ -99,7 +104,7 @@ auth.post("/register", async (c) => {
 
     console.log("[auth:register] 登録成功 userId:", userId);
     return c.json({
-      user: { id: userId, name: body.name, email: body.email, role: body.role || "student" },
+      user: { id: userId, name: body.name, email: body.email, role: assignedRole },
       accessToken,
       refreshToken,
     }, 201);
@@ -355,11 +360,15 @@ auth.get("/google/callback", async (c) => {
       // Create new user from Google profile
       console.log("[auth:google:callback] 新規ユーザ作成");
       const userId = uuidv4();
+      // 最初のユーザーは自動的に管理者(admin)になる
+      const userCount = await userRepo.countAll();
+      const assignedRole = userCount === 0 ? "admin" : "general";
+      console.log(`[auth:google:callback] ロール決定: ${assignedRole} (既存ユーザー数: ${userCount})`);
       await userRepo.create({
         id: userId,
         name: userInfo.name,
         email: userInfo.email,
-        role: "student",
+        role: assignedRole,
         googleId: userInfo.id,
         googleAccessToken: tokenData.access_token,
         googleRefreshToken: tokenData.refresh_token || null,
@@ -443,6 +452,216 @@ auth.get("/me", async (c) => {
     });
   } catch (err) {
     console.warn("[auth:me] トークン検証失敗:", err);
+    return c.json({ error: "Invalid or expired token" }, 401);
+  }
+});
+
+// ─── GET /users/list - ユーザー一覧取得 (全ユーザー対応) ──────
+// 管理者: 全ユーザーを返す
+// 一般ユーザー・グループリーダー: 同じグループに所属するユーザーのみ返す
+
+auth.get("/users/list", async (c) => {
+  console.log("[auth:users:list] リクエスト受信");
+
+  const authHeader = c.req.header("Authorization");
+  if (!authHeader?.startsWith("Bearer ")) {
+    return c.json({ error: "No token provided" }, 401);
+  }
+
+  try {
+    const token = authHeader.slice(7);
+    const payload = jwt.verify(token, JWT_SECRET) as { userId: string; role: string };
+
+    const { db, schema } = await import("../db/connection.js");
+    const { eq, inArray } = await import("drizzle-orm");
+
+    if (payload.role === "admin") {
+      // 管理者は全ユーザーを取得
+      const users = db.select({
+        id: schema.users.id,
+        name: schema.users.name,
+        email: schema.users.email,
+        role: schema.users.role,
+        major: schema.users.major,
+        createdAt: schema.users.createdAt,
+      }).from(schema.users).all();
+
+      // 各ユーザーの所属グループ情報を取得
+      const usersWithGroups = users.map((u) => {
+        const memberships = db.select({
+          groupId: schema.groupMembers.groupId,
+          groupRole: schema.groupMembers.role,
+        }).from(schema.groupMembers)
+          .where(eq(schema.groupMembers.userId, u.id))
+          .all();
+
+        const groupDetails = memberships.map((m) => {
+          const group = db.select({
+            id: schema.groups.id,
+            name: schema.groups.name,
+          }).from(schema.groups)
+            .where(eq(schema.groups.id, m.groupId))
+            .get();
+          return group ? { id: group.id, name: group.name, role: m.groupRole } : null;
+        }).filter(Boolean);
+
+        return { ...u, groups: groupDetails };
+      });
+
+      return c.json({ users: usersWithGroups });
+    }
+
+    // 一般ユーザー・グループリーダー: 同じグループのユーザーのみ
+    // 1. 自分が所属するグループIDを取得
+    const myMemberships = db.select({
+      groupId: schema.groupMembers.groupId,
+    }).from(schema.groupMembers)
+      .where(eq(schema.groupMembers.userId, payload.userId))
+      .all();
+
+    const myGroupIds = myMemberships.map((m) => m.groupId);
+
+    if (myGroupIds.length === 0) {
+      // グループ未所属の場合は自分だけ返す
+      const me = db.select({
+        id: schema.users.id,
+        name: schema.users.name,
+        email: schema.users.email,
+        role: schema.users.role,
+        major: schema.users.major,
+        createdAt: schema.users.createdAt,
+      }).from(schema.users)
+        .where(eq(schema.users.id, payload.userId))
+        .all();
+
+      return c.json({ users: me.map((u) => ({ ...u, groups: [] })) });
+    }
+
+    // 2. 同じグループに所属するユーザーIDを取得
+    const sameGroupMembers = db.select({
+      userId: schema.groupMembers.userId,
+    }).from(schema.groupMembers)
+      .where(inArray(schema.groupMembers.groupId, myGroupIds))
+      .all();
+
+    const userIds = [...new Set(sameGroupMembers.map((m) => m.userId))];
+
+    // 3. ユーザー情報を取得
+    const users = db.select({
+      id: schema.users.id,
+      name: schema.users.name,
+      email: schema.users.email,
+      role: schema.users.role,
+      major: schema.users.major,
+      createdAt: schema.users.createdAt,
+    }).from(schema.users)
+      .where(inArray(schema.users.id, userIds))
+      .all();
+
+    // 同じグループに属するグループ情報のみ付与
+    const usersWithGroups = users.map((u) => {
+      const memberships = db.select({
+        groupId: schema.groupMembers.groupId,
+        groupRole: schema.groupMembers.role,
+      }).from(schema.groupMembers)
+        .where(eq(schema.groupMembers.userId, u.id))
+        .all()
+        .filter((m) => myGroupIds.includes(m.groupId));
+
+      const groupDetails = memberships.map((m) => {
+        const group = db.select({
+          id: schema.groups.id,
+          name: schema.groups.name,
+        }).from(schema.groups)
+          .where(eq(schema.groups.id, m.groupId))
+          .get();
+        return group ? { id: group.id, name: group.name, role: m.groupRole } : null;
+      }).filter(Boolean);
+
+      return { ...u, groups: groupDetails };
+    });
+
+    return c.json({ users: usersWithGroups });
+  } catch (err) {
+    console.error("[auth:users:list] エラー:", err);
+    return c.json({ error: "Invalid or expired token" }, 401);
+  }
+});
+
+// ─── GET /users - ユーザー一覧取得 (管理者のみ) ─────────────
+
+auth.get("/users", async (c) => {
+  console.log("[auth:users] リクエスト受信");
+
+  const authHeader = c.req.header("Authorization");
+  if (!authHeader?.startsWith("Bearer ")) {
+    return c.json({ error: "No token provided" }, 401);
+  }
+
+  try {
+    const token = authHeader.slice(7);
+    const payload = jwt.verify(token, JWT_SECRET) as { userId: string; role: string };
+
+    if (payload.role !== "admin") {
+      return c.json({ error: "管理者権限が必要です" }, 403);
+    }
+
+    const { db, schema } = await import("../db/connection.js");
+    const users = await db.select({
+      id: schema.users.id,
+      name: schema.users.name,
+      email: schema.users.email,
+      role: schema.users.role,
+      createdAt: schema.users.createdAt,
+    }).from(schema.users);
+
+    return c.json({ users });
+  } catch (err) {
+    console.error("[auth:users] エラー:", err);
+    return c.json({ error: "Invalid or expired token" }, 401);
+  }
+});
+
+// ─── PUT /users/:id/role - ロール変更 (管理者のみ) ──────────
+// 管理者は他のユーザーを管理者またはグループリーダーに任命できる
+
+auth.put("/users/:id/role", async (c) => {
+  console.log("[auth:users:role] リクエスト受信");
+
+  const authHeader = c.req.header("Authorization");
+  if (!authHeader?.startsWith("Bearer ")) {
+    return c.json({ error: "No token provided" }, 401);
+  }
+
+  try {
+    const token = authHeader.slice(7);
+    const payload = jwt.verify(token, JWT_SECRET) as { userId: string; role: string };
+
+    if (payload.role !== "admin") {
+      return c.json({ error: "管理者権限が必要です" }, 403);
+    }
+
+    const targetUserId = c.req.param("id");
+    const body = await c.req.json<{ role: string }>();
+
+    if (!["admin", "group_leader", "general"].includes(body.role)) {
+      return c.json({ error: "無効なロールです。admin, group_leader, general のいずれかを指定してください" }, 400);
+    }
+
+    const targetUser = await userRepo.findById(targetUserId);
+    if (!targetUser) {
+      return c.json({ error: "ユーザーが見つかりません" }, 404);
+    }
+
+    await userRepo.update(targetUserId, { role: body.role, updatedAt: new Date() });
+
+    console.log(`[auth:users:role] ロール変更完了: ${targetUserId} → ${body.role}`);
+    return c.json({
+      user: { id: targetUserId, name: targetUser.name, email: targetUser.email, role: body.role },
+      message: "ロールを変更しました",
+    });
+  } catch (err) {
+    console.error("[auth:users:role] エラー:", err);
     return c.json({ error: "Invalid or expired token" }, 401);
   }
 });
