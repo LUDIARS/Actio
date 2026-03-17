@@ -4,6 +4,7 @@ import { useAuth } from "../contexts/AuthContext";
 
 const NAV_ITEMS = [
   { to: "/", label: "Dashboard" },
+  { to: "/schema-management", label: "M1 スキーマ管理" },
   { to: "/data-management", label: "M1 データ管理" },
   { to: "/curriculum-plan", label: "M2 カリキュラムプラン" },
   { to: "/my-plan", label: "マイプラン" },
