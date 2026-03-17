@@ -23,7 +23,6 @@ services:
     environment:
       NODE_ENV: development
       FRONTEND_URL: "http://localhost:${FRONTEND_PORT:-8080}"
-      GOOGLE_REDIRECT_URI: "http://localhost:${FRONTEND_PORT:-8080}/api/auth/google/callback"
     command: ["npm", "run", "dev"]
 
   # ─── Frontend: Vite dev server with HMR ─────────────────────
