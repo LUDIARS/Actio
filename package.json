@@ -15,7 +15,9 @@
     "redis:export": "tsx scripts/redis-export.ts",
     "redis:import": "tsx scripts/redis-import.ts",
     "db:export": "tsx scripts/db-export.ts",
-    "db:import": "tsx scripts/db-import.ts"
+    "db:import": "tsx scripts/db-import.ts",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "repository": {
     "type": "git",
@@ -46,6 +48,7 @@
     "@types/uuid": "^10.0.0",
     "drizzle-kit": "^0.31.9",
     "tsx": "^4.21.0",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.0"
   }
 }
