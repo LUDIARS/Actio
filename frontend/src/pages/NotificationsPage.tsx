@@ -70,6 +70,7 @@ export function NotificationsPage() {
         setPrefs(result);
       }
     } catch (e: any) {
+      console.error("[NotificationsPage] loadData失敗:", e);
       showMsg(`Error: ${e.message}`);
     }
   };
@@ -87,6 +88,7 @@ export function NotificationsPage() {
       showMsg("Webhook created. Save the secret!");
       loadData();
     } catch (e: any) {
+      console.error("[NotificationsPage] handleCreateWebhook失敗:", e);
       showMsg(`Error: ${e.message}`);
     }
   };
@@ -97,6 +99,7 @@ export function NotificationsPage() {
       showMsg("Webhook deleted");
       loadData();
     } catch (e: any) {
+      console.error("[NotificationsPage] handleDeleteWebhook失敗:", e);
       showMsg(`Error: ${e.message}`);
     }
   };
@@ -110,6 +113,7 @@ export function NotificationsPage() {
           : `Test failed: ${result.statusCode}`
       );
     } catch (e: any) {
+      console.error("[NotificationsPage] handleTestWebhook失敗:", e);
       showMsg(`Error: ${e.message}`);
     }
   };
@@ -120,6 +124,7 @@ export function NotificationsPage() {
       setNewSecret(result.secret);
       showMsg("Secret rotated");
     } catch (e: any) {
+      console.error("[NotificationsPage] handleRotateSecret失敗:", e);
       showMsg(`Error: ${e.message}`);
     }
   };
@@ -131,6 +136,7 @@ export function NotificationsPage() {
         prev.map((n) => (n.id === id ? { ...n, isRead: true } : n))
       );
     } catch (e: any) {
+      console.error("[NotificationsPage] handleMarkRead失敗:", e);
       showMsg(`Error: ${e.message}`);
     }
   };

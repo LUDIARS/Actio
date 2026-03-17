@@ -21,6 +21,7 @@ export function LoginPage() {
         await login(email, password);
       }
     } catch (err: any) {
+      console.error("[LoginPage] 認証失敗:", err);
       setError(err.message || "認証に失敗しました");
     } finally {
       setLoading(false);

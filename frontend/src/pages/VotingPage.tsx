@@ -90,6 +90,7 @@ export function VotingPage() {
       const res = await m6Voting.listEvents();
       setEvents(res.events || []);
     } catch (e: any) {
+      console.error("[VotingPage] fetchEvents失敗:", e);
       showMsg(`Error: ${e.message}`);
     }
   };
@@ -115,6 +116,7 @@ export function VotingPage() {
       }
       setVoteForm(initial);
     } catch (e: any) {
+      console.error("[VotingPage] fetchDetail失敗:", e);
       showMsg(`Error: ${e.message}`);
     }
   };
@@ -145,6 +147,7 @@ export function VotingPage() {
       setForm({ title: "", description: "", deadline: "", candidatesText: "" });
       fetchEvents();
     } catch (e: any) {
+      console.error("[VotingPage] handleCreate失敗:", e);
       showMsg(`Error: ${e.message}`);
     }
     setLoading(false);
@@ -164,6 +167,7 @@ export function VotingPage() {
       showMsg("回答を送信しました");
       fetchDetail(selectedEventId);
     } catch (e: any) {
+      console.error("[VotingPage] handleSubmitVotes失敗:", e);
       showMsg(`Error: ${e.message}`);
     }
     setLoading(false);
@@ -179,6 +183,7 @@ export function VotingPage() {
       showMsg(res.message);
       fetchDetail(selectedEventId);
     } catch (e: any) {
+      console.error("[VotingPage] handleAutoReply失敗:", e);
       showMsg(`Error: ${e.message}`);
     }
     setLoading(false);
@@ -195,6 +200,7 @@ export function VotingPage() {
         fetchDetail(eventId);
       }
     } catch (e: any) {
+      console.error("[VotingPage] handleClose失敗:", e);
       showMsg(`Error: ${e.message}`);
     }
   };
@@ -211,6 +217,7 @@ export function VotingPage() {
       }
       fetchEvents();
     } catch (e: any) {
+      console.error("[VotingPage] handleDelete失敗:", e);
       showMsg(`Error: ${e.message}`);
     }
   };

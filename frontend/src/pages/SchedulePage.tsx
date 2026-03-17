@@ -48,6 +48,7 @@ export function SchedulePage() {
       else result = await m1.importCurriculum(csvText);
       showMessage(`${type} imported: ${JSON.stringify(result)}`);
     } catch (e: any) {
+      console.error(`[SchedulePage] handleImport(${type})失敗:`, e);
       showMessage(`Error: ${e.message}`);
     }
   };
@@ -62,6 +63,7 @@ export function SchedulePage() {
         `Generated: ${result.stats?.placed || 0} placed, ${result.stats?.unplaced || 0} unplaced`
       );
     } catch (e: any) {
+      console.error("[SchedulePage] handleGenerate失敗:", e);
       showMessage(`Error: ${e.message}`);
     }
     setLoading(false);
@@ -73,6 +75,7 @@ export function SchedulePage() {
       setEntries(result.entries || []);
       showMessage(`Loaded ${(result.entries || []).length} entries`);
     } catch (e: any) {
+      console.error("[SchedulePage] handleFetch失敗:", e);
       showMessage(`Error: ${e.message}`);
     }
   };
@@ -127,6 +130,7 @@ export function SchedulePage() {
         showMessage(`Swap failed: ${result.message}`);
       }
     } catch (e: any) {
+      console.error("[SchedulePage] handleSwap失敗:", e);
       showMessage(`Swap error: ${e.message}`);
     }
   };
@@ -136,6 +140,7 @@ export function SchedulePage() {
       await m1.confirm();
       showMessage("Schedule confirmed and exported to M2");
     } catch (e: any) {
+      console.error("[SchedulePage] handleConfirm失敗:", e);
       showMessage(`Error: ${e.message}`);
     }
   };

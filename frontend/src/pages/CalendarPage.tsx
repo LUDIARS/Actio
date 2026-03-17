@@ -66,8 +66,8 @@ export function CalendarPage() {
     try {
       const data = await calendarApi.getPersonalEvents();
       setEvents(data.events || []);
-    } catch {
-      /* ignore */
+    } catch (err) {
+      console.error("[CalendarPage] loadEvents失敗:", err);
     }
   }, []);
 
@@ -75,8 +75,8 @@ export function CalendarPage() {
     try {
       const data = await calendarApi.getPlans();
       setPlans(data.plans || []);
-    } catch {
-      /* ignore */
+    } catch (err) {
+      console.error("[CalendarPage] loadPlans失敗:", err);
     }
   }, []);
 
@@ -84,8 +84,8 @@ export function CalendarPage() {
     try {
       const data = await calendarApi.getStatus();
       setGoogleConnected(data.connected);
-    } catch {
-      /* ignore */
+    } catch (err) {
+      console.error("[CalendarPage] loadGoogleStatus失敗:", err);
     }
   }, []);
 
@@ -102,6 +102,7 @@ export function CalendarPage() {
       const data = await calendarApi.getEvents();
       setGoogleEvents(data.events || []);
     } catch (err: any) {
+      console.error("[CalendarPage] loadGoogleEvents失敗:", err);
       setError(err.message || "Googleカレンダーの取得に失敗しました");
     } finally {
       setLoading(false);
@@ -118,6 +119,7 @@ export function CalendarPage() {
       setEventForm({ title: "", description: "", day: 0, period: 0, eventType: "personal", isPrivate: true });
       await loadEvents();
     } catch (err: any) {
+      console.error("[CalendarPage] handleAddEvent失敗:", err);
       setError(err.message || "予定の追加に失敗しました");
     }
   };
@@ -127,6 +129,7 @@ export function CalendarPage() {
       await calendarApi.deletePersonalEvent(id);
       await loadEvents();
     } catch (err: any) {
+      console.error("[CalendarPage] handleDeleteEvent失敗:", err);
       setError(err.message);
     }
   };
@@ -146,6 +149,7 @@ export function CalendarPage() {
       await loadPlans();
       await loadEvents();
     } catch (err: any) {
+      console.error("[CalendarPage] handleAddPlan失敗:", err);
       setError(err.message || "プランの作成に失敗しました");
     }
   };
@@ -156,6 +160,7 @@ export function CalendarPage() {
       await loadPlans();
       await loadEvents();
     } catch (err: any) {
+      console.error("[CalendarPage] handleDeletePlan失敗:", err);
       setError(err.message);
     }
   };
@@ -166,6 +171,7 @@ export function CalendarPage() {
       await loadPlans();
       await loadEvents();
     } catch (err: any) {
+      console.error("[CalendarPage] handleTogglePlan失敗:", err);
       setError(err.message);
     }
   };
@@ -176,6 +182,7 @@ export function CalendarPage() {
       setGoogleConnected(false);
       setGoogleEvents([]);
     } catch (err: any) {
+      console.error("[CalendarPage] handleDisconnectGoogle失敗:", err);
       setError(err.message);
     }
   };

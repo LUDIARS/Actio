@@ -49,6 +49,7 @@ export function ReservationsPage() {
       const result = await m4.listReservations();
       setReservations(result.reservations || []);
     } catch (e: any) {
+      console.error("[ReservationsPage] fetchReservations失敗:", e);
       showMsg(`Error: ${e.message}`);
     }
   };
@@ -78,6 +79,7 @@ export function ReservationsPage() {
       setShowForm(false);
       fetchReservations();
     } catch (e: any) {
+      console.error("[ReservationsPage] handleCreate失敗:", e);
       showMsg(`Error: ${e.message}`);
     }
     setLoading(false);
@@ -89,6 +91,7 @@ export function ReservationsPage() {
       showMsg("Reservation cancelled");
       fetchReservations();
     } catch (e: any) {
+      console.error("[ReservationsPage] handleCancel失敗:", e);
       showMsg(`Error: ${e.message}`);
     }
   };
