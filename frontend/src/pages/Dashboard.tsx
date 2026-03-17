@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
-import { calendarApi } from "../lib/api";
+import { calendarApi, groupApi, myPlanApi } from "../lib/api";
 import { DAY_LABELS, getPeriodLabel } from "../lib/constants";
 
 interface PersonalEvent {
@@ -22,6 +22,23 @@ interface GoogleCalEvent {
   title: string;
   start: string;
   end: string;
+}
+
+interface GroupSchedule {
+  id: string;
+  title: string;
+  day: number;
+  period: number;
+  duration: number;
+  scheduleType: string;
+  groupName: string;
+}
+
+interface MyPlanEvent {
+  id: string;
+  name: string;
+  isActive: boolean;
+  weeklySchedule: Record<string, Array<{ startTime: string; endTime: string; title: string }>>;
 }
 
 // ─── Calendar helpers ──────────────────────────────────────
@@ -70,6 +87,8 @@ export function Dashboard() {
   const [googleEmail, setGoogleEmail] = useState("");
   const [events, setEvents] = useState<PersonalEvent[]>([]);
   const [googleEvents, setGoogleEvents] = useState<GoogleCalEvent[]>([]);
+  const [groupSchedules, setGroupSchedules] = useState<GroupSchedule[]>([]);
+  const [myPlans, setMyPlans] = useState<MyPlanEvent[]>([]);
   const [loading, setLoading] = useState(true);
 
   // カレンダー表示: 今月と来月
@@ -86,15 +105,37 @@ export function Dashboard() {
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      const [statusRes, eventsRes, conflictsRes] = await Promise.all([
+      const [statusRes, eventsRes, conflictsRes, groupsRes, myPlansRes] = await Promise.all([
         calendarApi.getStatus().catch(() => ({ connected: false, email: "" })),
         calendarApi.getPersonalEvents().catch(() => ({ events: [] })),
         calendarApi.getConflicts().catch(() => ({ conflicts: [] })),
+        groupApi.listMyGroups().catch(() => ({ groups: [] })),
+        myPlanApi.list().catch(() => ({ plans: [] })),
       ]);
       setConflicts(conflictsRes.conflicts || []);
       setGoogleConnected(statusRes.connected);
       setGoogleEmail(statusRes.email || "");
       setEvents(eventsRes.events || []);
+      setMyPlans((myPlansRes.plans || []).filter((p: MyPlanEvent) => p.isActive));
+
+      // グループの予定を取得
+      const groups = groupsRes.groups || [];
+      const allGroupSchedules: GroupSchedule[] = [];
+      for (const g of groups) {
+        try {
+          const detail = await groupApi.getGroup(g.id);
+          const schedules = detail.group?.schedules || [];
+          for (const s of schedules) {
+            allGroupSchedules.push({
+              ...s,
+              groupName: g.name,
+            });
+          }
+        } catch {
+          // ignore
+        }
+      }
+      setGroupSchedules(allGroupSchedules);
 
       // Google連携済みならGoogle Calendarの予定も取得
       if (statusRes.connected) {
@@ -128,10 +169,71 @@ export function Dashboard() {
     return d;
   })();
 
-  // 今日の予定
-  const todayEvents = events.filter((e) => e.day === todayDow);
-  todayEvents.sort((a, b) => {
-    // 時間ベースのソート優先
+  // 今日のグループ予定
+  const todayGroupSchedules = groupSchedules.filter((s) => s.day === todayDow);
+
+  // 今日のマイプラン予定
+  const todayMyPlanSlots: Array<{ title: string; startTime: string; endTime: string; planName: string }> = [];
+  for (const plan of myPlans) {
+    const daySlots = plan.weeklySchedule?.[String(todayDow)] || [];
+    for (const slot of daySlots) {
+      // マイプランがpersonalEventとして生成済みかチェック（重複排除）
+      const alreadyInEvents = events.some(
+        (e) => e.planId && e.day === todayDow && e.startTime === slot.startTime
+      );
+      if (!alreadyInEvents) {
+        todayMyPlanSlots.push({
+          title: slot.title || plan.name,
+          startTime: slot.startTime,
+          endTime: slot.endTime,
+          planName: plan.name,
+        });
+      }
+    }
+  }
+
+  // 今日の予定（統合）
+  type TodayItem = {
+    id: string;
+    title: string;
+    period: number;
+    startTime: string | null;
+    endTime: string | null;
+    source: "personal" | "group" | "myplan";
+    groupName?: string;
+  };
+
+  const todayItems: TodayItem[] = [
+    ...events
+      .filter((e) => e.day === todayDow)
+      .map((e) => ({
+        id: e.id,
+        title: e.title,
+        period: e.period,
+        startTime: e.startTime,
+        endTime: e.endTime,
+        source: "personal" as const,
+      })),
+    ...todayGroupSchedules.map((s) => ({
+      id: s.id,
+      title: s.title,
+      period: s.period,
+      startTime: null as string | null,
+      endTime: null as string | null,
+      source: "group" as const,
+      groupName: s.groupName,
+    })),
+    ...todayMyPlanSlots.map((s, i) => ({
+      id: `myplan-${i}`,
+      title: s.title,
+      period: 0,
+      startTime: s.startTime,
+      endTime: s.endTime,
+      source: "myplan" as const,
+    })),
+  ];
+
+  todayItems.sort((a, b) => {
     if (a.startTime && b.startTime) return a.startTime.localeCompare(b.startTime);
     if (a.startTime) return -1;
     if (b.startTime) return 1;
@@ -143,13 +245,14 @@ export function Dashboard() {
     const dow = getDayOfWeek(year, month, day);
     const dateStr = formatDate(new Date(year, month, day));
     const personal = events.filter((e) => e.day === dow);
+    const group = groupSchedules.filter((s) => s.day === dow);
 
     const google = googleEvents.filter((e) => {
       const eDate = e.start ? e.start.slice(0, 10) : "";
       return eDate === dateStr;
     });
 
-    return { personal, google };
+    return { personal, google, group };
   };
 
   // 月移動
@@ -238,15 +341,15 @@ export function Dashboard() {
         </h3>
         {loading ? (
           <div style={{ color: "var(--text-muted)", fontSize: "0.85rem" }}>読み込み中...</div>
-        ) : todayEvents.length === 0 ? (
+        ) : todayItems.length === 0 ? (
           <div className="empty-state" style={{ padding: "1rem" }}>
             <p>今日の予定はありません</p>
           </div>
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-            {todayEvents.map((evt) => (
+            {todayItems.map((item) => (
               <div
-                key={evt.id}
+                key={item.id}
                 style={{
                   display: "flex",
                   alignItems: "center",
@@ -262,13 +365,27 @@ export function Dashboard() {
                   color: "var(--text-muted)",
                   minWidth: 90,
                 }}>
-                  {evt.startTime && evt.endTime
-                    ? `${evt.startTime}–${evt.endTime}`
-                    : getPeriodLabel(evt.period).split("(")[1]?.replace(")", "") || getPeriodLabel(evt.period)}
+                  {item.startTime && item.endTime
+                    ? `${item.startTime}–${item.endTime}`
+                    : getPeriodLabel(item.period).split("(")[1]?.replace(")", "") || getPeriodLabel(item.period)}
                 </span>
-                <span style={{ fontWeight: 500 }}>{evt.title}</span>
-                <span className={`badge ${evt.eventType === "personal" ? "orange" : "purple"}`} style={{ fontSize: "0.65rem", marginLeft: "auto" }}>
-                  {evt.eventType === "personal" ? "個人" : "イベント"}
+                <span style={{ fontWeight: 500 }}>{item.title}</span>
+                {item.source === "group" && item.groupName && (
+                  <span style={{ fontSize: "0.65rem", color: "var(--text-muted)" }}>
+                    ({item.groupName})
+                  </span>
+                )}
+                <span
+                  className={`badge ${
+                    item.source === "personal" ? "orange"
+                    : item.source === "group" ? "blue"
+                    : "green"
+                  }`}
+                  style={{ fontSize: "0.65rem", marginLeft: "auto" }}
+                >
+                  {item.source === "personal" ? "個人"
+                    : item.source === "group" ? "グループ"
+                    : "マイプラン"}
                 </span>
               </div>
             ))}
@@ -421,6 +538,7 @@ export function Dashboard() {
               const hasEvents = day ? getEventsForDate(viewYear, viewMonth, day) : null;
               const personalCount = hasEvents?.personal.length || 0;
               const googleCount = hasEvents?.google.length || 0;
+              const groupCount = hasEvents?.group.length || 0;
               const isTodayCell = isToday(day);
 
               return (
@@ -458,6 +576,21 @@ export function Dashboard() {
                           {personalCount}件
                         </div>
                       )}
+                      {groupCount > 0 && (
+                        <div style={{
+                          fontSize: "0.6rem",
+                          background: "#3B82F6",
+                          color: "#fff",
+                          borderRadius: 2,
+                          padding: "0.1rem 0.3rem",
+                          marginBottom: 2,
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          whiteSpace: "nowrap",
+                        }}>
+                          G:{groupCount}
+                        </div>
+                      )}
                       {googleCount > 0 && (
                         <div style={{
                           fontSize: "0.6rem",
@@ -469,7 +602,7 @@ export function Dashboard() {
                           textOverflow: "ellipsis",
                           whiteSpace: "nowrap",
                         }}>
-                          G:{googleCount}
+                          GCal:{googleCount}
                         </div>
                       )}
                     </>
@@ -481,10 +614,14 @@ export function Dashboard() {
         </div>
 
         {/* Legend */}
-        <div style={{ display: "flex", gap: "1rem", marginTop: "0.75rem", fontSize: "0.7rem", color: "var(--text-muted)" }}>
+        <div style={{ display: "flex", gap: "1rem", marginTop: "0.75rem", fontSize: "0.7rem", color: "var(--text-muted)", flexWrap: "wrap" }}>
           <span style={{ display: "flex", alignItems: "center", gap: "0.3rem" }}>
             <span style={{ display: "inline-block", width: 8, height: 8, borderRadius: 2, background: "var(--accent)" }} />
             個人予定
+          </span>
+          <span style={{ display: "flex", alignItems: "center", gap: "0.3rem" }}>
+            <span style={{ display: "inline-block", width: 8, height: 8, borderRadius: 2, background: "#3B82F6" }} />
+            グループ予定
           </span>
           <span style={{ display: "flex", alignItems: "center", gap: "0.3rem" }}>
             <span style={{ display: "inline-block", width: 8, height: 8, borderRadius: 2, background: "#4285F4" }} />

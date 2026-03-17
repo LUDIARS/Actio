@@ -592,6 +592,17 @@ export const groupMemberRepo = {
   async create(data: typeof schema.groupMembers.$inferInsert) {
     await db.insert(schema.groupMembers).values(data);
   },
+
+  async deleteByGroupAndUser(groupId: string, userId: string) {
+    await db
+      .delete(schema.groupMembers)
+      .where(
+        and(
+          eq(schema.groupMembers.groupId, groupId),
+          eq(schema.groupMembers.userId, userId)
+        )
+      );
+  },
 };
 
 // ─── Group Repository ───────────────────────────────────────
@@ -612,6 +623,13 @@ export const groupRepo = {
   async create(data: typeof schema.groups.$inferInsert) {
     await db.insert(schema.groups).values(data);
   },
+
+  async update(id: string, data: Partial<typeof schema.groups.$inferInsert>) {
+    await db
+      .update(schema.groups)
+      .set(data)
+      .where(eq(schema.groups.id, id));
+  },
 };
 
 // ─── Group Schedule Repository ──────────────────────────────
@@ -622,5 +640,17 @@ export const groupScheduleRepo = {
       .select()
       .from(schema.groupSchedules)
       .where(eq(schema.groupSchedules.groupId, groupId));
+  },
+
+  async create(data: typeof schema.groupSchedules.$inferInsert) {
+    await db.insert(schema.groupSchedules).values(data);
+  },
+
+  async findById(id: string) {
+    const [schedule] = await db
+      .select()
+      .from(schema.groupSchedules)
+      .where(eq(schema.groupSchedules.id, id));
+    return schedule;
   },
 };
