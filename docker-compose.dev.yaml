@@ -40,4 +40,4 @@ services:
       - ./frontend/tsconfig.node.json:/app/tsconfig.node.json
       - ./frontend/public:/app/public
     environment:
-      VITE_API_BASE: http://localhost:${BACKEND_PORT:-3000}
+      VITE_API_BASE: ""
