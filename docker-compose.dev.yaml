@@ -11,6 +11,7 @@ services:
 
   # ─── Backend: tsx watch with source mounts ──────────────────
   backend:
+    ports: !reset []
     build:
       context: .
       dockerfile: Dockerfile
