@@ -6,10 +6,11 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci
 
-COPY tsconfig.json ./
+COPY tsconfig.json drizzle.config.ts docker-entrypoint.sh ./
 COPY src/ ./src/
 COPY modules/ ./modules/
 
+ENTRYPOINT ["./docker-entrypoint.sh"]
 CMD ["npm", "run", "dev"]
 
 # ─── Build stage ─────────────────────────────────────────────
@@ -35,10 +36,13 @@ COPY package.json package-lock.json ./
 RUN npm ci --omit=dev
 
 COPY --from=builder /app/dist ./dist
+COPY drizzle.config.ts docker-entrypoint.sh ./
+COPY src/ ./src/
 
 ENV NODE_ENV=production
 ENV DB_DIALECT=postgres
 
 EXPOSE 3000
 
+ENTRYPOINT ["./docker-entrypoint.sh"]
 CMD ["node", "dist/src/index.js"]
