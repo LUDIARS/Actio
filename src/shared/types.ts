@@ -285,6 +285,62 @@ export interface NotificationRecord {
   createdAt: Date;
 }
 
+// ─── M6: Voting Types ────────────────────────────────────────
+
+import type { VoteAnswer, VotingStatus } from "./constants.js";
+
+export interface VotingEvent {
+  id: string;
+  title: string;
+  description: string;
+  createdBy: string;
+  deadline: string | null;
+  status: VotingStatus;
+  createdAt: Date;
+  updatedAt: Date;
+  candidates: VotingCandidate[];
+}
+
+export interface VotingCandidate {
+  id: string;
+  eventId: string;
+  label: string;
+  sortOrder: number;
+}
+
+export interface Vote {
+  id: string;
+  eventId: string;
+  candidateId: string;
+  userId: string;
+  answer: VoteAnswer;
+  isAutoReply: boolean;
+  comment: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface CreateVotingEventInput {
+  title: string;
+  description?: string;
+  deadline?: string;
+  candidates: string[];
+}
+
+export interface SubmitVotesInput {
+  votes: { candidateId: string; answer: VoteAnswer; comment?: string }[];
+}
+
+export interface VotingSummary {
+  event: VotingEvent;
+  /** candidateId -> { ok, maybe, ng } counts */
+  summary: Record<string, { ok: number; maybe: number; ng: number }>;
+  /** userId -> { candidateId -> Vote } */
+  responses: Record<string, Record<string, Vote>>;
+  /** userId -> userName */
+  respondents: Record<string, string>;
+}
+
 // ─── Scheduling Algorithm Types ──────────────────────────────
 
 export interface ScheduleGenerationRequest {

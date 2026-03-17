@@ -451,3 +451,53 @@ export const m5 = {
     });
   },
 };
+
+// ─── M6: Voting ─────────────────────────────────────────────
+
+export const m6Voting = {
+  createEvent(body: {
+    title: string;
+    description?: string;
+    deadline?: string;
+    candidates: string[];
+  }) {
+    return request<any>("/api/voting/events", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  },
+  listEvents() {
+    return request<any>("/api/voting/events");
+  },
+  getEvent(eventId: string) {
+    return request<any>(`/api/voting/events/${eventId}`);
+  },
+  submitVotes(
+    eventId: string,
+    votes: { candidateId: string; answer: string; comment?: string }[]
+  ) {
+    return request<any>(`/api/voting/events/${eventId}/votes`, {
+      method: "POST",
+      body: JSON.stringify({ votes }),
+    });
+  },
+  autoReply(eventId: string) {
+    return request<any>(`/api/voting/events/${eventId}/auto-reply`, {
+      method: "POST",
+    });
+  },
+  updateEvent(
+    eventId: string,
+    body: { status?: string; title?: string; description?: string; deadline?: string }
+  ) {
+    return request<any>(`/api/voting/events/${eventId}`, {
+      method: "PUT",
+      body: JSON.stringify(body),
+    });
+  },
+  deleteEvent(eventId: string) {
+    return request<any>(`/api/voting/events/${eventId}`, {
+      method: "DELETE",
+    });
+  },
+};
