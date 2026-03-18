@@ -363,6 +363,21 @@ export const m1Schema = {
       body: JSON.stringify({ slots }),
     });
   },
+
+  // 配置確定 → グループスケジュールとして登録
+  confirmPlacements(placements: Array<{
+    curriculumId: string;
+    curriculumName: string;
+    day: number;
+    period: number;
+    duration: number;
+    departmentNames: string[];
+  }>) {
+    return request<{ message: string; schedulesCreated: number; groupsCreated: number }>(
+      "/api/m1/confirm-placements",
+      { method: "POST", body: JSON.stringify({ placements }) }
+    );
+  },
 };
 
 // ─── M1 (Legacy CSV/Generate) ────────────────────────────────

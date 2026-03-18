@@ -19,7 +19,6 @@ const NAV_ITEMS: NavItem[] = [
   { to: "/", label: "Dashboard" },
   { to: "/schema-management", label: "M1 スキーマ管理", adminOnly: true, removable: true },
   { to: "/data-management", label: "M1 データ管理", adminOnly: true, removable: true },
-  { to: "/curriculum-plan", label: "M2 カリキュラムプラン", removable: true },
   { to: "/my-plan", label: "マイプラン", removable: true },
   { to: "/groups", label: "グループ", removable: true },
   { to: "/calendar", label: "カレンダー", removable: true },

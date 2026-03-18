@@ -248,12 +248,24 @@ export function Dashboard() {
     const personal = events.filter((e) => e.day === dow);
     const group = groupSchedules.filter((s) => s.day === dow);
 
+    // マイプランのスロット数（personalEventとして生成済みのものは除外）
+    let myPlanCount = 0;
+    for (const plan of myPlans) {
+      const daySlots = plan.weeklySchedule?.[String(dow)] || [];
+      for (const slot of daySlots) {
+        const alreadyInEvents = events.some(
+          (e) => e.planId && e.day === dow && e.startTime === slot.startTime
+        );
+        if (!alreadyInEvents) myPlanCount++;
+      }
+    }
+
     const google = googleEvents.filter((e) => {
       const eDate = e.start ? e.start.slice(0, 10) : "";
       return eDate === dateStr;
     });
 
-    return { personal, google, group };
+    return { personal, google, group, myPlanCount };
   };
 
   // 月移動
@@ -540,6 +552,7 @@ export function Dashboard() {
               const personalCount = hasEvents?.personal.length || 0;
               const googleCount = hasEvents?.google.length || 0;
               const groupCount = hasEvents?.group.length || 0;
+              const myPlanCount = hasEvents?.myPlanCount || 0;
               const isTodayCell = isToday(day);
 
               return (
@@ -592,6 +605,21 @@ export function Dashboard() {
                           G:{groupCount}
                         </div>
                       )}
+                      {myPlanCount > 0 && (
+                        <div style={{
+                          fontSize: "0.6rem",
+                          background: "var(--green)",
+                          color: "#fff",
+                          borderRadius: 2,
+                          padding: "0.1rem 0.3rem",
+                          marginBottom: 2,
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          whiteSpace: "nowrap",
+                        }}>
+                          MP:{myPlanCount}
+                        </div>
+                      )}
                       {googleCount > 0 && (
                         <div style={{
                           fontSize: "0.6rem",
@@ -623,6 +651,10 @@ export function Dashboard() {
           <span style={{ display: "flex", alignItems: "center", gap: "0.3rem" }}>
             <span style={{ display: "inline-block", width: 8, height: 8, borderRadius: 2, background: "#3B82F6" }} />
             グループ予定
+          </span>
+          <span style={{ display: "flex", alignItems: "center", gap: "0.3rem" }}>
+            <span style={{ display: "inline-block", width: 8, height: 8, borderRadius: 2, background: "var(--green)" }} />
+            マイプラン
           </span>
           <span style={{ display: "flex", alignItems: "center", gap: "0.3rem" }}>
             <span style={{ display: "inline-block", width: 8, height: 8, borderRadius: 2, background: "#4285F4" }} />
