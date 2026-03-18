@@ -4,6 +4,7 @@ import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { userRepo, userListRepo, groupMemberRepo, groupRepo, appSettingsRepo } from "../db/repository.js";
 import * as sessionStore from "../session/store.js";
+import { logActivity } from "../activity-logger.js";
 
 const auth = new Hono();
 
@@ -588,6 +589,9 @@ auth.put("/users/:id/role", async (c) => {
     }
 
     await userRepo.update(targetUserId, { role: body.role, updatedAt: new Date() });
+
+    const adminUser = await userRepo.findById(payload.userId);
+    logActivity(payload.userId, adminUser?.name || "Unknown", "ユーザーロール変更", `ユーザー「${targetUser.name}」のロールが「${body.role}」に変更されました`);
 
     console.log(`[auth:users:role] ロール変更完了: ${targetUserId} → ${body.role}`);
     return c.json({

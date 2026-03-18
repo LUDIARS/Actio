@@ -7,9 +7,11 @@
 
 import { Hono } from "hono";
 import { requireRole } from "../../src/middleware/auth.js";
-import { appSettingsRepo } from "../../src/db/repository.js";
+import { appSettingsRepo, userRepo } from "../../src/db/repository.js";
 import { db, dialect } from "../../src/db/connection.js";
 import { sql } from "drizzle-orm";
+import { getUserId } from "../../src/middleware/getUserId.js";
+import { logActivity } from "../../src/activity-logger.js";
 
 const settingsRoutes = new Hono();
 
@@ -66,6 +68,10 @@ settingsRoutes.put("/", async (c) => {
     for (const row of rows) {
       settings[row.key] = row.value;
     }
+
+    const userId = getUserId(c) || "";
+    const user = await userRepo.findById(userId);
+    logActivity(userId, user?.name || "Unknown", "アプリ設定更新", `アプリ設定が更新されました（${Object.keys(body.settings).join(", ")}）`);
 
     return c.json({ settings, message: "設定を保存しました" });
   } catch (err) {

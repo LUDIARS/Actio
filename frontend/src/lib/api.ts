@@ -624,6 +624,14 @@ export const adminApi = {
   },
 };
 
+// ─── Activity Logs (操作ログ) ──────────────────────────────────
+
+export const activityLogApi = {
+  getLogs(limit = 50) {
+    return request<{ logs: any[] }>(`/api/admin/activity-logs?limit=${limit}`);
+  },
+};
+
 // ─── Admin DB Viewer (テスト用) ──────────────────────────────
 
 export const adminDbApi = {

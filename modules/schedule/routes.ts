@@ -34,7 +34,9 @@ import {
   personalEventRepo,
   planRepo,
   groupScheduleRepo,
+  userRepo,
 } from "../../src/db/repository.js";
+import { logActivity } from "../../src/activity-logger.js";
 
 const m1 = new Hono();
 
@@ -53,23 +55,33 @@ m1.get("/departments", async (c) => {
 
 /** 学科作成 */
 m1.post("/departments", async (c) => {
+  const userId = getUserId(c) || "";
   const { name } = await c.req.json<{ name: string }>();
   if (!name?.trim()) {
     return c.json({ error: "name is required" }, 400);
   }
   const id = uuidv4();
   await departmentRepo.create({ id, name: name.trim() });
+
+  const user = await userRepo.findById(userId);
+  logActivity(userId, user?.name || "Unknown", "学科作成", `学科「${name.trim()}」が追加されました`);
+
   return c.json({ id, name: name.trim() }, 201);
 });
 
 /** 学科更新 */
 m1.put("/departments/:id", async (c) => {
+  const userId = getUserId(c) || "";
   const { id } = c.req.param();
   const { name } = await c.req.json<{ name: string }>();
   if (!name?.trim()) {
     return c.json({ error: "name is required" }, 400);
   }
   await departmentRepo.update(id, { name: name.trim() });
+
+  const user = await userRepo.findById(userId);
+  logActivity(userId, user?.name || "Unknown", "学科更新", `学科が「${name.trim()}」に変更されました`);
+
   return c.json({ id, name: name.trim() });
 });
 
@@ -92,23 +104,33 @@ m1.get("/instructors", async (c) => {
 
 /** 講師作成 */
 m1.post("/instructors", async (c) => {
+  const userId = getUserId(c) || "";
   const { name } = await c.req.json<{ name: string }>();
   if (!name?.trim()) {
     return c.json({ error: "name is required" }, 400);
   }
   const id = uuidv4();
   await instructorRepo.create({ id, name: name.trim() });
+
+  const user = await userRepo.findById(userId);
+  logActivity(userId, user?.name || "Unknown", "講師作成", `講師「${name.trim()}」が追加されました`);
+
   return c.json({ id, name: name.trim() }, 201);
 });
 
 /** 講師更新 */
 m1.put("/instructors/:id", async (c) => {
+  const userId = getUserId(c) || "";
   const { id } = c.req.param();
   const { name } = await c.req.json<{ name: string }>();
   if (!name?.trim()) {
     return c.json({ error: "name is required" }, 400);
   }
   await instructorRepo.update(id, { name: name.trim() });
+
+  const user = await userRepo.findById(userId);
+  logActivity(userId, user?.name || "Unknown", "講師更新", `講師が「${name.trim()}」に変更されました`);
+
   return c.json({ id, name: name.trim() });
 });
 
@@ -180,6 +202,10 @@ m1.post("/departments/:departmentId/curricula", async (c) => {
     });
   }
 
+  const userId = getUserId(c) || "";
+  const user = await userRepo.findById(userId);
+  logActivity(userId, user?.name || "Unknown", "カリキュラム作成", `カリキュラム「${name.trim()}」が追加されました`);
+
   return c.json({
     id, name: name.trim(), departmentId,
     periods: periodsVal,
@@ -232,6 +258,10 @@ m1.put("/curricula/:id", async (c) => {
     }
   }
 
+  const userId = getUserId(c) || "";
+  const userObj = await userRepo.findById(userId);
+  logActivity(userId, userObj?.name || "Unknown", "カリキュラム更新", `カリキュラム(${id})が更新されました`);
+
   return c.json({ id, ...updates, departmentIds: body.departmentIds });
 });
 
@@ -283,6 +313,10 @@ m1.put("/instructors/:instructorId/availability", async (c) => {
     });
     inserted.push({ id, instructorId, day: slot.day, periods: slot.periods });
   }
+
+  const userId = getUserId(c) || "";
+  const user = await userRepo.findById(userId);
+  logActivity(userId, user?.name || "Unknown", "出講可能スロット設定", `講師(${instructorId})の出講可能スロットが更新されました`);
 
   return c.json({ slots: inserted });
 });
@@ -369,6 +403,9 @@ m1.post("/migration/departments-to-groups", async (c) => {
       groupId,
     });
   }
+
+  const user = await userRepo.findById(userId);
+  logActivity(userId, user?.name || "Unknown", "学科→グループ変換", `${created.length}件の学科をグループに変換しました`);
 
   return c.json({
     message: `${created.length}件のグループを作成しました`,
@@ -624,6 +661,9 @@ m1.post("/migration/schedule-to-plans", async (c) => {
       plansCreated,
     });
   }
+
+  const user = await userRepo.findById(userId);
+  logActivity(userId, user?.name || "Unknown", "スケジュール→プラン変換", `${convertedCount}件のスケジュールをプランに変換しました`);
 
   return c.json({
     message: `${convertedCount}件のプランに変換しました`,

@@ -1,8 +1,9 @@
 import { Hono } from "hono";
 import { v4 as uuidv4 } from "uuid";
-import { reservationRepo, scheduleEntryExtRepo } from "../../src/db/repository.js";
+import { reservationRepo, scheduleEntryExtRepo, userRepo } from "../../src/db/repository.js";
 import type { CreateReservationInput } from "../../src/shared/types.js";
 import { getUserId } from "../../src/middleware/getUserId.js";
+import { logActivity } from "../../src/activity-logger.js";
 
 const m4 = new Hono();
 
@@ -55,6 +56,9 @@ m4.post("/reservations", async (c) => {
     note: body.note || "",
     version: 1,
   });
+
+  const user = await userRepo.findById(createdBy);
+  logActivity(createdBy, user?.name || "Unknown", "予約作成", `予約「${body.title}」が追加されました（教室: ${body.roomId}）`);
 
   return c.json(reservation, 201);
 });
@@ -154,6 +158,10 @@ m4.put("/reservations/:id", async (c) => {
     version: current.version + 1,
     updatedAt: new Date(),
   });
+
+  const userId = getUserId(c) || "anonymous";
+  const user = await userRepo.findById(userId);
+  logActivity(userId, user?.name || "Unknown", "予約更新", `予約「${updated?.title || id}」が更新されました`);
 
   return c.json(updated);
 });

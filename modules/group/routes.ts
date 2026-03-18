@@ -7,6 +7,7 @@ import {
   groupScheduleRepo,
   userRepo,
 } from "../../src/db/repository.js";
+import { logActivity } from "../../src/activity-logger.js";
 
 const groupRoutes = new Hono();
 
@@ -109,6 +110,9 @@ groupRoutes.post("/", async (c) => {
     joinedAt: now,
   });
 
+  const user = await userRepo.findById(userId);
+  logActivity(userId, user?.name || "Unknown", "グループ作成", `グループ「${body.name}」が追加されました`);
+
   return c.json({ groupId, message: "Group created" }, 201);
 });
 
@@ -139,6 +143,9 @@ groupRoutes.post("/:id/join", async (c) => {
   const currentMembers = (group.members as string[]) || [];
   await groupRepo.update(groupId, { members: [...currentMembers, userId] });
 
+  const user = await userRepo.findById(userId);
+  logActivity(userId, user?.name || "Unknown", "グループ参加", `グループ「${group.name}」に参加しました`);
+
   return c.json({ message: "Joined group" });
 });
 
@@ -161,6 +168,9 @@ groupRoutes.post("/:id/leave", async (c) => {
     const updatedMembers = ((group.members as string[]) || []).filter((m) => m !== userId);
     await groupRepo.update(groupId, { members: updatedMembers });
   }
+
+  const user = await userRepo.findById(userId);
+  logActivity(userId, user?.name || "Unknown", "グループ脱退", `グループ「${group?.name || groupId}」から脱退しました`);
 
   return c.json({ message: "Left group" });
 });
@@ -209,6 +219,9 @@ groupRoutes.post("/:id/schedules", async (c) => {
   });
 
   const created = await groupScheduleRepo.findById(id);
+
+  const user = await userRepo.findById(userId);
+  logActivity(userId, user?.name || "Unknown", "グループ予定追加", `グループ予定「${body.title}」が追加されました`);
 
   return c.json({ schedule: created }, 201);
 });

@@ -3,9 +3,11 @@ import { v4 as uuidv4 } from "uuid";
 import {
   notificationPreferenceRepo,
   notificationRepo,
+  userRepo,
 } from "../../src/db/repository.js";
 import { webhookRoutes } from "./channels/webhook/routes.js";
 import { getUserId } from "../../src/middleware/getUserId.js";
+import { logActivity } from "../../src/activity-logger.js";
 
 const notification = new Hono();
 
@@ -85,6 +87,9 @@ notification.put("/notifications/preferences", async (c) => {
       quietHoursEnd: body.quietHoursEnd ?? existing.quietHoursEnd,
     });
 
+    const user = await userRepo.findById(userId);
+    logActivity(userId, user?.name || "Unknown", "通知設定更新", `通知チャネル「${body.channel}」の設定が更新されました`);
+
     return c.json(updated);
   } else {
     const created = await notificationPreferenceRepo.create({
@@ -101,6 +106,9 @@ notification.put("/notifications/preferences", async (c) => {
       quietHoursStart: body.quietHoursStart ?? "22:00",
       quietHoursEnd: body.quietHoursEnd ?? "07:00",
     });
+
+    const user = await userRepo.findById(userId);
+    logActivity(userId, user?.name || "Unknown", "通知設定作成", `通知チャネル「${body.channel}」の設定が追加されました`);
 
     return c.json(created, 201);
   }

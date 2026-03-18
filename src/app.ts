@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import { cors } from "hono/cors";
-import { userContext } from "./middleware/auth.js";
+import { userContext, requireRole } from "./middleware/auth.js";
 import { auth } from "./auth/routes.js";
 import { m4 } from "../modules/reservation/routes.js";
 import { notification } from "../modules/notification/routes.js";
@@ -16,6 +16,7 @@ import { settingsRoutes } from "../modules/settings/routes.js";
 import { initNotificationHandler } from "../modules/notification/core/handler.js";
 import { DAY_LABELS, getPeriodTime, PERIODS_COUNT } from "./shared/constants.js";
 import type { SchulaModule } from "./shared/types.js";
+import { getRecentLogs } from "./activity-logger.js";
 
 export function createApp() {
   const app = new Hono();
@@ -81,6 +82,14 @@ export function createApp() {
 
   // ─── Admin Settings (設定管理) ───────────────────────────────
   app.route("/api/settings", settingsRoutes);
+
+  // ─── Admin: Activity Logs (操作ログ) ────────────────────────
+  app.get("/api/admin/activity-logs", requireRole("admin"), async (c) => {
+    const limitParam = c.req.query("limit");
+    const limit = limitParam ? Math.min(200, Math.max(1, parseInt(limitParam, 10) || 50)) : 50;
+    const logs = getRecentLogs(limit);
+    return c.json({ logs });
+  });
 
   // ─── Admin DB Viewer ───────────────────────────────────────
   app.route("/api/admin/db", dbViewer);

@@ -9,7 +9,9 @@ import {
   groupScheduleRepo,
   personalEventRepo,
   availableSlotRepo,
+  userRepo,
 } from "../../src/db/repository.js";
+import { logActivity } from "../../src/activity-logger.js";
 import { solve, type TaskInput } from "./solver.js";
 import { calculateGroupAvailability } from "./availability.js";
 import { DAYS_COUNT, PERIODS_COUNT } from "../../src/shared/constants.js";
@@ -144,6 +146,10 @@ smartScheduler.post("/tasks", async (c) => {
   };
 
   await schedulingTaskRepo.create(task);
+
+  const user = await userRepo.findById(userId);
+  logActivity(userId, user?.name || "Unknown", "スケジュールタスク作成", `タスク「${body.title}」が追加されました`);
+
   return c.json({ task }, 201);
 });
 
@@ -180,6 +186,10 @@ smartScheduler.put("/tasks/:id", async (c) => {
 
   await schedulingTaskRepo.update(taskId, updates);
   const updated = await schedulingTaskRepo.findById(taskId);
+
+  const user = await userRepo.findById(userId);
+  logActivity(userId, user?.name || "Unknown", "スケジュールタスク更新", `タスク「${updated?.title || taskId}」が更新されました`);
+
   return c.json({ task: updated });
 });
 
@@ -275,6 +285,9 @@ smartScheduler.post("/solve/:groupId", async (c) => {
     createdAt: new Date(),
   });
 
+  const user = await userRepo.findById(userId);
+  logActivity(userId, user?.name || "Unknown", "自動配置実行", `グループ(${groupId})の自動配置を実行しました（${solveResult.placements.length}件配置）`);
+
   return c.json({
     resultId,
     placements: solveResult.placements,
@@ -315,6 +328,9 @@ smartScheduler.post("/confirm/:resultId", async (c) => {
 
   // 結果ステータスを確定に
   await schedulingResultRepo.update(resultId, { status: "confirmed" });
+
+  const user = await userRepo.findById(userId);
+  logActivity(userId, user?.name || "Unknown", "配置結果確定", `配置結果(${resultId})を確定しました（${placements.length}件）`);
 
   return c.json({ message: "Schedule confirmed", placements });
 });
