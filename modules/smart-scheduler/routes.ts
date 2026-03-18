@@ -20,7 +20,7 @@ const smartScheduler = new Hono();
 
 async function verifyGroupMember(userId: string, groupId: string): Promise<boolean> {
   const memberships = await groupMemberRepo.findByUserId(userId);
-  return memberships.some((m) => m.groupId === groupId);
+  return memberships.some((m: { groupId: string }) => m.groupId === groupId);
 }
 
 // ─── Helper: グループの空き状況を取得 ────────────────────────
@@ -30,7 +30,7 @@ async function getGroupAvailability(groupId: string): Promise<{
   totalMembers: number;
 }> {
   const memberships = await groupMemberRepo.findByGroupId(groupId);
-  const memberUserIds = memberships.map((m) => m.userId);
+  const memberUserIds = memberships.map((m: { userId: string }) => m.userId);
 
   if (memberUserIds.length === 0) {
     return { availability: [], totalMembers: 0 };

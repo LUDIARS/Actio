@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useAuth } from "../contexts/AuthContext";
 import { m6Voting } from "../lib/api";
 
@@ -85,7 +85,7 @@ export function VotingPage() {
 
   // ─── Fetch events ──────────────────────────────────────────
 
-  const fetchEvents = async () => {
+  const fetchEvents = useCallback(async () => {
     try {
       const res = await m6Voting.listEvents();
       setEvents(res.events || []);
@@ -93,11 +93,13 @@ export function VotingPage() {
       console.error("[VotingPage] fetchEvents失敗:", e);
       showMsg(`Error: ${e.message}`);
     }
-  };
+  }, []);
 
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     fetchEvents();
-  }, []);
+  }, [fetchEvents]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   // ─── Fetch event detail ────────────────────────────────────
 

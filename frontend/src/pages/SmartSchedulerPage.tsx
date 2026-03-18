@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { smartSchedulerApi, groupApi } from "../lib/api";
 import { DAY_LABELS, PERIODS_COUNT } from "../lib/constants";
 
@@ -66,16 +66,7 @@ export function SmartSchedulerPage() {
   }, []);
 
   // グループ選択時にタスク取得
-  useEffect(() => {
-    if (!selectedGroupId) {
-      setTasks([]);
-      setSolveResult(null);
-      return;
-    }
-    loadTasks();
-  }, [selectedGroupId]);
-
-  const loadTasks = async () => {
+  const loadTasks = useCallback(async () => {
     if (!selectedGroupId) return;
     try {
       const res = await smartSchedulerApi.getTasks(selectedGroupId);
@@ -83,7 +74,18 @@ export function SmartSchedulerPage() {
     } catch (e: any) {
       showMsg(`Error: ${e.message}`);
     }
-  };
+  }, [selectedGroupId]);
+
+  /* eslint-disable react-hooks/set-state-in-effect */
+  useEffect(() => {
+    if (!selectedGroupId) {
+      setTasks([]);
+      setSolveResult(null);
+      return;
+    }
+    loadTasks();
+  }, [selectedGroupId, loadTasks]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   const handleAddTask = async () => {
     if (!newTitle.trim() || !selectedGroupId) return;

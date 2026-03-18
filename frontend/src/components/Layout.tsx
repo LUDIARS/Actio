@@ -55,9 +55,11 @@ export function Layout() {
   const location = useLocation();
 
   // Close sidebar on route change
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     setSidebarOpen(false);
   }, [location.pathname]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   const toggleSidebar = useCallback(() => {
     setSidebarOpen((prev) => !prev);

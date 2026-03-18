@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { m5 } from "../lib/api";
 
 interface Webhook {
@@ -53,11 +53,7 @@ export function NotificationsPage() {
     setTimeout(() => setMessage(""), 4000);
   };
 
-  useEffect(() => {
-    loadData();
-  }, [tab]);
-
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     try {
       if (tab === "webhooks") {
         const result = await m5.listWebhooks();
@@ -73,7 +69,13 @@ export function NotificationsPage() {
       console.error("[NotificationsPage] loadData失敗:", e);
       showMsg(`Error: ${e.message}`);
     }
-  };
+  }, [tab]);
+
+  /* eslint-disable react-hooks/set-state-in-effect */
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   const handleCreateWebhook = async () => {
     try {

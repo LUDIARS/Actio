@@ -298,7 +298,7 @@ m1.get("/migration/status", async (c) => {
 
   // 学科名で既存グループとマッチング
   const status = departments.map((dept) => {
-    const matchedGroup = groups.find((g) => g.name === dept.name);
+    const matchedGroup = groups.find((g: { name: string }) => g.name === dept.name);
     return {
       departmentId: dept.id,
       departmentName: dept.name,
@@ -328,7 +328,7 @@ m1.post("/migration/departments-to-groups", async (c) => {
 
   const departments = await departmentRepo.findAll();
   const existingGroups = await groupRepo.findAll();
-  const existingGroupNames = new Set(existingGroups.map((g) => g.name));
+  const existingGroupNames = new Set(existingGroups.map((g: { name: string }) => g.name));
 
   const created: Array<{ departmentId: string; departmentName: string; groupId: string }> = [];
   const skipped: Array<{ departmentId: string; departmentName: string; reason: string }> = [];
@@ -409,7 +409,7 @@ m1.post("/migration/schedule-to-plans", async (c) => {
 
   // 既存グループを取得 (学科名でマッチング)
   const groups = await groupRepo.findAll();
-  const groupByName = new Map(groups.map((g) => [g.name, g]));
+  const groupByName = new Map<string, { id: string; name: string }>(groups.map((g: { id: string; name: string }) => [g.name, g]));
 
   // 学科ごとにスケジュールエントリをグルーピング
   const entriesByDepartment = new Map<string, typeof entries>();

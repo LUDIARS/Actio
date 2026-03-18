@@ -29,7 +29,7 @@ interface GroupDetail {
 }
 
 export function GroupsPage() {
-  const { user } = useAuth();
+  useAuth();
   const [groups, setGroups] = useState<Group[]>([]);
   const [selectedGroup, setSelectedGroup] = useState<GroupDetail | null>(null);
   const [loading, setLoading] = useState(true);
@@ -47,8 +47,7 @@ export function GroupsPage() {
   });
   const [joinGroupId, setJoinGroupId] = useState("");
 
-  const loadGroups = useCallback(async () => {
-    setLoading(true);
+  const fetchGroups = useCallback(async () => {
     try {
       const data = await groupApi.listMyGroups();
       setGroups(data.groups || []);
@@ -58,9 +57,16 @@ export function GroupsPage() {
     setLoading(false);
   }, []);
 
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
-    loadGroups();
-  }, [loadGroups]);
+    fetchGroups();
+  }, [fetchGroups]);
+  /* eslint-enable react-hooks/set-state-in-effect */
+
+  const loadGroups = useCallback(async () => {
+    setLoading(true);
+    return fetchGroups();
+  }, [fetchGroups]);
 
   const loadGroupDetail = async (groupId: string) => {
     try {

@@ -465,7 +465,7 @@ auth.get("/users/list", async (c) => {
       for (const u of users) {
         const memberships = await groupMemberRepo.findByUserId(u.id);
         const filtered = filterGroupIds
-          ? memberships.filter((m) => filterGroupIds.includes(m.groupId))
+          ? memberships.filter((m: { groupId: string }) => filterGroupIds.includes(m.groupId))
           : memberships;
 
         const groupDetails = [];
@@ -489,17 +489,17 @@ auth.get("/users/list", async (c) => {
 
     // 一般ユーザー・グループリーダー: 同じグループのユーザーのみ
     const myMemberships = await groupMemberRepo.findByUserId(payload.userId);
-    const myGroupIds = myMemberships.map((m) => m.groupId);
+    const myGroupIds = myMemberships.map((m: { groupId: string }) => m.groupId);
 
     if (myGroupIds.length === 0) {
       // グループ未所属の場合は自分だけ返す
       const me = await userListRepo.findByIds([payload.userId]);
-      return c.json({ users: me.map((u) => ({ ...u, groups: [] })) });
+      return c.json({ users: me.map((u: Record<string, unknown>) => ({ ...u, groups: [] })) });
     }
 
     // 同じグループに所属するユーザーIDを取得
     const memberSets = await Promise.all(
-      myGroupIds.map((gid) => groupMemberRepo.findByGroupId(gid))
+      myGroupIds.map((gid: string) => groupMemberRepo.findByGroupId(gid))
     );
     const userIds = [...new Set(memberSets.flat().map((m) => m.userId))];
 
