@@ -432,8 +432,8 @@ m1.post("/migration/schedule-to-plans", async (c) => {
       // 講師の出講可能スロットをチェック
       if (curriculum.instructorId) {
         const instrSlots = instructorAvailMap.get(curriculum.instructorId);
-        if (instrSlots && !instrSlots.has(`${entry.day}-${entry.period}`)) {
-          // 講師が出講不可のスロット → スキップ
+        if (instrSlots && instrSlots.size > 0 && !instrSlots.has(`${entry.day}-${entry.period}`)) {
+          // 講師の出講可能スロットが設定されているが、このスロットは含まれない → スキップ
           continue;
         }
       }
@@ -450,6 +450,10 @@ m1.post("/migration/schedule-to-plans", async (c) => {
     }
   } else {
     // ── スケジュールエントリなし: カリキュラム + 講師スロットから自動配置 ──
+
+    // 講師ごとの占有スロット (同一講師が複数学科で重複しないように)
+    const instructorOccupied = new Map<string, Set<string>>();
+
     // 学科ごとにカリキュラムをグルーピング
     const curriculaByDept = new Map<string, typeof curricula>();
     for (const cur of curricula) {
@@ -460,51 +464,64 @@ m1.post("/migration/schedule-to-plans", async (c) => {
     }
 
     for (const [deptId, deptCurricula] of curriculaByDept) {
-      const occupied = new Set<string>(); // 配置済みスロット
+      const deptOccupied = new Set<string>(); // 学科内の配置済みスロット
       const placements: PlacementEntry[] = [];
 
       for (const cur of deptCurricula) {
         const periodsNeeded = cur.periods || 1;
 
         // 講師の出講可能スロットを取得
-        let availableSlots: Array<{ day: number; period: number }> = [];
+        let candidateSlots: Array<{ day: number; period: number }> = [];
         if (cur.instructorId) {
           const instrSlots = instructorAvailMap.get(cur.instructorId);
-          if (instrSlots) {
+          if (instrSlots && instrSlots.size > 0) {
             for (const key of instrSlots) {
               const [d, p] = key.split("-").map(Number);
-              availableSlots.push({ day: d, period: p });
+              candidateSlots.push({ day: d, period: p });
+            }
+          } else {
+            // 講師に出講可能スロットが未設定 → 月〜金の全コマを候補
+            for (let d = 0; d < 5; d++) {
+              for (let p = 0; p < 11; p++) {
+                candidateSlots.push({ day: d, period: p });
+              }
             }
           }
-          // 講師が設定されているが出講可能スロットがない → 配置不可
-          if (availableSlots.length === 0) continue;
         } else {
           // 講師未設定: 月〜金の全コマを候補とする
           for (let d = 0; d < 5; d++) {
             for (let p = 0; p < 11; p++) {
-              availableSlots.push({ day: d, period: p });
+              candidateSlots.push({ day: d, period: p });
             }
           }
         }
 
         // 曜日→コマ順でソート
-        availableSlots.sort((a, b) => a.day !== b.day ? a.day - b.day : a.period - b.period);
+        candidateSlots.sort((a, b) => a.day !== b.day ? a.day - b.day : a.period - b.period);
+
+        // 講師の占有状況を取得
+        const instrOccupied = cur.instructorId
+          ? (instructorOccupied.get(cur.instructorId) ?? new Set<string>())
+          : null;
 
         // 連続コマが確保できるスロットを探す
-        let placed = false;
-        for (const slot of availableSlots) {
-          // 連続コマの確認
+        for (const slot of candidateSlots) {
           let canPlace = true;
           for (let p = slot.period; p < slot.period + periodsNeeded; p++) {
             const key = `${slot.day}-${p}`;
-            if (p >= 11 || occupied.has(key)) {
+            if (p >= 11 || deptOccupied.has(key)) {
               canPlace = false;
               break;
             }
-            // 講師制約がある場合、連続する全コマが出講可能か確認
+            // 同一講師が他学科で既に配置済みでないか
+            if (instrOccupied && instrOccupied.has(key)) {
+              canPlace = false;
+              break;
+            }
+            // 講師の出講可能スロットに含まれるか (設定済みの場合)
             if (cur.instructorId) {
               const instrSlots = instructorAvailMap.get(cur.instructorId);
-              if (instrSlots && !instrSlots.has(key)) {
+              if (instrSlots && instrSlots.size > 0 && !instrSlots.has(key)) {
                 canPlace = false;
                 break;
               }
@@ -513,10 +530,17 @@ m1.post("/migration/schedule-to-plans", async (c) => {
 
           if (canPlace) {
             for (let p = slot.period; p < slot.period + periodsNeeded; p++) {
-              occupied.add(`${slot.day}-${p}`);
+              const key = `${slot.day}-${p}`;
+              deptOccupied.add(key);
+              // 講師の占有も記録
+              if (cur.instructorId) {
+                if (!instructorOccupied.has(cur.instructorId)) {
+                  instructorOccupied.set(cur.instructorId, new Set());
+                }
+                instructorOccupied.get(cur.instructorId)!.add(key);
+              }
               placements.push({ day: slot.day, period: p, curriculumName: cur.name });
             }
-            placed = true;
             break;
           }
         }
