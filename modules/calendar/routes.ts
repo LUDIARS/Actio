@@ -9,6 +9,7 @@ import {
   groupRepo,
   groupScheduleRepo,
 } from "../../src/db/repository.js";
+import { logActivity } from "../../src/activity-logger.js";
 
 // ─── Helper: period → 時刻変換 (09:30 + period * 60min) ─────
 
@@ -246,6 +247,8 @@ calendar.post("/disconnect", async (c) => {
     updatedAt: new Date(),
   });
 
+  logActivity(userId, user.name, "Google Calendar連携解除", "Google Calendarの連携が解除されました");
+
   return c.json({ message: "Google Calendar disconnected" });
 });
 
@@ -330,6 +333,9 @@ calendar.post("/personal", async (c) => {
 
   const created = await personalEventRepo.findById(id);
 
+  const user = await userRepo.findById(userId);
+  logActivity(userId, user?.name || "Unknown", "手動予定追加", `予定「${body.title}」が追加されました`);
+
   return c.json({ event: created }, 201);
 });
 
@@ -368,6 +374,9 @@ calendar.put("/personal/:id", async (c) => {
   await personalEventRepo.update(eventId, updates);
 
   const updated = await personalEventRepo.findById(eventId);
+
+  const user = await userRepo.findById(userId);
+  logActivity(userId, user?.name || "Unknown", "手動予定更新", `予定「${updated?.title || eventId}」が更新されました`);
 
   return c.json({ event: updated });
 });
@@ -520,6 +529,9 @@ calendar.post("/plans", async (c) => {
 
   const plan = await planRepo.findById(planId);
 
+  const user = await userRepo.findById(userId);
+  logActivity(userId, user?.name || "Unknown", "プラン作成", `プラン「${body.name}」が追加されました`);
+
   return c.json({ plan, generatedEvents: createdCount }, 201);
 });
 
@@ -574,6 +586,9 @@ calendar.put("/plans/:id", async (c) => {
     // 無効化された場合はプラン由来のイベントを削除
     await personalEventRepo.deleteByUserAndPlan(userId, planId);
   }
+
+  const user = await userRepo.findById(userId);
+  logActivity(userId, user?.name || "Unknown", "プラン更新", `プラン「${updated?.name || planId}」が更新されました`);
 
   return c.json({ plan: updated, generatedEvents });
 });

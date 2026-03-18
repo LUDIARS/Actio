@@ -5,10 +5,12 @@ import {
   votingCandidateRepo,
   voteRepo,
   userListRepo,
+  userRepo,
 } from "../../src/db/repository.js";
 import { generateAutoReply } from "./auto-reply.js";
 import type { VoteAnswer } from "../../src/shared/constants.js";
 import { getUserId } from "../../src/middleware/getUserId.js";
+import { logActivity } from "../../src/activity-logger.js";
 
 const m6 = new Hono();
 
@@ -46,6 +48,9 @@ m6.post("/events", async (c) => {
   for (const row of candidateRows) {
     await votingCandidateRepo.create(row);
   }
+
+  const user = await userRepo.findById(userId);
+  logActivity(userId, user?.name || "Unknown", "投票イベント作成", `投票イベント「${body.title}」が追加されました`);
 
   return c.json({
     id: eventId,
@@ -174,6 +179,9 @@ m6.post("/events/:eventId/votes", async (c) => {
     }
   }
 
+  const user = await userRepo.findById(userId);
+  logActivity(userId, user?.name || "Unknown", "投票回答", `投票イベント(${eventId})に回答しました`);
+
   return c.json({ votes: saved });
 });
 
@@ -266,6 +274,9 @@ m6.put("/events/:eventId", async (c) => {
   if (body.deadline !== undefined) updates.deadline = body.deadline;
 
   await votingEventRepo.update(eventId, updates);
+
+  const user = await userRepo.findById(userId);
+  logActivity(userId, user?.name || "Unknown", "投票イベント更新", `投票イベント「${event.title}」が更新されました`);
 
   return c.json({ message: "Updated", eventId });
 });

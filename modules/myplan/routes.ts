@@ -1,7 +1,8 @@
 import { Hono } from "hono";
 import { v4 as uuidv4 } from "uuid";
 import { getUserId } from "../../src/middleware/getUserId.js";
-import { myPlanRepo, personalEventRepo } from "../../src/db/repository.js";
+import { myPlanRepo, personalEventRepo, userRepo } from "../../src/db/repository.js";
+import { logActivity } from "../../src/activity-logger.js";
 
 const myPlanRoutes = new Hono();
 
@@ -157,6 +158,9 @@ myPlanRoutes.post("/", async (c) => {
 
   const plan = await myPlanRepo.findById(planId);
 
+  const user = await userRepo.findById(userId);
+  logActivity(userId, user?.name || "Unknown", "マイプラン作成", `マイプラン「${body.name}」が追加されました`);
+
   return c.json({ plan, generatedEvents }, 201);
 });
 
@@ -205,6 +209,9 @@ myPlanRoutes.put("/:id", async (c) => {
   } else {
     await personalEventRepo.deleteByUserAndPlan(userId, planId);
   }
+
+  const user = await userRepo.findById(userId);
+  logActivity(userId, user?.name || "Unknown", "マイプラン更新", `マイプラン「${updated?.name || planId}」が更新されました`);
 
   return c.json({ plan: updated, generatedEvents });
 });
