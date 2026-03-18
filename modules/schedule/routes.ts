@@ -379,9 +379,10 @@ m1.post("/migration/departments-to-groups", async (c) => {
 /**
  * POST /migration/schedule-to-plans
  *
- * カリキュラム配置データ(schedule_entries)をスケジューラのプラン形式に自動変換
- * - 学科ごとにグループのスケジュールとして変換
- * - 確定済みのスケジュールエントリのみが対象
+ * カリキュラム配置データをスケジューラのプラン形式に自動変換
+ * - 確定済みスケジュールエントリがある場合はそれを使用
+ * - エントリがない場合はカリキュラムと講師の出講可能スロットから自動配置
+ * - 講師の出講可能スロットを参照し、配置可能な曜日・コマのみを使用
  */
 m1.post("/migration/schedule-to-plans", async (c) => {
   const userId = getUserId(c);
@@ -390,38 +391,141 @@ m1.post("/migration/schedule-to-plans", async (c) => {
   const { termId } = await c.req.json<{ termId?: string }>();
   const currentTerm = termId || `term-${new Date().getFullYear()}`;
 
-  // 確定済みスケジュールエントリを取得
-  const entries = await scheduleEntryRepo.findConfirmedByTerm(currentTerm);
-
-  if (entries.length === 0) {
-    return c.json({
-      message: "変換対象のスケジュールエントリがありません",
-      converted: 0,
-    });
-  }
-
-  // カリキュラム情報を取得して学科ごとにグルーピング
+  // カリキュラム・学科・グループ情報を取得
   const curricula = await curriculumRepo.findAll();
-  const curriculumMap = new Map(curricula.map((c) => [c.id, c]));
-
   const departments = await departmentRepo.findAll();
   const departmentMap = new Map(departments.map((d) => [d.id, d]));
-
-  // 既存グループを取得 (学科名でマッチング)
   const groups = await groupRepo.findAll();
   const groupByName = new Map<string, { id: string; name: string }>(groups.map((g: { id: string; name: string }) => [g.name, g]));
 
-  // 学科ごとにスケジュールエントリをグルーピング
-  const entriesByDepartment = new Map<string, typeof entries>();
-  for (const entry of entries) {
-    const curriculum = curriculumMap.get(entry.curriculumId);
-    if (!curriculum) continue;
-
-    const deptId = curriculum.departmentId;
-    if (!entriesByDepartment.has(deptId)) {
-      entriesByDepartment.set(deptId, []);
+  // 講師の出講可能スロットを一括取得
+  const instructorAvailMap = new Map<string, Set<string>>();
+  const instructorIds = [...new Set(
+    curricula.map((cur) => cur.instructorId).filter((id): id is string => !!id)
+  )];
+  for (const instrId of instructorIds) {
+    const slots = await availableSlotRepo.findByInstructor(instrId);
+    const slotKeys = new Set<string>();
+    for (const slot of slots) {
+      const periods = (typeof slot.periods === "string" ? JSON.parse(slot.periods) : slot.periods) as number[];
+      for (const p of periods) {
+        slotKeys.add(`${slot.day}-${p}`);
+      }
     }
-    entriesByDepartment.get(deptId)!.push(entry);
+    instructorAvailMap.set(instrId, slotKeys);
+  }
+
+  // 確定済みスケジュールエントリを取得
+  const entries = await scheduleEntryRepo.findConfirmedByTerm(currentTerm);
+  const curriculumMap = new Map(curricula.map((cur) => [cur.id, cur]));
+
+  // 学科ごとの配置データを収集 (day, period, curriculumName の配列)
+  type PlacementEntry = { day: number; period: number; curriculumName: string };
+  const placementsByDepartment = new Map<string, PlacementEntry[]>();
+
+  if (entries.length > 0) {
+    // ── 既存スケジュールエントリから変換 (講師スロットでフィルタリング) ──
+    for (const entry of entries) {
+      const curriculum = curriculumMap.get(entry.curriculumId);
+      if (!curriculum) continue;
+
+      // 講師の出講可能スロットをチェック
+      if (curriculum.instructorId) {
+        const instrSlots = instructorAvailMap.get(curriculum.instructorId);
+        if (instrSlots && !instrSlots.has(`${entry.day}-${entry.period}`)) {
+          // 講師が出講不可のスロット → スキップ
+          continue;
+        }
+      }
+
+      const deptId = curriculum.departmentId;
+      if (!placementsByDepartment.has(deptId)) {
+        placementsByDepartment.set(deptId, []);
+      }
+      placementsByDepartment.get(deptId)!.push({
+        day: entry.day,
+        period: entry.period,
+        curriculumName: curriculum.name,
+      });
+    }
+  } else {
+    // ── スケジュールエントリなし: カリキュラム + 講師スロットから自動配置 ──
+    // 学科ごとにカリキュラムをグルーピング
+    const curriculaByDept = new Map<string, typeof curricula>();
+    for (const cur of curricula) {
+      if (!curriculaByDept.has(cur.departmentId)) {
+        curriculaByDept.set(cur.departmentId, []);
+      }
+      curriculaByDept.get(cur.departmentId)!.push(cur);
+    }
+
+    for (const [deptId, deptCurricula] of curriculaByDept) {
+      const occupied = new Set<string>(); // 配置済みスロット
+      const placements: PlacementEntry[] = [];
+
+      for (const cur of deptCurricula) {
+        const periodsNeeded = cur.periods || 1;
+
+        // 講師の出講可能スロットを取得
+        let availableSlots: Array<{ day: number; period: number }> = [];
+        if (cur.instructorId) {
+          const instrSlots = instructorAvailMap.get(cur.instructorId);
+          if (instrSlots) {
+            for (const key of instrSlots) {
+              const [d, p] = key.split("-").map(Number);
+              availableSlots.push({ day: d, period: p });
+            }
+          }
+          // 講師が設定されているが出講可能スロットがない → 配置不可
+          if (availableSlots.length === 0) continue;
+        } else {
+          // 講師未設定: 月〜金の全コマを候補とする
+          for (let d = 0; d < 5; d++) {
+            for (let p = 0; p < 11; p++) {
+              availableSlots.push({ day: d, period: p });
+            }
+          }
+        }
+
+        // 曜日→コマ順でソート
+        availableSlots.sort((a, b) => a.day !== b.day ? a.day - b.day : a.period - b.period);
+
+        // 連続コマが確保できるスロットを探す
+        let placed = false;
+        for (const slot of availableSlots) {
+          // 連続コマの確認
+          let canPlace = true;
+          for (let p = slot.period; p < slot.period + periodsNeeded; p++) {
+            const key = `${slot.day}-${p}`;
+            if (p >= 11 || occupied.has(key)) {
+              canPlace = false;
+              break;
+            }
+            // 講師制約がある場合、連続する全コマが出講可能か確認
+            if (cur.instructorId) {
+              const instrSlots = instructorAvailMap.get(cur.instructorId);
+              if (instrSlots && !instrSlots.has(key)) {
+                canPlace = false;
+                break;
+              }
+            }
+          }
+
+          if (canPlace) {
+            for (let p = slot.period; p < slot.period + periodsNeeded; p++) {
+              occupied.add(`${slot.day}-${p}`);
+              placements.push({ day: slot.day, period: p, curriculumName: cur.name });
+            }
+            placed = true;
+            break;
+          }
+        }
+      }
+
+      if (placements.length > 0) {
+        placementsByDepartment.set(deptId, placements);
+      }
+    }
   }
 
   // 学科ごとにプランを作成
@@ -432,7 +536,7 @@ m1.post("/migration/schedule-to-plans", async (c) => {
     plansCreated: number;
   }> = [];
 
-  for (const [deptId, deptEntries] of entriesByDepartment) {
+  for (const [deptId, deptPlacements] of placementsByDepartment) {
     const dept = departmentMap.get(deptId);
     if (!dept) continue;
 
@@ -440,15 +544,15 @@ m1.post("/migration/schedule-to-plans", async (c) => {
 
     // 曜日ごとにエントリを集約してプランに変換
     const byDay = new Map<number, number[]>();
-    for (const entry of deptEntries) {
-      if (!byDay.has(entry.day)) byDay.set(entry.day, []);
-      byDay.get(entry.day)!.push(entry.period);
+    for (const placement of deptPlacements) {
+      if (!byDay.has(placement.day)) byDay.set(placement.day, []);
+      byDay.get(placement.day)!.push(placement.period);
     }
 
     // 各曜日の連続コマをプランとして登録
     let plansCreated = 0;
     for (const [day, periods] of byDay) {
-      const sorted = [...periods].sort((a, b) => a - b);
+      const sorted = [...new Set(periods)].sort((a, b) => a - b);
       // 連続するコマをグルーピング
       const ranges: Array<{ start: number; duration: number }> = [];
       let rangeStart = sorted[0];

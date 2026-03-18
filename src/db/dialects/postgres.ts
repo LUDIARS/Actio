@@ -415,6 +415,8 @@ export const schedulingTasks = pgTable(
     priority: integer("priority").notNull().default(0),
     preferredDays: jsonb("preferred_days").$type<number[]>().notNull().default([]),
     preferredPeriods: jsonb("preferred_periods").$type<number[]>().notNull().default([]),
+    /** 担当講師ID (設定時は講師の空き時間に合わせて配置) */
+    instructorId: text("instructor_id"),
     status: text("status").notNull().default("pending"),
     createdBy: text("created_by").notNull(),
     createdAt: timestamp("created_at")
@@ -609,6 +611,16 @@ export const instructorAvailableSlots = pgTable(
   ]
 );
 
+// ─── App Settings ───────────────────────────────────────────
+
+export const appSettings = pgTable("app_settings", {
+  key: text("key").primaryKey(),
+  value: text("value").notNull(),
+  updatedAt: timestamp("updated_at")
+    .$defaultFn(() => new Date())
+    .notNull(),
+});
+
 // ─── Schema Exports ──────────────────────────────────────────
 
 export const schema = {
@@ -634,6 +646,7 @@ export const schema = {
   votingEvents,
   votingCandidates,
   votes,
+  appSettings,
 };
 
 export const curriculumSchema = {
@@ -669,6 +682,7 @@ const DB_SCHEMA = {
   votingEvents,
   votingCandidates,
   votes,
+  appSettings,
   departments,
   instructors,
   curricula,
