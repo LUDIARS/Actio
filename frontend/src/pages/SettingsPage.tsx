@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { useAuth } from "../contexts/AuthContext";
-import { settingsApi } from "../lib/api";
+import { settingsApi, groupApi } from "../lib/api";
 import { API_BASE } from "../lib/constants";
 
 interface SettingField {
@@ -50,6 +50,11 @@ export function SettingsPage() {
   const [success, setSuccess] = useState<string | null>(null);
   const [dirty, setDirty] = useState(false);
 
+  // グループ作成
+  const [showGroupForm, setShowGroupForm] = useState(false);
+  const [groupForm, setGroupForm] = useState({ name: "", description: "" });
+  const [groupCreating, setGroupCreating] = useState(false);
+
   const isAdmin = user?.role === "admin";
 
   const fetchSettings = useCallback(async () => {
@@ -88,6 +93,23 @@ export function SettingsPage() {
       setError((err as Error).message);
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleCreateGroup = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!groupForm.name.trim()) return;
+    setGroupCreating(true);
+    setError(null);
+    try {
+      await groupApi.createGroup({ name: groupForm.name.trim(), description: groupForm.description.trim() || undefined });
+      setGroupForm({ name: "", description: "" });
+      setShowGroupForm(false);
+      setSuccess("グループを作成しました");
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setGroupCreating(false);
     }
   };
 
@@ -199,6 +221,66 @@ export function SettingsPage() {
             <span style={{ fontSize: "0.75rem", color: "var(--accent)" }}>未保存の変更があります</span>
           )}
         </div>
+      </div>
+
+      {/* グループ管理 */}
+      <div style={{ ...styles.card, marginTop: "1.5rem" }}>
+        <h2 style={styles.sectionTitle}>グループ管理</h2>
+        <p style={{ fontSize: "0.8rem", color: "var(--text-muted)", marginBottom: "1rem" }}>
+          新しいグループを作成します。作成者はオーナーとして自動登録されます。
+        </p>
+        {showGroupForm ? (
+          <form onSubmit={handleCreateGroup} style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+            <div>
+              <label style={styles.label}>グループ名</label>
+              <input
+                type="text"
+                value={groupForm.name}
+                onChange={(e) => setGroupForm((f) => ({ ...f, name: e.target.value }))}
+                placeholder="例: プロジェクトA"
+                required
+                style={styles.input}
+              />
+            </div>
+            <div>
+              <label style={styles.label}>説明</label>
+              <input
+                type="text"
+                value={groupForm.description}
+                onChange={(e) => setGroupForm((f) => ({ ...f, description: e.target.value }))}
+                placeholder="任意"
+                style={styles.input}
+              />
+            </div>
+            <div style={{ display: "flex", gap: "0.5rem" }}>
+              <button
+                type="submit"
+                disabled={groupCreating}
+                style={{
+                  ...styles.btnPrimary,
+                  opacity: groupCreating ? 0.5 : 1,
+                  cursor: groupCreating ? "default" : "pointer",
+                }}
+              >
+                {groupCreating ? "作成中..." : "作成"}
+              </button>
+              <button
+                type="button"
+                onClick={() => { setShowGroupForm(false); setGroupForm({ name: "", description: "" }); }}
+                style={styles.btnSecondary}
+              >
+                キャンセル
+              </button>
+            </div>
+          </form>
+        ) : (
+          <button
+            onClick={() => setShowGroupForm(true)}
+            style={styles.btnPrimary}
+          >
+            グループを作成
+          </button>
+        )}
       </div>
 
       {/* DBエクスポート */}

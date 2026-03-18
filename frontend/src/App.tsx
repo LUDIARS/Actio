@@ -7,7 +7,7 @@ import { DataManagementPage } from "./pages/DataManagementPage";
 import { SchedulerPage } from "./pages/SchedulerPage";
 import { ReservationsPage } from "./pages/ReservationsPage";
 import { NotificationsPage } from "./pages/NotificationsPage";
-import { CurriculumPlanPage } from "./pages/CurriculumPlanPage";
+
 import { VotingPage } from "./pages/VotingPage";
 import { CalendarPage } from "./pages/CalendarPage";
 import { GroupsPage } from "./pages/GroupsPage";
@@ -51,7 +51,7 @@ function AppRoutes() {
         <Route path="/data-management" element={<DataManagementPage />} />
         <Route path="/schema-management" element={<SchemaManagementPage />} />
         <Route path="/schedule" element={<DataManagementPage />} />
-        <Route path="/curriculum-plan" element={<CurriculumPlanPage />} />
+        {/* M2カリキュラムプランは廃止 — M1データ管理に統合 */}
         <Route path="/groups" element={<GroupsPage />} />
         <Route path="/my-plan" element={<MyPlanPage />} />
         <Route path="/scheduler" element={<SchedulerPage />} />
