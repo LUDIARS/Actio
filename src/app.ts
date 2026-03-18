@@ -12,6 +12,7 @@ import { smartScheduler } from "../modules/smart-scheduler/routes.js";
 import { schoolModule } from "../modules/school/index.js";
 import { m1 } from "../modules/schedule/routes.js";
 import { dbViewer } from "./admin/db-viewer.js";
+import { settingsRoutes } from "../modules/settings/routes.js";
 import { initNotificationHandler } from "../modules/notification/core/handler.js";
 import { DAY_LABELS, getPeriodTime, PERIODS_COUNT } from "./shared/constants.js";
 import type { SchulaModule } from "./shared/types.js";
@@ -77,6 +78,9 @@ export function createApp() {
       description: "1コマ=1時間, 9:30開始, 月〜日(7日間)",
     });
   });
+
+  // ─── Admin Settings (設定管理) ───────────────────────────────
+  app.route("/api/settings", settingsRoutes);
 
   // ─── Admin DB Viewer ───────────────────────────────────────
   app.route("/api/admin/db", dbViewer);

@@ -2,14 +2,27 @@ import { Hono } from "hono";
 import { v4 as uuidv4 } from "uuid";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
-import { userRepo, userListRepo, groupMemberRepo, groupRepo } from "../db/repository.js";
+import { userRepo, userListRepo, groupMemberRepo, groupRepo, appSettingsRepo } from "../db/repository.js";
 import * as sessionStore from "../session/store.js";
 
 const auth = new Hono();
 
 const JWT_SECRET = process.env.JWT_SECRET || "schedula-dev-secret-change-in-production";
-const JWT_EXPIRES_IN = "1h";
-const REFRESH_TOKEN_EXPIRES_DAYS = 30;
+
+// セッション設定: DB設定 > 環境変数 > デフォルト値
+async function getSessionConfig() {
+  let refreshDays = 30;
+  let accessMinutes = 60;
+  try {
+    const refreshSetting = await appSettingsRepo.findByKey("session.refreshTokenDays");
+    if (refreshSetting) refreshDays = Math.max(1, parseInt(refreshSetting.value, 10) || 30);
+    const accessSetting = await appSettingsRepo.findByKey("session.accessTokenMinutes");
+    if (accessSetting) accessMinutes = Math.max(1, parseInt(accessSetting.value, 10) || 60);
+  } catch {
+    // DB未初期化時はデフォルト値を使用
+  }
+  return { refreshDays, accessMinutes };
+}
 
 // Google OAuth設定
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || "";
@@ -20,9 +33,9 @@ const FRONTEND_URL = process.env.FRONTEND_URL || "http://localhost:8080";
 
 // ─── Helper: JWTトークン生成 ────────────────────────────────
 
-function generateTokens(userId: string, role: string) {
+function generateTokens(userId: string, role: string, accessExpiresInSeconds: number = 3600) {
   const accessToken = jwt.sign({ userId, role }, JWT_SECRET, {
-    expiresIn: JWT_EXPIRES_IN,
+    expiresIn: accessExpiresInSeconds,
   });
   const refreshToken = uuidv4();
   return { accessToken, refreshToken };
@@ -86,11 +99,12 @@ auth.post("/register", async (c) => {
     });
     console.log("[auth:register] ユーザレコード挿入完了");
 
-    const { accessToken, refreshToken } = generateTokens(userId, assignedRole);
+    const sessionConfig = await getSessionConfig();
+    const { accessToken, refreshToken } = generateTokens(userId, assignedRole, sessionConfig.accessMinutes * 60);
     console.log("[auth:register] トークン生成完了");
 
     // Save session (Redis優先、DBフォールバック)
-    const expiresAt = new Date(Date.now() + REFRESH_TOKEN_EXPIRES_DAYS * 24 * 60 * 60 * 1000);
+    const expiresAt = new Date(Date.now() + sessionConfig.refreshDays * 24 * 60 * 60 * 1000);
 
     console.log("[auth:register] セッション保存中...");
     await sessionStore.createSession(userId, refreshToken, expiresAt);
@@ -137,9 +151,10 @@ auth.post("/login", async (c) => {
       return c.json({ error: "Invalid email or password" }, 401);
     }
 
-    const { accessToken, refreshToken } = generateTokens(user.id, user.role);
+    const sessionConfig = await getSessionConfig();
+    const { accessToken, refreshToken } = generateTokens(user.id, user.role, sessionConfig.accessMinutes * 60);
 
-    const expiresAt = new Date(Date.now() + REFRESH_TOKEN_EXPIRES_DAYS * 24 * 60 * 60 * 1000);
+    const expiresAt = new Date(Date.now() + sessionConfig.refreshDays * 24 * 60 * 60 * 1000);
 
     console.log("[auth:login] セッション保存中...");
     await sessionStore.createSession(user.id, refreshToken, expiresAt);
@@ -191,8 +206,9 @@ auth.post("/refresh", async (c) => {
     }
 
     // Rotate refresh token
-    const { accessToken, refreshToken: newRefreshToken } = generateTokens(user.id, user.role);
-    const newExpiresAt = new Date(Date.now() + REFRESH_TOKEN_EXPIRES_DAYS * 24 * 60 * 60 * 1000);
+    const sessionConfig = await getSessionConfig();
+    const { accessToken, refreshToken: newRefreshToken } = generateTokens(user.id, user.role, sessionConfig.accessMinutes * 60);
+    const newExpiresAt = new Date(Date.now() + sessionConfig.refreshDays * 24 * 60 * 60 * 1000);
 
     await sessionStore.rotateRefreshToken(session.id, body.refreshToken, newRefreshToken, newExpiresAt);
 
@@ -383,9 +399,10 @@ auth.get("/google/callback", async (c) => {
     }
 
     // Generate JWT tokens
-    const { accessToken, refreshToken } = generateTokens(user.id, user.role);
+    const sessionConfig = await getSessionConfig();
+    const { accessToken, refreshToken } = generateTokens(user.id, user.role, sessionConfig.accessMinutes * 60);
 
-    const expiresAt = new Date(Date.now() + REFRESH_TOKEN_EXPIRES_DAYS * 24 * 60 * 60 * 1000);
+    const expiresAt = new Date(Date.now() + sessionConfig.refreshDays * 24 * 60 * 60 * 1000);
     await sessionStore.createSession(user.id, refreshToken, expiresAt);
 
     // フロントエンドにリダイレクト（トークンをURLパラメータで渡す）

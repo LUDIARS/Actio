@@ -963,6 +963,44 @@ export const notificationRepo = {
   },
 };
 
+// ─── App Settings Repository ──────────────────────────────────
+
+export type AppSetting = typeof schema.appSettings.$inferSelect;
+
+export const appSettingsRepo = {
+  async findAll(): Promise<AppSetting[]> {
+    return db.select().from(schema.appSettings);
+  },
+
+  async findByKey(key: string): Promise<AppSetting | undefined> {
+    const [row] = await db
+      .select()
+      .from(schema.appSettings)
+      .where(eq(schema.appSettings.key, key));
+    return row;
+  },
+
+  async upsert(key: string, value: string): Promise<void> {
+    const existing = await this.findByKey(key);
+    if (existing) {
+      await db
+        .update(schema.appSettings)
+        .set({ value, updatedAt: new Date() })
+        .where(eq(schema.appSettings.key, key));
+    } else {
+      await db
+        .insert(schema.appSettings)
+        .values({ key, value, updatedAt: new Date() });
+    }
+  },
+
+  async deleteByKey(key: string): Promise<void> {
+    await db
+      .delete(schema.appSettings)
+      .where(eq(schema.appSettings.key, key));
+  },
+};
+
 // ─── User List Repository (admin/user list queries) ──────────
 
 export const userListRepo = {
