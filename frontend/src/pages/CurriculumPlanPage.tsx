@@ -43,14 +43,8 @@ export function CurriculumPlanPage() {
   const [error, setError] = useState("");
   const gridRef = useRef<HTMLDivElement>(null);
 
-  // M1のデータを読み込む
-  useEffect(() => {
-    loadFromM1();
-  }, []);
-
-  const loadFromM1 = async () => {
-    setLoading(true);
-    setError("");
+  // M1のデータを読み込む - async fetch without synchronous setState
+  const fetchM1Data = useCallback(async () => {
     try {
       const result = await m1.getSchedule();
       const entries = result.entries || [];
@@ -102,6 +96,20 @@ export function CurriculumPlanPage() {
       setError(err.message || "M1データの読み込みに失敗しました");
     }
     setLoading(false);
+  }, []);
+
+  // Initial load (loading starts as true)
+  /* eslint-disable react-hooks/set-state-in-effect */
+  useEffect(() => {
+    fetchM1Data();
+  }, [fetchM1Data]);
+  /* eslint-enable react-hooks/set-state-in-effect */
+
+  // Reload handler for button clicks (sets loading synchronously)
+  const loadFromM1 = () => {
+    setLoading(true);
+    setError("");
+    fetchM1Data();
   };
 
   // Get block at a specific grid position

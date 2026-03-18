@@ -14,25 +14,18 @@ export function DbViewerPage() {
   const [offset, setOffset] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  // 管理者チェック
-  if (user?.role !== "admin") {
-    return (
-      <div style={{ padding: "2rem", color: "var(--text-error)" }}>
-        アクセス拒否: 管理者のみ利用可能です
-      </div>
-    );
-  }
+  const isAdmin = user?.role === "admin";
 
   // テーブル一覧取得
   useEffect(() => {
+    if (!isAdmin) return;
     setLoading(true);
     adminDbApi
       .listTables()
       .then((data) => setTables(data.tables))
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
-  }, []);
+  }, [isAdmin]);
 
   // テーブルデータ取得
   const loadTableData = useCallback(
@@ -62,6 +55,14 @@ export function DbViewerPage() {
     if (typeof value === "object") return JSON.stringify(value);
     return String(value);
   };
+
+  if (!isAdmin) {
+    return (
+      <div style={{ padding: "2rem", color: "var(--text-error)" }}>
+        アクセス拒否: 管理者のみ利用可能です
+      </div>
+    );
+  }
 
   return (
     <div style={{ padding: "1.5rem" }}>

@@ -21,7 +21,11 @@ const AuthContext = createContext<AuthContextType | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(getStoredUser);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(() => {
+    const params = new URLSearchParams(window.location.search);
+    const stored = getStoredUser();
+    return !!(stored || (params.get("accessToken") && params.get("refreshToken")));
+  });
 
   useEffect(() => {
     // Check for OAuth callback tokens or errors in URL
@@ -59,8 +63,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setUser(null);
         })
         .finally(() => setLoading(false));
-    } else {
-      setLoading(false);
     }
   }, []);
 
@@ -95,6 +97,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function useAuth() {
   const ctx = useContext(AuthContext);
   if (!ctx) throw new Error("useAuth must be used within AuthProvider");

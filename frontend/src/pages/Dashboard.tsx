@@ -82,7 +82,7 @@ function getDayOfWeek(year: number, month: number, day: number): number {
 // ─── Component ──────────────────────────────────────────────
 
 export function Dashboard() {
-  const { user, googleAuthUrl } = useAuth();
+  const { googleAuthUrl } = useAuth();
   const [googleConnected, setGoogleConnected] = useState(false);
   const [googleEmail, setGoogleEmail] = useState("");
   const [events, setEvents] = useState<PersonalEvent[]>([]);
@@ -103,7 +103,6 @@ export function Dashboard() {
   }>>([]);
 
   const loadData = useCallback(async () => {
-    setLoading(true);
     try {
       const [statusRes, eventsRes, conflictsRes, groupsRes, myPlansRes] = await Promise.all([
         calendarApi.getStatus().catch(() => ({ connected: false, email: "" })),
@@ -158,9 +157,11 @@ export function Dashboard() {
     setLoading(false);
   }, []);
 
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     loadData();
   }, [loadData]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   // 今日の曜日 (0=月)
   const todayDow = (() => {

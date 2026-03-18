@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useSearchParams } from "react-router-dom";
 import { DAY_LABELS } from "../lib/constants";
 import { m4 } from "../lib/api";
@@ -44,7 +44,7 @@ export function ReservationsPage() {
     setTimeout(() => setMessage(""), 4000);
   };
 
-  const fetchReservations = async () => {
+  const fetchReservations = useCallback(async () => {
     try {
       const result = await m4.listReservations();
       setReservations(result.reservations || []);
@@ -52,11 +52,13 @@ export function ReservationsPage() {
       console.error("[ReservationsPage] fetchReservations失敗:", e);
       showMsg(`Error: ${e.message}`);
     }
-  };
+  }, []);
 
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     fetchReservations();
-  }, []);
+  }, [fetchReservations]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   const handleCreate = async () => {
     setLoading(true);
