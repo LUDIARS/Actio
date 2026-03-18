@@ -8,6 +8,7 @@ import {
   groupRepo,
   groupScheduleRepo,
   personalEventRepo,
+  availableSlotRepo,
 } from "../../src/db/repository.js";
 import { solve, type TaskInput } from "./solver.js";
 import { calculateGroupAvailability } from "./availability.js";
@@ -115,6 +116,7 @@ smartScheduler.post("/tasks", async (c) => {
     priority?: number;
     preferredDays?: number[];
     preferredPeriods?: number[];
+    instructorId?: string;
   }>();
 
   if (!body.groupId || !body.title) {
@@ -134,6 +136,7 @@ smartScheduler.post("/tasks", async (c) => {
     priority: body.priority || 0,
     preferredDays: body.preferredDays || [],
     preferredPeriods: body.preferredPeriods || [],
+    instructorId: body.instructorId || null,
     status: "pending",
     createdBy: userId,
     createdAt: now,
@@ -164,6 +167,7 @@ smartScheduler.put("/tasks/:id", async (c) => {
     priority?: number;
     preferredDays?: number[];
     preferredPeriods?: number[];
+    instructorId?: string | null;
   }>();
 
   const updates: Record<string, unknown> = { updatedAt: new Date() };
@@ -172,6 +176,7 @@ smartScheduler.put("/tasks/:id", async (c) => {
   if (body.priority !== undefined) updates.priority = body.priority;
   if (body.preferredDays !== undefined) updates.preferredDays = body.preferredDays;
   if (body.preferredPeriods !== undefined) updates.preferredPeriods = body.preferredPeriods;
+  if (body.instructorId !== undefined) updates.instructorId = body.instructorId;
 
   await schedulingTaskRepo.update(taskId, updates);
   const updated = await schedulingTaskRepo.findById(taskId);
@@ -219,7 +224,25 @@ smartScheduler.post("/solve/:groupId", async (c) => {
     return c.json({ error: "Group has no members" }, 400);
   }
 
-  // DPソルバー実行
+  // 講師の空き時間を取得し、講師が設定されたタスクの候補スロットを制限する
+  const instructorAvailMap = new Map<string, Set<string>>();
+  const instructorIds = [...new Set(
+    pendingTasks.map((t) => t.instructorId).filter((id): id is string => !!id)
+  )];
+  for (const instrId of instructorIds) {
+    const slots = await availableSlotRepo.findByInstructor(instrId);
+    const slotKeys = new Set<string>();
+    for (const slot of slots) {
+      const periods = (typeof slot.periods === "string" ? JSON.parse(slot.periods) : slot.periods) as number[];
+      for (const p of periods) {
+        slotKeys.add(`${slot.day}-${p}`);
+      }
+    }
+    instructorAvailMap.set(instrId, slotKeys);
+  }
+
+  // 講師の空き時間で空き状況をフィルタリング
+  // タスクごとに異なる講師がいるため、タスク入力に講師情報を含める
   const taskInputs: TaskInput[] = pendingTasks.map((t) => ({
     id: t.id,
     title: t.title,
@@ -227,9 +250,18 @@ smartScheduler.post("/solve/:groupId", async (c) => {
     priority: t.priority,
     preferredDays: (t.preferredDays as number[]) || [],
     preferredPeriods: (t.preferredPeriods as number[]) || [],
+    instructorId: t.instructorId || undefined,
   }));
 
-  const solveResult = solve(taskInputs, availability, totalMembers);
+  // 講師制約付きの空き状況: 講師が設定されたタスクは講師の空き時間のみ候補とする
+  const instructorFilteredAvailability = (taskInstructorId: string | undefined) => {
+    if (!taskInstructorId) return availability;
+    const instrSlots = instructorAvailMap.get(taskInstructorId);
+    if (!instrSlots) return []; // 講師の空き情報がない場合は配置不可
+    return availability.filter((slot) => instrSlots.has(`${slot.day}-${slot.period}`));
+  };
+
+  const solveResult = solve(taskInputs, availability, totalMembers, instructorFilteredAvailability);
 
   // 結果をDBに保存
   const resultId = uuidv4();

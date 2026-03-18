@@ -358,6 +358,8 @@ export const schedulingTasks = sqliteTable(
     preferredDays: text("preferred_days", { mode: "json" }).$type<number[]>().notNull().default([]),
     /** 希望コマ JSON array [0,1,2,...] (空=どのコマでもOK) */
     preferredPeriods: text("preferred_periods", { mode: "json" }).$type<number[]>().notNull().default([]),
+    /** 担当講師ID (設定時は講師の空き時間に合わせて配置) */
+    instructorId: text("instructor_id"),
     /** pending=未配置, placed=配置済み, failed=配置不可 */
     status: text("status").notNull().default("pending"),
     createdBy: text("created_by").notNull(),

@@ -22,6 +22,7 @@ export interface TaskInput {
   priority: number;
   preferredDays: number[]; // 空=制約なし
   preferredPeriods: number[]; // 空=制約なし
+  instructorId?: string;   // 講師ID (設定時は講師の空き時間制約を適用)
 }
 
 export interface Placement {
@@ -125,13 +126,14 @@ function unmarkOccupied(day: number, period: number, duration: number, occupied:
 export function solve(
   tasks: TaskInput[],
   availability: AvailabilitySlot[],
-  totalMembers: number
+  totalMembers: number,
+  instructorFilter?: (instructorId: string | undefined) => AvailabilitySlot[]
 ): SolveResult {
   const n = tasks.length;
 
   // タスクが多すぎる場合はグリーディに切り替え
   if (n > 20) {
-    return solveGreedy(tasks, availability, totalMembers);
+    return solveGreedy(tasks, availability, totalMembers, instructorFilter);
   }
 
   // 空きスロットをMapに
@@ -141,15 +143,26 @@ export function solve(
   }
 
   // 各タスクの候補スロットを事前計算 (day, period, score)
+  // 講師制約がある場合はタスクごとにフィルタリングされた空き状況を使用
   const candidates: Array<Array<{ day: number; period: number; score: number }>> = [];
   for (const task of tasks) {
+    // 講師制約付きの空き状況マップを構築
+    let taskAvailMap = availMap;
+    if (instructorFilter && task.instructorId) {
+      const filtered = instructorFilter(task.instructorId);
+      taskAvailMap = new Map<string, AvailabilitySlot>();
+      for (const slot of filtered) {
+        taskAvailMap.set(`${slot.day}-${slot.period}`, slot);
+      }
+    }
+
     const taskCandidates: Array<{ day: number; period: number; score: number }> = [];
     for (let day = 0; day < DAYS_COUNT; day++) {
       // 希望曜日フィルタ
       if (task.preferredDays.length > 0 && !task.preferredDays.includes(day)) continue;
 
       for (let period = 0; period <= PERIODS_COUNT - task.duration; period++) {
-        const s = slotScore(day, period, task.duration, availMap, task, totalMembers);
+        const s = slotScore(day, period, task.duration, taskAvailMap, task, totalMembers);
         if (s > 0) {
           taskCandidates.push({ day, period, score: s });
         }
@@ -244,7 +257,8 @@ export function solve(
 function solveGreedy(
   tasks: TaskInput[],
   availability: AvailabilitySlot[],
-  totalMembers: number
+  totalMembers: number,
+  instructorFilter?: (instructorId: string | undefined) => AvailabilitySlot[]
 ): SolveResult {
   const availMap = new Map<string, AvailabilitySlot>();
   for (const slot of availability) {
@@ -258,6 +272,16 @@ function solveGreedy(
   const unplacedTaskIds: string[] = [];
 
   for (const task of sorted) {
+    // 講師制約付きの空き状況マップを構築
+    let taskAvailMap = availMap;
+    if (instructorFilter && task.instructorId) {
+      const filtered = instructorFilter(task.instructorId);
+      taskAvailMap = new Map<string, AvailabilitySlot>();
+      for (const slot of filtered) {
+        taskAvailMap.set(`${slot.day}-${slot.period}`, slot);
+      }
+    }
+
     let bestSlot: { day: number; period: number; score: number } | null = null;
 
     for (let day = 0; day < DAYS_COUNT; day++) {
@@ -266,7 +290,7 @@ function solveGreedy(
       for (let period = 0; period <= PERIODS_COUNT - task.duration; period++) {
         if (conflicts(day, period, task.duration, occupied)) continue;
 
-        const s = slotScore(day, period, task.duration, availMap, task, totalMembers);
+        const s = slotScore(day, period, task.duration, taskAvailMap, task, totalMembers);
         if (s > 0 && (!bestSlot || s > bestSlot.score)) {
           bestSlot = { day, period, score: s };
         }
