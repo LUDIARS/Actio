@@ -337,13 +337,13 @@ export const m1Schema = {
   getCurriculaByDepartment(departmentId: string) {
     return request<{ curricula: any[] }>(`/api/m1/departments/${departmentId}/curricula`);
   },
-  createCurriculum(departmentId: string, name: string, instructorId?: string, periods?: number, departmentIds?: string[]) {
+  createCurriculum(departmentId: string, name: string, instructorId?: string, periods?: number, departmentIds?: string[], validFrom?: string, validUntil?: string) {
     return request<any>(`/api/m1/departments/${departmentId}/curricula`, {
       method: "POST",
-      body: JSON.stringify({ name, instructorId, periods, departmentIds }),
+      body: JSON.stringify({ name, instructorId, periods, departmentIds, validFrom, validUntil }),
     });
   },
-  updateCurriculum(id: string, body: { name?: string; instructorId?: string | null; periods?: number; departmentIds?: string[] }) {
+  updateCurriculum(id: string, body: { name?: string; instructorId?: string | null; periods?: number; departmentIds?: string[]; validFrom?: string | null; validUntil?: string | null }) {
     return request<any>(`/api/m1/curricula/${id}`, {
       method: "PUT",
       body: JSON.stringify(body),
@@ -372,11 +372,26 @@ export const m1Schema = {
     period: number;
     duration: number;
     departmentNames: string[];
-  }>) {
-    return request<{ message: string; schedulesCreated: number; groupsCreated: number }>(
+  }>, label?: string) {
+    return request<{ message: string; schedulesCreated: number; groupsCreated: number; deletedCount: number; label: string | null }>(
       "/api/m1/confirm-placements",
-      { method: "POST", body: JSON.stringify({ placements }) }
+      { method: "POST", body: JSON.stringify({ placements, label }) }
     );
+  },
+
+  // グループスケジュール一覧取得 (DB管理用)
+  getGroupSchedules() {
+    return request<{ schedules: any[] }>("/api/m1/group-schedules");
+  },
+
+  // グループスケジュール個別削除
+  deleteGroupSchedule(id: string) {
+    return request<{ deleted: string }>(`/api/m1/group-schedules/${id}`, { method: "DELETE" });
+  },
+
+  // ラベル単位でグループスケジュールを一括削除
+  deleteGroupSchedulesByLabel(label: string) {
+    return request<{ deletedCount: number; label: string }>(`/api/m1/group-schedules/by-label/${encodeURIComponent(label)}`, { method: "DELETE" });
   },
 };
 

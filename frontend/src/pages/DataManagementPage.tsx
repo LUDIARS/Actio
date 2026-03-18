@@ -257,7 +257,7 @@ export function DataManagementPage() {
 
   const [message, setMessage] = useState("");
   const [messageType, setMessageType] = useState<"success" | "error">("success");
-  const [tab, setTab] = useState<"manual" | "overview" | "auto">("manual");
+  const [tab, setTab] = useState<"manual" | "overview" | "auto" | "dbview">("manual");
   const [filterDept, setFilterDept] = useState("");
 
   // Strategy
@@ -276,6 +276,7 @@ export function DataManagementPage() {
   } | null>(null);
   const cancelRef = useRef(false);
   const [confirming, setConfirming] = useState(false);
+  const [termLabel, setTermLabel] = useState("");
 
   const [disassembleDept, setDisassembleDept] = useState("");
 
@@ -467,7 +468,7 @@ export function DataManagementPage() {
         };
       });
 
-      const result = await m1Schema.confirmPlacements(placements);
+      const result = await m1Schema.confirmPlacements(placements, termLabel || undefined);
       setConfirmed(true);
       showMessage(result.message);
     } catch (e: any) {
@@ -537,6 +538,7 @@ export function DataManagementPage() {
           { key: "manual" as const, label: "配置" },
           { key: "overview" as const, label: "一覧・スワップ" },
           { key: "auto" as const, label: "自動配置" },
+          { key: "dbview" as const, label: "DB管理" },
         ]).map((t) => (
           <button
             key={t.key}
@@ -768,14 +770,27 @@ export function DataManagementPage() {
             <h3 style={{ fontSize: "0.85rem", marginBottom: "0.5rem", color: "var(--text-muted)" }}>配置の確定</h3>
             <p style={{ fontSize: "0.75rem", color: "var(--text-muted)", marginBottom: "0.75rem" }}>
               配置をグループスケジュールとして登録します。学科名と同じグループが自動作成されます。
+              ラベルを指定すると、同じラベルの既存データを削除してから登録します（多重登録防止）。
             </p>
-            <button
-              className="primary"
-              onClick={handleConfirm}
-              disabled={entries.length === 0 || confirming || confirmed}
-            >
-              {confirming ? "登録中..." : confirmed ? "登録済み" : `配置を確定 (${placedIds.size}件)`}
-            </button>
+            <div style={{ display: "flex", gap: "0.75rem", alignItems: "flex-end", flexWrap: "wrap" }}>
+              <div className="form-group" style={{ minWidth: 200 }}>
+                <label>タームラベル（任意）</label>
+                <input
+                  type="text"
+                  value={termLabel}
+                  onChange={(e) => setTermLabel(e.target.value)}
+                  placeholder="例: 2026前期"
+                />
+              </div>
+              <button
+                className="primary"
+                onClick={handleConfirm}
+                disabled={entries.length === 0 || confirming || confirmed}
+                style={{ marginBottom: "1rem" }}
+              >
+                {confirming ? "登録中..." : confirmed ? "登録済み" : `配置を確定 (${placedIds.size}件)`}
+              </button>
+            </div>
           </div>
 
           {/* 全クリア */}
@@ -798,14 +813,192 @@ export function DataManagementPage() {
         </div>
       )}
 
-      {/* Timetable Grid */}
-      <TimetableGrid slots={buildSlots()} onSlotClick={handleSlotClick} />
+      {/* DB管理タブ */}
+      {tab === "dbview" && (
+        <GroupScheduleManager showMessage={showMessage} />
+      )}
 
-      <div style={{ marginTop: "1rem", fontSize: "0.8rem", color: "var(--text-muted)" }}>
-        マスタデータの追加・編集は
-        <a href="/schema-management" style={{ color: "var(--accent)", marginLeft: "0.25rem" }}>スキーマ管理</a>
-        ページで行えます
+      {/* Timetable Grid */}
+      {tab !== "dbview" && <TimetableGrid slots={buildSlots()} onSlotClick={handleSlotClick} />}
+
+      {tab !== "dbview" && (
+        <div style={{ marginTop: "1rem", fontSize: "0.8rem", color: "var(--text-muted)" }}>
+          マスタデータの追加・編集は
+          <a href="/schema-management" style={{ color: "var(--accent)", marginLeft: "0.25rem" }}>スキーマ管理</a>
+          ページで行えます
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── GroupScheduleManager (DB管理タブ) ─────────────────────
+
+interface GroupScheduleEntry {
+  id: string;
+  groupId: string;
+  groupName: string;
+  title: string;
+  day: number;
+  period: number;
+  duration: number;
+  label: string | null;
+  scheduleType: string;
+  createdAt: string;
+}
+
+function GroupScheduleManager({ showMessage }: { showMessage: (msg: string, type?: "success" | "error") => void }) {
+  const [schedules, setSchedules] = useState<GroupScheduleEntry[]>([]);
+  const [filterLabel, setFilterLabel] = useState("");
+  const [filterGroup, setFilterGroup] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  const fetchSchedules = useCallback(async () => {
+    setLoading(true);
+    try {
+      const data = await m1Schema.getGroupSchedules();
+      setSchedules(data.schedules || []);
+    } catch (e: any) {
+      showMessage(`取得エラー: ${e.message}`, "error");
+    }
+    setLoading(false);
+  }, [showMessage]);
+
+  useEffect(() => { fetchSchedules(); }, [fetchSchedules]);
+
+  const handleDelete = async (id: string, title: string) => {
+    if (!confirm(`「${title}」を削除しますか？`)) return;
+    try {
+      await m1Schema.deleteGroupSchedule(id);
+      showMessage(`「${title}」を削除しました`);
+      fetchSchedules();
+    } catch (e: any) {
+      showMessage(`削除エラー: ${e.message}`, "error");
+    }
+  };
+
+  const handleDeleteByLabel = async (label: string) => {
+    const count = schedules.filter((s) => s.label === label).length;
+    if (!confirm(`ラベル「${label}」のスケジュール${count}件を一括削除しますか？`)) return;
+    try {
+      const result = await m1Schema.deleteGroupSchedulesByLabel(label);
+      showMessage(`ラベル「${label}」の${result.deletedCount}件を削除しました`);
+      fetchSchedules();
+    } catch (e: any) {
+      showMessage(`削除エラー: ${e.message}`, "error");
+    }
+  };
+
+  // ラベル一覧を抽出
+  const labels = [...new Set(schedules.map((s) => s.label).filter((l): l is string => !!l))].sort();
+  const groupNames = [...new Set(schedules.map((s) => s.groupName))].sort();
+
+  const filtered = schedules.filter((s) => {
+    if (filterLabel && s.label !== filterLabel) return false;
+    if (filterGroup && s.groupName !== filterGroup) return false;
+    return true;
+  });
+
+  return (
+    <div>
+      <div className="card" style={{ marginBottom: "1rem" }}>
+        <h3 style={{ fontSize: "0.85rem", marginBottom: "0.75rem", color: "var(--text-muted)" }}>
+          グループスケジュール管理 ({schedules.length}件)
+        </h3>
+        <p style={{ fontSize: "0.75rem", color: "var(--text-muted)", marginBottom: "0.75rem" }}>
+          配置確定で登録されたグループスケジュールを個別に閲覧・削除できます。
+        </p>
+
+        <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap", alignItems: "flex-end", marginBottom: "1rem" }}>
+          <div className="form-group" style={{ minWidth: 150 }}>
+            <label>ラベルフィルタ</label>
+            <select value={filterLabel} onChange={(e) => setFilterLabel(e.target.value)}>
+              <option value="">全て</option>
+              {labels.map((l) => <option key={l} value={l}>{l} ({schedules.filter((s) => s.label === l).length}件)</option>)}
+            </select>
+          </div>
+          <div className="form-group" style={{ minWidth: 150 }}>
+            <label>グループフィルタ</label>
+            <select value={filterGroup} onChange={(e) => setFilterGroup(e.target.value)}>
+              <option value="">全て</option>
+              {groupNames.map((g) => <option key={g} value={g}>{g}</option>)}
+            </select>
+          </div>
+          <button onClick={fetchSchedules} disabled={loading} style={{ marginBottom: "1rem", fontSize: "0.8rem" }}>
+            {loading ? "読込中..." : "再読込"}
+          </button>
+        </div>
+
+        {/* ラベル一括削除 */}
+        {labels.length > 0 && (
+          <div style={{ marginBottom: "1rem" }}>
+            <h4 style={{ fontSize: "0.8rem", color: "var(--text-muted)", marginBottom: "0.5rem" }}>ラベル一括削除</h4>
+            <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+              {labels.map((l) => (
+                <button
+                  key={l}
+                  className="danger"
+                  style={{ padding: "0.25rem 0.75rem", fontSize: "0.75rem" }}
+                  onClick={() => handleDeleteByLabel(l)}
+                >
+                  {l} ({schedules.filter((s) => s.label === l).length}件)
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
+
+      {filtered.length === 0 ? (
+        <div className="card">
+          <p style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>
+            {schedules.length === 0 ? "登録されたグループスケジュールはありません" : "フィルタ条件に一致するデータがありません"}
+          </p>
+        </div>
+      ) : (
+        <div className="card" style={{ overflowX: "auto" }}>
+          <table className="table">
+            <thead>
+              <tr>
+                <th>グループ</th>
+                <th>タイトル</th>
+                <th>曜日</th>
+                <th>時限</th>
+                <th>コマ</th>
+                <th>ラベル</th>
+                <th>操作</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map((s) => (
+                <tr key={s.id}>
+                  <td style={{ fontSize: "0.8rem" }}>{s.groupName}</td>
+                  <td style={{ fontWeight: 500 }}>{s.title}</td>
+                  <td>{DAY_LABELS[s.day]}</td>
+                  <td>{s.period + 1}限</td>
+                  <td style={{ textAlign: "center" }}>{s.duration}</td>
+                  <td style={{ fontSize: "0.75rem" }}>
+                    {s.label ? (
+                      <span className="badge blue">{s.label}</span>
+                    ) : (
+                      <span style={{ color: "var(--text-muted)", fontStyle: "italic" }}>-</span>
+                    )}
+                  </td>
+                  <td>
+                    <button
+                      className="danger"
+                      style={{ padding: "0.2rem 0.5rem", fontSize: "0.75rem" }}
+                      onClick={() => handleDelete(s.id, s.title)}
+                    >
+                      削除
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 }

@@ -653,6 +653,29 @@ export const groupScheduleRepo = {
       .where(eq(schema.groupSchedules.id, id));
     return schedule;
   },
+
+  async findByLabel(label: string) {
+    return db
+      .select()
+      .from(schema.groupSchedules)
+      .where(eq(schema.groupSchedules.label, label));
+  },
+
+  async deleteByLabel(label: string) {
+    await db
+      .delete(schema.groupSchedules)
+      .where(eq(schema.groupSchedules.label, label));
+  },
+
+  async deleteById(id: string) {
+    await db
+      .delete(schema.groupSchedules)
+      .where(eq(schema.groupSchedules.id, id));
+  },
+
+  async findAll() {
+    return db.select().from(schema.groupSchedules);
+  },
 };
 
 // ─── Reservation Repository ──────────────────────────────────
