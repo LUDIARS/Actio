@@ -47,8 +47,7 @@ export function GroupsPage() {
   });
   const [joinGroupId, setJoinGroupId] = useState("");
 
-  const loadGroups = useCallback(async () => {
-    setLoading(true);
+  const fetchGroups = useCallback(async () => {
     try {
       const data = await groupApi.listMyGroups();
       setGroups(data.groups || []);
@@ -59,8 +58,13 @@ export function GroupsPage() {
   }, []);
 
   useEffect(() => {
-    loadGroups();
-  }, [loadGroups]);
+    fetchGroups();
+  }, [fetchGroups]);
+
+  const loadGroups = useCallback(async () => {
+    setLoading(true);
+    return fetchGroups();
+  }, [fetchGroups]);
 
   const loadGroupDetail = async (groupId: string) => {
     try {

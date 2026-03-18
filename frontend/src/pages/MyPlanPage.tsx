@@ -1,5 +1,4 @@
 import { useState, useEffect, useCallback } from "react";
-import { useAuth } from "../contexts/AuthContext";
 import { myPlanApi } from "../lib/api";
 import { DAY_LABELS } from "../lib/constants";
 
@@ -22,7 +21,6 @@ interface MyPlan {
 }
 
 export function MyPlanPage() {
-  useAuth();
   const [plans, setPlans] = useState<MyPlan[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -46,8 +44,7 @@ export function MyPlanPage() {
     title: "",
   });
 
-  const loadPlans = useCallback(async () => {
-    setLoading(true);
+  const fetchPlans = useCallback(async () => {
     try {
       const data = await myPlanApi.list();
       setPlans(data.plans || []);
@@ -58,8 +55,13 @@ export function MyPlanPage() {
   }, []);
 
   useEffect(() => {
-    loadPlans();
-  }, [loadPlans]);
+    fetchPlans();
+  }, [fetchPlans]);
+
+  const loadPlans = useCallback(async () => {
+    setLoading(true);
+    return fetchPlans();
+  }, [fetchPlans]);
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
