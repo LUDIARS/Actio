@@ -39,7 +39,10 @@ interface PlacedEntry {
   periods: number;
 }
 
-// ─── 配置ロジック (コマ数・全学科空き考慮) ──────────────────
+// 講師の出講可能スロット: instructorId -> Set<"day-period">
+type InstructorAvailMap = Map<string, Set<string>>;
+
+// ─── 配置ロジック (コマ数・全学科空き・講師出講可能スロット考慮) ──
 
 /** 指定スロットに配置可能か判定 */
 function canPlace(
@@ -48,6 +51,7 @@ function canPlace(
   day: number,
   startPeriod: number,
   departments: Department[],
+  instructorAvail: InstructorAvailMap,
 ): string | null {
   const periods = curriculum.periods || 1;
   const deptIds = (curriculum.departmentIds && curriculum.departmentIds.length > 0)
@@ -57,6 +61,20 @@ function canPlace(
   // 連続コマが範囲内か
   if (startPeriod + periods > PERIODS_COUNT) {
     return `${periods}コマの連続配置が時間割の範囲外です`;
+  }
+
+  // 講師の出講可能曜日・コマをチェック
+  if (curriculum.instructorId) {
+    const availSlots = instructorAvail.get(curriculum.instructorId);
+    if (availSlots && availSlots.size > 0) {
+      for (let p = 0; p < periods; p++) {
+        const period = startPeriod + p;
+        const key = `${day}-${period}`;
+        if (!availSlots.has(key)) {
+          return `${DAY_LABELS[day]} ${period + 1}限: 講師の出講不可スロットです`;
+        }
+      }
+    }
   }
 
   for (let p = 0; p < periods; p++) {
@@ -119,7 +137,7 @@ function placeOne(
   return result;
 }
 
-// ─── 自動配置エンジン ────────────────────────────────────────
+// ─── 自動配置エンジン (リトライ配置) ─────────────────────────
 
 interface AutoPlaceResult {
   entries: PlacedEntry[];
@@ -127,65 +145,13 @@ interface AutoPlaceResult {
   failed: string[];
 }
 
-function autoPlaceAll(
+/** ランダム順で1回配置を試行 */
+function tryPlaceOnce(
   curricula: Curriculum[],
   departments: Department[],
   instructors: Instructor[],
   existingEntries: PlacedEntry[],
-): AutoPlaceResult {
-  const entries = [...existingEntries];
-  const placedIds = new Set(entries.map((e) => e.curriculumId));
-  const unplaced = curricula.filter((c) => !placedIds.has(c.id));
-  let placed = 0;
-  const failed: string[] = [];
-
-  // ソート: コマ数大 → 学科数多 → 講師あり優先
-  const sorted = [...unplaced].sort((a, b) => {
-    const ac = a.periods || 1;
-    const bc = b.periods || 1;
-    if (ac !== bc) return bc - ac;
-    const ad = (a.departmentIds?.length || 1);
-    const bd = (b.departmentIds?.length || 1);
-    if (ad !== bd) return bd - ad;
-    return (b.instructorId ? 1 : 0) - (a.instructorId ? 1 : 0);
-  });
-
-  for (const cur of sorted) {
-    let didPlace = false;
-    for (let day = 0; day < DAYS_COUNT && !didPlace; day++) {
-      for (let period = 0; period <= PERIODS_COUNT - (cur.periods || 1) && !didPlace; period++) {
-        const err = canPlace(entries, cur, day, period, departments);
-        if (!err) {
-          const newEntries = placeOne(cur, day, period, departments, instructors);
-          entries.push(...newEntries);
-          placed++;
-          didPlace = true;
-        }
-      }
-    }
-    if (!didPlace) {
-      failed.push(cur.name);
-    }
-  }
-
-  return { entries, placed, failed };
-}
-
-// ─── リトライモード (ランダム配置 × N回) ─────────────────────
-
-interface RetryResult {
-  bestEntries: PlacedEntry[];
-  bestPlaced: number;
-  bestFailed: string[];
-  totalAttempts: number;
-  success: boolean;
-}
-
-function tryPlaceRandomOnce(
-  curricula: Curriculum[],
-  departments: Department[],
-  instructors: Instructor[],
-  existingEntries: PlacedEntry[],
+  instructorAvail: InstructorAvailMap,
 ): AutoPlaceResult {
   const entries = [...existingEntries];
   const placedIds = new Set(entries.map((e) => e.curriculumId));
@@ -197,7 +163,7 @@ function tryPlaceRandomOnce(
   const shuffled = [...unplaced].sort(() => Math.random() - 0.5);
 
   for (const cur of shuffled) {
-    // ランダムに開始位置を決定
+    // 候補スロットを列挙
     const slots: [number, number][] = [];
     for (let day = 0; day < DAYS_COUNT; day++) {
       for (let period = 0; period <= PERIODS_COUNT - (cur.periods || 1); period++) {
@@ -212,7 +178,7 @@ function tryPlaceRandomOnce(
 
     let didPlace = false;
     for (const [day, period] of slots) {
-      const err = canPlace(entries, cur, day, period, departments);
+      const err = canPlace(entries, cur, day, period, departments, instructorAvail);
       if (!err) {
         const newEntries = placeOne(cur, day, period, departments, instructors);
         entries.push(...newEntries);
@@ -236,6 +202,7 @@ export function DataManagementPage() {
   const [departments, setDepartments] = useState<Department[]>([]);
   const [instructors, setInstructors] = useState<Instructor[]>([]);
   const [curricula, setCurricula] = useState<Curriculum[]>([]);
+  const [instructorAvail, setInstructorAvail] = useState<InstructorAvailMap>(new Map());
 
   // Placement state
   const [entries, setEntries] = useState<PlacedEntry[]>([]);
@@ -255,11 +222,17 @@ export function DataManagementPage() {
   const [tab, setTab] = useState<"manual" | "overview" | "auto">("manual");
   const [filterDept, setFilterDept] = useState("");
 
-  // Auto-place / retry mode
+  // Retry mode
   const [retrying, setRetrying] = useState(false);
   const [retryProgress, setRetryProgress] = useState(0);
   const [retryMax] = useState(10000);
-  const [retryResult, setRetryResult] = useState<RetryResult | null>(null);
+  const [retryResult, setRetryResult] = useState<{
+    bestEntries: PlacedEntry[];
+    bestPlaced: number;
+    bestFailed: string[];
+    totalAttempts: number;
+    success: boolean;
+  } | null>(null);
   const cancelRef = useRef(false);
 
   // Disassemble mode
@@ -271,7 +244,7 @@ export function DataManagementPage() {
     setTimeout(() => setMessage(""), 4000);
   };
 
-  // Load master data from M1 schema
+  // Load master data from M1 schema (including instructor availability)
   const fetchMasterData = useCallback(async () => {
     try {
       const [deptData, instData, currData] = await Promise.all([
@@ -279,9 +252,36 @@ export function DataManagementPage() {
         m1Schema.getInstructors(),
         m1Schema.getCurricula(),
       ]);
-      setDepartments(deptData.departments || []);
-      setInstructors(instData.instructors || []);
-      setCurricula(currData.curricula || []);
+      const depts = deptData.departments || [];
+      const insts = instData.instructors || [];
+      const currs = currData.curricula || [];
+      setDepartments(depts);
+      setInstructors(insts);
+      setCurricula(currs);
+
+      // 全講師の出講可能スロットを取得
+      const availMap: InstructorAvailMap = new Map();
+      const instructorIds = [...new Set(
+        currs.map((c: Curriculum) => c.instructorId).filter((id: string | null): id is string => !!id)
+      )];
+      const availResults = await Promise.all(
+        instructorIds.map((id) =>
+          m1Schema.getAvailability(id).catch(() => ({ slots: [] }))
+        )
+      );
+      for (let i = 0; i < instructorIds.length; i++) {
+        const instrId = instructorIds[i];
+        const slots = availResults[i].slots || [];
+        const slotKeys = new Set<string>();
+        for (const slot of slots) {
+          const periods = (typeof slot.periods === "string" ? JSON.parse(slot.periods) : slot.periods) as number[];
+          for (const p of periods) {
+            slotKeys.add(`${slot.day}-${p}`);
+          }
+        }
+        availMap.set(instrId, slotKeys);
+      }
+      setInstructorAvail(availMap);
     } catch (e: any) {
       showMessage(`データ取得エラー: ${e.message}`, "error");
     }
@@ -310,7 +310,7 @@ export function DataManagementPage() {
     const curriculum = curricula.find((c) => c.id === selectedCurriculum);
     if (!curriculum) return;
 
-    const err = canPlace(entries, curriculum, manualDay, manualPeriod, departments);
+    const err = canPlace(entries, curriculum, manualDay, manualPeriod, departments, instructorAvail);
     if (err) {
       showMessage(err, "error");
       return;
@@ -381,20 +381,6 @@ export function DataManagementPage() {
   const placedIds = new Set(entries.map((e) => e.curriculumId));
   const unplacedCurricula = filteredCurricula.filter((c) => !placedIds.has(c.id));
 
-  // ─── 一括配置 ──────────────────────────────────────────────
-  const handleAutoPlace = () => {
-    const result = autoPlaceAll(curricula, departments, instructors, entries);
-    setEntries(result.entries);
-    if (result.failed.length === 0) {
-      showMessage(`${result.placed}件を一括配置しました`);
-    } else {
-      showMessage(
-        `${result.placed}件配置、${result.failed.length}件配置不可: ${result.failed.join(", ")}`,
-        "error"
-      );
-    }
-  };
-
   // ─── バラし再構築 ──────────────────────────────────────────
   const handleDisassemble = () => {
     if (!disassembleDept) {
@@ -408,7 +394,7 @@ export function DataManagementPage() {
 
     // 残ったエントリで再配置を試みる
     const toReplace = curricula.filter((c) => removedCurrIds.has(c.id));
-    const result = autoPlaceAll(toReplace, departments, instructors, remaining);
+    const result = tryPlaceOnce(toReplace, departments, instructors, remaining, instructorAvail);
     setEntries(result.entries);
 
     if (result.failed.length === 0) {
@@ -421,7 +407,7 @@ export function DataManagementPage() {
     }
   };
 
-  // ─── リトライモード ────────────────────────────────────────
+  // ─── リトライ配置 (一括 + リトライを統合) ──────────────────
   const handleRetryMode = async () => {
     setRetrying(true);
     setRetryProgress(0);
@@ -436,7 +422,7 @@ export function DataManagementPage() {
     for (let i = 0; i < retryMax; i++) {
       if (cancelRef.current) break;
 
-      const result = tryPlaceRandomOnce(curricula, departments, instructors, fixedEntries);
+      const result = tryPlaceOnce(curricula, departments, instructors, fixedEntries, instructorAvail);
       if (result.placed > bestResult.placed) {
         bestResult = result;
       }
@@ -646,6 +632,7 @@ export function DataManagementPage() {
             <p style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>
               グリッドのセルをクリックすると曜日・時限が自動設定されます。
               コマ数が2以上の科目は連続する時限に自動配置されます。
+              講師の出講可能スロット外には配置できません。
             </p>
           </div>
 
@@ -727,61 +714,14 @@ export function DataManagementPage() {
             <span className="badge red">未配置: {allUnplaced.length}</span>
           </div>
 
-          {/* 一括配置 */}
+          {/* リトライ配置 (統合) */}
           <div className="card" style={{ marginBottom: "1rem" }}>
             <h3 style={{ fontSize: "0.85rem", marginBottom: "0.5rem", color: "var(--text-muted)" }}>
-              未配置を一括配置
-            </h3>
-            <p style={{ fontSize: "0.75rem", color: "var(--text-muted)", marginBottom: "0.75rem" }}>
-              未配置の科目を先頭から順に空きスロットに配置します。コマ数の多い科目、学科数の多い科目を優先します。
-            </p>
-            <button
-              className="primary"
-              onClick={handleAutoPlace}
-              disabled={allUnplaced.length === 0 || retrying}
-            >
-              一括配置 ({allUnplaced.length}件)
-            </button>
-          </div>
-
-          {/* バラし再構築 */}
-          <div className="card" style={{ marginBottom: "1rem" }}>
-            <h3 style={{ fontSize: "0.85rem", marginBottom: "0.5rem", color: "var(--text-muted)" }}>
-              特定学科をバラして再構築
-            </h3>
-            <p style={{ fontSize: "0.75rem", color: "var(--text-muted)", marginBottom: "0.75rem" }}>
-              指定した学科に関連するカリキュラムを全て取り除き、再配置を試みます。
-            </p>
-            <div style={{ display: "flex", gap: "0.75rem", alignItems: "flex-end", flexWrap: "wrap" }}>
-              <div className="form-group" style={{ minWidth: 150 }}>
-                <label>対象学科</label>
-                <select value={disassembleDept} onChange={(e) => setDisassembleDept(e.target.value)}>
-                  <option value="">選択してください</option>
-                  {departments.map((d) => {
-                    const count = entries.filter((e) => e.departmentIds.includes(d.id)).length;
-                    return (
-                      <option key={d.id} value={d.id}>{d.name} ({count}コマ配置中)</option>
-                    );
-                  })}
-                </select>
-              </div>
-              <button
-                onClick={handleDisassemble}
-                disabled={!disassembleDept || retrying}
-                style={{ marginBottom: "1rem" }}
-              >
-                バラして再構築
-              </button>
-            </div>
-          </div>
-
-          {/* リトライモード */}
-          <div className="card" style={{ marginBottom: "1rem" }}>
-            <h3 style={{ fontSize: "0.85rem", marginBottom: "0.5rem", color: "var(--text-muted)" }}>
-              配置リトライモード
+              リトライ配置
             </h3>
             <p style={{ fontSize: "0.75rem", color: "var(--text-muted)", marginBottom: "0.75rem" }}>
               ランダムな順番で最大{retryMax.toLocaleString()}回配置を試み、全科目が配置できるパターンを探索します。
+              講師の出講可能スロットを考慮して配置します。
               失敗時は最も多く配置できたパターンを表示します。
             </p>
 
@@ -829,7 +769,7 @@ export function DataManagementPage() {
                   onClick={handleRetryMode}
                   disabled={allUnplaced.length === 0}
                 >
-                  リトライ開始
+                  リトライ配置を開始 ({allUnplaced.length}件)
                 </button>
               </div>
             )}
@@ -873,6 +813,37 @@ export function DataManagementPage() {
                 </button>
               </div>
             )}
+          </div>
+
+          {/* バラし再構築 */}
+          <div className="card" style={{ marginBottom: "1rem" }}>
+            <h3 style={{ fontSize: "0.85rem", marginBottom: "0.5rem", color: "var(--text-muted)" }}>
+              特定学科をバラして再構築
+            </h3>
+            <p style={{ fontSize: "0.75rem", color: "var(--text-muted)", marginBottom: "0.75rem" }}>
+              指定した学科に関連するカリキュラムを全て取り除き、再配置を試みます。
+            </p>
+            <div style={{ display: "flex", gap: "0.75rem", alignItems: "flex-end", flexWrap: "wrap" }}>
+              <div className="form-group" style={{ minWidth: 150 }}>
+                <label>対象学科</label>
+                <select value={disassembleDept} onChange={(e) => setDisassembleDept(e.target.value)}>
+                  <option value="">選択してください</option>
+                  {departments.map((d) => {
+                    const count = entries.filter((e) => e.departmentIds.includes(d.id)).length;
+                    return (
+                      <option key={d.id} value={d.id}>{d.name} ({count}コマ配置中)</option>
+                    );
+                  })}
+                </select>
+              </div>
+              <button
+                onClick={handleDisassemble}
+                disabled={!disassembleDept || retrying}
+                style={{ marginBottom: "1rem" }}
+              >
+                バラして再構築
+              </button>
+            </div>
           </div>
 
           {/* 全クリア */}
