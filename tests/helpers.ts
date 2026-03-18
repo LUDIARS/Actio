@@ -188,6 +188,7 @@ export function initTestDatabase() {
       priority INTEGER NOT NULL DEFAULT 0,
       preferred_days TEXT NOT NULL DEFAULT '[]',
       preferred_periods TEXT NOT NULL DEFAULT '[]',
+      instructor_id TEXT,
       status TEXT NOT NULL DEFAULT 'pending',
       created_by TEXT NOT NULL,
       created_at INTEGER NOT NULL,
@@ -321,6 +322,12 @@ export function initTestDatabase() {
       id TEXT PRIMARY KEY,
       curriculum_id TEXT NOT NULL REFERENCES curricula(id) ON DELETE CASCADE,
       department_id TEXT NOT NULL REFERENCES departments(id) ON DELETE CASCADE
+    );
+
+    CREATE TABLE IF NOT EXISTS app_settings (
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL,
+      updated_at INTEGER NOT NULL
     );
   `);
 

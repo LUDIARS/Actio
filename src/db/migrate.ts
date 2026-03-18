@@ -251,6 +251,7 @@ sqlite.exec(`
     priority INTEGER NOT NULL DEFAULT 0,
     preferred_days TEXT NOT NULL DEFAULT '[]',
     preferred_periods TEXT NOT NULL DEFAULT '[]',
+    instructor_id TEXT,
     status TEXT NOT NULL DEFAULT 'pending',
     created_by TEXT NOT NULL,
     created_at INTEGER NOT NULL,
@@ -315,6 +316,15 @@ sqlite.exec(`
   );
   CREATE INDEX IF NOT EXISTS idx_cd_curriculum ON curriculum_departments(curriculum_id);
   CREATE INDEX IF NOT EXISTS idx_cd_department ON curriculum_departments(department_id);
+`);
+
+// App Settings table
+sqlite.exec(`
+  CREATE TABLE IF NOT EXISTS app_settings (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL,
+    updated_at INTEGER NOT NULL
+  );
 `);
 
 console.log("Database tables initialized successfully.");

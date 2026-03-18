@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { smartSchedulerApi, groupApi } from "../lib/api";
+import { smartSchedulerApi, groupApi, m1Schema } from "../lib/api";
 import { DAY_LABELS, PERIODS_COUNT } from "../lib/constants";
 
 interface SchedulingTask {
@@ -10,8 +10,14 @@ interface SchedulingTask {
   priority: number;
   preferredDays: number[];
   preferredPeriods: number[];
+  instructorId: string | null;
   status: string;
   createdBy: string;
+}
+
+interface Instructor {
+  id: string;
+  name: string;
 }
 
 interface Placement {
@@ -45,12 +51,16 @@ export function SmartSchedulerPage() {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
 
+  // 講師一覧
+  const [instructors, setInstructors] = useState<Instructor[]>([]);
+
   // タスク追加フォーム
   const [newTitle, setNewTitle] = useState("");
   const [newDuration, setNewDuration] = useState(1);
   const [newPriority, setNewPriority] = useState(0);
   const [newPreferredDays, setNewPreferredDays] = useState<number[]>([]);
   const [newPreferredPeriods, setNewPreferredPeriods] = useState<number[]>([]);
+  const [newInstructorId, setNewInstructorId] = useState("");
   const [showAddForm, setShowAddForm] = useState(false);
 
   const showMsg = (msg: string) => {
@@ -58,10 +68,13 @@ export function SmartSchedulerPage() {
     setTimeout(() => setMessage(""), 4000);
   };
 
-  // グループ一覧を取得
+  // グループ一覧と講師一覧を取得
   useEffect(() => {
     groupApi.listMyGroups().then((res: any) => {
       setGroups(res.groups || []);
+    }).catch(() => {});
+    m1Schema.getInstructors().then((res: any) => {
+      setInstructors(res.instructors || []);
     }).catch(() => {});
   }, []);
 
@@ -97,12 +110,14 @@ export function SmartSchedulerPage() {
         priority: newPriority,
         preferredDays: newPreferredDays,
         preferredPeriods: newPreferredPeriods,
+        instructorId: newInstructorId || undefined,
       });
       setNewTitle("");
       setNewDuration(1);
       setNewPriority(0);
       setNewPreferredDays([]);
       setNewPreferredPeriods([]);
+      setNewInstructorId("");
       setShowAddForm(false);
       await loadTasks();
       showMsg("タスク追加しました");
@@ -275,6 +290,20 @@ export function SmartSchedulerPage() {
                     ))}
                   </div>
                 </div>
+                {instructors.length > 0 && (
+                  <div className="form-group">
+                    <label>担当講師 (任意)</label>
+                    <select
+                      value={newInstructorId}
+                      onChange={(e) => setNewInstructorId(e.target.value)}
+                    >
+                      <option value="">指定なし</option>
+                      {instructors.map((inst) => (
+                        <option key={inst.id} value={inst.id}>{inst.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
                 <button className="primary" onClick={handleAddTask}>
                   追加
                 </button>
@@ -331,6 +360,9 @@ export function SmartSchedulerPage() {
                       {task.priority > 0 && ` | 優先度: ${task.priority}`}
                       {task.preferredDays.length > 0 && (
                         <> | 希望: {task.preferredDays.map((d) => DAY_LABELS[d]).join(",")}</>
+                      )}
+                      {task.instructorId && (
+                        <> | 講師: {instructors.find((i) => i.id === task.instructorId)?.name || task.instructorId}</>
                       )}
                     </div>
                   </div>
