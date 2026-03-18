@@ -16,6 +16,7 @@ import { SmartSchedulerPage } from "./pages/SmartSchedulerPage";
 import { SchemaManagementPage } from "./pages/SchemaManagementPage";
 import { UserManagementPage } from "./pages/UserManagementPage";
 import { DbViewerPage } from "./pages/DbViewerPage";
+import { SettingsPage } from "./pages/SettingsPage";
 import "./global.css";
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
@@ -61,6 +62,7 @@ function AppRoutes() {
         <Route path="/voting" element={<VotingPage />} />
         <Route path="/calendar" element={<CalendarPage />} />
         <Route path="/admin/users" element={<UserManagementPage />} />
+        <Route path="/admin/settings" element={<SettingsPage />} />
         <Route path="/admin/db" element={<DbViewerPage />} />
       </Route>
     </Routes>

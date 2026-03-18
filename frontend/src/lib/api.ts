@@ -575,6 +575,23 @@ export const m5 = {
   },
 };
 
+// ─── Settings (アプリ設定) ──────────────────────────────────────
+
+export const settingsApi = {
+  getSettings() {
+    return request<{ settings: Record<string, string> }>("/api/settings");
+  },
+  updateSettings(settings: Record<string, string>) {
+    return request<{ settings: Record<string, string>; message: string }>("/api/settings", {
+      method: "PUT",
+      body: JSON.stringify({ settings }),
+    });
+  },
+  getExportUrl() {
+    return `${API_BASE}/api/settings/export`;
+  },
+};
+
 // ─── Admin (ユーザー管理) ──────────────────────────────────────
 
 export const adminApi = {

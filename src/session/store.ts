@@ -20,8 +20,14 @@ export interface SessionData {
   createdAt: Date;
 }
 
-/** セッション有効期限（秒） */
-const SESSION_TTL_SECONDS = 30 * 24 * 60 * 60; // 30日
+/**
+ * セッション有効期限（秒）を動的に計算
+ * expiresAt から現在時刻までの差分をTTLとして使用
+ */
+function computeTtlSeconds(expiresAt: Date): number {
+  const diffMs = expiresAt.getTime() - Date.now();
+  return Math.max(Math.floor(diffMs / 1000), 60); // 最低60秒
+}
 
 /**
  * 新しいセッションを作成
@@ -53,8 +59,8 @@ export async function createSession(
       });
       await redis
         .multi()
-        .set(`${SESSION_PREFIX}${sessionId}`, data, "EX", SESSION_TTL_SECONDS)
-        .set(`${REFRESH_INDEX_PREFIX}${refreshToken}`, sessionId, "EX", SESSION_TTL_SECONDS)
+        .set(`${SESSION_PREFIX}${sessionId}`, data, "EX", computeTtlSeconds(expiresAt))
+        .set(`${REFRESH_INDEX_PREFIX}${refreshToken}`, sessionId, "EX", computeTtlSeconds(expiresAt))
         .exec();
       console.log(`[session:redis] セッション作成 sessionId: ${sessionId}`);
     } catch (err) {
@@ -125,9 +131,9 @@ export async function rotateRefreshToken(
 
         await redis
           .multi()
-          .set(`${SESSION_PREFIX}${sessionId}`, JSON.stringify(parsed), "EX", SESSION_TTL_SECONDS)
+          .set(`${SESSION_PREFIX}${sessionId}`, JSON.stringify(parsed), "EX", computeTtlSeconds(expiresAt))
           .del(`${REFRESH_INDEX_PREFIX}${oldRefreshToken}`)
-          .set(`${REFRESH_INDEX_PREFIX}${newRefreshToken}`, sessionId, "EX", SESSION_TTL_SECONDS)
+          .set(`${REFRESH_INDEX_PREFIX}${newRefreshToken}`, sessionId, "EX", computeTtlSeconds(expiresAt))
           .exec();
         console.log(`[session:redis] トークンローテーション sessionId: ${sessionId}`);
         return;

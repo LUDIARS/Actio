@@ -400,6 +400,17 @@ export const schedulingResults = sqliteTable(
   ]
 );
 
+// ─── App Settings (アプリ設定: GUI経由で管理) ────────────────
+// key-valueストア形式でアプリ全体の設定を保存
+
+export const appSettings = sqliteTable("app_settings", {
+  key: text("key").primaryKey(),
+  value: text("value").notNull(),
+  updatedAt: integer("updated_at", { mode: "timestamp" })
+    .$defaultFn(() => new Date())
+    .notNull(),
+});
+
 // ─── M5: Webhook Endpoints ──────────────────────────────────
 
 export const webhookEndpoints = sqliteTable("webhook_endpoints", {
