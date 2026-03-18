@@ -716,6 +716,7 @@ export const smartSchedulerApi = {
     priority?: number;
     preferredDays?: number[];
     preferredPeriods?: number[];
+    instructorId?: string;
   }) {
     return request<any>("/api/smart-scheduler/tasks", {
       method: "POST",
@@ -728,6 +729,7 @@ export const smartSchedulerApi = {
     priority?: number;
     preferredDays?: number[];
     preferredPeriods?: number[];
+    instructorId?: string | null;
   }) {
     return request<any>(`/api/smart-scheduler/tasks/${id}`, {
       method: "PUT",
