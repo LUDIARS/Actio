@@ -250,7 +250,6 @@ export function DataManagementPage() {
   const [manualPeriod, setManualPeriod] = useState(0);
 
   // UI state
-  const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
   const [messageType, setMessageType] = useState<"success" | "error">("success");
   const [tab, setTab] = useState<"manual" | "overview" | "auto">("manual");
@@ -274,7 +273,6 @@ export function DataManagementPage() {
 
   // Load master data from M1 schema
   const fetchMasterData = useCallback(async () => {
-    setLoading(true);
     try {
       const [deptData, instData, currData] = await Promise.all([
         m1Schema.getDepartments(),
@@ -287,7 +285,6 @@ export function DataManagementPage() {
     } catch (e: any) {
       showMessage(`データ取得エラー: ${e.message}`, "error");
     }
-    setLoading(false);
   }, []);
 
   useEffect(() => {
@@ -434,8 +431,6 @@ export function DataManagementPage() {
 
     let bestResult: AutoPlaceResult = { entries: fixedEntries, placed: 0, failed: curricula.map((c) => c.name) };
     let success = false;
-    const totalUnplaced = curricula.filter((c) => !placedIds.has(c.id)).length;
-
     for (let i = 0; i < retryMax; i++) {
       if (cancelRef.current) break;
 

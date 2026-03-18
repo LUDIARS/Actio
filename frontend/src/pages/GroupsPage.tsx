@@ -29,7 +29,7 @@ interface GroupDetail {
 }
 
 export function GroupsPage() {
-  const { user } = useAuth();
+  useAuth();
   const [groups, setGroups] = useState<Group[]>([]);
   const [selectedGroup, setSelectedGroup] = useState<GroupDetail | null>(null);
   const [loading, setLoading] = useState(true);

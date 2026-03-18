@@ -22,7 +22,7 @@ interface MyPlan {
 }
 
 export function MyPlanPage() {
-  const { user } = useAuth();
+  useAuth();
   const [plans, setPlans] = useState<MyPlan[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");

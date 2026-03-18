@@ -798,7 +798,7 @@ function CurriculaTab({ showMessage }: { showMessage: (msg: string, type?: "succ
 function AvailabilityTab({ showMessage }: { showMessage: (msg: string, type?: "success" | "error") => void }) {
   const [instructors, setInstructors] = useState<Instructor[]>([]);
   const [selectedInstructor, setSelectedInstructor] = useState<string>("");
-  const [slots, setSlots] = useState<AvailableSlot[]>([]);
+  const [, setSlots] = useState<AvailableSlot[]>([]);
   const [grid, setGrid] = useState<boolean[][]>(() =>
     Array.from({ length: 7 }, () => Array.from({ length: PERIODS_COUNT }, () => false))
   );

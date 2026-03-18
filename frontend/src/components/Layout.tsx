@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useRef } from "react";
 import { NavLink, Outlet, useLocation } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 
@@ -53,11 +53,13 @@ export function Layout() {
   const [editMode, setEditMode] = useState(false);
   const [hiddenModules, setHiddenModulesState] = useState<string[]>(getHiddenModules);
   const location = useLocation();
+  const prevPathRef = useRef(location.pathname);
 
   // Close sidebar on route change
-  useEffect(() => {
+  if (prevPathRef.current !== location.pathname) {
+    prevPathRef.current = location.pathname;
     setSidebarOpen(false);
-  }, [location.pathname]);
+  }
 
   const toggleSidebar = useCallback(() => {
     setSidebarOpen((prev) => !prev);
