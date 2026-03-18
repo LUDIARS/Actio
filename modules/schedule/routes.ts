@@ -33,6 +33,7 @@ import {
   groupMemberRepo,
   personalEventRepo,
   planRepo,
+  groupScheduleRepo,
 } from "../../src/db/repository.js";
 
 const m1 = new Hono();
@@ -629,6 +630,103 @@ m1.post("/migration/schedule-to-plans", async (c) => {
     termId: currentTerm,
     results,
     totalConverted: convertedCount,
+  });
+});
+
+/**
+ * POST /confirm-placements
+ *
+ * 配置結果を確定し、学科名と同じグループのグループスケジュールとして登録する。
+ * グループが存在しない場合は作成する。
+ */
+m1.post("/confirm-placements", async (c) => {
+  const userId = getUserId(c);
+  if (!userId) return c.json({ error: "Authentication required" }, 401);
+
+  const { placements } = await c.req.json<{
+    placements: Array<{
+      curriculumId: string;
+      curriculumName: string;
+      day: number;
+      period: number;
+      duration: number;
+      departmentNames: string[];
+    }>;
+  }>();
+
+  if (!Array.isArray(placements) || placements.length === 0) {
+    return c.json({ error: "placements array is required" }, 400);
+  }
+
+  const existingGroups = await groupRepo.findAll();
+  const groupByName = new Map<string, string>();
+  for (const g of existingGroups) {
+    groupByName.set(g.name, g.id);
+  }
+
+  let groupsCreated = 0;
+  let schedulesCreated = 0;
+
+  // 学科ごとにグルーピング
+  const byDept = new Map<string, typeof placements>();
+  for (const p of placements) {
+    for (const deptName of p.departmentNames) {
+      if (!byDept.has(deptName)) byDept.set(deptName, []);
+      byDept.get(deptName)!.push(p);
+    }
+  }
+
+  for (const [deptName, deptPlacements] of byDept) {
+    // グループを取得 or 作成
+    let groupId = groupByName.get(deptName);
+    if (!groupId) {
+      groupId = uuidv4();
+      await groupRepo.create({
+        id: groupId,
+        name: deptName,
+        description: `学科「${deptName}」の配置から自動生成`,
+        members: [],
+        createdBy: userId,
+        createdAt: new Date(),
+      });
+      await groupMemberRepo.create({
+        id: uuidv4(),
+        groupId,
+        userId,
+        role: "owner",
+        joinedAt: new Date(),
+      });
+      groupByName.set(deptName, groupId);
+      groupsCreated++;
+    }
+
+    // カリキュラムごとにグループスケジュールを登録(重複スキップ)
+    const seen = new Set<string>();
+    for (const p of deptPlacements) {
+      const key = `${p.curriculumId}-${p.day}-${p.period}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+
+      const schedId = uuidv4();
+      await groupScheduleRepo.create({
+        id: schedId,
+        groupId,
+        title: p.curriculumName,
+        day: p.day,
+        period: p.period,
+        duration: p.duration,
+        scheduleType: "recurring",
+        createdBy: userId,
+        createdAt: new Date(),
+      });
+      schedulesCreated++;
+    }
+  }
+
+  return c.json({
+    message: `配置を確定しました (${schedulesCreated}件のスケジュール、${groupsCreated}件のグループを作成)`,
+    schedulesCreated,
+    groupsCreated,
   });
 });
 
