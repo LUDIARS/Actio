@@ -429,6 +429,8 @@ export function DataManagementPage() {
       if (result.failed.length === 0) {
         success = true;
         bestResult = result;
+        // 成功時は即座にグリッドに反映
+        setEntries(bestResult.entries);
         break;
       }
 
@@ -440,7 +442,7 @@ export function DataManagementPage() {
       }
     }
 
-    setRetryProgress(success ? retryMax : retryMax);
+    setRetryProgress(retryMax);
     setRetryResult({
       bestEntries: bestResult.entries,
       bestPlaced: bestResult.placed,
