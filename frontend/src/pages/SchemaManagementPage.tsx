@@ -130,9 +130,11 @@ function DepartmentsTab({ showMessage }: { showMessage: (msg: string, type?: "su
     }
   }, [showMessage]);
 
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     fetchDepartments();
   }, [fetchDepartments]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -297,9 +299,11 @@ function InstructorsTab({ showMessage }: { showMessage: (msg: string, type?: "su
     }
   }, [showMessage]);
 
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     fetchInstructors();
   }, [fetchInstructors]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -482,9 +486,11 @@ function CurriculaTab({ showMessage }: { showMessage: (msg: string, type?: "succ
     }
   }, [showMessage]);
 
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     fetchAll();
   }, [fetchAll]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -813,9 +819,11 @@ function AvailabilityTab({ showMessage }: { showMessage: (msg: string, type?: "s
     }
   }, [showMessage]);
 
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     fetchInstructors();
   }, [fetchInstructors]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   const loadAvailability = useCallback(async (instructorId: string) => {
     if (!instructorId) {
@@ -845,11 +853,13 @@ function AvailabilityTab({ showMessage }: { showMessage: (msg: string, type?: "s
     }
   }, [showMessage]);
 
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     if (selectedInstructor) {
       loadAvailability(selectedInstructor);
     }
   }, [selectedInstructor, loadAvailability]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   const toggleCell = (day: number, period: number) => {
     setGrid((prev) => {

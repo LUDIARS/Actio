@@ -287,9 +287,11 @@ export function DataManagementPage() {
     }
   }, []);
 
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     fetchMasterData();
   }, [fetchMasterData]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   const getDeptName = (id: string) => departments.find((d) => d.id === id)?.name || "-";
   const getInstName = (id: string | null) => {

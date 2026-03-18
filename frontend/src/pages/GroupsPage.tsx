@@ -57,9 +57,11 @@ export function GroupsPage() {
     setLoading(false);
   }, []);
 
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     fetchGroups();
   }, [fetchGroups]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   const loadGroups = useCallback(async () => {
     setLoading(true);

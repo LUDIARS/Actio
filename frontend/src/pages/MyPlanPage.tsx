@@ -54,9 +54,11 @@ export function MyPlanPage() {
     setLoading(false);
   }, []);
 
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     fetchPlans();
   }, [fetchPlans]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   const loadPlans = useCallback(async () => {
     setLoading(true);

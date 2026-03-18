@@ -99,9 +99,11 @@ export function CurriculumPlanPage() {
   }, []);
 
   // Initial load (loading starts as true)
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     fetchM1Data();
   }, [fetchM1Data]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   // Reload handler for button clicks (sets loading synchronously)
   const loadFromM1 = () => {

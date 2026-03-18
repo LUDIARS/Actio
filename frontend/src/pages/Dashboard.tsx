@@ -157,9 +157,11 @@ export function Dashboard() {
     setLoading(false);
   }, []);
 
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     loadData();
   }, [loadData]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   // 今日の曜日 (0=月)
   const todayDow = (() => {

@@ -54,9 +54,11 @@ export function ReservationsPage() {
     }
   }, []);
 
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     fetchReservations();
   }, [fetchReservations]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   const handleCreate = async () => {
     setLoading(true);

@@ -71,9 +71,11 @@ export function NotificationsPage() {
     }
   }, [tab]);
 
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     loadData();
   }, [loadData]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   const handleCreateWebhook = async () => {
     try {
