@@ -1,7 +1,9 @@
 import { createHmac } from "crypto";
 import { v4 as uuidv4 } from "uuid";
-import { db, schema } from "../../../../src/db/connection.js";
-import { eq } from "drizzle-orm";
+import {
+  webhookEndpointRepo,
+  webhookDeliveryLogRepo,
+} from "../../../../src/db/repository.js";
 import { WEBHOOK_RETRY_DELAYS, WEBHOOK_MAX_FAILURES } from "../../../../src/shared/constants.js";
 import type { WebhookPayload } from "../../../../src/shared/types.js";
 
@@ -46,7 +48,7 @@ export async function deliverWebhook(
     const success = response.ok;
 
     // Log delivery
-    db.insert(schema.webhookDeliveryLogs).values({
+    await webhookDeliveryLogRepo.create({
       id: uuidv4(),
       webhookId,
       deliveryId,
@@ -55,21 +57,21 @@ export async function deliverWebhook(
       success,
       retryCount: 0,
       latencyMs,
-    }).run();
+    });
 
     if (success) {
       // Reset fail count
-      db.update(schema.webhookEndpoints)
-        .set({ failCount: 0, lastDeliveredAt: new Date() })
-        .where(eq(schema.webhookEndpoints.id, webhookId))
-        .run();
+      await webhookEndpointRepo.update(webhookId, {
+        failCount: 0,
+        lastDeliveredAt: new Date(),
+      });
     }
 
     return { success, statusCode: response.status, latencyMs };
   } catch (error) {
     const latencyMs = Date.now() - startTime;
 
-    db.insert(schema.webhookDeliveryLogs).values({
+    await webhookDeliveryLogRepo.create({
       id: uuidv4(),
       webhookId,
       deliveryId,
@@ -78,7 +80,7 @@ export async function deliverWebhook(
       success: false,
       retryCount: 0,
       latencyMs,
-    }).run();
+    });
 
     return { success: false, statusCode: null, latencyMs };
   }
@@ -97,10 +99,7 @@ export async function retryWebhookDelivery(
 ): Promise<void> {
   if (retryCount >= WEBHOOK_RETRY_DELAYS.length) {
     // Max retries exceeded: auto-disable webhook
-    db.update(schema.webhookEndpoints)
-      .set({ isActive: false })
-      .where(eq(schema.webhookEndpoints.id, webhookId))
-      .run();
+    await webhookEndpointRepo.update(webhookId, { isActive: false });
 
     console.error(
       `Webhook ${webhookId} auto-disabled after ${WEBHOOK_MAX_FAILURES} failures`
@@ -132,7 +131,7 @@ export async function retryWebhookDelivery(
 
       const latencyMs = Date.now() - startTime;
 
-      db.insert(schema.webhookDeliveryLogs).values({
+      await webhookDeliveryLogRepo.create({
         id: uuidv4(),
         webhookId,
         deliveryId: payload.deliveryId,
@@ -141,19 +140,18 @@ export async function retryWebhookDelivery(
         success: response.ok,
         retryCount: retryCount + 1,
         latencyMs,
-      }).run();
+      });
 
       if (response.ok) {
-        db.update(schema.webhookEndpoints)
-          .set({ failCount: 0, lastDeliveredAt: new Date() })
-          .where(eq(schema.webhookEndpoints.id, webhookId))
-          .run();
+        await webhookEndpointRepo.update(webhookId, {
+          failCount: 0,
+          lastDeliveredAt: new Date(),
+        });
       } else {
         // Increment fail count and retry
-        db.update(schema.webhookEndpoints)
-          .set({ failCount: retryCount + 1 })
-          .where(eq(schema.webhookEndpoints.id, webhookId))
-          .run();
+        await webhookEndpointRepo.update(webhookId, {
+          failCount: retryCount + 1,
+        });
 
         await retryWebhookDelivery(
           webhookId,
@@ -164,10 +162,9 @@ export async function retryWebhookDelivery(
         );
       }
     } catch {
-      db.update(schema.webhookEndpoints)
-        .set({ failCount: retryCount + 1 })
-        .where(eq(schema.webhookEndpoints.id, webhookId))
-        .run();
+      await webhookEndpointRepo.update(webhookId, {
+        failCount: retryCount + 1,
+      });
 
       await retryWebhookDelivery(
         webhookId,

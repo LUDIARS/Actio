@@ -1,9 +1,11 @@
 import { Hono } from "hono";
 import { randomBytes } from "crypto";
 import { v4 as uuidv4 } from "uuid";
-import { db, schema } from "../../../../src/db/connection.js";
-import { eq } from "drizzle-orm";
-import { deliverWebhook, signPayload } from "./delivery.js";
+import {
+  webhookEndpointRepo,
+  webhookDeliveryLogRepo,
+} from "../../../../src/db/repository.js";
+import { deliverWebhook } from "./delivery.js";
 import type { WebhookPayload } from "../../../../src/shared/types.js";
 import { getUserId } from "../../../../src/middleware/getUserId.js";
 
@@ -19,16 +21,13 @@ webhookRoutes.post("/", async (c) => {
 
   const secret = randomBytes(32).toString("hex");
 
-  const [webhook] = db
-    .insert(schema.webhookEndpoints)
-    .values({
-      id: uuidv4(),
-      url: body.url,
-      events: body.events,
-      secret,
-      createdBy,
-    })
-    .returning().all();
+  const webhook = await webhookEndpointRepo.create({
+    id: uuidv4(),
+    url: body.url,
+    events: body.events,
+    secret,
+    createdBy,
+  });
 
   return c.json(
     {
@@ -48,16 +47,12 @@ webhookRoutes.get("/", async (c) => {
   const createdBy = getUserId(c);
 
   const webhooks = createdBy
-    ? db
-        .select()
-        .from(schema.webhookEndpoints)
-        .where(eq(schema.webhookEndpoints.createdBy, createdBy))
-        .all()
-    : db.select().from(schema.webhookEndpoints).all();
+    ? await webhookEndpointRepo.findByCreatedBy(createdBy)
+    : await webhookEndpointRepo.findAll();
 
   // Don't expose secrets in listing
   return c.json({
-    webhooks: webhooks.map((w: any) => ({
+    webhooks: webhooks.map((w) => ({
       id: w.id,
       url: w.url,
       events: w.events,
@@ -78,43 +73,30 @@ webhookRoutes.put("/:id", async (c) => {
     isActive?: boolean;
   }>();
 
-  const [current] = db
-    .select()
-    .from(schema.webhookEndpoints)
-    .where(eq(schema.webhookEndpoints.id, id))
-    .limit(1)
-    .all();
+  const current = await webhookEndpointRepo.findById(id);
 
   if (!current) {
     return c.json({ error: "Webhook not found" }, 404);
   }
 
-  const [updated] = db
-    .update(schema.webhookEndpoints)
-    .set({
-      url: body.url ?? current.url,
-      events: body.events ?? current.events,
-      isActive: body.isActive ?? current.isActive,
-    })
-    .where(eq(schema.webhookEndpoints.id, id))
-    .returning().all();
+  const updated = await webhookEndpointRepo.update(id, {
+    url: body.url ?? current.url,
+    events: body.events ?? current.events,
+    isActive: body.isActive ?? current.isActive,
+  });
 
   return c.json({
-    id: updated.id,
-    url: updated.url,
-    events: updated.events,
-    isActive: updated.isActive,
+    id: updated!.id,
+    url: updated!.url,
+    events: updated!.events,
+    isActive: updated!.isActive,
   });
 });
 
 // ─── DELETE /webhooks/:id ───────────────────────────────────
 webhookRoutes.delete("/:id", async (c) => {
   const id = c.req.param("id");
-
-  const [deleted] = db
-    .delete(schema.webhookEndpoints)
-    .where(eq(schema.webhookEndpoints.id, id))
-    .returning().all();
+  const deleted = await webhookEndpointRepo.deleteById(id);
 
   if (!deleted) {
     return c.json({ error: "Webhook not found" }, 404);
@@ -126,13 +108,7 @@ webhookRoutes.delete("/:id", async (c) => {
 // ─── POST /webhooks/:id/test ────────────────────────────────
 webhookRoutes.post("/:id/test", async (c) => {
   const id = c.req.param("id");
-
-  const [webhook] = db
-    .select()
-    .from(schema.webhookEndpoints)
-    .where(eq(schema.webhookEndpoints.id, id))
-    .limit(1)
-    .all();
+  const webhook = await webhookEndpointRepo.findById(id);
 
   if (!webhook) {
     return c.json({ error: "Webhook not found" }, 404);
@@ -162,14 +138,9 @@ webhookRoutes.post("/:id/test", async (c) => {
 // ─── POST /webhooks/:id/rotate-secret ───────────────────────
 webhookRoutes.post("/:id/rotate-secret", async (c) => {
   const id = c.req.param("id");
-
   const newSecret = randomBytes(32).toString("hex");
 
-  const [updated] = db
-    .update(schema.webhookEndpoints)
-    .set({ secret: newSecret })
-    .where(eq(schema.webhookEndpoints.id, id))
-    .returning().all();
+  const updated = await webhookEndpointRepo.update(id, { secret: newSecret });
 
   if (!updated) {
     return c.json({ error: "Webhook not found" }, 404);
@@ -185,13 +156,7 @@ webhookRoutes.post("/:id/rotate-secret", async (c) => {
 // ─── GET /webhooks/:id/logs ─────────────────────────────────
 webhookRoutes.get("/:id/logs", async (c) => {
   const id = c.req.param("id");
-
-  const logs = db
-    .select()
-    .from(schema.webhookDeliveryLogs)
-    .where(eq(schema.webhookDeliveryLogs.webhookId, id))
-    .all();
-
+  const logs = await webhookDeliveryLogRepo.findByWebhookId(id);
   return c.json({ logs });
 });
 

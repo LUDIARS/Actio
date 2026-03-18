@@ -1,6 +1,9 @@
 import { v4 as uuidv4 } from "uuid";
-import { db, schema } from "../../../src/db/connection.js";
-import { eq, and } from "drizzle-orm";
+import {
+  notificationPreferenceRepo,
+  notificationRepo,
+  webhookEndpointRepo,
+} from "../../../src/db/repository.js";
 import { eventBus } from "./event-bus.js";
 import { deliverWebhook, retryWebhookDelivery } from "../channels/webhook/delivery.js";
 import { EVENT_NAMES } from "../../../src/shared/constants.js";
@@ -84,46 +87,32 @@ async function handleEvent(payload: WebhookPayload): Promise<void> {
 
     for (const userId of targetUserIds) {
       // Check user notification preferences
-      const prefs = db
-        .select()
-        .from(schema.notificationPreferences)
-        .where(
-          and(
-            eq(schema.notificationPreferences.userId, userId),
-            eq(schema.notificationPreferences.channel, "in_app")
-          )
-        )
-        .limit(1)
-        .all();
+      const pref = await notificationPreferenceRepo.findByUserAndChannel(userId, "in_app");
 
       // If no preferences or enabled events include this event
       const shouldNotify =
-        prefs.length === 0 ||
-        (prefs[0].enabledEvents as string[]).includes(event) ||
-        (prefs[0].enabledEvents as string[]).length === 0;
+        !pref ||
+        (pref.enabledEvents as string[]).includes(event) ||
+        (pref.enabledEvents as string[]).length === 0;
 
       if (shouldNotify) {
         // Check quiet hours
-        if (!isQuietHours(prefs[0]?.quietHoursStart ?? null, prefs[0]?.quietHoursEnd ?? null)) {
-          db.insert(schema.notifications).values({
+        if (!isQuietHours(pref?.quietHoursStart ?? null, pref?.quietHoursEnd ?? null)) {
+          await notificationRepo.create({
             id: uuidv4(),
             userId,
             event,
             channel: "in_app",
             title: rendered.title,
             body: rendered.body,
-          }).run();
+          });
         }
       }
     }
   }
 
   // 3. Dispatch to registered webhooks
-  const activeWebhooks = db
-    .select()
-    .from(schema.webhookEndpoints)
-    .where(eq(schema.webhookEndpoints.isActive, true))
-    .all();
+  const activeWebhooks = await webhookEndpointRepo.findActive();
 
   for (const webhook of activeWebhooks) {
     const subscribedEvents = webhook.events as string[];

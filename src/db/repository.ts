@@ -5,7 +5,7 @@
  * ルートハンドラが直接 Drizzle クエリを書かなくて済むようにする。
  */
 
-import { eq, and, count } from "drizzle-orm";
+import { eq, and, count, inArray, desc } from "drizzle-orm";
 import { db, schema, curriculumSchema } from "./connection.js";
 
 // ─── Types ──────────────────────────────────────────────────
@@ -652,5 +652,379 @@ export const groupScheduleRepo = {
       .from(schema.groupSchedules)
       .where(eq(schema.groupSchedules.id, id));
     return schedule;
+  },
+};
+
+// ─── Reservation Repository ──────────────────────────────────
+
+export type Reservation = typeof schema.reservations.$inferSelect;
+export type NewReservation = typeof schema.reservations.$inferInsert;
+
+export const reservationRepo = {
+  async findAll(): Promise<Reservation[]> {
+    return db.select().from(schema.reservations);
+  },
+
+  async findById(id: string): Promise<Reservation | undefined> {
+    const [row] = await db
+      .select()
+      .from(schema.reservations)
+      .where(eq(schema.reservations.id, id));
+    return row;
+  },
+
+  async findByGroupId(groupId: string): Promise<Reservation[]> {
+    return db
+      .select()
+      .from(schema.reservations)
+      .where(eq(schema.reservations.groupId, groupId));
+  },
+
+  async findConflict(roomId: string, day: number, period: number): Promise<Reservation[]> {
+    return db
+      .select()
+      .from(schema.reservations)
+      .where(
+        and(
+          eq(schema.reservations.roomId, roomId),
+          eq(schema.reservations.day, day),
+          eq(schema.reservations.period, period),
+          eq(schema.reservations.status, "confirmed")
+        )
+      );
+  },
+
+  async create(data: NewReservation): Promise<Reservation> {
+    const [row] = await db.insert(schema.reservations).values(data).returning();
+    return row;
+  },
+
+  async update(id: string, data: Partial<Omit<NewReservation, "id">>): Promise<Reservation | undefined> {
+    const [row] = await db
+      .update(schema.reservations)
+      .set(data)
+      .where(eq(schema.reservations.id, id))
+      .returning();
+    return row;
+  },
+
+  async findConfirmedByRoom(roomId: string): Promise<Reservation[]> {
+    return db
+      .select()
+      .from(schema.reservations)
+      .where(
+        and(
+          eq(schema.reservations.roomId, roomId),
+          eq(schema.reservations.status, "confirmed")
+        )
+      );
+  },
+};
+
+// ─── Voting Event Repository ─────────────────────────────────
+
+export type VotingEvent = typeof schema.votingEvents.$inferSelect;
+export type NewVotingEvent = typeof schema.votingEvents.$inferInsert;
+
+export const votingEventRepo = {
+  async findAll(): Promise<VotingEvent[]> {
+    return db.select().from(schema.votingEvents);
+  },
+
+  async findById(id: string): Promise<VotingEvent | undefined> {
+    const [row] = await db
+      .select()
+      .from(schema.votingEvents)
+      .where(eq(schema.votingEvents.id, id));
+    return row;
+  },
+
+  async create(data: NewVotingEvent): Promise<void> {
+    await db.insert(schema.votingEvents).values(data);
+  },
+
+  async update(id: string, data: Partial<Omit<NewVotingEvent, "id">>): Promise<void> {
+    await db
+      .update(schema.votingEvents)
+      .set(data)
+      .where(eq(schema.votingEvents.id, id));
+  },
+
+  async deleteById(id: string): Promise<void> {
+    await db.delete(schema.votingEvents).where(eq(schema.votingEvents.id, id));
+  },
+};
+
+// ─── Voting Candidate Repository ─────────────────────────────
+
+export type VotingCandidate = typeof schema.votingCandidates.$inferSelect;
+export type NewVotingCandidate = typeof schema.votingCandidates.$inferInsert;
+
+export const votingCandidateRepo = {
+  async findByEventId(eventId: string): Promise<VotingCandidate[]> {
+    return db
+      .select()
+      .from(schema.votingCandidates)
+      .where(eq(schema.votingCandidates.eventId, eventId));
+  },
+
+  async create(data: NewVotingCandidate): Promise<void> {
+    await db.insert(schema.votingCandidates).values(data);
+  },
+
+  async deleteByEventId(eventId: string): Promise<void> {
+    await db
+      .delete(schema.votingCandidates)
+      .where(eq(schema.votingCandidates.eventId, eventId));
+  },
+};
+
+// ─── Vote Repository ─────────────────────────────────────────
+
+export type Vote = typeof schema.votes.$inferSelect;
+export type NewVote = typeof schema.votes.$inferInsert;
+
+export const voteRepo = {
+  async findByEventId(eventId: string): Promise<Vote[]> {
+    return db
+      .select()
+      .from(schema.votes)
+      .where(eq(schema.votes.eventId, eventId));
+  },
+
+  async findExisting(eventId: string, candidateId: string, userId: string): Promise<Vote | undefined> {
+    const [row] = await db
+      .select()
+      .from(schema.votes)
+      .where(
+        and(
+          eq(schema.votes.eventId, eventId),
+          eq(schema.votes.candidateId, candidateId),
+          eq(schema.votes.userId, userId)
+        )
+      );
+    return row;
+  },
+
+  async create(data: NewVote): Promise<void> {
+    await db.insert(schema.votes).values(data);
+  },
+
+  async update(id: string, data: Partial<Omit<NewVote, "id">>): Promise<void> {
+    await db
+      .update(schema.votes)
+      .set(data)
+      .where(eq(schema.votes.id, id));
+  },
+
+  async deleteByEventId(eventId: string): Promise<void> {
+    await db.delete(schema.votes).where(eq(schema.votes.eventId, eventId));
+  },
+};
+
+// ─── Webhook Endpoint Repository ─────────────────────────────
+
+export type WebhookEndpoint = typeof schema.webhookEndpoints.$inferSelect;
+export type NewWebhookEndpoint = typeof schema.webhookEndpoints.$inferInsert;
+
+export const webhookEndpointRepo = {
+  async findAll(): Promise<WebhookEndpoint[]> {
+    return db.select().from(schema.webhookEndpoints);
+  },
+
+  async findById(id: string): Promise<WebhookEndpoint | undefined> {
+    const [row] = await db
+      .select()
+      .from(schema.webhookEndpoints)
+      .where(eq(schema.webhookEndpoints.id, id));
+    return row;
+  },
+
+  async findByCreatedBy(createdBy: string): Promise<WebhookEndpoint[]> {
+    return db
+      .select()
+      .from(schema.webhookEndpoints)
+      .where(eq(schema.webhookEndpoints.createdBy, createdBy));
+  },
+
+  async findActive(): Promise<WebhookEndpoint[]> {
+    return db
+      .select()
+      .from(schema.webhookEndpoints)
+      .where(eq(schema.webhookEndpoints.isActive, true));
+  },
+
+  async create(data: NewWebhookEndpoint): Promise<WebhookEndpoint> {
+    const [row] = await db.insert(schema.webhookEndpoints).values(data).returning();
+    return row;
+  },
+
+  async update(id: string, data: Partial<Omit<NewWebhookEndpoint, "id">>): Promise<WebhookEndpoint | undefined> {
+    const [row] = await db
+      .update(schema.webhookEndpoints)
+      .set(data)
+      .where(eq(schema.webhookEndpoints.id, id))
+      .returning();
+    return row;
+  },
+
+  async deleteById(id: string): Promise<WebhookEndpoint | undefined> {
+    const [row] = await db
+      .delete(schema.webhookEndpoints)
+      .where(eq(schema.webhookEndpoints.id, id))
+      .returning();
+    return row;
+  },
+};
+
+// ─── Webhook Delivery Log Repository ─────────────────────────
+
+export type WebhookDeliveryLog = typeof schema.webhookDeliveryLogs.$inferSelect;
+export type NewWebhookDeliveryLog = typeof schema.webhookDeliveryLogs.$inferInsert;
+
+export const webhookDeliveryLogRepo = {
+  async findByWebhookId(webhookId: string): Promise<WebhookDeliveryLog[]> {
+    return db
+      .select()
+      .from(schema.webhookDeliveryLogs)
+      .where(eq(schema.webhookDeliveryLogs.webhookId, webhookId));
+  },
+
+  async create(data: NewWebhookDeliveryLog): Promise<void> {
+    await db.insert(schema.webhookDeliveryLogs).values(data);
+  },
+};
+
+// ─── Notification Preference Repository ──────────────────────
+
+export type NotificationPreference = typeof schema.notificationPreferences.$inferSelect;
+export type NewNotificationPreference = typeof schema.notificationPreferences.$inferInsert;
+
+export const notificationPreferenceRepo = {
+  async findByUserId(userId: string): Promise<NotificationPreference[]> {
+    return db
+      .select()
+      .from(schema.notificationPreferences)
+      .where(eq(schema.notificationPreferences.userId, userId));
+  },
+
+  async findByUserAndChannel(userId: string, channel: string): Promise<NotificationPreference | undefined> {
+    const [row] = await db
+      .select()
+      .from(schema.notificationPreferences)
+      .where(
+        and(
+          eq(schema.notificationPreferences.userId, userId),
+          eq(schema.notificationPreferences.channel, channel)
+        )
+      );
+    return row;
+  },
+
+  async create(data: NewNotificationPreference): Promise<NotificationPreference> {
+    const [row] = await db.insert(schema.notificationPreferences).values(data).returning();
+    return row;
+  },
+
+  async update(id: string, data: Partial<Omit<NewNotificationPreference, "id">>): Promise<NotificationPreference | undefined> {
+    const [row] = await db
+      .update(schema.notificationPreferences)
+      .set(data)
+      .where(eq(schema.notificationPreferences.id, id))
+      .returning();
+    return row;
+  },
+};
+
+// ─── Notification Repository ─────────────────────────────────
+
+export type Notification = typeof schema.notifications.$inferSelect;
+export type NewNotification = typeof schema.notifications.$inferInsert;
+
+export const notificationRepo = {
+  async findByUserId(userId: string): Promise<Notification[]> {
+    return db
+      .select()
+      .from(schema.notifications)
+      .where(eq(schema.notifications.userId, userId));
+  },
+
+  async create(data: NewNotification): Promise<void> {
+    await db.insert(schema.notifications).values(data);
+  },
+
+  async markAsRead(id: string): Promise<Notification | undefined> {
+    const [row] = await db
+      .update(schema.notifications)
+      .set({ isRead: true })
+      .where(eq(schema.notifications.id, id))
+      .returning();
+    return row;
+  },
+};
+
+// ─── User List Repository (admin/user list queries) ──────────
+
+export const userListRepo = {
+  async findAllBasic() {
+    return db.select({
+      id: schema.users.id,
+      name: schema.users.name,
+      email: schema.users.email,
+      role: schema.users.role,
+      major: schema.users.major,
+      createdAt: schema.users.createdAt,
+    }).from(schema.users);
+  },
+
+  async findByIds(userIds: string[]) {
+    return db.select({
+      id: schema.users.id,
+      name: schema.users.name,
+      email: schema.users.email,
+      role: schema.users.role,
+      major: schema.users.major,
+      createdAt: schema.users.createdAt,
+    }).from(schema.users)
+      .where(inArray(schema.users.id, userIds));
+  },
+
+  async findUserNamesById(userIds: string[]) {
+    return db
+      .select({ id: schema.users.id, name: schema.users.name })
+      .from(schema.users)
+      .where(inArray(schema.users.id, userIds));
+  },
+};
+
+// ─── Schedule Entry Repository (extended) ────────────────────
+
+export const scheduleEntryExtRepo = {
+  async findConfirmedByRoomAndSlot(roomId: string, day: number, period: number, termId: string): Promise<ScheduleEntry[]> {
+    return db
+      .select()
+      .from(schema.scheduleEntries)
+      .where(
+        and(
+          eq(schema.scheduleEntries.roomId, roomId),
+          eq(schema.scheduleEntries.day, day),
+          eq(schema.scheduleEntries.period, period),
+          eq(schema.scheduleEntries.termId, termId),
+          eq(schema.scheduleEntries.isConfirmed, true)
+        )
+      );
+  },
+
+  async findConfirmedByRoom(roomId: string, termId: string): Promise<ScheduleEntry[]> {
+    return db
+      .select()
+      .from(schema.scheduleEntries)
+      .where(
+        and(
+          eq(schema.scheduleEntries.roomId, roomId),
+          eq(schema.scheduleEntries.termId, termId),
+          eq(schema.scheduleEntries.isConfirmed, true)
+        )
+      );
   },
 };
