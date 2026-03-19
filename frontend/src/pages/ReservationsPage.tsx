@@ -68,42 +68,226 @@ export function ReservationsPage() {
 
 // ─── 予約管理タブ ─────────────────────────────────────────
 
+interface GroupInfo {
+  id: string;
+  name: string;
+  memberCount: number;
+}
+
+interface GroupMember {
+  userId: string;
+  name: string;
+  email: string;
+  role: string;
+}
+
+interface RoomAvailability {
+  id: string;
+  name: string;
+  capacity: number;
+  type: string;
+  freeSlots: Array<{ day: number; period: number }>;
+  occupiedCount: number;
+}
+
+interface GroupSchedule {
+  id: string;
+  day: number;
+  period: number;
+  duration: number;
+  title: string;
+}
+
+type SlotMode = "auto" | "manual";
+
 function ReservationsTab({ searchParams }: { searchParams: URLSearchParams }) {
   const [reservations, setReservations] = useState<Reservation[]>([]);
   const [showForm, setShowForm] = useState(searchParams.has("day") || false);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
+  const [messageType, setMessageType] = useState<"success" | "error">("success");
 
+  // グループ一覧
+  const [groups, setGroups] = useState<GroupInfo[]>([]);
+  // 選択グループのメンバー
+  const [members, setMembers] = useState<GroupMember[]>([]);
+  // 参加者の選択状態 (userId -> boolean)
+  const [participantSelection, setParticipantSelection] = useState<Map<string, boolean>>(new Map());
+  // グループの予定 (バッティング判定用)
+  const [groupSchedules, setGroupSchedules] = useState<GroupSchedule[]>([]);
+
+  // 教室一覧と空き状況
+  const [roomsAvailability, setRoomsAvailability] = useState<RoomAvailability[]>([]);
+  const [showRoomPicker, setShowRoomPicker] = useState(false);
+
+  // スロット選択モード
+  const [slotMode, setSlotMode] = useState<SlotMode>("auto");
+
+  // Form state
   const [form, setForm] = useState({
     groupId: searchParams.get("groupId") || "",
     title: "",
     day: parseInt(searchParams.get("day") || "0", 10),
     period: parseInt(searchParams.get("period") || "0", 10),
     roomId: searchParams.get("roomId") || "",
-    participants: "",
+    roomName: "",
     note: "",
   });
 
-  const showMsg = (msg: string) => {
+  const showMsg = (msg: string, type: "success" | "error" = "success") => {
     setMessage(msg);
+    setMessageType(type);
     setTimeout(() => setMessage(""), 4000);
   };
 
+  // 初期データ取得
   const fetchReservations = useCallback(async () => {
     try {
       const result = await m4.listReservations();
       setReservations(result.reservations || []);
     } catch (e: any) {
-      showMsg(`Error: ${e.message}`);
+      showMsg(`Error: ${e.message}`, "error");
     }
   }, []);
 
-  useEffect(() => { fetchReservations(); }, [fetchReservations]);
+  const fetchGroups = useCallback(async () => {
+    try {
+      const res = await groupApi.listMyGroups();
+      setGroups(res.groups || []);
+    } catch {
+      // ignore - non-critical
+    }
+  }, []);
+
+  const fetchRoomsAvailability = useCallback(async () => {
+    try {
+      const res = await m4.getRoomsAvailability();
+      setRoomsAvailability(res.rooms || []);
+    } catch {
+      // ignore - rooms might not be set up
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchReservations();
+    fetchGroups();
+    fetchRoomsAvailability();
+  }, [fetchReservations, fetchGroups, fetchRoomsAvailability]);
+
+  // グループ選択時にメンバーと予定を取得
+  useEffect(() => {
+    if (!form.groupId) {
+      setMembers([]);
+      setParticipantSelection(new Map());
+      setGroupSchedules([]);
+      return;
+    }
+    (async () => {
+      try {
+        const res = await groupApi.getGroup(form.groupId);
+        const m = res.group?.members || [];
+        setMembers(m);
+        // 全員を自動選択
+        const sel = new Map<string, boolean>();
+        for (const member of m) {
+          sel.set(member.userId, true);
+        }
+        setParticipantSelection(sel);
+        // グループの予定を保存
+        setGroupSchedules(res.group?.schedules || []);
+      } catch {
+        setMembers([]);
+        setParticipantSelection(new Map());
+        setGroupSchedules([]);
+      }
+    })();
+  }, [form.groupId]);
+
+  // バッティング判定: 指定メンバーが選択スロットに既存の予定がある場合
+  const getMemberConflicts = useCallback((userId: string): string[] => {
+    const conflicts: string[] = [];
+    // グループスケジュールでの衝突
+    for (const sched of groupSchedules) {
+      if (sched.day === form.day) {
+        for (let p = sched.period; p < sched.period + sched.duration; p++) {
+          if (p === form.period) {
+            conflicts.push(sched.title);
+          }
+        }
+      }
+    }
+    // 既存予約との衝突
+    for (const r of reservations) {
+      if (r.status !== "confirmed") continue;
+      if (r.day === form.day && r.period === form.period) {
+        if (r.participants.includes(userId)) {
+          conflicts.push(`予約: ${r.title}`);
+        }
+      }
+    }
+    return conflicts;
+  }, [form.day, form.period, groupSchedules, reservations]);
+
+  // 自動コマ候補: 参加者全員が空いている + 空き教室がある
+  const autoSlotCandidates = useCallback((): Array<{ day: number; period: number; freeRooms: RoomAvailability[] }> => {
+    const selectedParticipants = Array.from(participantSelection.entries())
+      .filter(([, v]) => v)
+      .map(([k]) => k);
+
+    if (selectedParticipants.length === 0) return [];
+
+    const candidates: Array<{ day: number; period: number; freeRooms: RoomAvailability[] }> = [];
+
+    for (let d = 0; d < 7; d++) {
+      for (let p = 0; p < 11; p++) {
+        // 参加者全員がこのスロットで衝突しないか確認
+        let allFree = true;
+        for (const userId of selectedParticipants) {
+          // グループスケジュールでの衝突チェック
+          for (const sched of groupSchedules) {
+            if (sched.day === d) {
+              for (let sp = sched.period; sp < sched.period + sched.duration; sp++) {
+                if (sp === p) { allFree = false; break; }
+              }
+            }
+            if (!allFree) break;
+          }
+          if (!allFree) break;
+          // 既存予約での衝突チェック
+          for (const r of reservations) {
+            if (r.status !== "confirmed") continue;
+            if (r.day === d && r.period === p && r.participants.includes(userId)) {
+              allFree = false;
+              break;
+            }
+          }
+          if (!allFree) break;
+        }
+        if (!allFree) continue;
+
+        // 空き教室チェック
+        const freeRooms = roomsAvailability.filter((room) =>
+          room.freeSlots.some((s) => s.day === d && s.period === p)
+        );
+        if (freeRooms.length > 0) {
+          candidates.push({ day: d, period: p, freeRooms });
+        }
+      }
+    }
+    return candidates;
+  }, [participantSelection, groupSchedules, reservations, roomsAvailability]);
 
   const handleCreate = async () => {
+    if (!form.groupId || !form.title || !form.roomId) {
+      showMsg("グループ、タイトル、教室を指定してください", "error");
+      return;
+    }
     setLoading(true);
     try {
-      const participants = form.participants.split(",").map((s) => s.trim()).filter(Boolean);
+      const participants = Array.from(participantSelection.entries())
+        .filter(([, v]) => v)
+        .map(([k]) => k);
+
       await m4.createReservation({
         groupId: form.groupId,
         title: form.title,
@@ -113,11 +297,12 @@ function ReservationsTab({ searchParams }: { searchParams: URLSearchParams }) {
         participants,
         note: form.note,
       });
-      showMsg("Reservation created");
+      showMsg("予約を作成しました");
       setShowForm(false);
       fetchReservations();
+      fetchRoomsAvailability();
     } catch (e: any) {
-      showMsg(`Error: ${e.message}`);
+      showMsg(`Error: ${e.message}`, "error");
     }
     setLoading(false);
   };
@@ -125,10 +310,11 @@ function ReservationsTab({ searchParams }: { searchParams: URLSearchParams }) {
   const handleCancel = async (id: string) => {
     try {
       await m4.cancelReservation(id);
-      showMsg("Reservation cancelled");
+      showMsg("予約をキャンセルしました");
       fetchReservations();
+      fetchRoomsAvailability();
     } catch (e: any) {
-      showMsg(`Error: ${e.message}`);
+      showMsg(`Error: ${e.message}`, "error");
     }
   };
 
@@ -137,10 +323,12 @@ function ReservationsTab({ searchParams }: { searchParams: URLSearchParams }) {
     return <span className={`badge ${cls}`}>{status}</span>;
   };
 
+  const candidates = showForm && slotMode === "auto" ? autoSlotCandidates() : [];
+
   return (
     <div>
       {message && (
-        <div className="card" style={{ marginBottom: "1rem", borderColor: message.startsWith("Error") ? "var(--red)" : "var(--green)", fontSize: "0.85rem" }}>
+        <div className="card" style={{ marginBottom: "1rem", borderColor: messageType === "error" ? "var(--red)" : "var(--green)", fontSize: "0.85rem" }}>
           {message}
         </div>
       )}
@@ -155,46 +343,276 @@ function ReservationsTab({ searchParams }: { searchParams: URLSearchParams }) {
       {showForm && (
         <div className="card" style={{ marginBottom: "1.5rem" }}>
           <h3 style={{ fontSize: "0.85rem", marginBottom: "0.75rem", color: "var(--text-muted)" }}>予約作成</h3>
+
+          {/* Step 1: タイトル & グループ */}
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem" }}>
             <div className="form-group">
               <label>タイトル</label>
               <input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="MTGタイトル" />
             </div>
             <div className="form-group">
-              <label>グループID</label>
-              <input value={form.groupId} onChange={(e) => setForm({ ...form, groupId: e.target.value })} placeholder="group-id" />
-            </div>
-            <div className="form-group">
-              <label>曜日</label>
-              <select value={form.day} onChange={(e) => setForm({ ...form, day: parseInt(e.target.value, 10) })}>
-                {DAY_LABELS.map((label, i) => <option key={i} value={i}>{label}</option>)}
+              <label>グループ</label>
+              <select value={form.groupId} onChange={(e) => setForm({ ...form, groupId: e.target.value })}>
+                <option value="">グループを選択...</option>
+                {groups.map((g) => (
+                  <option key={g.id} value={g.id}>{g.name} ({g.memberCount}人)</option>
+                ))}
               </select>
-            </div>
-            <div className="form-group">
-              <label>コマ</label>
-              <select value={form.period} onChange={(e) => setForm({ ...form, period: parseInt(e.target.value, 10) })}>
-                {Array.from({ length: 11 }, (_, i) => <option key={i} value={i}>{i + 1}限</option>)}
-              </select>
-            </div>
-            <div className="form-group">
-              <label>教室ID</label>
-              <input value={form.roomId} onChange={(e) => setForm({ ...form, roomId: e.target.value })} placeholder="room-id" />
-            </div>
-            <div className="form-group">
-              <label>参加者（カンマ区切り）</label>
-              <input value={form.participants} onChange={(e) => setForm({ ...form, participants: e.target.value })} placeholder="user-1, user-2" />
-            </div>
-            <div className="form-group" style={{ gridColumn: "1 / -1" }}>
-              <label>メモ</label>
-              <textarea value={form.note} onChange={(e) => setForm({ ...form, note: e.target.value })} placeholder="メモ（公開）" rows={2} />
             </div>
           </div>
-          <button className="primary" onClick={handleCreate} disabled={loading || !form.title} style={{ marginTop: "0.5rem" }}>
+
+          {/* Step 2: 参加者選択 */}
+          {members.length > 0 && (
+            <div style={{ marginTop: "0.75rem" }}>
+              <label style={{ fontSize: "0.8rem", fontWeight: 600, display: "block", marginBottom: "0.3rem" }}>
+                参加者 ({Array.from(participantSelection.values()).filter(Boolean).length}/{members.length})
+              </label>
+              <div style={{ display: "flex", gap: "0.4rem", flexWrap: "wrap" }}>
+                {members.map((m) => {
+                  const selected = participantSelection.get(m.userId) || false;
+                  const conflicts = getMemberConflicts(m.userId);
+                  const hasConflict = selected && conflicts.length > 0;
+                  return (
+                    <button
+                      key={m.userId}
+                      onClick={() => {
+                        setParticipantSelection((prev) => {
+                          const next = new Map(prev);
+                          next.set(m.userId, !selected);
+                          return next;
+                        });
+                      }}
+                      title={hasConflict ? `衝突: ${conflicts.join(", ")}` : m.email}
+                      style={{
+                        padding: "0.25rem 0.6rem",
+                        fontSize: "0.75rem",
+                        background: selected
+                          ? hasConflict ? "rgba(248, 81, 73, 0.2)" : "var(--accent)"
+                          : "var(--bg-surface-2)",
+                        color: selected && !hasConflict ? "#fff" : selected && hasConflict ? "var(--red)" : "var(--text-muted)",
+                        border: hasConflict ? "1px solid var(--red)" : "1px solid var(--border)",
+                        borderRadius: "var(--radius-sm)",
+                        cursor: "pointer",
+                        position: "relative",
+                      }}
+                    >
+                      {m.name}
+                      {hasConflict && (
+                        <span style={{ marginLeft: "0.3rem", fontSize: "0.65rem", color: "var(--red)", fontWeight: 700 }}>!</span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Step 3: コマ選択モード */}
+          <div style={{ marginTop: "0.75rem" }}>
+            <label style={{ fontSize: "0.8rem", fontWeight: 600, display: "block", marginBottom: "0.3rem" }}>コマ選択</label>
+            <div style={{ display: "flex", gap: "0.5rem", marginBottom: "0.5rem" }}>
+              <button
+                onClick={() => setSlotMode("auto")}
+                style={{
+                  padding: "0.3rem 0.75rem", fontSize: "0.75rem",
+                  background: slotMode === "auto" ? "var(--accent)" : "var(--bg-surface-2)",
+                  color: slotMode === "auto" ? "#fff" : "var(--text-muted)",
+                  border: "1px solid var(--border)", borderRadius: "var(--radius-sm)", cursor: "pointer",
+                }}
+              >
+                自動提案
+              </button>
+              <button
+                onClick={() => setSlotMode("manual")}
+                style={{
+                  padding: "0.3rem 0.75rem", fontSize: "0.75rem",
+                  background: slotMode === "manual" ? "var(--accent)" : "var(--bg-surface-2)",
+                  color: slotMode === "manual" ? "#fff" : "var(--text-muted)",
+                  border: "1px solid var(--border)", borderRadius: "var(--radius-sm)", cursor: "pointer",
+                }}
+              >
+                自由選択
+              </button>
+            </div>
+
+            {slotMode === "auto" && (
+              <div>
+                {candidates.length === 0 ? (
+                  <div style={{ fontSize: "0.75rem", color: "var(--text-muted)", padding: "0.5rem" }}>
+                    {form.groupId ? "全員が参加可能で空き教室のあるコマが見つかりません" : "グループを選択してください"}
+                  </div>
+                ) : (
+                  <div style={{ maxHeight: 200, overflowY: "auto", display: "flex", flexDirection: "column", gap: "0.25rem" }}>
+                    {candidates.slice(0, 20).map((c) => {
+                      const isSelected = form.day === c.day && form.period === c.period;
+                      return (
+                        <button
+                          key={`${c.day}-${c.period}`}
+                          onClick={() => setForm({ ...form, day: c.day, period: c.period })}
+                          style={{
+                            display: "flex", justifyContent: "space-between", alignItems: "center",
+                            padding: "0.35rem 0.6rem", fontSize: "0.75rem", textAlign: "left",
+                            background: isSelected ? "rgba(63, 185, 80, 0.15)" : "var(--bg-surface-2)",
+                            border: isSelected ? "1px solid var(--green)" : "1px solid var(--border)",
+                            borderRadius: "var(--radius-sm)", cursor: "pointer",
+                          }}
+                        >
+                          <span style={{ fontWeight: isSelected ? 600 : 400 }}>
+                            {DAY_LABELS[c.day]} {c.period + 1}限
+                          </span>
+                          <span style={{ fontSize: "0.65rem", color: "var(--text-muted)" }}>
+                            空き教室: {c.freeRooms.length}室 ({c.freeRooms.slice(0, 3).map((r) => r.name).join(", ")}{c.freeRooms.length > 3 ? "..." : ""})
+                          </span>
+                        </button>
+                      );
+                    })}
+                    {candidates.length > 20 && (
+                      <div style={{ fontSize: "0.7rem", color: "var(--text-muted)", padding: "0.25rem" }}>
+                        他 {candidates.length - 20} 件...
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {slotMode === "manual" && (
+              <div style={{ display: "flex", gap: "0.75rem" }}>
+                <div className="form-group" style={{ flex: 1 }}>
+                  <label>曜日</label>
+                  <select value={form.day} onChange={(e) => setForm({ ...form, day: parseInt(e.target.value, 10) })}>
+                    {DAY_LABELS.map((label, i) => <option key={i} value={i}>{label}</option>)}
+                  </select>
+                </div>
+                <div className="form-group" style={{ flex: 1 }}>
+                  <label>コマ</label>
+                  <select value={form.period} onChange={(e) => setForm({ ...form, period: parseInt(e.target.value, 10) })}>
+                    {Array.from({ length: 11 }, (_, i) => <option key={i} value={i}>{i + 1}限</option>)}
+                  </select>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Step 4: 教室選択 */}
+          <div style={{ marginTop: "0.75rem" }}>
+            <label style={{ fontSize: "0.8rem", fontWeight: 600, display: "block", marginBottom: "0.3rem" }}>教室</label>
+            <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
+              <span style={{ fontSize: "0.8rem", minWidth: 100 }}>
+                {form.roomName || form.roomId || "未選択"}
+              </span>
+              <button
+                onClick={() => { fetchRoomsAvailability(); setShowRoomPicker(true); }}
+                style={{ fontSize: "0.75rem", padding: "0.3rem 0.75rem" }}
+              >
+                教室を選択
+              </button>
+            </div>
+          </div>
+
+          {/* 教室選択ポップアップ */}
+          {showRoomPicker && (
+            <div style={{
+              position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
+              background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center",
+              zIndex: 1000,
+            }} onClick={() => setShowRoomPicker(false)}>
+              <div
+                style={{
+                  background: "var(--bg-surface)", borderRadius: "var(--radius)", padding: "1.5rem",
+                  maxWidth: 500, width: "90%", maxHeight: "70vh", overflowY: "auto",
+                  border: "1px solid var(--border)",
+                }}
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
+                  <h3 style={{ fontSize: "0.9rem", margin: 0 }}>空き教室を選択 ({DAY_LABELS[form.day]} {form.period + 1}限)</h3>
+                  <button onClick={() => setShowRoomPicker(false)} style={{ background: "transparent", border: "none", cursor: "pointer", fontSize: "1.2rem", color: "var(--text-muted)" }}>×</button>
+                </div>
+
+                {(() => {
+                  const freeRooms = roomsAvailability.filter((room) =>
+                    room.freeSlots.some((s) => s.day === form.day && s.period === form.period)
+                  );
+                  const busyRooms = roomsAvailability.filter((room) =>
+                    !room.freeSlots.some((s) => s.day === form.day && s.period === form.period)
+                  );
+
+                  return (
+                    <div>
+                      {freeRooms.length === 0 ? (
+                        <div style={{ fontSize: "0.8rem", color: "var(--text-muted)", padding: "1rem 0" }}>
+                          このコマに空いている教室がありません
+                        </div>
+                      ) : (
+                        <div style={{ display: "flex", flexDirection: "column", gap: "0.4rem", marginBottom: "1rem" }}>
+                          <div style={{ fontSize: "0.75rem", color: "var(--text-muted)", marginBottom: "0.25rem" }}>空き教室 ({freeRooms.length})</div>
+                          {freeRooms.map((room) => (
+                            <button
+                              key={room.id}
+                              onClick={() => {
+                                setForm({ ...form, roomId: room.id, roomName: room.name });
+                                setShowRoomPicker(false);
+                              }}
+                              style={{
+                                display: "flex", justifyContent: "space-between", alignItems: "center",
+                                padding: "0.5rem 0.75rem", fontSize: "0.8rem", textAlign: "left",
+                                background: form.roomId === room.id ? "rgba(63, 185, 80, 0.15)" : "var(--bg-surface-2)",
+                                border: form.roomId === room.id ? "1px solid var(--green)" : "1px solid var(--border)",
+                                borderRadius: "var(--radius-sm)", cursor: "pointer",
+                              }}
+                            >
+                              <span style={{ fontWeight: 500 }}>{room.name}</span>
+                              <span style={{ fontSize: "0.7rem", color: "var(--text-muted)" }}>
+                                定員{room.capacity} / {room.type === "classroom" ? "教室" : room.type === "lab" ? "実習室" : room.type}
+                              </span>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                      {busyRooms.length > 0 && (
+                        <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
+                          <div style={{ fontSize: "0.75rem", color: "var(--text-muted)", marginBottom: "0.25rem" }}>使用中 ({busyRooms.length})</div>
+                          {busyRooms.map((room) => (
+                            <div key={room.id} style={{ padding: "0.35rem 0.75rem", fontSize: "0.75rem", color: "var(--text-muted)", opacity: 0.5 }}>
+                              {room.name} — 使用中
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      {roomsAvailability.length === 0 && (
+                        <div style={{ fontSize: "0.8rem", color: "var(--text-muted)", padding: "1rem 0" }}>
+                          教室データが登録されていません。<a href="/schema-management" style={{ color: "var(--accent)" }}>スキーマ管理</a>で教室を追加してください。
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
+              </div>
+            </div>
+          )}
+
+          {/* メモ */}
+          <div className="form-group" style={{ marginTop: "0.75rem" }}>
+            <label>メモ</label>
+            <textarea value={form.note} onChange={(e) => setForm({ ...form, note: e.target.value })} placeholder="メモ（公開）" rows={2} />
+          </div>
+
+          {/* 作成サマリー */}
+          <div style={{ marginTop: "0.75rem", padding: "0.5rem 0.75rem", background: "var(--bg-surface-2)", borderRadius: "var(--radius-sm)", fontSize: "0.75rem" }}>
+            <strong>{DAY_LABELS[form.day]} {form.period + 1}限</strong>
+            {form.roomName && <span> / {form.roomName}</span>}
+            {form.roomId && !form.roomName && <span> / {form.roomId}</span>}
+            <span> / 参加者 {Array.from(participantSelection.values()).filter(Boolean).length}人</span>
+          </div>
+
+          <button className="primary" onClick={handleCreate} disabled={loading || !form.title || !form.groupId || !form.roomId} style={{ marginTop: "0.75rem" }}>
             {loading ? "作成中..." : "予約を確定"}
           </button>
         </div>
       )}
 
+      {/* 予約一覧 */}
       {reservations.length === 0 ? (
         <div className="empty-state"><p>予約がありません</p></div>
       ) : (

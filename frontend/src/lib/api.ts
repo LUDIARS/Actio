@@ -545,6 +545,26 @@ export const m1 = {
     }
     return res.json();
   },
+  // 教室 (Rooms)
+  getRooms() {
+    return request<{ rooms: any[] }>("/api/m1/rooms");
+  },
+  createRoom(body: { name: string; capacity?: number; type?: string; equipment?: string[] }) {
+    return request<any>("/api/m1/rooms", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  },
+  updateRoom(id: string, body: { name?: string; capacity?: number; type?: string; equipment?: string[] }) {
+    return request<any>(`/api/m1/rooms/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(body),
+    });
+  },
+  deleteRoom(id: string) {
+    return request<any>(`/api/m1/rooms/${id}`, { method: "DELETE" });
+  },
+
   generate(mode: "pack" | "spread") {
     return request<any>(`/api/m1/schedule/generate?mode=${mode}`, {
       method: "POST",
@@ -632,6 +652,9 @@ export const m4 = {
   },
   getRoomSchedule(roomId: string) {
     return request<any>(`/api/m4/rooms/${roomId}/schedule`);
+  },
+  getRoomsAvailability() {
+    return request<any>("/api/m4/rooms/availability");
   },
 };
 
