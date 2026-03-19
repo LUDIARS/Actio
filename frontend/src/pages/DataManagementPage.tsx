@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { TimetableGrid, type GridSlot } from "../components/TimetableGrid";
 import {
   DAY_LABELS,
@@ -332,8 +332,8 @@ export function DataManagementPage() {
         availMap.set(instrId, slotKeys);
       }
       setInstructorAvail(availMap);
-    } catch (e: any) {
-      showMessage(`データ取得エラー: ${e.message}`, "error");
+    } catch (e: unknown) {
+      showMessage(`データ取得エラー: ${(e as Error).message}`, "error");
     }
   }, []);
 
@@ -366,8 +366,8 @@ export function DataManagementPage() {
       }
       setEntries(newEntries);
       setConfirmed(false);
-    } catch (e: any) {
-      showMessage(`配置データ取得エラー: ${e.message}`, "error");
+    } catch (e: unknown) {
+      showMessage(`配置データ取得エラー: ${(e as Error).message}`, "error");
     }
   }, [curricula, departments, instructors]);
 
@@ -389,8 +389,8 @@ export function DataManagementPage() {
       }));
       const result = await m1Schema.savePlacements(selectedTermId, placements);
       showMessage(result.message);
-    } catch (e: any) {
-      showMessage(`保存エラー: ${e.message}`, "error");
+    } catch (e: unknown) {
+      showMessage(`保存エラー: ${(e as Error).message}`, "error");
     }
     setSaving(false);
   };
@@ -405,8 +405,8 @@ export function DataManagementPage() {
       setTerms(updatedTerms.terms || []);
       setSelectedTermId(result.id);
       showMessage(`ターム「${newTermName.trim()}」を作成しました`);
-    } catch (e: any) {
-      showMessage(`作成エラー: ${e.message}`, "error");
+    } catch (e: unknown) {
+      showMessage(`作成エラー: ${(e as Error).message}`, "error");
     }
   };
 
@@ -611,8 +611,8 @@ export function DataManagementPage() {
       const result = await m1Schema.confirmPlacements(placements, termLabel || undefined);
       setConfirmed(true);
       showMessage(result.message);
-    } catch (e: any) {
-      showMessage(`確定エラー: ${e.message}`, "error");
+    } catch (e: unknown) {
+      showMessage(`確定エラー: ${(e as Error).message}`, "error");
     } finally {
       setConfirming(false);
     }
@@ -620,7 +620,10 @@ export function DataManagementPage() {
 
   // ─── Grid ──────────────────────────────────────────────────
 
-  const swapTargets = tab === "swap" ? getSwapTargets() : new Map<string, string>();
+  const swapTargets = useMemo(
+    () => tab === "swap" ? getSwapTargets() : new Map<string, string>(),
+    [tab, getSwapTargets]
+  );
 
   const buildSlots = useCallback((): GridSlot[][] => {
     const grid: GridSlot[][] = Array.from({ length: DAYS_COUNT }, () =>
@@ -998,8 +1001,8 @@ export function DataManagementPage() {
                 try {
                   const result = await m1Schema.decideTerm(selectedTermId);
                   showMessage(result.message);
-                } catch (e: any) {
-                  showMessage(`決定エラー: ${e.message}`, "error");
+                } catch (e: unknown) {
+                  showMessage(`決定エラー: ${(e as Error).message}`, "error");
                 }
                 setConfirming(false);
               }}
@@ -1053,8 +1056,8 @@ export function DataManagementPage() {
                     a.click();
                     URL.revokeObjectURL(url);
                     showMessage("エクスポートしました");
-                  } catch (e: any) {
-                    showMessage(`エクスポートエラー: ${e.message}`, "error");
+                  } catch (e: unknown) {
+                    showMessage(`エクスポートエラー: ${(e as Error).message}`, "error");
                   }
                 }}
                 style={{ fontSize: "0.8rem" }}
@@ -1076,8 +1079,8 @@ export function DataManagementPage() {
                       const result = await m1Schema.importData(data);
                       showMessage(result.message);
                       fetchMasterData();
-                    } catch (err: any) {
-                      showMessage(`インポートエラー: ${err.message}`, "error");
+                    } catch (err: unknown) {
+                      showMessage(`インポートエラー: ${(err as Error).message}`, "error");
                     }
                     e.target.value = "";
                   }}
@@ -1131,13 +1134,15 @@ function GroupScheduleManager({ showMessage }: { showMessage: (msg: string, type
     try {
       const data = await m1Schema.getGroupSchedules();
       setSchedules(data.schedules || []);
-    } catch (e: any) {
-      showMessage(`取得エラー: ${e.message}`, "error");
+    } catch (e: unknown) {
+      showMessage(`取得エラー: ${(e as Error).message}`, "error");
     }
     setLoading(false);
   }, [showMessage]);
 
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => { fetchSchedules(); }, [fetchSchedules]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   const handleDelete = async (id: string, title: string) => {
     if (!confirm(`「${title}」を削除しますか？`)) return;
@@ -1145,8 +1150,8 @@ function GroupScheduleManager({ showMessage }: { showMessage: (msg: string, type
       await m1Schema.deleteGroupSchedule(id);
       showMessage(`「${title}」を削除しました`);
       fetchSchedules();
-    } catch (e: any) {
-      showMessage(`削除エラー: ${e.message}`, "error");
+    } catch (e: unknown) {
+      showMessage(`削除エラー: ${(e as Error).message}`, "error");
     }
   };
 
@@ -1157,8 +1162,8 @@ function GroupScheduleManager({ showMessage }: { showMessage: (msg: string, type
       const result = await m1Schema.deleteGroupSchedulesByLabel(label);
       showMessage(`ラベル「${label}」の${result.deletedCount}件を削除しました`);
       fetchSchedules();
-    } catch (e: any) {
-      showMessage(`削除エラー: ${e.message}`, "error");
+    } catch (e: unknown) {
+      showMessage(`削除エラー: ${(e as Error).message}`, "error");
     }
   };
 

@@ -396,27 +396,27 @@ export const m1Schema = {
 
   // ターム (Terms)
   getTerms() {
-    return request<{ terms: any[] }>("/api/m1/terms");
+    return request<{ terms: Array<{ id: string; name: string; startDate?: string; endDate?: string }> }>("/api/m1/terms");
   },
   createTerm(name: string, startDate?: string, endDate?: string) {
-    return request<any>("/api/m1/terms", {
+    return request<{ id: string; name: string }>("/api/m1/terms", {
       method: "POST",
       body: JSON.stringify({ name, startDate, endDate }),
     });
   },
   updateTerm(id: string, body: { name?: string; startDate?: string | null; endDate?: string | null }) {
-    return request<any>(`/api/m1/terms/${id}`, {
+    return request<{ id: string }>(`/api/m1/terms/${id}`, {
       method: "PUT",
       body: JSON.stringify(body),
     });
   },
   deleteTerm(id: string) {
-    return request<any>(`/api/m1/terms/${id}`, { method: "DELETE" });
+    return request<{ deleted: string }>(`/api/m1/terms/${id}`, { method: "DELETE" });
   },
 
   // カリキュラム配置 (Placements)
   getPlacements(termId: string) {
-    return request<{ placements: any[] }>(`/api/m1/terms/${termId}/placements`);
+    return request<{ placements: Array<{ id: string; termId: string; curriculumId: string; day: number; period: number; roomId?: string; candidateCount: number }> }>(`/api/m1/terms/${termId}/placements`);
   },
   savePlacements(termId: string, placements: Array<{
     curriculumId: string;
@@ -439,7 +439,7 @@ export const m1Schema = {
 
   // カリキュラム決定
   decideTerm(termId: string) {
-    return request<{ message: string; labelPrefix: string; plansCreated: number; results: any[] }>(
+    return request<{ message: string; labelPrefix: string; plansCreated: number; results: Array<{ departmentName: string; plansCreated: number }> }>(
       `/api/m1/terms/${termId}/decide`,
       { method: "POST" }
     );
@@ -447,7 +447,7 @@ export const m1Schema = {
 
   // エクスポート / インポート
   exportData() {
-    return request<any>("/api/m1/export");
+    return request<{ version: number; exportedAt: string; departments: Array<{ name: string }>; instructors: Array<{ name: string }>; curricula: Array<{ name: string }> }>("/api/m1/export");
   },
   importData(data: {
     departments?: Array<{ name: string }>;
@@ -463,7 +463,7 @@ export const m1Schema = {
     termStartDate?: string;
     termEndDate?: string;
   }) {
-    return request<any>("/api/m1/import", {
+    return request<{ message: string; departmentsCreated: number; instructorsCreated: number; curriculaCreated: number }>("/api/m1/import", {
       method: "POST",
       body: JSON.stringify(data),
     });
