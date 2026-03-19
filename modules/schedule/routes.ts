@@ -794,7 +794,7 @@ m1.get("/group-schedules", async (c) => {
   const schedules = await groupScheduleRepo.findAll();
   const groups = await groupRepo.findAll();
   const groupMap = new Map(groups.map((g: { id: string; name: string }) => [g.id, g.name]));
-  const result = schedules.map((s) => ({
+  const result = schedules.map((s: { groupId: string; [key: string]: unknown }) => ({
     ...s,
     groupName: groupMap.get(s.groupId) || s.groupId,
   }));
