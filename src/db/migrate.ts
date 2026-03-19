@@ -338,6 +338,34 @@ try { sqlite.exec(`CREATE INDEX IF NOT EXISTS idx_group_schedule_label ON group_
 try { sqlite.exec(`ALTER TABLE curricula ADD COLUMN valid_from TEXT`); } catch { /* column already exists */ }
 try { sqlite.exec(`ALTER TABLE curricula ADD COLUMN valid_until TEXT`); } catch { /* column already exists */ }
 
+// M1: Terms table
+sqlite.exec(`
+  CREATE TABLE IF NOT EXISTS terms (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    start_date TEXT,
+    end_date TEXT,
+    created_at INTEGER NOT NULL
+  );
+`);
+
+// M1: Curriculum Placements table
+sqlite.exec(`
+  CREATE TABLE IF NOT EXISTS curriculum_placements (
+    id TEXT PRIMARY KEY,
+    term_id TEXT NOT NULL REFERENCES terms(id),
+    curriculum_id TEXT NOT NULL REFERENCES curricula(id),
+    day INTEGER NOT NULL,
+    period INTEGER NOT NULL,
+    room_id TEXT,
+    candidate_count INTEGER NOT NULL DEFAULT 0,
+    created_at INTEGER NOT NULL,
+    UNIQUE(term_id, day, period, room_id)
+  );
+  CREATE INDEX IF NOT EXISTS idx_placement_term ON curriculum_placements(term_id);
+  CREATE INDEX IF NOT EXISTS idx_placement_curriculum ON curriculum_placements(curriculum_id);
+`);
+
 // M6 Voting tables
 sqlite.exec(`
   CREATE TABLE IF NOT EXISTS voting_events (

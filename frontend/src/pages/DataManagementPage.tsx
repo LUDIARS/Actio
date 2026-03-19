@@ -257,8 +257,15 @@ export function DataManagementPage() {
 
   const [message, setMessage] = useState("");
   const [messageType, setMessageType] = useState<"success" | "error">("success");
-  const [tab, setTab] = useState<"manual" | "overview" | "auto" | "dbview">("manual");
+  const [tab, setTab] = useState<"list" | "swap" | "auto" | "decide">("list");
   const [filterDept, setFilterDept] = useState("");
+
+  // ターム管理
+  interface Term { id: string; name: string; startDate?: string; endDate?: string; }
+  const [terms, setTerms] = useState<Term[]>([]);
+  const [selectedTermId, setSelectedTermId] = useState("");
+  const [newTermName, setNewTermName] = useState("");
+  const [saving, setSaving] = useState(false);
 
   // Strategy
   const [strategy, setStrategy] = useState<PlacementStrategy>("spread");
@@ -288,17 +295,20 @@ export function DataManagementPage() {
 
   const fetchMasterData = useCallback(async () => {
     try {
-      const [deptData, instData, currData] = await Promise.all([
+      const [deptData, instData, currData, termData] = await Promise.all([
         m1Schema.getDepartments(),
         m1Schema.getInstructors(),
         m1Schema.getCurricula(),
+        m1Schema.getTerms(),
       ]);
       const depts = deptData.departments || [];
       const insts = instData.instructors || [];
       const currs = currData.curricula || [];
+      const loadedTerms = termData.terms || [];
       setDepartments(depts);
       setInstructors(insts);
       setCurricula(currs);
+      setTerms(loadedTerms);
 
       const availMap: InstructorAvailMap = new Map();
       const instructorIds = [...new Set(
@@ -329,6 +339,77 @@ export function DataManagementPage() {
 
   useEffect(() => { fetchMasterData(); }, [fetchMasterData]);
 
+  // ターム選択時に配置データをロード
+  const loadPlacementsFromDb = useCallback(async (termId: string) => {
+    if (!termId) { setEntries([]); return; }
+    try {
+      const data = await m1Schema.getPlacements(termId);
+      const placements = data.placements || [];
+      const newEntries: PlacedEntry[] = [];
+      for (const p of placements) {
+        const cur = curricula.find((c) => c.id === p.curriculumId);
+        if (!cur) continue;
+        const deptIds = (cur.departmentIds && cur.departmentIds.length > 0) ? cur.departmentIds : [cur.departmentId];
+        const deptNames = deptIds.map((id: string) => departments.find((d) => d.id === id)?.name || "-").join(", ");
+        const instName = cur.instructorId ? (instructors.find((i) => i.id === cur.instructorId)?.name || "-") : "未アサイン";
+        newEntries.push({
+          day: p.day,
+          period: p.period,
+          curriculumId: p.curriculumId,
+          curriculumName: cur.name,
+          instructorId: cur.instructorId || "",
+          instructorName: instName,
+          departmentIds: deptIds,
+          departmentNames: deptNames,
+          periods: cur.periods || 1,
+        });
+      }
+      setEntries(newEntries);
+      setConfirmed(false);
+    } catch (e: any) {
+      showMessage(`配置データ取得エラー: ${e.message}`, "error");
+    }
+  }, [curricula, departments, instructors]);
+
+  useEffect(() => {
+    if (selectedTermId && curricula.length > 0) {
+      loadPlacementsFromDb(selectedTermId);
+    }
+  }, [selectedTermId, loadPlacementsFromDb, curricula.length]);
+
+  // 配置データをDBに保存
+  const savePlacementsToDb = async () => {
+    if (!selectedTermId) { showMessage("タームを選択してください", "error"); return; }
+    setSaving(true);
+    try {
+      const placements = entries.map((e) => ({
+        curriculumId: e.curriculumId,
+        day: e.day,
+        period: e.period,
+      }));
+      const result = await m1Schema.savePlacements(selectedTermId, placements);
+      showMessage(result.message);
+    } catch (e: any) {
+      showMessage(`保存エラー: ${e.message}`, "error");
+    }
+    setSaving(false);
+  };
+
+  // ターム作成
+  const handleCreateTerm = async () => {
+    if (!newTermName.trim()) { showMessage("ターム名を入力してください", "error"); return; }
+    try {
+      const result = await m1Schema.createTerm(newTermName.trim());
+      setNewTermName("");
+      const updatedTerms = await m1Schema.getTerms();
+      setTerms(updatedTerms.terms || []);
+      setSelectedTermId(result.id);
+      showMessage(`ターム「${newTermName.trim()}」を作成しました`);
+    } catch (e: any) {
+      showMessage(`作成エラー: ${e.message}`, "error");
+    }
+  };
+
   const getDeptName = (id: string) => departments.find((d) => d.id === id)?.name || "-";
   const getInstName = (id: string | null) => {
     if (!id) return "未アサイン";
@@ -353,9 +434,68 @@ export function DataManagementPage() {
     if (entry) showMessage(`「${entry.curriculumName}」を削除しました`);
   };
 
+  // ─── スワップ対象の判定 ──────────────────────────────────
+  // 選択コマの入れ替え可能先を算出し、候補数に基づく色を返す
+  const getSwapTargets = useCallback((): Map<string, string> => {
+    if (!selectedSlot) return new Map();
+    const fromEntry = entries.find((e) => e.day === selectedSlot.day && e.period === selectedSlot.period);
+    if (!fromEntry) return new Map();
+
+    const fromCur = curricula.find((c) => c.id === fromEntry.curriculumId);
+    if (!fromCur) return new Map();
+
+    // 講師の候補数が15以上の場合は再計算しない
+    const instrId = fromCur.instructorId;
+    if (instrId) {
+      const availSlots = instructorAvail.get(instrId);
+      if (availSlots && availSlots.size >= 15) return new Map();
+    }
+
+    const targets = new Map<string, string>();
+    for (let d = 0; d < DAYS_COUNT; d++) {
+      for (let p = 0; p < PERIODS_COUNT; p++) {
+        if (d === selectedSlot.day && p === selectedSlot.period) continue;
+        const toEntry = entries.find((e) => e.day === d && e.period === p);
+
+        // 空欄 or 入れ替え可能な授業
+        if (!toEntry) {
+          // fromEntry をここに移動できるか
+          const err = canPlace(
+            entries.filter((e) => !(e.day === selectedSlot.day && e.period === selectedSlot.period)),
+            fromCur, d, p, departments, instructorAvail
+          );
+          if (!err) targets.set(`${d}-${p}`, "");
+        } else {
+          // 双方向スワップ: fromをtoの位置に、toをfromの位置に置けるか
+          const toCur = curricula.find((c) => c.id === toEntry.curriculumId);
+          if (!toCur) continue;
+          const withoutBoth = entries.filter(
+            (e) => !(e.day === selectedSlot.day && e.period === selectedSlot.period) &&
+                   !(e.day === d && e.period === p)
+          );
+          const errFrom = canPlace(withoutBoth, fromCur, d, p, departments, instructorAvail);
+          const errTo = canPlace(withoutBoth, toCur, selectedSlot.day, selectedSlot.period, departments, instructorAvail);
+          if (!errFrom && !errTo) targets.set(`${d}-${p}`, "");
+        }
+      }
+    }
+
+    // 候補数に応じた色: <=3=灰, >=7=オレンジ, >=15=緑
+    const count = targets.size;
+    let color = "#6E7681"; // 灰色 (3以下)
+    if (count >= 15) color = "#3FB950"; // 緑
+    else if (count >= 7) color = "#D29922"; // オレンジ
+
+    const colored = new Map<string, string>();
+    for (const key of targets.keys()) {
+      colored.set(key, color);
+    }
+    return colored;
+  }, [selectedSlot, entries, curricula, departments, instructorAvail]);
+
   const handleSlotClick = (day: number, period: number) => {
-    if (tab === "manual") { setManualDay(day); setManualPeriod(period); return; }
-    if (tab !== "overview") return;
+    if (tab === "list") { setManualDay(day); setManualPeriod(period); return; }
+    if (tab !== "swap") return;
     if (selectedSlot) {
       if (selectedSlot.day === day && selectedSlot.period === period) { setSelectedSlot(null); return; }
       const fromEntry = entries.find((e) => e.day === selectedSlot.day && e.period === selectedSlot.period);
@@ -480,6 +620,8 @@ export function DataManagementPage() {
 
   // ─── Grid ──────────────────────────────────────────────────
 
+  const swapTargets = tab === "swap" ? getSwapTargets() : new Map<string, string>();
+
   const buildSlots = useCallback((): GridSlot[][] => {
     const grid: GridSlot[][] = Array.from({ length: DAYS_COUNT }, () =>
       Array.from({ length: PERIODS_COUNT }, () => ({}))
@@ -495,19 +637,32 @@ export function DataManagementPage() {
     for (const entry of entries) {
       const primaryDept = entry.departmentIds[0];
       const color = deptColorMap.get(primaryDept) || undefined;
+      const isSelected = selectedSlot?.day === entry.day && selectedSlot?.period === entry.period;
+      const swapColor = swapTargets.get(`${entry.day}-${entry.period}`);
       grid[entry.day][entry.period] = {
         label: entry.curriculumName,
         sublabel: entry.instructorName,
         status: "class",
-        color:
-          selectedSlot?.day === entry.day && selectedSlot?.period === entry.period
-            ? "var(--accent)"
-            : color ? `${color}33` : undefined,
+        color: isSelected ? "var(--accent)" : color ? `${color}33` : undefined,
+        highlightColor: swapColor || undefined,
       };
     }
 
+    // 空スロットのスワップ候補もハイライト
+    if (tab === "swap") {
+      for (const [key, color] of swapTargets) {
+        const [d, p] = key.split("-").map(Number);
+        if (!grid[d][p].label) {
+          grid[d][p] = {
+            ...grid[d][p],
+            highlightColor: color,
+          };
+        }
+      }
+    }
+
     return grid;
-  }, [entries, selectedSlot, departments]);
+  }, [entries, selectedSlot, departments, swapTargets, tab]);
 
   const totalUnplacedPeriods = unplacedCurricula.reduce((sum, c) => sum + (c.periods || 1), 0);
   const allUnplaced = curricula.filter((c) => !placedIds.has(c.id));
@@ -532,13 +687,36 @@ export function DataManagementPage() {
         </div>
       )}
 
+      {/* ターム選択 */}
+      <div className="card" style={{ marginBottom: "1rem" }}>
+        <div style={{ display: "flex", gap: "0.75rem", alignItems: "flex-end", flexWrap: "wrap" }}>
+          <div className="form-group" style={{ minWidth: 200 }}>
+            <label>ターム</label>
+            <select value={selectedTermId} onChange={(e) => setSelectedTermId(e.target.value)}>
+              <option value="">選択してください</option>
+              {terms.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+            </select>
+          </div>
+          <div className="form-group" style={{ minWidth: 150 }}>
+            <label>新規ターム</label>
+            <input type="text" value={newTermName} onChange={(e) => setNewTermName(e.target.value)} placeholder="例: 2026前期" />
+          </div>
+          <button onClick={handleCreateTerm} style={{ marginBottom: "1rem", fontSize: "0.8rem" }}>作成</button>
+          {selectedTermId && entries.length > 0 && (
+            <button className="primary" onClick={savePlacementsToDb} disabled={saving} style={{ marginBottom: "1rem", fontSize: "0.8rem" }}>
+              {saving ? "保存中..." : "配置を保存"}
+            </button>
+          )}
+        </div>
+      </div>
+
       {/* Tab switcher */}
       <div style={{ display: "flex", gap: "0.25rem", borderBottom: "1px solid var(--border)", marginBottom: "1.5rem" }}>
         {([
-          { key: "manual" as const, label: "配置" },
-          { key: "overview" as const, label: "一覧・スワップ" },
-          { key: "auto" as const, label: "自動配置" },
-          { key: "dbview" as const, label: "DB管理" },
+          { key: "list" as const, label: "一覧" },
+          { key: "swap" as const, label: "配置・入れ替え" },
+          { key: "auto" as const, label: "一括配置" },
+          { key: "decide" as const, label: "プラン決定" },
         ]).map((t) => (
           <button
             key={t.key}
@@ -555,8 +733,8 @@ export function DataManagementPage() {
         ))}
       </div>
 
-      {/* 配置タブ */}
-      {tab === "manual" && (
+      {/* 一覧タブ */}
+      {tab === "list" && (
         <div>
           <div style={{ display: "flex", gap: "0.75rem", marginBottom: "1rem", fontSize: "0.8rem", flexWrap: "wrap" }}>
             <span className="badge blue">学科: {departments.length}</span>
@@ -636,23 +814,37 @@ export function DataManagementPage() {
         </div>
       )}
 
-      {/* 一覧・スワップタブ */}
-      {tab === "overview" && (
+      {/* 配置・入れ替えタブ */}
+      {tab === "swap" && (
         <div>
           {selectedSlot && (
             <div style={{ marginBottom: "0.5rem", fontSize: "0.8rem", color: "var(--orange)" }}>
               入れ替え先を選択してください（{DAY_LABELS[selectedSlot.day]} {selectedSlot.period + 1}限）
+              {swapTargets.size > 0 && (
+                <span style={{ marginLeft: "0.5rem" }}>
+                  — 候補 {swapTargets.size}箇所
+                  {swapTargets.size <= 3 && <span style={{ color: "#6E7681" }}> (少)</span>}
+                  {swapTargets.size >= 7 && swapTargets.size < 15 && <span style={{ color: "#D29922" }}> (中)</span>}
+                  {swapTargets.size >= 15 && <span style={{ color: "#3FB950" }}> (多)</span>}
+                </span>
+              )}
             </div>
           )}
           {entries.length === 0 && (
             <div className="card" style={{ marginBottom: "1rem" }}>
-              <p style={{ fontSize: "0.85rem", color: "var(--text-muted)" }}>まだ配置されていません。「配置」タブから科目を配置してください。</p>
+              <p style={{ fontSize: "0.85rem", color: "var(--text-muted)" }}>まだ配置されていません。「一覧」タブから科目を配置するか、「一括配置」タブで自動配置してください。</p>
             </div>
           )}
+          <div className="card" style={{ marginBottom: "1rem" }}>
+            <p style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>
+              グリッド上の配置済みコマをクリックすると入れ替え対象を選択できます。
+              候補は色で表示されます: <span style={{ color: "#6E7681" }}>灰色(3以下)</span> / <span style={{ color: "#D29922" }}>オレンジ(7以上)</span> / <span style={{ color: "#3FB950" }}>緑(15以上)</span>
+            </p>
+          </div>
         </div>
       )}
 
-      {/* 自動配置タブ */}
+      {/* 一括配置タブ */}
       {tab === "auto" && (
         <div>
           <div style={{ display: "flex", gap: "0.75rem", marginBottom: "1rem", fontSize: "0.8rem", flexWrap: "wrap", alignItems: "center" }}>
@@ -765,12 +957,64 @@ export function DataManagementPage() {
             </div>
           </div>
 
-          {/* 配置確定 */}
+          {/* 全クリア */}
+          <div className="card">
+            <button
+              className="danger"
+              onClick={() => {
+                if (confirm("全ての配置をクリアしますか？")) {
+                  setEntries([]);
+                  setConfirmed(false);
+                  showMessage("全配置をクリアしました");
+                }
+              }}
+              disabled={entries.length === 0 || retrying}
+              style={{ fontSize: "0.8rem" }}
+            >
+              全配置をクリア
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* プラン決定タブ */}
+      {tab === "decide" && (
+        <div>
+          {/* カリキュラム決定 */}
           <div className="card" style={{ marginBottom: "1rem" }}>
-            <h3 style={{ fontSize: "0.85rem", marginBottom: "0.5rem", color: "var(--text-muted)" }}>配置の確定</h3>
+            <h3 style={{ fontSize: "0.85rem", marginBottom: "0.5rem", color: "var(--text-muted)" }}>カリキュラム決定</h3>
+            <p style={{ fontSize: "0.75rem", color: "var(--text-muted)", marginBottom: "0.75rem" }}>
+              選択中のタームの配置データをプランに変換します。「カリキュラム&#123;ターム名&#125;」のラベルでプランを作成します。
+              再実行すると同じラベルのプランを削除してから再作成します。各学科ごとにプランが作成されます。
+            </p>
+            <button
+              className="primary"
+              onClick={async () => {
+                if (!selectedTermId) { showMessage("タームを選択してください", "error"); return; }
+                if (entries.length === 0) { showMessage("配置データがありません", "error"); return; }
+                // まず配置を保存
+                await savePlacementsToDb();
+                setConfirming(true);
+                try {
+                  const result = await m1Schema.decideTerm(selectedTermId);
+                  showMessage(result.message);
+                } catch (e: any) {
+                  showMessage(`決定エラー: ${e.message}`, "error");
+                }
+                setConfirming(false);
+              }}
+              disabled={!selectedTermId || entries.length === 0 || confirming}
+            >
+              {confirming ? "処理中..." : `カリキュラム決定 (${placedIds.size}件)`}
+            </button>
+          </div>
+
+          {/* 配置確定 (グループスケジュール登録) */}
+          <div className="card" style={{ marginBottom: "1rem" }}>
+            <h3 style={{ fontSize: "0.85rem", marginBottom: "0.5rem", color: "var(--text-muted)" }}>グループスケジュール登録</h3>
             <p style={{ fontSize: "0.75rem", color: "var(--text-muted)", marginBottom: "0.75rem" }}>
               配置をグループスケジュールとして登録します。学科名と同じグループが自動作成されます。
-              ラベルを指定すると、同じラベルの既存データを削除してから登録します（多重登録防止）。
+              ラベルを指定すると、同じラベルの既存データを削除してから登録します。
             </p>
             <div style={{ display: "flex", gap: "0.75rem", alignItems: "flex-end", flexWrap: "wrap" }}>
               <div className="form-group" style={{ minWidth: 200 }}>
@@ -793,35 +1037,64 @@ export function DataManagementPage() {
             </div>
           </div>
 
-          {/* 全クリア */}
-          <div className="card">
-            <button
-              className="danger"
-              onClick={() => {
-                if (confirm("全ての配置をクリアしますか？")) {
-                  setEntries([]);
-                  setConfirmed(false);
-                  showMessage("全配置をクリアしました");
-                }
-              }}
-              disabled={entries.length === 0 || retrying}
-              style={{ fontSize: "0.8rem" }}
-            >
-              全配置をクリア
-            </button>
+          {/* エクスポート / インポート */}
+          <div className="card" style={{ marginBottom: "1rem" }}>
+            <h3 style={{ fontSize: "0.85rem", marginBottom: "0.5rem", color: "var(--text-muted)" }}>エクスポート / インポート</h3>
+            <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap" }}>
+              <button
+                onClick={async () => {
+                  try {
+                    const data = await m1Schema.exportData();
+                    const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement("a");
+                    a.href = url;
+                    a.download = `curriculum-export-${new Date().toISOString().slice(0, 10)}.json`;
+                    a.click();
+                    URL.revokeObjectURL(url);
+                    showMessage("エクスポートしました");
+                  } catch (e: any) {
+                    showMessage(`エクスポートエラー: ${e.message}`, "error");
+                  }
+                }}
+                style={{ fontSize: "0.8rem" }}
+              >
+                エクスポート (JSON)
+              </button>
+              <label style={{ display: "inline-flex", alignItems: "center", cursor: "pointer", fontSize: "0.8rem", padding: "0.4rem 0.8rem", border: "1px solid var(--border)", borderRadius: "var(--radius-sm)" }}>
+                インポート (JSON)
+                <input
+                  type="file"
+                  accept=".json"
+                  style={{ display: "none" }}
+                  onChange={async (e) => {
+                    const file = e.target.files?.[0];
+                    if (!file) return;
+                    try {
+                      const text = await file.text();
+                      const data = JSON.parse(text);
+                      const result = await m1Schema.importData(data);
+                      showMessage(result.message);
+                      fetchMasterData();
+                    } catch (err: any) {
+                      showMessage(`インポートエラー: ${err.message}`, "error");
+                    }
+                    e.target.value = "";
+                  }}
+                />
+              </label>
+            </div>
           </div>
+
+          {/* DB管理 */}
+          <GroupScheduleManager showMessage={showMessage} />
         </div>
       )}
 
-      {/* DB管理タブ */}
-      {tab === "dbview" && (
-        <GroupScheduleManager showMessage={showMessage} />
-      )}
-
       {/* Timetable Grid */}
-      {tab !== "dbview" && <TimetableGrid slots={buildSlots()} onSlotClick={handleSlotClick} />}
+      {tab !== "decide" && <TimetableGrid slots={buildSlots()} onSlotClick={handleSlotClick} />}
 
-      {tab !== "dbview" && (
+      {tab !== "decide" && (
         <div style={{ marginTop: "1rem", fontSize: "0.8rem", color: "var(--text-muted)" }}>
           マスタデータの追加・編集は
           <a href="/schema-management" style={{ color: "var(--accent)", marginLeft: "0.25rem" }}>スキーマ管理</a>

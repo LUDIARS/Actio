@@ -35,6 +35,9 @@ import {
   planRepo,
   groupScheduleRepo,
   userRepo,
+  termRepo,
+  curriculumPlacementRepo,
+  myPlanRepo,
 } from "../../src/db/repository.js";
 import { logActivity } from "../../src/activity-logger.js";
 
@@ -319,6 +322,517 @@ m1.put("/instructors/:instructorId/availability", async (c) => {
   logActivity(userId, user?.name || "Unknown", "出講可能スロット設定", `講師(${instructorId})の出講可能スロットが更新されました`);
 
   return c.json({ slots: inserted });
+});
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// ターム (Terms) — カリキュラム期間管理
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+/** ターム一覧 */
+m1.get("/terms", async (c) => {
+  const terms = await termRepo.findAll();
+  return c.json({ terms });
+});
+
+/** ターム作成 */
+m1.post("/terms", async (c) => {
+  const { name, startDate, endDate } = await c.req.json<{
+    name: string;
+    startDate?: string;
+    endDate?: string;
+  }>();
+  if (!name?.trim()) {
+    return c.json({ error: "name is required" }, 400);
+  }
+  const id = uuidv4();
+  await termRepo.create({
+    id,
+    name: name.trim(),
+    startDate: startDate || null,
+    endDate: endDate || null,
+  });
+
+  const userId = getUserId(c) || "";
+  const user = await userRepo.findById(userId);
+  logActivity(userId, user?.name || "Unknown", "ターム作成", `ターム「${name.trim()}」が追加されました`);
+
+  return c.json({ id, name: name.trim(), startDate, endDate }, 201);
+});
+
+/** ターム更新 */
+m1.put("/terms/:id", async (c) => {
+  const { id } = c.req.param();
+  const body = await c.req.json<{
+    name?: string;
+    startDate?: string | null;
+    endDate?: string | null;
+  }>();
+  const updates: Record<string, unknown> = {};
+  if (body.name !== undefined) updates.name = body.name.trim();
+  if (body.startDate !== undefined) updates.startDate = body.startDate;
+  if (body.endDate !== undefined) updates.endDate = body.endDate;
+
+  if (Object.keys(updates).length === 0) {
+    return c.json({ error: "No fields to update" }, 400);
+  }
+  await termRepo.update(id, updates);
+  return c.json({ id, ...updates });
+});
+
+/** ターム削除 */
+m1.delete("/terms/:id", async (c) => {
+  const { id } = c.req.param();
+  // 配置データも削除
+  await curriculumPlacementRepo.deleteByTerm(id);
+  await termRepo.deleteById(id);
+  return c.json({ deleted: id });
+});
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// カリキュラム配置 (Curriculum Placements) — ターム単位で管理
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+/** ターム別の配置データ取得 */
+m1.get("/terms/:termId/placements", async (c) => {
+  const { termId } = c.req.param();
+  const placements = await curriculumPlacementRepo.findByTerm(termId);
+  return c.json({ placements });
+});
+
+/** 配置データを一括保存 (既存を置換) */
+m1.put("/terms/:termId/placements", async (c) => {
+  const { termId } = c.req.param();
+  const { placements } = await c.req.json<{
+    placements: Array<{
+      curriculumId: string;
+      day: number;
+      period: number;
+      roomId?: string;
+      candidateCount?: number;
+    }>;
+  }>();
+
+  if (!Array.isArray(placements)) {
+    return c.json({ error: "placements array is required" }, 400);
+  }
+
+  // 既存配置を削除
+  await curriculumPlacementRepo.deleteByTerm(termId);
+
+  // 新規挿入
+  for (const p of placements) {
+    await curriculumPlacementRepo.create({
+      id: uuidv4(),
+      termId,
+      curriculumId: p.curriculumId,
+      day: p.day,
+      period: p.period,
+      roomId: p.roomId || null,
+      candidateCount: p.candidateCount ?? 0,
+    });
+  }
+
+  const userId = getUserId(c) || "";
+  const user = await userRepo.findById(userId);
+  logActivity(userId, user?.name || "Unknown", "配置データ保存", `ターム(${termId})の配置データが更新されました (${placements.length}件)`);
+
+  return c.json({ message: `${placements.length}件の配置を保存しました`, count: placements.length });
+});
+
+/** 配置データの個別スワップ */
+m1.post("/terms/:termId/placements/swap", async (c) => {
+  const { termId } = c.req.param();
+  const { fromDay, fromPeriod, toDay, toPeriod } = await c.req.json<{
+    fromDay: number;
+    fromPeriod: number;
+    toDay: number;
+    toPeriod: number;
+  }>();
+
+  const placements = await curriculumPlacementRepo.findByTerm(termId);
+
+  const fromEntry = placements.find(
+    (p) => p.day === fromDay && p.period === fromPeriod
+  );
+  const toEntry = placements.find(
+    (p) => p.day === toDay && p.period === toPeriod
+  );
+
+  if (!fromEntry) {
+    return c.json({ error: "スワップ元にデータがありません" }, 400);
+  }
+
+  // スワップ実行: from のデータを to に移動、to のデータを from に移動
+  if (toEntry) {
+    // 双方向スワップ
+    await curriculumPlacementRepo.deleteById(fromEntry.id);
+    await curriculumPlacementRepo.deleteById(toEntry.id);
+    await curriculumPlacementRepo.create({
+      id: uuidv4(),
+      termId,
+      curriculumId: fromEntry.curriculumId,
+      day: toDay,
+      period: toPeriod,
+      roomId: fromEntry.roomId,
+      candidateCount: fromEntry.candidateCount,
+    });
+    await curriculumPlacementRepo.create({
+      id: uuidv4(),
+      termId,
+      curriculumId: toEntry.curriculumId,
+      day: fromDay,
+      period: fromPeriod,
+      roomId: toEntry.roomId,
+      candidateCount: toEntry.candidateCount,
+    });
+  } else {
+    // 片方向移動 (from → to, to は空)
+    await curriculumPlacementRepo.deleteById(fromEntry.id);
+    await curriculumPlacementRepo.create({
+      id: uuidv4(),
+      termId,
+      curriculumId: fromEntry.curriculumId,
+      day: toDay,
+      period: toPeriod,
+      roomId: fromEntry.roomId,
+      candidateCount: fromEntry.candidateCount,
+    });
+  }
+
+  return c.json({ message: "スワップが完了しました" });
+});
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// カリキュラム決定 (Plan Decision) — ターム単位でプランに変換
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+/**
+ * POST /terms/:termId/decide
+ *
+ * 対象タームの配置データをプランに変換する。
+ * - 「カリキュラム{ターム名}」のラベルを付与してプランデータを作成
+ * - 再実行時は対象ラベルを持つプランを削除してから再作成
+ * - 各学科ごとにプランを作成
+ */
+m1.post("/terms/:termId/decide", async (c) => {
+  const userId = getUserId(c);
+  if (!userId) return c.json({ error: "Authentication required" }, 401);
+
+  const { termId } = c.req.param();
+
+  // ターム情報取得
+  const term = await termRepo.findById(termId);
+  if (!term) return c.json({ error: "ターム が見つかりません" }, 404);
+
+  // 配置データ取得
+  const placements = await curriculumPlacementRepo.findByTerm(termId);
+  if (placements.length === 0) {
+    return c.json({ error: "配置データがありません" }, 400);
+  }
+
+  // カリキュラム・学科情報を取得
+  const curricula = await curriculumRepo.findAll();
+  const curriculumMap = new Map(curricula.map((cur) => [cur.id, cur]));
+  const departments = await departmentRepo.findAll();
+  const departmentMap = new Map(departments.map((d) => [d.id, d]));
+  const allCd = await curriculumDepartmentRepo.findAll();
+
+  // ラベルパターン: 「カリキュラム{ターム名}」
+  const labelPrefix = `カリキュラム${term.name}`;
+
+  // 既存のプランを削除 (同じラベルを持つプラン)
+  await planRepo.deleteByUserIdAndNameLike(userId, `${labelPrefix}%`);
+
+  // 学科ごとに配置データを集約
+  const placementsByDept = new Map<string, Array<{
+    day: number;
+    period: number;
+    curriculumName: string;
+    curriculumId: string;
+    periods: number;
+  }>>();
+
+  for (const placement of placements) {
+    const curriculum = curriculumMap.get(placement.curriculumId);
+    if (!curriculum) continue;
+
+    // カリキュラムの所属学科を取得
+    const cdEntries = allCd.filter((cd) => cd.curriculumId === curriculum.id);
+    const deptIds = cdEntries.length > 0
+      ? cdEntries.map((cd) => cd.departmentId)
+      : [curriculum.departmentId];
+
+    for (const deptId of deptIds) {
+      if (!placementsByDept.has(deptId)) {
+        placementsByDept.set(deptId, []);
+      }
+      placementsByDept.get(deptId)!.push({
+        day: placement.day,
+        period: placement.period,
+        curriculumName: curriculum.name,
+        curriculumId: curriculum.id,
+        periods: curriculum.periods || 1,
+      });
+    }
+  }
+
+  // 各学科ごとにプランを作成
+  let plansCreated = 0;
+  const results: Array<{ departmentName: string; plansCreated: number }> = [];
+
+  for (const [deptId, deptPlacements] of placementsByDept) {
+    const dept = departmentMap.get(deptId);
+    if (!dept) continue;
+
+    // 曜日ごとにグルーピング
+    const byDay = new Map<number, number[]>();
+    for (const p of deptPlacements) {
+      if (!byDay.has(p.day)) byDay.set(p.day, []);
+      byDay.get(p.day)!.push(p.period);
+    }
+
+    let deptPlansCreated = 0;
+    const dayLabels = ["月", "火", "水", "木", "金", "土", "日"];
+
+    for (const [day, periods] of byDay) {
+      const sorted = [...new Set(periods)].sort((a, b) => a - b);
+      // 連続コマをグルーピング
+      const ranges: Array<{ start: number; duration: number }> = [];
+      let rangeStart = sorted[0];
+      let rangeEnd = sorted[0];
+
+      for (let i = 1; i < sorted.length; i++) {
+        if (sorted[i] === rangeEnd + 1) {
+          rangeEnd = sorted[i];
+        } else {
+          ranges.push({ start: rangeStart, duration: rangeEnd - rangeStart + 1 });
+          rangeStart = sorted[i];
+          rangeEnd = sorted[i];
+        }
+      }
+      ranges.push({ start: rangeStart, duration: rangeEnd - rangeStart + 1 });
+
+      for (const range of ranges) {
+        const planId = uuidv4();
+        const now = new Date();
+        await planRepo.create({
+          id: planId,
+          userId,
+          name: `${labelPrefix} ${dept.name} (${dayLabels[day]}${range.start + 1}限)`,
+          description: `ターム「${term.name}」学科「${dept.name}」のカリキュラム配置から自動生成`,
+          days: [day],
+          startPeriod: range.start,
+          duration: range.duration,
+          eventType: "school_event",
+          isPrivate: false,
+          isActive: true,
+          createdAt: now,
+          updatedAt: now,
+        });
+        deptPlansCreated++;
+        plansCreated++;
+      }
+    }
+
+    results.push({ departmentName: dept.name, plansCreated: deptPlansCreated });
+  }
+
+  const user = await userRepo.findById(userId);
+  logActivity(userId, user?.name || "Unknown", "カリキュラム決定", `ターム「${term.name}」のカリキュラムを決定しました (${plansCreated}件のプラン作成)`);
+
+  return c.json({
+    message: `カリキュラム「${term.name}」を決定しました (${plansCreated}件のプラン作成)`,
+    labelPrefix,
+    plansCreated,
+    results,
+  });
+});
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// エクスポート / インポート (Export / Import)
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+/** カリキュラムデータ一括エクスポート */
+m1.get("/export", async (c) => {
+  const departments = await departmentRepo.findAll();
+  const instructorsList = await instructorRepo.findAll();
+  const curriculaList = await curriculumRepo.findAll();
+  const allCd = await curriculumDepartmentRepo.findAll();
+  const terms = await termRepo.findAll();
+
+  // 講師の出講可能スロットも取得
+  const availabilityMap: Record<string, Array<{ day: number; periods: number[] }>> = {};
+  for (const inst of instructorsList) {
+    const slots = await availableSlotRepo.findByInstructor(inst.id);
+    if (slots.length > 0) {
+      availabilityMap[inst.id] = slots.map((s) => ({
+        day: s.day,
+        periods: (typeof s.periods === "string" ? JSON.parse(s.periods) : s.periods) as number[],
+      }));
+    }
+  }
+
+  const exportData = {
+    version: 1,
+    exportedAt: new Date().toISOString(),
+    departments: departments.map((d) => ({ name: d.name })),
+    instructors: instructorsList.map((i) => ({
+      name: i.name,
+      availability: availabilityMap[i.id] || [],
+    })),
+    curricula: curriculaList.map((cur) => {
+      const cdEntries = allCd.filter((cd) => cd.curriculumId === cur.id);
+      const instructor = instructorsList.find((i) => i.id === cur.instructorId);
+      return {
+        name: cur.name,
+        departmentName: departments.find((d) => d.id === cur.departmentId)?.name || "",
+        instructorName: instructor?.name || null,
+        periods: cur.periods,
+        validFrom: cur.validFrom,
+        validUntil: cur.validUntil,
+        departmentNames: cdEntries.map((cd) =>
+          departments.find((d) => d.id === cd.departmentId)?.name || ""
+        ).filter(Boolean),
+      };
+    }),
+    terms: terms.map((t) => ({
+      name: t.name,
+      startDate: t.startDate,
+      endDate: t.endDate,
+    })),
+  };
+
+  return c.json(exportData);
+});
+
+/** カリキュラムデータ一括インポート */
+m1.post("/import", async (c) => {
+  const userId = getUserId(c);
+  if (!userId) return c.json({ error: "Authentication required" }, 401);
+
+  const body = await c.req.json<{
+    departments?: Array<{ name: string }>;
+    instructors?: Array<{ name: string; availability?: Array<{ day: number; periods: number[] }> }>;
+    curricula?: Array<{
+      name: string;
+      departmentName: string;
+      instructorName?: string | null;
+      periods?: number;
+      departmentNames?: string[];
+    }>;
+    termName?: string;
+    termStartDate?: string;
+    termEndDate?: string;
+  }>();
+
+  let deptCreated = 0;
+  let instCreated = 0;
+  let currCreated = 0;
+  let termCreatedFlag = false;
+
+  // 既存データ取得
+  const existingDepts = await departmentRepo.findAll();
+  const existingInsts = await instructorRepo.findAll();
+  const deptNameMap = new Map(existingDepts.map((d) => [d.name, d.id]));
+  const instNameMap = new Map(existingInsts.map((i) => [i.name, i.id]));
+
+  // 学科インポート
+  if (body.departments) {
+    for (const dept of body.departments) {
+      if (!deptNameMap.has(dept.name)) {
+        const id = uuidv4();
+        await departmentRepo.create({ id, name: dept.name });
+        deptNameMap.set(dept.name, id);
+        deptCreated++;
+      }
+    }
+  }
+
+  // 講師インポート
+  if (body.instructors) {
+    for (const inst of body.instructors) {
+      if (!instNameMap.has(inst.name)) {
+        const id = uuidv4();
+        await instructorRepo.create({ id, name: inst.name });
+        instNameMap.set(inst.name, id);
+        instCreated++;
+      }
+      // 出講可能スロット設定
+      if (inst.availability && inst.availability.length > 0) {
+        const instId = instNameMap.get(inst.name)!;
+        await availableSlotRepo.deleteByInstructor(instId);
+        for (const slot of inst.availability) {
+          await availableSlotRepo.create({
+            id: uuidv4(),
+            instructorId: instId,
+            day: slot.day,
+            periods: slot.periods,
+          });
+        }
+      }
+    }
+  }
+
+  // カリキュラムインポート
+  if (body.curricula) {
+    for (const cur of body.curricula) {
+      const deptId = deptNameMap.get(cur.departmentName);
+      if (!deptId) continue;
+      const instId = cur.instructorName ? instNameMap.get(cur.instructorName) : null;
+
+      const id = uuidv4();
+      await curriculumRepo.create({
+        id,
+        name: cur.name,
+        departmentId: deptId,
+        periods: cur.periods || 1,
+        instructorId: instId || null,
+      });
+
+      // 学科関連付け
+      const deptNames = cur.departmentNames && cur.departmentNames.length > 0
+        ? cur.departmentNames
+        : [cur.departmentName];
+      for (const dName of deptNames) {
+        const dId = deptNameMap.get(dName);
+        if (dId) {
+          await curriculumDepartmentRepo.create({
+            id: uuidv4(),
+            curriculumId: id,
+            departmentId: dId,
+          });
+        }
+      }
+
+      currCreated++;
+    }
+  }
+
+  // ターム作成 (インポート時に新規タームを設定可能)
+  let termId: string | null = null;
+  if (body.termName) {
+    termId = uuidv4();
+    await termRepo.create({
+      id: termId,
+      name: body.termName,
+      startDate: body.termStartDate || null,
+      endDate: body.termEndDate || null,
+    });
+    termCreatedFlag = true;
+  }
+
+  const user = await userRepo.findById(userId);
+  logActivity(userId, user?.name || "Unknown", "カリキュラムインポート",
+    `学科${deptCreated}件、講師${instCreated}件、カリキュラム${currCreated}件をインポートしました`);
+
+  return c.json({
+    message: `インポート完了: 学科${deptCreated}件、講師${instCreated}件、カリキュラム${currCreated}件`,
+    departmentsCreated: deptCreated,
+    instructorsCreated: instCreated,
+    curriculaCreated: currCreated,
+    termCreated: termCreatedFlag,
+    termId,
+  });
 });
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
