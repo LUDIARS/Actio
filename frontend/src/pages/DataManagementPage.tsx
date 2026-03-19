@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import type { GridSlot } from "../components/TimetableGrid";
+import { HelpButton } from "../components/HelpOverlay";
 import {
   DAY_LABELS,
   DAYS_COUNT,
@@ -827,7 +828,10 @@ export function DataManagementPage() {
   return (
     <div>
       <div className="page-header">
-        <h1>M1 データ管理</h1>
+        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+          <h1>M1 データ管理</h1>
+          <HelpButton />
+        </div>
         <p>M1スキーマのカリキュラムを時間割に配置・管理します</p>
       </div>
 

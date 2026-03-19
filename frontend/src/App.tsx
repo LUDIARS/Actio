@@ -18,6 +18,7 @@ import { UserManagementPage } from "./pages/UserManagementPage";
 import { DbViewerPage } from "./pages/DbViewerPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { ActivityLogsPage } from "./pages/ActivityLogsPage";
+import { HelpPage } from "./pages/HelpPage";
 import "./global.css";
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
@@ -66,6 +67,7 @@ function AppRoutes() {
         <Route path="/admin/settings" element={<SettingsPage />} />
         <Route path="/admin/activity-logs" element={<ActivityLogsPage />} />
         <Route path="/admin/db" element={<DbViewerPage />} />
+        <Route path="/help" element={<HelpPage />} />
       </Route>
     </Routes>
   );

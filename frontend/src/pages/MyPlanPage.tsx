@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { myPlanApi } from "../lib/api";
+import { HelpButton } from "../components/HelpOverlay";
 import { DAY_LABELS } from "../lib/constants";
 
 interface ScheduleSlot {
@@ -205,7 +206,10 @@ export function MyPlanPage() {
   return (
     <div>
       <div className="page-header">
-        <h1>マイプラン</h1>
+        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+          <h1>マイプラン</h1>
+          <HelpButton />
+        </div>
         <p>週間ルーティーンを設定すると、今後の予定が自動的に組み上がります</p>
       </div>
 

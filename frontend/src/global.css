@@ -412,4 +412,373 @@ label {
     max-width: 100vw;
     overflow-x: hidden;
   }
+
+  .help-page-layout {
+    flex-direction: column;
+  }
+  .help-module-list {
+    flex-direction: row !important;
+    overflow-x: auto;
+    gap: 0.5rem !important;
+    padding-bottom: 0.5rem;
+  }
+  .help-module-card {
+    min-width: 180px;
+    flex-shrink: 0;
+  }
+  .help-overlay-panel {
+    width: 90vw;
+    max-width: 90vw;
+    right: 5vw;
+  }
+}
+
+/* ─── Help: Trigger Button ─── */
+.help-trigger-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--accent);
+  background: transparent;
+  border: 1.5px solid var(--accent);
+  border-radius: 50%;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.15s, color 0.15s;
+}
+.help-trigger-btn:hover {
+  background: var(--accent);
+  color: #000;
+}
+
+/* ─── Help: Overlay ─── */
+.help-overlay-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  background: rgba(0, 0, 0, 0.5);
+}
+.help-overlay-panel {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 420px;
+  max-width: 100vw;
+  z-index: 2001;
+  background: var(--bg-surface);
+  border-left: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  box-shadow: -4px 0 24px rgba(0, 0, 0, 0.4);
+  animation: help-slide-in 0.2s ease;
+}
+@keyframes help-slide-in {
+  from { transform: translateX(100%); }
+  to { transform: translateX(0); }
+}
+.help-overlay-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem 1.25rem;
+  border-bottom: 1px solid var(--border);
+}
+.help-overlay-header h3 {
+  font-size: 1rem;
+  font-weight: 600;
+}
+.help-overlay-close {
+  background: transparent;
+  border: none;
+  font-size: 1.4rem;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 0;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.help-overlay-close:hover {
+  color: var(--text);
+}
+.help-overlay-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 1rem 1.25rem;
+}
+
+/* ─── Help: Quick Tip ─── */
+.help-quick-tip {
+  background: rgba(88, 166, 255, 0.08);
+  border: 1px solid rgba(88, 166, 255, 0.2);
+  border-radius: var(--radius);
+  padding: 0.75rem;
+  margin-bottom: 1rem;
+}
+.help-quick-tip-label {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--accent);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  margin-bottom: 0.35rem;
+}
+.help-quick-tip p {
+  font-size: 0.8rem;
+  color: var(--text);
+  line-height: 1.5;
+}
+
+/* ─── Help: Topic Detail ─── */
+.help-topic-detail {
+  margin-bottom: 1.25rem;
+}
+.help-topic-detail h4 {
+  font-size: 0.95rem;
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+}
+.help-topic-detail p {
+  font-size: 0.8rem;
+  line-height: 1.6;
+  margin-bottom: 0.4rem;
+  color: var(--text);
+}
+
+/* ─── Help: Workflow Steps ─── */
+.help-steps {
+  margin-top: 0.5rem;
+}
+.help-steps-label {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  margin-bottom: 0.5rem;
+}
+.help-step {
+  display: flex;
+  gap: 0.75rem;
+  align-items: flex-start;
+  margin-bottom: 0.5rem;
+}
+.help-step-number {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: #000;
+  font-size: 0.7rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  margin-top: 0.1rem;
+}
+.help-step-title {
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+.help-step-desc {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+
+/* ─── Help: Section Labels ─── */
+.help-section-label {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  margin-bottom: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+/* ─── Help: Accordion ─── */
+.help-accordion {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  margin-bottom: 0.35rem;
+  overflow: hidden;
+}
+.help-accordion-header {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.5rem 0.75rem;
+  background: var(--bg-surface-2);
+  border: none;
+  color: var(--text);
+  font-size: 0.8rem;
+  font-weight: 500;
+  cursor: pointer;
+  text-align: left;
+}
+.help-accordion-header:hover {
+  background: var(--border);
+}
+.help-accordion-arrow {
+  font-size: 0.6rem;
+  color: var(--text-muted);
+}
+.help-accordion-body {
+  padding: 0.75rem;
+}
+.help-accordion-body p {
+  font-size: 0.78rem;
+  line-height: 1.5;
+  margin-bottom: 0.35rem;
+}
+.help-accordion-summary {
+  color: var(--text-muted);
+  font-style: italic;
+  margin-bottom: 0.5rem !important;
+}
+
+/* ─── Help: Child Topics ─── */
+.help-children {
+  margin-top: 0.75rem;
+  padding-left: 0.5rem;
+  border-left: 2px solid var(--border);
+}
+.help-child-topic {
+  margin-bottom: 0.25rem;
+}
+.help-child-header {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.35rem 0.5rem;
+  background: transparent;
+  border: none;
+  color: var(--text);
+  font-size: 0.75rem;
+  cursor: pointer;
+  text-align: left;
+}
+.help-child-header:hover {
+  background: var(--bg-surface-2);
+}
+.help-child-body {
+  padding: 0.35rem 0.5rem 0.5rem;
+}
+.help-child-body p {
+  font-size: 0.75rem;
+  line-height: 1.5;
+  margin-bottom: 0.25rem;
+}
+
+/* ─── Help: Footer Link ─── */
+.help-footer-link {
+  border-top: 1px solid var(--border);
+  margin-top: 1rem;
+  padding-top: 0.5rem;
+  text-align: center;
+}
+
+/* ─── Help: Tutorial Button ─── */
+.help-tutorial-btn {
+  margin-top: 0.75rem;
+  font-size: 0.8rem;
+}
+
+/* ─── Help Page Layout ─── */
+.help-page-layout {
+  display: flex;
+  gap: 1.5rem;
+  align-items: flex-start;
+}
+.help-module-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  width: 280px;
+  flex-shrink: 0;
+}
+.help-module-card {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  cursor: pointer;
+  width: 100%;
+  text-align: left;
+  transition: border-color 0.15s;
+}
+.help-module-card:hover {
+  border-color: var(--accent);
+}
+.help-module-card--active {
+  border-color: var(--accent);
+  background: rgba(88, 166, 255, 0.05);
+}
+.help-module-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-surface-2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 0.9rem;
+  color: var(--accent);
+  flex-shrink: 0;
+}
+.help-topic-area {
+  flex: 1;
+  min-width: 0;
+}
+
+/* ─── Help: Topic Cards (Help Page) ─── */
+.help-topic-card {
+  overflow: hidden;
+}
+.help-topic-card--child {
+  background: var(--bg-surface-2);
+  border-color: var(--border);
+}
+.help-topic-card-header {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0;
+  background: transparent;
+  border: none;
+  color: var(--text);
+  cursor: pointer;
+  text-align: left;
+}
+.help-topic-card-header:hover {
+  background: transparent;
+}
+.help-topic-card-body {
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--border);
+}
+
+/* ─── Help: Search Results ─── */
+.help-search-result {
+  cursor: pointer;
+  text-align: left;
+  width: 100%;
+  transition: border-color 0.15s;
+}
+.help-search-result:hover {
+  border-color: var(--accent);
 }

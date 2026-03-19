@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { smartSchedulerApi, groupApi, m1Schema } from "../lib/api";
+import { HelpButton } from "../components/HelpOverlay";
 import { DAY_LABELS, PERIODS_COUNT } from "../lib/constants";
 
 interface SchedulingTask {
@@ -184,7 +185,10 @@ export function SmartSchedulerPage() {
   return (
     <div>
       <div className="page-header">
-        <h1>自動配置スケジューラ</h1>
+        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+          <h1>自動配置スケジューラ</h1>
+          <HelpButton />
+        </div>
         <p>入れたい予定をグループの空き状況を見て自動配置</p>
       </div>
 

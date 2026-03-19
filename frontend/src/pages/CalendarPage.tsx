@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useAuth } from "../contexts/AuthContext";
 import { calendarApi } from "../lib/api";
+import { HelpButton } from "../components/HelpOverlay";
 import { DAY_LABELS, getPeriodLabel } from "../lib/constants";
 
 type Tab = "events" | "plans" | "google" | "conflicts";
@@ -212,7 +213,10 @@ export function CalendarPage() {
   return (
     <div>
       <div className="page-header">
-        <h1>カレンダー・予定管理</h1>
+        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+          <h1>カレンダー・予定管理</h1>
+          <HelpButton />
+        </div>
         <p>手動で予定を追加、プランで自動生成、またはGoogleカレンダーと連携</p>
       </div>
 
