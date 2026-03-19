@@ -372,10 +372,10 @@ export const m1Schema = {
     period: number;
     duration: number;
     departmentNames: string[];
-  }>, label?: string) {
+  }>, label?: string, options?: { considerHolidays?: boolean; considerBusinessDays?: boolean }) {
     return request<{ message: string; schedulesCreated: number; groupsCreated: number; deletedCount: number; label: string | null }>(
       "/api/m1/confirm-placements",
-      { method: "POST", body: JSON.stringify({ placements, label }) }
+      { method: "POST", body: JSON.stringify({ placements, label, ...options }) }
     );
   },
 
@@ -774,6 +774,43 @@ export const groupApi = {
       body: JSON.stringify(body),
     });
   },
+  // グループ個別予定
+  getEvents(groupId: string) {
+    return request<any>(`/api/groups/${groupId}/events`);
+  },
+  addEvent(groupId: string, body: {
+    title: string;
+    description?: string;
+    date: string;
+    endDate?: string;
+    allDay?: boolean;
+    period?: number;
+    duration?: number;
+    eventType?: string;
+  }) {
+    return request<any>(`/api/groups/${groupId}/events`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  },
+  updateEvent(groupId: string, eventId: string, body: {
+    title?: string;
+    description?: string;
+    date?: string;
+    endDate?: string;
+    allDay?: boolean;
+    period?: number;
+    duration?: number;
+    eventType?: string;
+  }) {
+    return request<any>(`/api/groups/${groupId}/events/${eventId}`, {
+      method: "PUT",
+      body: JSON.stringify(body),
+    });
+  },
+  deleteEvent(groupId: string, eventId: string) {
+    return request<any>(`/api/groups/${groupId}/events/${eventId}`, { method: "DELETE" });
+  },
 };
 
 // ─── MyPlan ──────────────────────────────────────────────────
@@ -852,8 +889,11 @@ export const smartSchedulerApi = {
   deleteTask(id: string) {
     return request<any>(`/api/smart-scheduler/tasks/${id}`, { method: "DELETE" });
   },
-  solve(groupId: string) {
-    return request<any>(`/api/smart-scheduler/solve/${groupId}`, { method: "POST" });
+  solve(groupId: string, options?: { considerHolidays?: boolean; considerBusinessDays?: boolean }) {
+    return request<any>(`/api/smart-scheduler/solve/${groupId}`, {
+      method: "POST",
+      body: options ? JSON.stringify(options) : undefined,
+    });
   },
   confirm(resultId: string) {
     return request<any>(`/api/smart-scheduler/confirm/${resultId}`, { method: "POST" });
@@ -863,6 +903,50 @@ export const smartSchedulerApi = {
   },
   getAvailability(groupId: string) {
     return request<any>(`/api/smart-scheduler/availability/${groupId}`);
+  },
+};
+
+// ─── Holidays (休日管理) ─────────────────────────────────────
+
+export const holidayApi = {
+  /** 日本の祝日一覧 (計算ベース, DB不要) */
+  getJapaneseHolidays(year: number) {
+    return request<{ holidays: Array<{ date: string; name: string }>; year: number }>(`/api/holidays/japanese/${year}`);
+  },
+  /** 日本の祝日をDBに同期 */
+  syncJapaneseHolidays(year?: number, groupId?: string) {
+    return request<{ message: string; year: number; count: number }>("/api/holidays/japanese/sync", {
+      method: "POST",
+      body: JSON.stringify({ year, groupId }),
+    });
+  },
+  /** 休日一覧取得 */
+  getHolidays(params?: { groupId?: string; startDate?: string; endDate?: string }) {
+    const query = params ? `?${new URLSearchParams(Object.entries(params).filter(([, v]) => v) as [string, string][])}` : "";
+    return request<{ holidays: any[] }>(`/api/holidays${query}`);
+  },
+  /** 休日追加 */
+  createHoliday(body: {
+    groupId?: string;
+    name: string;
+    date: string;
+    endDate?: string;
+    holidayType?: string;
+    recurrence?: string;
+  }) {
+    return request<{ id: string; name: string; date: string }>("/api/holidays", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  },
+  /** 休日削除 */
+  deleteHoliday(id: string) {
+    return request<{ deleted: string }>(`/api/holidays/${id}`, { method: "DELETE" });
+  },
+  /** 指定日が休日かチェック */
+  checkDate(date: string, groupId?: string) {
+    const query = groupId ? `?groupId=${groupId}` : "";
+    return request<{ date: string; isHoliday: boolean; isWeekend: boolean; isNationalHoliday: boolean }>(`/api/holidays/check/${date}${query}`);
   },
 };
 

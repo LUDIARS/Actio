@@ -12,6 +12,18 @@ interface Group {
   createdAt: string;
 }
 
+interface GroupEvent {
+  id: string;
+  title: string;
+  description: string | null;
+  date: string;
+  endDate: string | null;
+  allDay: boolean;
+  period: number | null;
+  duration: number | null;
+  eventType: string;
+}
+
 interface GroupDetail {
   id: string;
   name: string;
@@ -26,6 +38,7 @@ interface GroupDetail {
     date: string | null;
     scheduleType: string;
   }>;
+  events: GroupEvent[];
 }
 
 export function GroupsPage() {
@@ -45,6 +58,14 @@ export function GroupsPage() {
     date: "",
   });
   const [joinGroupId, setJoinGroupId] = useState("");
+  const [showAddEvent, setShowAddEvent] = useState(false);
+  const [eventForm, setEventForm] = useState({
+    title: "",
+    date: "",
+    endDate: "",
+    eventType: "event" as string,
+    description: "",
+  });
 
   const fetchGroups = useCallback(async () => {
     try {
@@ -101,6 +122,37 @@ export function GroupsPage() {
       setSelectedGroup(null);
       setSelectedGroupId("");
       await loadGroups();
+    } catch (err: any) {
+      setError(err.message);
+    }
+  };
+
+  const handleAddEvent = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedGroup) return;
+    setError("");
+    try {
+      await groupApi.addEvent(selectedGroup.id, {
+        title: eventForm.title,
+        date: eventForm.date,
+        endDate: eventForm.endDate || undefined,
+        eventType: eventForm.eventType,
+        description: eventForm.description || undefined,
+      });
+      setShowAddEvent(false);
+      setEventForm({ title: "", date: "", endDate: "", eventType: "event", description: "" });
+      await loadGroupDetail(selectedGroup.id);
+    } catch (err: any) {
+      setError(err.message);
+    }
+  };
+
+  const handleDeleteEvent = async (eventId: string) => {
+    if (!selectedGroup) return;
+    if (!confirm("この予定を削除しますか？")) return;
+    try {
+      await groupApi.deleteEvent(selectedGroup.id, eventId);
+      await loadGroupDetail(selectedGroup.id);
     } catch (err: any) {
       setError(err.message);
     }
@@ -309,6 +361,119 @@ export function GroupsPage() {
                     {s.date && (
                       <span style={{ fontSize: "0.7rem", color: "var(--text-muted)" }}>{s.date}</span>
                     )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* グループの個別予定 (日付ベース) */}
+          <div className="card">
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.75rem", flexWrap: "wrap", gap: "0.5rem" }}>
+              <h3 style={{ fontSize: "0.9rem", fontWeight: 600 }}>
+                個別予定 (学校行事・休日等)
+              </h3>
+              <button
+                className="primary"
+                style={{ fontSize: "0.75rem", padding: "0.2rem 0.5rem" }}
+                onClick={() => setShowAddEvent(!showAddEvent)}
+              >
+                {showAddEvent ? "キャンセル" : "予定を追加"}
+              </button>
+            </div>
+
+            {showAddEvent && (
+              <div style={{ background: "var(--bg-surface-2)", borderRadius: "var(--radius-sm)", padding: "0.75rem", marginBottom: "1rem" }}>
+                <form onSubmit={handleAddEvent}>
+                  <div className="form-group">
+                    <label>タイトル</label>
+                    <input
+                      type="text"
+                      value={eventForm.title}
+                      onChange={(e) => setEventForm((f) => ({ ...f, title: e.target.value }))}
+                      placeholder="例: 前期審査会, 創立記念日"
+                      required
+                    />
+                  </div>
+                  <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap" }}>
+                    <div className="form-group" style={{ flex: "1 1 120px" }}>
+                      <label>種別</label>
+                      <select
+                        value={eventForm.eventType}
+                        onChange={(e) => setEventForm((f) => ({ ...f, eventType: e.target.value }))}
+                      >
+                        <option value="event">行事</option>
+                        <option value="holiday">休日</option>
+                        <option value="examination_period">審査会期間</option>
+                        <option value="custom">その他</option>
+                      </select>
+                    </div>
+                    <div className="form-group" style={{ flex: "1 1 120px" }}>
+                      <label>開始日</label>
+                      <input
+                        type="date"
+                        value={eventForm.date}
+                        onChange={(e) => setEventForm((f) => ({ ...f, date: e.target.value }))}
+                        required
+                      />
+                    </div>
+                    <div className="form-group" style={{ flex: "1 1 120px" }}>
+                      <label>終了日 (期間の場合)</label>
+                      <input
+                        type="date"
+                        value={eventForm.endDate}
+                        onChange={(e) => setEventForm((f) => ({ ...f, endDate: e.target.value }))}
+                      />
+                    </div>
+                  </div>
+                  <div className="form-group">
+                    <label>説明 (任意)</label>
+                    <input
+                      type="text"
+                      value={eventForm.description}
+                      onChange={(e) => setEventForm((f) => ({ ...f, description: e.target.value }))}
+                      placeholder="補足情報"
+                    />
+                  </div>
+                  <button type="submit" className="primary" style={{ fontSize: "0.8rem" }}>追加</button>
+                </form>
+              </div>
+            )}
+
+            {(!selectedGroup.events || selectedGroup.events.length === 0) ? (
+              <div className="empty-state" style={{ padding: "1rem" }}>
+                <p>個別予定はまだありません</p>
+              </div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+                {selectedGroup.events.map((ev) => (
+                  <div
+                    key={ev.id}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "0.5rem",
+                      padding: "0.5rem 0.6rem",
+                      background: "var(--bg-surface-2)",
+                      borderRadius: "var(--radius-sm)",
+                      fontSize: "0.8rem",
+                      flexWrap: "wrap",
+                    }}
+                  >
+                    <span style={{ fontWeight: 500, flex: "1 1 auto", minWidth: 0 }}>{ev.title}</span>
+                    <span className={`badge ${ev.eventType === "holiday" ? "red" : ev.eventType === "examination_period" ? "orange" : "blue"}`} style={{ fontSize: "0.65rem" }}>
+                      {ev.eventType === "holiday" ? "休日" : ev.eventType === "examination_period" ? "審査会" : ev.eventType === "event" ? "行事" : "他"}
+                    </span>
+                    <span style={{ fontSize: "0.75rem", color: "var(--text-muted)", whiteSpace: "nowrap" }}>
+                      {ev.date}{ev.endDate && ev.endDate !== ev.date ? ` 〜 ${ev.endDate}` : ""}
+                    </span>
+                    <button
+                      className="danger"
+                      style={{ fontSize: "0.65rem", padding: "0.1rem 0.3rem" }}
+                      onClick={() => handleDeleteEvent(ev.id)}
+                    >
+                      削除
+                    </button>
                   </div>
                 ))}
               </div>

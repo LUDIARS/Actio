@@ -573,3 +573,74 @@ export const notifications = sqliteTable(
     index("idx_notification_user").on(table.userId),
   ]
 );
+
+// ─── Holidays (休日・休業期間) ────────────────────────────────
+// グループ単位、またはシステム全体で休日を管理する。
+// 日本の祝日やお休み期間（審査会期間など）を登録。
+
+export const holidays = sqliteTable(
+  "holidays",
+  {
+    id: text("id").primaryKey(),
+    /** グループID (nullならシステム全体) */
+    groupId: text("group_id"),
+    /** 休日名 (例: "元日", "審査会期間", "春休み") */
+    name: text("name").notNull(),
+    /** 開始日 (YYYY-MM-DD) */
+    date: text("date").notNull(),
+    /** 終了日 (YYYY-MM-DD) — 期間の場合、単日なら date と同じ */
+    endDate: text("end_date"),
+    /** 休日種別: national_holiday (祝日) / school_holiday (学校休日) / examination_period (審査会期間) / custom (カスタム) */
+    holidayType: text("holiday_type").notNull().default("custom"),
+    /** 繰り返し: none (単発) / yearly (毎年) */
+    recurrence: text("recurrence").notNull().default("none"),
+    /** 自動取得ソース (例: "japanese_holidays") — 手動ならnull */
+    source: text("source"),
+    createdBy: text("created_by").notNull(),
+    createdAt: integer("created_at", { mode: "timestamp" })
+      .$defaultFn(() => new Date())
+      .notNull(),
+  },
+  (table) => [
+    index("idx_holiday_group").on(table.groupId),
+    index("idx_holiday_date").on(table.date),
+    index("idx_holiday_type").on(table.holidayType),
+  ]
+);
+
+// ─── Group Events (グループ個別予定) ──────────────────────────
+// グループ単位の特定日のイベント（学校行事、試験、休校日など）
+// groupSchedules は曜日ベースの繰り返し予定だが、こちらは日付ベースの個別予定
+
+export const groupEvents = sqliteTable(
+  "group_events",
+  {
+    id: text("id").primaryKey(),
+    groupId: text("group_id")
+      .references(() => groups.id)
+      .notNull(),
+    /** イベントタイトル */
+    title: text("title").notNull(),
+    description: text("description"),
+    /** 日付 (YYYY-MM-DD) */
+    date: text("date").notNull(),
+    /** 終了日 (YYYY-MM-DD) — 複数日にまたがる場合 */
+    endDate: text("end_date"),
+    /** 終日イベントか */
+    allDay: integer("all_day", { mode: "boolean" }).notNull().default(true),
+    /** 時限 (終日でない場合) */
+    period: integer("period"),
+    /** コマ数 (終日でない場合) */
+    duration: integer("duration").default(1),
+    /** イベント種別: event / holiday / examination_period / custom */
+    eventType: text("event_type").notNull().default("event"),
+    createdBy: text("created_by").notNull(),
+    createdAt: integer("created_at", { mode: "timestamp" })
+      .$defaultFn(() => new Date())
+      .notNull(),
+  },
+  (table) => [
+    index("idx_group_event_group").on(table.groupId),
+    index("idx_group_event_date").on(table.date),
+  ]
+);

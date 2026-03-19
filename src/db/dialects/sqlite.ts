@@ -43,6 +43,45 @@ export function createConnection(): { db: ReturnType<typeof drizzle>; sqlite: Sq
     CREATE INDEX IF NOT EXISTS idx_placement_term ON curriculum_placements(term_id);
     CREATE INDEX IF NOT EXISTS idx_placement_curriculum ON curriculum_placements(curriculum_id);
   `);
+  // 休日テーブル
+  sqlite.exec(`
+    CREATE TABLE IF NOT EXISTS holidays (
+      id TEXT PRIMARY KEY,
+      group_id TEXT,
+      name TEXT NOT NULL,
+      date TEXT NOT NULL,
+      end_date TEXT,
+      holiday_type TEXT NOT NULL DEFAULT 'custom',
+      recurrence TEXT NOT NULL DEFAULT 'none',
+      source TEXT,
+      created_by TEXT NOT NULL,
+      created_at INTEGER NOT NULL DEFAULT (unixepoch())
+    );
+    CREATE INDEX IF NOT EXISTS idx_holiday_group ON holidays(group_id);
+    CREATE INDEX IF NOT EXISTS idx_holiday_date ON holidays(date);
+    CREATE INDEX IF NOT EXISTS idx_holiday_type ON holidays(holiday_type);
+  `);
+
+  // グループ個別予定テーブル
+  sqlite.exec(`
+    CREATE TABLE IF NOT EXISTS group_events (
+      id TEXT PRIMARY KEY,
+      group_id TEXT NOT NULL REFERENCES groups(id),
+      title TEXT NOT NULL,
+      description TEXT,
+      date TEXT NOT NULL,
+      end_date TEXT,
+      all_day INTEGER NOT NULL DEFAULT 1,
+      period INTEGER,
+      duration INTEGER DEFAULT 1,
+      event_type TEXT NOT NULL DEFAULT 'event',
+      created_by TEXT NOT NULL,
+      created_at INTEGER NOT NULL DEFAULT (unixepoch())
+    );
+    CREATE INDEX IF NOT EXISTS idx_group_event_group ON group_events(group_id);
+    CREATE INDEX IF NOT EXISTS idx_group_event_date ON group_events(date);
+  `);
+
   // カラム追加マイグレーション (既存DBとの互換)
   try { sqlite.exec(`ALTER TABLE group_schedules ADD COLUMN label TEXT`); } catch { /* already exists */ }
   try { sqlite.exec(`ALTER TABLE curricula ADD COLUMN term_id TEXT REFERENCES terms(id)`); } catch { /* already exists */ }

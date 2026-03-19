@@ -847,6 +847,49 @@ export async function createConnectionWithRetry() {
     console.warn("[db:postgres] テーブル自動作成エラー (既存の場合は無視):", err instanceof Error ? err.message : err);
   }
 
+  // 休日テーブル
+  try {
+    await client`
+      CREATE TABLE IF NOT EXISTS holidays (
+        id TEXT PRIMARY KEY,
+        group_id TEXT,
+        name TEXT NOT NULL,
+        date TEXT NOT NULL,
+        end_date TEXT,
+        holiday_type TEXT NOT NULL DEFAULT 'custom',
+        recurrence TEXT NOT NULL DEFAULT 'none',
+        source TEXT,
+        created_by TEXT NOT NULL,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `;
+    await client`CREATE INDEX IF NOT EXISTS idx_holiday_group ON holidays(group_id)`;
+    await client`CREATE INDEX IF NOT EXISTS idx_holiday_date ON holidays(date)`;
+    await client`CREATE INDEX IF NOT EXISTS idx_holiday_type ON holidays(holiday_type)`;
+
+    await client`
+      CREATE TABLE IF NOT EXISTS group_events (
+        id TEXT PRIMARY KEY,
+        group_id TEXT NOT NULL REFERENCES groups(id),
+        title TEXT NOT NULL,
+        description TEXT,
+        date TEXT NOT NULL,
+        end_date TEXT,
+        all_day BOOLEAN NOT NULL DEFAULT TRUE,
+        period INTEGER,
+        duration INTEGER DEFAULT 1,
+        event_type TEXT NOT NULL DEFAULT 'event',
+        created_by TEXT NOT NULL,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `;
+    await client`CREATE INDEX IF NOT EXISTS idx_group_event_group ON group_events(group_id)`;
+    await client`CREATE INDEX IF NOT EXISTS idx_group_event_date ON group_events(date)`;
+    console.log("[db:postgres] holidays/group_events テーブル確認完了");
+  } catch (err) {
+    console.warn("[db:postgres] holidays/group_events テーブル自動作成エラー:", err instanceof Error ? err.message : err);
+  }
+
   // カラム追加マイグレーション (既存DBとの互換)
   try { await client`ALTER TABLE group_schedules ADD COLUMN IF NOT EXISTS label TEXT`; } catch { /* ignore */ }
   try { await client`ALTER TABLE curricula ADD COLUMN IF NOT EXISTS term_id TEXT REFERENCES terms(id)`; } catch { /* ignore */ }
