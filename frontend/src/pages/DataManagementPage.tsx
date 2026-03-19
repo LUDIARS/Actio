@@ -459,7 +459,6 @@ export function DataManagementPage() {
 
         // 移動先の blockSize スロットを確認
         const targetSlotEntries: (PlacedEntry | undefined)[] = [];
-        let allEmptyOrSwappable = true;
         for (let offset = 0; offset < blockSize; offset++) {
           const existing = withoutFrom.find((e) => e.day === d && e.period === p + offset);
           targetSlotEntries.push(existing);
