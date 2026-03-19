@@ -5,6 +5,7 @@ import {
   groupRepo,
   groupMemberRepo,
   groupScheduleRepo,
+  groupEventRepo,
   userRepo,
 } from "../../src/db/repository.js";
 import { logActivity } from "../../src/activity-logger.js";
@@ -69,6 +70,9 @@ groupRoutes.get("/:id", async (c) => {
   // グループの予定
   const schedules = await groupScheduleRepo.findByGroupId(groupId);
 
+  // グループの個別予定
+  const events = await groupEventRepo.findByGroupId(groupId);
+
   return c.json({
     group: {
       id: group.id,
@@ -76,6 +80,7 @@ groupRoutes.get("/:id", async (c) => {
       description: group.description,
       members,
       schedules,
+      events,
     },
   });
 });
@@ -224,6 +229,132 @@ groupRoutes.post("/:id/schedules", async (c) => {
   logActivity(userId, user?.name || "Unknown", "グループ予定追加", `グループ予定「${body.title}」が追加されました`);
 
   return c.json({ schedule: created }, 201);
+});
+
+// ─── GET /:id/events - グループの個別予定一覧 ──────────────────
+
+groupRoutes.get("/:id/events", async (c) => {
+  const userId = getUserId(c);
+  if (!userId) return c.json({ error: "Authentication required" }, 401);
+
+  const groupId = c.req.param("id");
+  const membership = await groupMemberRepo.findByGroupAndUser(groupId, userId);
+  if (!membership) return c.json({ error: "Not a member" }, 403);
+
+  const events = await groupEventRepo.findByGroupId(groupId);
+  return c.json({ events });
+});
+
+// ─── POST /:id/events - グループの個別予定追加 ─────────────────
+
+groupRoutes.post("/:id/events", async (c) => {
+  const userId = getUserId(c);
+  if (!userId) return c.json({ error: "Authentication required" }, 401);
+
+  const groupId = c.req.param("id");
+  const membership = await groupMemberRepo.findByGroupAndUser(groupId, userId);
+  if (!membership) return c.json({ error: "Not a member" }, 403);
+
+  const body = await c.req.json<{
+    title: string;
+    description?: string;
+    date: string;
+    endDate?: string;
+    allDay?: boolean;
+    period?: number;
+    duration?: number;
+    eventType?: string;
+  }>();
+
+  if (!body.title || !body.date) {
+    return c.json({ error: "title and date are required" }, 400);
+  }
+
+  const id = uuidv4();
+  await groupEventRepo.create({
+    id,
+    groupId,
+    title: body.title,
+    description: body.description || null,
+    date: body.date,
+    endDate: body.endDate || null,
+    allDay: body.allDay !== false,
+    period: body.period ?? null,
+    duration: body.duration ?? 1,
+    eventType: body.eventType || "event",
+    createdBy: userId,
+  });
+
+  const created = await groupEventRepo.findById(id);
+
+  const user = await userRepo.findById(userId);
+  logActivity(userId, user?.name || "Unknown", "グループ予定追加", `グループ個別予定「${body.title}」が追加されました`);
+
+  return c.json({ event: created }, 201);
+});
+
+// ─── PUT /:id/events/:eventId - グループの個別予定更新 ─────────
+
+groupRoutes.put("/:id/events/:eventId", async (c) => {
+  const userId = getUserId(c);
+  if (!userId) return c.json({ error: "Authentication required" }, 401);
+
+  const groupId = c.req.param("id");
+  const eventId = c.req.param("eventId");
+
+  const membership = await groupMemberRepo.findByGroupAndUser(groupId, userId);
+  if (!membership) return c.json({ error: "Not a member" }, 403);
+
+  const existing = await groupEventRepo.findById(eventId);
+  if (!existing || existing.groupId !== groupId) {
+    return c.json({ error: "Event not found" }, 404);
+  }
+
+  const body = await c.req.json<{
+    title?: string;
+    description?: string;
+    date?: string;
+    endDate?: string;
+    allDay?: boolean;
+    period?: number;
+    duration?: number;
+    eventType?: string;
+  }>();
+
+  const updates: Record<string, unknown> = {};
+  if (body.title !== undefined) updates.title = body.title;
+  if (body.description !== undefined) updates.description = body.description;
+  if (body.date !== undefined) updates.date = body.date;
+  if (body.endDate !== undefined) updates.endDate = body.endDate;
+  if (body.allDay !== undefined) updates.allDay = body.allDay;
+  if (body.period !== undefined) updates.period = body.period;
+  if (body.duration !== undefined) updates.duration = body.duration;
+  if (body.eventType !== undefined) updates.eventType = body.eventType;
+
+  await groupEventRepo.update(eventId, updates);
+  const updated = await groupEventRepo.findById(eventId);
+  return c.json({ event: updated });
+});
+
+// ─── DELETE /:id/events/:eventId - グループの個別予定削除 ──────
+
+groupRoutes.delete("/:id/events/:eventId", async (c) => {
+  const userId = getUserId(c);
+  if (!userId) return c.json({ error: "Authentication required" }, 401);
+
+  const groupId = c.req.param("id");
+  const eventId = c.req.param("eventId");
+
+  const membership = await groupMemberRepo.findByGroupAndUser(groupId, userId);
+  if (!membership) return c.json({ error: "Not a member" }, 403);
+
+  const existing = await groupEventRepo.findById(eventId);
+  if (!existing || existing.groupId !== groupId) {
+    return c.json({ error: "Event not found" }, 404);
+  }
+
+  await groupEventRepo.deleteById(eventId);
+  return c.json({ deleted: eventId });
 });
 
 export { groupRoutes };

@@ -63,6 +63,10 @@ export function SmartSchedulerPage() {
   const [newInstructorId, setNewInstructorId] = useState("");
   const [showAddForm, setShowAddForm] = useState(false);
 
+  // 休日考慮オプション
+  const [considerHolidays, setConsiderHolidays] = useState(true);
+  const [considerBusinessDays, setConsiderBusinessDays] = useState(true);
+
   const showMsg = (msg: string) => {
     setMessage(msg);
     setTimeout(() => setMessage(""), 4000);
@@ -140,7 +144,10 @@ export function SmartSchedulerPage() {
     setLoading(true);
     setSolveResult(null);
     try {
-      const res = await smartSchedulerApi.solve(selectedGroupId);
+      const res = await smartSchedulerApi.solve(selectedGroupId, {
+        considerHolidays,
+        considerBusinessDays,
+      });
       setSolveResult(res);
       showMsg(`配置完了: ${res.placements.length}件配置, スコア ${res.totalScore}`);
     } catch (e: any) {
@@ -376,6 +383,25 @@ export function SmartSchedulerPage() {
             <h3 style={{ fontSize: "0.9rem", marginBottom: "0.5rem" }}>
               自動配置
             </h3>
+
+            <div style={{ display: "flex", gap: "1rem", marginBottom: "0.75rem", fontSize: "0.8rem", flexWrap: "wrap" }}>
+              <label style={{ display: "flex", alignItems: "center", gap: "0.3rem", cursor: "pointer" }}>
+                <input
+                  type="checkbox"
+                  checked={considerHolidays}
+                  onChange={(e) => setConsiderHolidays(e.target.checked)}
+                />
+                休日を考慮する
+              </label>
+              <label style={{ display: "flex", alignItems: "center", gap: "0.3rem", cursor: "pointer" }}>
+                <input
+                  type="checkbox"
+                  checked={considerBusinessDays}
+                  onChange={(e) => setConsiderBusinessDays(e.target.checked)}
+                />
+                業務時間(平日)を考慮する
+              </label>
+            </div>
 
             <button
               className="primary"
