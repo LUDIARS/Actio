@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { m5 } from "../lib/api";
+import { HelpButton } from "../components/HelpOverlay";
 
 interface Webhook {
   id: string;
@@ -154,7 +155,10 @@ export function NotificationsPage() {
   return (
     <div>
       <div className="page-header">
-        <h1>M5 Webhook & 通知</h1>
+        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+          <h1>M5 Webhook & 通知</h1>
+          <HelpButton />
+        </div>
         <p>通知履歴、Webhook管理、通知設定</p>
       </div>
 

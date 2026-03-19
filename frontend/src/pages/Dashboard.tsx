@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import { calendarApi, groupApi, myPlanApi } from "../lib/api";
+import { HelpButton } from "../components/HelpOverlay";
 import { DAY_LABELS, getPeriodLabel } from "../lib/constants";
 
 interface PersonalEvent {
@@ -297,7 +298,10 @@ export function Dashboard() {
   return (
     <div>
       <div className="page-header">
-        <h1>Dashboard</h1>
+        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+          <h1>Dashboard</h1>
+          <HelpButton />
+        </div>
         <p>スケジュール管理プラットフォーム</p>
       </div>
 

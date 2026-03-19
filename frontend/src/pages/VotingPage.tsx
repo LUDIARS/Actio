@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useAuth } from "../contexts/AuthContext";
 import { m6Voting } from "../lib/api";
+import { HelpButton } from "../components/HelpOverlay";
 
 // ─── Types ──────────────────────────────────────────────────
 
@@ -229,7 +230,10 @@ export function VotingPage() {
   return (
     <div>
       <div className="page-header">
-        <h1>M6 日程調整</h1>
+        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+          <h1>M6 日程調整</h1>
+          <HelpButton />
+        </div>
         <p>候補日を設定し、参加者の希望を集計します</p>
       </div>
 

@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { m1Schema } from "../lib/api";
+import { HelpButton } from "../components/HelpOverlay";
 import { DAY_LABELS, PERIODS_COUNT, getPeriodLabel } from "../lib/constants";
 
 // ─── Types ──────────────────────────────────────────────────
@@ -67,7 +68,10 @@ export function SchemaManagementPage() {
   return (
     <div>
       <div className="page-header">
-        <h1>M1 スキーマ管理</h1>
+        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+          <h1>M1 スキーマ管理</h1>
+          <HelpButton />
+        </div>
         <p>学科・講師・カリキュラム・出講可能スロットをデータベースから直接管理します</p>
       </div>
 

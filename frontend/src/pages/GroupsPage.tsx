@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useAuth } from "../contexts/AuthContext";
 import { groupApi } from "../lib/api";
+import { HelpButton } from "../components/HelpOverlay";
 import { DAY_LABELS, getPeriodLabel } from "../lib/constants";
 
 interface Group {
@@ -175,7 +176,10 @@ export function GroupsPage() {
   return (
     <div>
       <div className="page-header">
-        <h1>グループ</h1>
+        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+          <h1>グループ</h1>
+          <HelpButton />
+        </div>
         <p>グループごとの予定を管理できます</p>
       </div>
 

@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useSearchParams } from "react-router-dom";
 import { DAY_LABELS } from "../lib/constants";
 import { m4 } from "../lib/api";
+import { HelpButton } from "../components/HelpOverlay";
 
 interface Reservation {
   id: string;
@@ -111,7 +112,10 @@ export function ReservationsPage() {
   return (
     <div>
       <div className="page-header">
-        <h1>M4 予約システム</h1>
+        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+          <h1>M4 予約システム</h1>
+          <HelpButton />
+        </div>
         <p>空きコマに予約を登録し、全ユーザーに公開共有</p>
       </div>
 
