@@ -16,6 +16,8 @@ import { solve, type TaskInput } from "./solver.js";
 import { calculateGroupAvailability } from "./availability.js";
 import { DAYS_COUNT, PERIODS_COUNT } from "../../src/shared/constants.js";
 import type { UnifiedSlot, AvailabilitySlot } from "../../src/shared/types.js";
+import { getBlockedDates, getClassDays, type SchedulingOptions } from "../holiday/utils.js";
+import { holidayRepo, groupEventRepo } from "../../src/db/repository.js";
 
 const smartScheduler = new Hono();
 
@@ -222,6 +224,10 @@ smartScheduler.post("/solve/:groupId", async (c) => {
     return c.json({ error: "Not a group member" }, 403);
   }
 
+  // オプション: 休日・業務時間考慮
+  let body: { considerHolidays?: boolean; considerBusinessDays?: boolean } = {};
+  try { body = await c.req.json(); } catch { /* bodyなしもOK */ }
+
   // 未配置タスクを取得
   const pendingTasks = await schedulingTaskRepo.findPendingByGroupId(groupId);
   if (pendingTasks.length === 0) {
@@ -233,6 +239,12 @@ smartScheduler.post("/solve/:groupId", async (c) => {
   if (totalMembers === 0) {
     return c.json({ error: "Group has no members" }, 400);
   }
+
+  // 授業予定曜日でフィルタリング
+  const classDays = getClassDays({
+    considerBusinessDays: body.considerBusinessDays,
+  });
+  const filteredAvailability = availability.filter((slot) => classDays.has(slot.day));
 
   // 講師の空き時間を取得し、講師が設定されたタスクの候補スロットを制限する
   const instructorAvailMap = new Map<string, Set<string>>();
@@ -265,13 +277,13 @@ smartScheduler.post("/solve/:groupId", async (c) => {
 
   // 講師制約付きの空き状況: 講師が設定されたタスクは講師の空き時間のみ候補とする
   const instructorFilteredAvailability = (taskInstructorId: string | undefined) => {
-    if (!taskInstructorId) return availability;
+    if (!taskInstructorId) return filteredAvailability;
     const instrSlots = instructorAvailMap.get(taskInstructorId);
     if (!instrSlots) return []; // 講師の空き情報がない場合は配置不可
-    return availability.filter((slot) => instrSlots.has(`${slot.day}-${slot.period}`));
+    return filteredAvailability.filter((slot) => instrSlots.has(`${slot.day}-${slot.period}`));
   };
 
-  const solveResult = solve(taskInputs, availability, totalMembers, instructorFilteredAvailability);
+  const solveResult = solve(taskInputs, filteredAvailability, totalMembers, instructorFilteredAvailability);
 
   // 結果をDBに保存
   const resultId = uuidv4();

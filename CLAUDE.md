@@ -44,6 +44,8 @@ m1.get("/departments", async (c) => {
 - `groupRepo` / `groupMemberRepo` / `groupScheduleRepo` — グループ関連
 - `scheduleEntryRepo` / `roomRepo` — スケジュール・教室関連
 - `schedulingTaskRepo` / `schedulingResultRepo` — スマートスケジューラ関連
+- `holidayRepo` — 休日・休業期間管理
+- `groupEventRepo` — グループ個別予定 (日付ベース)
 
 ## アーキテクチャ
 
@@ -67,6 +69,16 @@ m1.get("/departments", async (c) => {
   - `GET /api/school/m1/migration/status` — マイグレーション状態確認
 
 旧 M2 (データ統合) と旧 M3 (オートスケジューラ) は M1 に統合済み。
+
+### 休日管理モジュール
+
+`modules/holiday/` — 休日・休業期間管理 (`/api/holidays`)
+
+- 日本の祝日自動取得 (ルールベース計算)
+- 休日のDB同期 (日本の祝日を一括登録)
+- グループ固有の休日・審査会期間管理
+- スケジュール配置時の休日考慮ユーティリティ
+- グループの個別予定 (日付ベースの行事・休日・審査会期間) — `GET/POST/PUT/DELETE /api/groups/:id/events`
 
 ### その他モジュール
 
@@ -103,6 +115,7 @@ m1.get("/departments", async (c) => {
 | `modules/reservation/` | `frontend/src/pages/ReservationsPage.tsx` | `api.ts` の `m4` |
 | `modules/notification/` | `frontend/src/pages/NotificationsPage.tsx` | `api.ts` の `m5` |
 | `modules/voting/` | `frontend/src/pages/VotingPage.tsx` | `api.ts` の `m6Voting` |
+| `modules/holiday/` | `frontend/src/pages/GroupsPage.tsx` (個別予定), `SmartSchedulerPage.tsx` (休日オプション) | `api.ts` の `holidayApi`, `groupApi` |
 | `src/auth/` | `frontend/src/pages/LoginPage.tsx`, `UserManagementPage.tsx` | `api.ts` の `auth` |
 
 ## プロジェクト構造

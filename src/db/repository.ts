@@ -5,7 +5,7 @@
  * ルートハンドラが直接 Drizzle クエリを書かなくて済むようにする。
  */
 
-import { eq, and, count, inArray, desc, like } from "drizzle-orm";
+import { eq, and, count, inArray, desc, like, gte, lte, or, isNull } from "drizzle-orm";
 import { db, schema, curriculumSchema } from "./connection.js";
 
 // ─── Types ──────────────────────────────────────────────────
@@ -1199,5 +1199,151 @@ export const scheduleEntryExtRepo = {
           eq(schema.scheduleEntries.isConfirmed, true)
         )
       );
+  },
+};
+
+// ─── Holiday Repository ──────────────────────────────────────
+
+export type Holiday = typeof schema.holidays.$inferSelect;
+export type NewHoliday = typeof schema.holidays.$inferInsert;
+
+export const holidayRepo = {
+  async findAll(): Promise<Holiday[]> {
+    return db.select().from(schema.holidays);
+  },
+
+  async findById(id: string): Promise<Holiday | undefined> {
+    const [row] = await db
+      .select()
+      .from(schema.holidays)
+      .where(eq(schema.holidays.id, id));
+    return row;
+  },
+
+  async findByGroupId(groupId: string): Promise<Holiday[]> {
+    return db
+      .select()
+      .from(schema.holidays)
+      .where(eq(schema.holidays.groupId, groupId));
+  },
+
+  /** グループ用 + システム全体の休日を取得 */
+  async findForGroup(groupId: string): Promise<Holiday[]> {
+    return db
+      .select()
+      .from(schema.holidays)
+      .where(
+        or(
+          eq(schema.holidays.groupId, groupId),
+          isNull(schema.holidays.groupId)
+        )
+      );
+  },
+
+  /** 指定期間内の休日を取得 */
+  async findByDateRange(startDate: string, endDate: string, groupId?: string): Promise<Holiday[]> {
+    const conditions = [
+      lte(schema.holidays.date, endDate),
+      or(
+        gte(schema.holidays.endDate, startDate),
+        and(isNull(schema.holidays.endDate), gte(schema.holidays.date, startDate))
+      ),
+    ];
+    if (groupId) {
+      conditions.push(
+        or(
+          eq(schema.holidays.groupId, groupId),
+          isNull(schema.holidays.groupId)
+        )
+      );
+    }
+    return db
+      .select()
+      .from(schema.holidays)
+      .where(and(...conditions));
+  },
+
+  /** 自動取得ソース別に削除 (再取得用) */
+  async deleteBySource(source: string, groupId?: string): Promise<void> {
+    if (groupId) {
+      await db
+        .delete(schema.holidays)
+        .where(
+          and(
+            eq(schema.holidays.source, source),
+            eq(schema.holidays.groupId, groupId)
+          )
+        );
+    } else {
+      await db
+        .delete(schema.holidays)
+        .where(
+          and(
+            eq(schema.holidays.source, source),
+            isNull(schema.holidays.groupId)
+          )
+        );
+    }
+  },
+
+  async create(data: NewHoliday): Promise<void> {
+    await db.insert(schema.holidays).values(data);
+  },
+
+  async deleteById(id: string): Promise<void> {
+    await db.delete(schema.holidays).where(eq(schema.holidays.id, id));
+  },
+};
+
+// ─── Group Event Repository ──────────────────────────────────
+
+export type GroupEvent = typeof schema.groupEvents.$inferSelect;
+export type NewGroupEvent = typeof schema.groupEvents.$inferInsert;
+
+export const groupEventRepo = {
+  async findByGroupId(groupId: string): Promise<GroupEvent[]> {
+    return db
+      .select()
+      .from(schema.groupEvents)
+      .where(eq(schema.groupEvents.groupId, groupId));
+  },
+
+  async findById(id: string): Promise<GroupEvent | undefined> {
+    const [row] = await db
+      .select()
+      .from(schema.groupEvents)
+      .where(eq(schema.groupEvents.id, id));
+    return row;
+  },
+
+  async findByDateRange(groupId: string, startDate: string, endDate: string): Promise<GroupEvent[]> {
+    return db
+      .select()
+      .from(schema.groupEvents)
+      .where(
+        and(
+          eq(schema.groupEvents.groupId, groupId),
+          lte(schema.groupEvents.date, endDate),
+          or(
+            gte(schema.groupEvents.endDate, startDate),
+            and(isNull(schema.groupEvents.endDate), gte(schema.groupEvents.date, startDate))
+          )
+        )
+      );
+  },
+
+  async create(data: NewGroupEvent): Promise<void> {
+    await db.insert(schema.groupEvents).values(data);
+  },
+
+  async update(id: string, data: Partial<Omit<NewGroupEvent, "id">>): Promise<void> {
+    await db
+      .update(schema.groupEvents)
+      .set(data)
+      .where(eq(schema.groupEvents.id, id));
+  },
+
+  async deleteById(id: string): Promise<void> {
+    await db.delete(schema.groupEvents).where(eq(schema.groupEvents.id, id));
   },
 };

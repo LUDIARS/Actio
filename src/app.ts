@@ -11,6 +11,7 @@ import { myPlanRoutes } from "../modules/myplan/routes.js";
 import { smartScheduler } from "../modules/smart-scheduler/routes.js";
 import { schoolModule } from "../modules/school/index.js";
 import { m1 } from "../modules/schedule/routes.js";
+import { holidayRoutes } from "../modules/holiday/routes.js";
 import { dbViewer } from "./admin/db-viewer.js";
 import { settingsRoutes } from "../modules/settings/routes.js";
 import { initNotificationHandler } from "../modules/notification/core/handler.js";
@@ -54,6 +55,9 @@ export function createApp() {
 
   // ─── Module: Voting (日程調整) ──────────────────────────────
   app.route("/api/voting", m6);
+
+  // ─── Module: Holidays (休日管理) ──────────────────────────────
+  app.route("/api/holidays", holidayRoutes);
 
   // ─── School Module (学校カリキュラム管理: M1) ────────────────
   const modules: SchulaModule[] = [schoolModule];

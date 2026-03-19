@@ -40,6 +40,7 @@ import {
   myPlanRepo,
 } from "../../src/db/repository.js";
 import { logActivity } from "../../src/activity-logger.js";
+import { getBlockedDates, getClassDays } from "../holiday/utils.js";
 
 const m1 = new Hono();
 
@@ -548,6 +549,10 @@ m1.post("/terms/:termId/decide", async (c) => {
 
   const { termId } = c.req.param();
 
+  // オプション: 休日・業務時間考慮
+  let body: { considerHolidays?: boolean; considerBusinessDays?: boolean; groupId?: string } = {};
+  try { body = await c.req.json(); } catch { /* bodyなしもOK */ }
+
   // ターム情報取得
   const term = await termRepo.findById(termId);
   if (!term) return c.json({ error: "ターム が見つかりません" }, 404);
@@ -557,6 +562,11 @@ m1.post("/terms/:termId/decide", async (c) => {
   if (placements.length === 0) {
     return c.json({ error: "配置データがありません" }, 400);
   }
+
+  // 授業予定曜日セットを取得 (休日考慮オプション)
+  const classDays = getClassDays({
+    considerBusinessDays: body.considerBusinessDays !== false,
+  });
 
   // カリキュラム・学科情報を取得
   const curricula = await curriculumRepo.findAll();
@@ -583,6 +593,9 @@ m1.post("/terms/:termId/decide", async (c) => {
   for (const placement of placements) {
     const curriculum = curriculumMap.get(placement.curriculumId);
     if (!curriculum) continue;
+
+    // 授業予定外の曜日はスキップ
+    if (!classDays.has(placement.day)) continue;
 
     // カリキュラムの所属学科を取得
     const cdEntries = allCd.filter((cd) => cd.curriculumId === curriculum.id);
@@ -1224,7 +1237,7 @@ m1.post("/confirm-placements", async (c) => {
   const userId = getUserId(c);
   if (!userId) return c.json({ error: "Authentication required" }, 401);
 
-  const { placements, label } = await c.req.json<{
+  const { placements, label, considerHolidays, considerBusinessDays } = await c.req.json<{
     placements: Array<{
       curriculumId: string;
       curriculumName: string;
@@ -1234,11 +1247,18 @@ m1.post("/confirm-placements", async (c) => {
       departmentNames: string[];
     }>;
     label?: string;
+    considerHolidays?: boolean;
+    considerBusinessDays?: boolean;
   }>();
 
   if (!Array.isArray(placements) || placements.length === 0) {
     return c.json({ error: "placements array is required" }, 400);
   }
+
+  // 授業予定曜日セットを取得
+  const classDaysForConfirm = getClassDays({
+    considerBusinessDays: considerBusinessDays !== false,
+  });
 
   // ラベルが指定されている場合、既存の同一ラベルデータを削除（多重登録防止）
   const termLabel = label || null;
@@ -1293,9 +1313,12 @@ m1.post("/confirm-placements", async (c) => {
       groupsCreated++;
     }
 
-    // カリキュラムごとにグループスケジュールを登録(重複スキップ)
+    // カリキュラムごとにグループスケジュールを登録(重複スキップ, 授業予定外の曜日はスキップ)
     const seen = new Set<string>();
     for (const p of deptPlacements) {
+      // 授業予定外の曜日はスキップ
+      if (!classDaysForConfirm.has(p.day)) continue;
+
       const key = `${p.curriculumId}-${p.day}-${p.period}`;
       if (seen.has(key)) continue;
       seen.add(key);
