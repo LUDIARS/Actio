@@ -180,6 +180,8 @@ export const groupSchedules = sqliteTable(
     date: text("date"),
     /** recurring = 毎週繰り返し, oneshot = 特定日のみ */
     scheduleType: text("schedule_type").notNull().default("recurring"),
+    /** ターム/期間ラベル (例: "2026前期", "term-2026") — 再配置時にラベル単位で削除・再登録する */
+    label: text("label"),
     createdBy: text("created_by").notNull(),
     createdAt: integer("created_at", { mode: "timestamp" })
       .$defaultFn(() => new Date())
@@ -188,6 +190,7 @@ export const groupSchedules = sqliteTable(
   (table) => [
     index("idx_group_schedule_group").on(table.groupId),
     index("idx_group_schedule_date").on(table.date),
+    index("idx_group_schedule_label").on(table.label),
   ]
 );
 

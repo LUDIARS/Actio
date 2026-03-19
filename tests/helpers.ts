@@ -112,6 +112,7 @@ export function initTestDatabase() {
       duration INTEGER NOT NULL DEFAULT 1,
       date TEXT,
       schedule_type TEXT NOT NULL DEFAULT 'recurring',
+      label TEXT,
       created_by TEXT NOT NULL,
       created_at INTEGER NOT NULL
     );

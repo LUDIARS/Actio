@@ -683,7 +683,7 @@ m1.post("/confirm-placements", async (c) => {
   const userId = getUserId(c);
   if (!userId) return c.json({ error: "Authentication required" }, 401);
 
-  const { placements } = await c.req.json<{
+  const { placements, label } = await c.req.json<{
     placements: Array<{
       curriculumId: string;
       curriculumName: string;
@@ -692,10 +692,22 @@ m1.post("/confirm-placements", async (c) => {
       duration: number;
       departmentNames: string[];
     }>;
+    label?: string;
   }>();
 
   if (!Array.isArray(placements) || placements.length === 0) {
     return c.json({ error: "placements array is required" }, 400);
+  }
+
+  // ラベルが指定されている場合、既存の同一ラベルデータを削除（多重登録防止）
+  const termLabel = label || null;
+  let deletedCount = 0;
+  if (termLabel) {
+    const existing = await groupScheduleRepo.findByLabel(termLabel);
+    deletedCount = existing.length;
+    if (deletedCount > 0) {
+      await groupScheduleRepo.deleteByLabel(termLabel);
+    }
   }
 
   const existingGroups = await groupRepo.findAll();
@@ -756,6 +768,7 @@ m1.post("/confirm-placements", async (c) => {
         period: p.period,
         duration: p.duration,
         scheduleType: "recurring",
+        label: termLabel,
         createdBy: userId,
         createdAt: new Date(),
       });
@@ -764,10 +777,60 @@ m1.post("/confirm-placements", async (c) => {
   }
 
   return c.json({
-    message: `配置を確定しました (${schedulesCreated}件のスケジュール、${groupsCreated}件のグループを作成)`,
+    message: `配置を確定しました (${schedulesCreated}件のスケジュール、${groupsCreated}件のグループを作成${deletedCount > 0 ? `、${deletedCount}件の既存データを削除` : ""})`,
     schedulesCreated,
     groupsCreated,
+    deletedCount,
+    label: termLabel,
   });
+});
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// DB管理 — グループスケジュールの閲覧・個別削除
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+/** グループスケジュール一覧取得 */
+m1.get("/group-schedules", async (c) => {
+  const schedules = await groupScheduleRepo.findAll();
+  const groups = await groupRepo.findAll();
+  const groupMap = new Map(groups.map((g: { id: string; name: string }) => [g.id, g.name]));
+  const result = schedules.map((s: { groupId: string; [key: string]: unknown }) => ({
+    ...s,
+    groupName: groupMap.get(s.groupId) || s.groupId,
+  }));
+  return c.json({ schedules: result });
+});
+
+/** ラベル単位でグループスケジュールを一括削除 */
+m1.delete("/group-schedules/by-label/:label", async (c) => {
+  const { label } = c.req.param();
+  const existing = await groupScheduleRepo.findByLabel(label);
+  if (existing.length === 0) {
+    return c.json({ message: "該当するデータがありません", deletedCount: 0 });
+  }
+  await groupScheduleRepo.deleteByLabel(label);
+
+  const userId = getUserId(c) || "";
+  const user = await userRepo.findById(userId);
+  logActivity(userId, user?.name || "Unknown", "ラベル一括削除", `ラベル「${label}」のスケジュール${existing.length}件を削除しました`);
+
+  return c.json({ deletedCount: existing.length, label });
+});
+
+/** グループスケジュール個別削除 */
+m1.delete("/group-schedules/:id", async (c) => {
+  const { id } = c.req.param();
+  const schedule = await groupScheduleRepo.findById(id);
+  if (!schedule) {
+    return c.json({ error: "Schedule not found" }, 404);
+  }
+  await groupScheduleRepo.deleteById(id);
+
+  const userId = getUserId(c) || "";
+  const user = await userRepo.findById(userId);
+  logActivity(userId, user?.name || "Unknown", "グループスケジュール削除", `グループスケジュール「${schedule.title}」を削除しました`);
+
+  return c.json({ deleted: id });
 });
 
 export { m1 };

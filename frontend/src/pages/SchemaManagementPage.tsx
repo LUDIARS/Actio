@@ -23,6 +23,8 @@ interface Curriculum {
   periods: number;
   instructorId: string | null;
   departmentIds?: string[];
+  validFrom: string | null;
+  validUntil: string | null;
   createdAt: string;
 }
 
@@ -462,6 +464,8 @@ function CurriculaTab({ showMessage }: { showMessage: (msg: string, type?: "succ
   const [newDeptIds, setNewDeptIds] = useState<string[]>([]);
   const [newInstId, setNewInstId] = useState("");
   const [newPeriods, setNewPeriods] = useState<number>(1);
+  const [newValidFrom, setNewValidFrom] = useState("");
+  const [newValidUntil, setNewValidUntil] = useState("");
   const [loading, setLoading] = useState(false);
 
   // Edit state
@@ -470,6 +474,8 @@ function CurriculaTab({ showMessage }: { showMessage: (msg: string, type?: "succ
   const [editInstId, setEditInstId] = useState<string>("");
   const [editPeriods, setEditPeriods] = useState<number>(1);
   const [editDeptIds, setEditDeptIds] = useState<string[]>([]);
+  const [editValidFrom, setEditValidFrom] = useState("");
+  const [editValidUntil, setEditValidUntil] = useState("");
 
   const fetchAll = useCallback(async () => {
     try {
@@ -502,12 +508,15 @@ function CurriculaTab({ showMessage }: { showMessage: (msg: string, type?: "succ
     try {
       const deptIds = newDeptIds.length > 0 ? newDeptIds : [newDeptId];
       await m1Schema.createCurriculum(
-        newDeptId, newName.trim(), newInstId || undefined, newPeriods, deptIds
+        newDeptId, newName.trim(), newInstId || undefined, newPeriods, deptIds,
+        newValidFrom || undefined, newValidUntil || undefined
       );
       setNewName("");
       setNewInstId("");
       setNewPeriods(1);
       setNewDeptIds([]);
+      setNewValidFrom("");
+      setNewValidUntil("");
       showMessage(`カリキュラム「${newName.trim()}」を作成しました`);
       fetchAll();
     } catch (e: any) {
@@ -523,6 +532,8 @@ function CurriculaTab({ showMessage }: { showMessage: (msg: string, type?: "succ
         instructorId: editInstId || null,
         periods: editPeriods,
         departmentIds: editDeptIds.length > 0 ? editDeptIds : undefined,
+        validFrom: editValidFrom || null,
+        validUntil: editValidUntil || null,
       });
       setEditId(null);
       showMessage("カリキュラムを更新しました");
@@ -604,6 +615,22 @@ function CurriculaTab({ showMessage }: { showMessage: (msg: string, type?: "succ
                 style={{ width: 70 }}
               />
             </div>
+            <div className="form-group" style={{ flex: 1, minWidth: 130 }}>
+              <label>開始日</label>
+              <input
+                type="date"
+                value={newValidFrom}
+                onChange={(e) => setNewValidFrom(e.target.value)}
+              />
+            </div>
+            <div className="form-group" style={{ flex: 1, minWidth: 130 }}>
+              <label>終了日</label>
+              <input
+                type="date"
+                value={newValidUntil}
+                onChange={(e) => setNewValidUntil(e.target.value)}
+              />
+            </div>
             <button type="submit" className="primary" disabled={loading} style={{ marginBottom: "1rem" }}>
               追加
             </button>
@@ -662,6 +689,7 @@ function CurriculaTab({ showMessage }: { showMessage: (msg: string, type?: "succ
                 <th>科目名</th>
                 <th>学科</th>
                 <th>コマ数</th>
+                <th>期間</th>
                 <th>担当講師</th>
                 <th>操作</th>
               </tr>
@@ -723,6 +751,28 @@ function CurriculaTab({ showMessage }: { showMessage: (msg: string, type?: "succ
                       c.periods ?? 1
                     )}
                   </td>
+                  <td style={{ fontSize: "0.75rem" }}>
+                    {editId === c.id ? (
+                      <div style={{ display: "flex", flexDirection: "column", gap: "0.2rem" }}>
+                        <input
+                          type="date"
+                          value={editValidFrom}
+                          onChange={(e) => setEditValidFrom(e.target.value)}
+                          style={{ padding: "0.15rem 0.3rem", fontSize: "0.75rem" }}
+                        />
+                        <input
+                          type="date"
+                          value={editValidUntil}
+                          onChange={(e) => setEditValidUntil(e.target.value)}
+                          style={{ padding: "0.15rem 0.3rem", fontSize: "0.75rem" }}
+                        />
+                      </div>
+                    ) : (
+                      c.validFrom || c.validUntil
+                        ? `${c.validFrom || "?"} ~ ${c.validUntil || "未定"}`
+                        : <span style={{ color: "var(--text-muted)", fontStyle: "italic" }}>未設定</span>
+                    )}
+                  </td>
                   <td>
                     {editId === c.id ? (
                       <select
@@ -773,6 +823,8 @@ function CurriculaTab({ showMessage }: { showMessage: (msg: string, type?: "succ
                               setEditInstId(c.instructorId || "");
                               setEditPeriods(c.periods ?? 1);
                               setEditDeptIds(c.departmentIds || [c.departmentId]);
+                              setEditValidFrom(c.validFrom || "");
+                              setEditValidUntil(c.validUntil || "");
                             }}
                           >
                             編集

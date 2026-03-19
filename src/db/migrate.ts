@@ -110,11 +110,13 @@ sqlite.exec(`
     duration INTEGER NOT NULL DEFAULT 1,
     date TEXT,
     schedule_type TEXT NOT NULL DEFAULT 'recurring',
+    label TEXT,
     created_by TEXT NOT NULL,
     created_at INTEGER NOT NULL
   );
   CREATE INDEX IF NOT EXISTS idx_group_schedule_group ON group_schedules(group_id);
   CREATE INDEX IF NOT EXISTS idx_group_schedule_date ON group_schedules(date);
+  CREATE INDEX IF NOT EXISTS idx_group_schedule_label ON group_schedules(label);
 
   CREATE TABLE IF NOT EXISTS reservations (
     id TEXT PRIMARY KEY,
@@ -292,6 +294,8 @@ sqlite.exec(`
     department_id TEXT NOT NULL REFERENCES departments(id),
     periods INTEGER NOT NULL DEFAULT 1,
     instructor_id TEXT REFERENCES instructors(id),
+    valid_from TEXT,
+    valid_until TEXT,
     created_at INTEGER NOT NULL
   );
   CREATE INDEX IF NOT EXISTS idx_curricula_department ON curricula(department_id);
@@ -325,6 +329,50 @@ sqlite.exec(`
     value TEXT NOT NULL,
     updated_at INTEGER NOT NULL
   );
+`);
+
+// ─── Schema migrations (add columns to existing tables) ─────
+// These are safe to run multiple times due to SQLite's ALTER TABLE IF NOT EXISTS behavior
+try { sqlite.exec(`ALTER TABLE group_schedules ADD COLUMN label TEXT`); } catch { /* column already exists */ }
+try { sqlite.exec(`CREATE INDEX IF NOT EXISTS idx_group_schedule_label ON group_schedules(label)`); } catch { /* index already exists */ }
+try { sqlite.exec(`ALTER TABLE curricula ADD COLUMN valid_from TEXT`); } catch { /* column already exists */ }
+try { sqlite.exec(`ALTER TABLE curricula ADD COLUMN valid_until TEXT`); } catch { /* column already exists */ }
+
+// M6 Voting tables
+sqlite.exec(`
+  CREATE TABLE IF NOT EXISTS voting_events (
+    id TEXT PRIMARY KEY,
+    title TEXT NOT NULL,
+    description TEXT NOT NULL DEFAULT '',
+    created_by TEXT NOT NULL REFERENCES users(id),
+    deadline TEXT,
+    status TEXT NOT NULL DEFAULT 'open',
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
+  );
+
+  CREATE TABLE IF NOT EXISTS voting_candidates (
+    id TEXT PRIMARY KEY,
+    event_id TEXT NOT NULL REFERENCES voting_events(id),
+    label TEXT NOT NULL,
+    sort_order INTEGER NOT NULL DEFAULT 0
+  );
+  CREATE INDEX IF NOT EXISTS idx_candidate_event ON voting_candidates(event_id);
+
+  CREATE TABLE IF NOT EXISTS votes (
+    id TEXT PRIMARY KEY,
+    event_id TEXT NOT NULL REFERENCES voting_events(id),
+    candidate_id TEXT NOT NULL REFERENCES voting_candidates(id),
+    user_id TEXT NOT NULL REFERENCES users(id),
+    answer TEXT NOT NULL,
+    is_auto_reply INTEGER NOT NULL DEFAULT 0,
+    comment TEXT NOT NULL DEFAULT '',
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL,
+    UNIQUE(event_id, candidate_id, user_id)
+  );
+  CREATE INDEX IF NOT EXISTS idx_vote_event ON votes(event_id);
+  CREATE INDEX IF NOT EXISTS idx_vote_user ON votes(user_id);
 `);
 
 console.log("Database tables initialized successfully.");
