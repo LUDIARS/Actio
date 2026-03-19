@@ -618,6 +618,45 @@ export const appSettings = mysqlTable("app_settings", {
     .notNull(),
 });
 
+// ─── Terms ──────────────────────────────────────────────────
+
+export const terms = mysqlTable("terms", {
+  id: varchar("id", { length: 255 }).primaryKey(),
+  name: varchar("name", { length: 255 }).notNull(),
+  startDate: varchar("start_date", { length: 20 }),
+  endDate: varchar("end_date", { length: 20 }),
+  createdAt: timestamp("created_at")
+    .$defaultFn(() => new Date())
+    .notNull(),
+});
+
+// ─── Curriculum Placements ──────────────────────────────────
+
+export const curriculumPlacements = mysqlTable(
+  "curriculum_placements",
+  {
+    id: varchar("id", { length: 255 }).primaryKey(),
+    termId: varchar("term_id", { length: 255 })
+      .references(() => terms.id)
+      .notNull(),
+    curriculumId: varchar("curriculum_id", { length: 255 })
+      .references(() => curricula.id)
+      .notNull(),
+    day: int("day").notNull(),
+    period: int("period").notNull(),
+    roomId: varchar("room_id", { length: 255 }),
+    candidateCount: int("candidate_count").notNull().default(0),
+    createdAt: timestamp("created_at")
+      .$defaultFn(() => new Date())
+      .notNull(),
+  },
+  (table) => [
+    index("idx_placement_term").on(table.termId),
+    index("idx_placement_curriculum").on(table.curriculumId),
+    unique("unique_placement_slot").on(table.termId, table.day, table.period, table.roomId),
+  ]
+);
+
 // ─── Schema Exports ─────────────────────────────────────────
 
 export const schema = {
@@ -652,6 +691,8 @@ export const curriculumSchema = {
   curricula,
   curriculumDepartments,
   instructorAvailableSlots,
+  terms,
+  curriculumPlacements,
 };
 
 // ─── Connection ─────────────────────────────────────────────
@@ -685,6 +726,8 @@ const allTables = {
   curricula,
   curriculumDepartments,
   instructorAvailableSlots,
+  terms,
+  curriculumPlacements,
 };
 
 export function createConnection() {
