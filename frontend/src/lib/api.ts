@@ -468,7 +468,6 @@ export const m1Schema = {
       body: JSON.stringify(data),
     });
   },
-  },
 };
 
 // ─── M1 (Legacy CSV/Generate) ────────────────────────────────
