@@ -558,10 +558,9 @@ export const curricula = pgTable(
     periods: integer("periods").notNull().default(1),
     instructorId: text("instructor_id")
       .references(() => instructors.id),
-    /** カリキュラム期間 開始日 (YYYY-MM-DD) */
-    validFrom: text("valid_from"),
-    /** カリキュラム期間 終了日 (YYYY-MM-DD) */
-    validUntil: text("valid_until"),
+    /** 所属タームID */
+    termId: text("term_id")
+      .references(() => terms.id),
     createdAt: timestamp("created_at")
       .$defaultFn(() => new Date())
       .notNull(),
@@ -626,8 +625,8 @@ export const appSettings = pgTable("app_settings", {
 export const terms = pgTable("terms", {
   id: text("id").primaryKey(),
   name: text("name").notNull(),
-  startDate: text("start_date"),
-  endDate: text("end_date"),
+  startDate: text("start_date").notNull(),
+  endDate: text("end_date").notNull(),
   createdAt: timestamp("created_at")
     .$defaultFn(() => new Date())
     .notNull(),
@@ -823,8 +822,8 @@ export async function createConnectionWithRetry() {
       CREATE TABLE IF NOT EXISTS terms (
         id TEXT PRIMARY KEY,
         name TEXT NOT NULL,
-        start_date TEXT,
-        end_date TEXT,
+        start_date TEXT NOT NULL,
+        end_date TEXT NOT NULL,
         created_at TIMESTAMP NOT NULL DEFAULT NOW()
       )
     `;
@@ -850,8 +849,7 @@ export async function createConnectionWithRetry() {
 
   // カラム追加マイグレーション (既存DBとの互換)
   try { await client`ALTER TABLE group_schedules ADD COLUMN IF NOT EXISTS label TEXT`; } catch { /* ignore */ }
-  try { await client`ALTER TABLE curricula ADD COLUMN IF NOT EXISTS valid_from TEXT`; } catch { /* ignore */ }
-  try { await client`ALTER TABLE curricula ADD COLUMN IF NOT EXISTS valid_until TEXT`; } catch { /* ignore */ }
+  try { await client`ALTER TABLE curricula ADD COLUMN IF NOT EXISTS term_id TEXT REFERENCES terms(id)`; } catch { /* ignore */ }
 
   console.log("[db:postgres] Drizzle ORM インスタンスを作成中...");
   const drizzleDb = drizzle(client, { schema: DB_SCHEMA });

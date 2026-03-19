@@ -337,13 +337,13 @@ export const m1Schema = {
   getCurriculaByDepartment(departmentId: string) {
     return request<{ curricula: any[] }>(`/api/m1/departments/${departmentId}/curricula`);
   },
-  createCurriculum(departmentId: string, name: string, instructorId?: string, periods?: number, departmentIds?: string[], validFrom?: string, validUntil?: string) {
+  createCurriculum(departmentId: string, name: string, instructorId?: string, periods?: number, departmentIds?: string[], termId?: string) {
     return request<any>(`/api/m1/departments/${departmentId}/curricula`, {
       method: "POST",
-      body: JSON.stringify({ name, instructorId, periods, departmentIds, validFrom, validUntil }),
+      body: JSON.stringify({ name, instructorId, periods, departmentIds, termId }),
     });
   },
-  updateCurriculum(id: string, body: { name?: string; instructorId?: string | null; periods?: number; departmentIds?: string[]; validFrom?: string | null; validUntil?: string | null }) {
+  updateCurriculum(id: string, body: { name?: string; instructorId?: string | null; periods?: number; departmentIds?: string[]; termId?: string | null }) {
     return request<any>(`/api/m1/curricula/${id}`, {
       method: "PUT",
       body: JSON.stringify(body),
@@ -396,15 +396,15 @@ export const m1Schema = {
 
   // ターム (Terms)
   getTerms() {
-    return request<{ terms: Array<{ id: string; name: string; startDate?: string; endDate?: string }> }>("/api/m1/terms");
+    return request<{ terms: Array<{ id: string; name: string; startDate: string; endDate: string }> }>("/api/m1/terms");
   },
-  createTerm(name: string, startDate?: string, endDate?: string) {
+  createTerm(name: string, startDate: string, endDate: string) {
     return request<{ id: string; name: string }>("/api/m1/terms", {
       method: "POST",
       body: JSON.stringify({ name, startDate, endDate }),
     });
   },
-  updateTerm(id: string, body: { name?: string; startDate?: string | null; endDate?: string | null }) {
+  updateTerm(id: string, body: { name?: string; startDate?: string; endDate?: string }) {
     return request<{ id: string }>(`/api/m1/terms/${id}`, {
       method: "PUT",
       body: JSON.stringify(body),

@@ -11,7 +11,7 @@
  * データ入力:
  *   - カリキュラムに講師をアサイン
  *   - 講師ごとに出講可能曜日・コマを入力
- *   - カリキュラムに期間 (validFrom / validUntil) を設定
+ *   - カリキュラムにタームを設定
  *
  * マイグレーション:
  *   - 登録学科を自動的にグループ登録
@@ -172,13 +172,12 @@ m1.get("/curricula", async (c) => {
 /** カリキュラム作成 (複数学科・コマ数・期間対応) */
 m1.post("/departments/:departmentId/curricula", async (c) => {
   const { departmentId } = c.req.param();
-  const { name, instructorId, periods, departmentIds, validFrom, validUntil } = await c.req.json<{
+  const { name, instructorId, periods, departmentIds, termId } = await c.req.json<{
     name: string;
     instructorId?: string;
     periods?: number;
     departmentIds?: string[];
-    validFrom?: string;
-    validUntil?: string;
+    termId?: string;
   }>();
   if (!name?.trim()) {
     return c.json({ error: "name is required" }, 400);
@@ -191,8 +190,7 @@ m1.post("/departments/:departmentId/curricula", async (c) => {
     departmentId,
     periods: periodsVal,
     instructorId: instructorId || null,
-    validFrom: validFrom || null,
-    validUntil: validUntil || null,
+    termId: termId || null,
   });
 
   // 中間テーブルに学科を登録 (departmentIds が指定されなければ主学科のみ)
@@ -213,8 +211,7 @@ m1.post("/departments/:departmentId/curricula", async (c) => {
     id, name: name.trim(), departmentId,
     periods: periodsVal,
     instructorId: instructorId || null,
-    validFrom: validFrom || null,
-    validUntil: validUntil || null,
+    termId: termId || null,
     departmentIds: deptList,
   }, 201);
 });
@@ -227,15 +224,13 @@ m1.put("/curricula/:id", async (c) => {
     instructorId?: string | null;
     periods?: number;
     departmentIds?: string[];
-    validFrom?: string | null;
-    validUntil?: string | null;
+    termId?: string | null;
   }>();
   const updates: Record<string, unknown> = {};
   if (body.name !== undefined) updates.name = body.name.trim();
   if (body.instructorId !== undefined) updates.instructorId = body.instructorId;
   if (body.periods !== undefined && body.periods > 0) updates.periods = body.periods;
-  if (body.validFrom !== undefined) updates.validFrom = body.validFrom;
-  if (body.validUntil !== undefined) updates.validUntil = body.validUntil;
+  if (body.termId !== undefined) updates.termId = body.termId;
 
   if (Object.keys(updates).length === 0 && !body.departmentIds) {
     return c.json({ error: "No fields to update" }, 400);
@@ -338,18 +333,21 @@ m1.get("/terms", async (c) => {
 m1.post("/terms", async (c) => {
   const { name, startDate, endDate } = await c.req.json<{
     name: string;
-    startDate?: string;
-    endDate?: string;
+    startDate: string;
+    endDate: string;
   }>();
   if (!name?.trim()) {
     return c.json({ error: "name is required" }, 400);
+  }
+  if (!startDate || !endDate) {
+    return c.json({ error: "startDate and endDate are required" }, 400);
   }
   const id = uuidv4();
   await termRepo.create({
     id,
     name: name.trim(),
-    startDate: startDate || null,
-    endDate: endDate || null,
+    startDate,
+    endDate,
   });
 
   const userId = getUserId(c) || "";
@@ -688,8 +686,7 @@ m1.get("/export", async (c) => {
         departmentName: departments.find((d) => d.id === cur.departmentId)?.name || "",
         instructorName: instructor?.name || null,
         periods: cur.periods,
-        validFrom: cur.validFrom,
-        validUntil: cur.validUntil,
+        termId: cur.termId,
         departmentNames: cdEntries.map((cd) =>
           departments.find((d) => d.id === cd.departmentId)?.name || ""
         ).filter(Boolean),
@@ -815,8 +812,8 @@ m1.post("/import", async (c) => {
     await termRepo.create({
       id: termId,
       name: body.termName,
-      startDate: body.termStartDate || null,
-      endDate: body.termEndDate || null,
+      startDate: body.termStartDate || "",
+      endDate: body.termEndDate || "",
     });
     termCreatedFlag = true;
   }

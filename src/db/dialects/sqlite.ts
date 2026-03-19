@@ -25,8 +25,8 @@ export function createConnection(): { db: ReturnType<typeof drizzle>; sqlite: Sq
     CREATE TABLE IF NOT EXISTS terms (
       id TEXT PRIMARY KEY,
       name TEXT NOT NULL,
-      start_date TEXT,
-      end_date TEXT,
+      start_date TEXT NOT NULL DEFAULT '',
+      end_date TEXT NOT NULL DEFAULT '',
       created_at INTEGER NOT NULL DEFAULT (unixepoch())
     );
     CREATE TABLE IF NOT EXISTS curriculum_placements (
@@ -45,8 +45,7 @@ export function createConnection(): { db: ReturnType<typeof drizzle>; sqlite: Sq
   `);
   // カラム追加マイグレーション (既存DBとの互換)
   try { sqlite.exec(`ALTER TABLE group_schedules ADD COLUMN label TEXT`); } catch { /* already exists */ }
-  try { sqlite.exec(`ALTER TABLE curricula ADD COLUMN valid_from TEXT`); } catch { /* already exists */ }
-  try { sqlite.exec(`ALTER TABLE curricula ADD COLUMN valid_until TEXT`); } catch { /* already exists */ }
+  try { sqlite.exec(`ALTER TABLE curricula ADD COLUMN term_id TEXT REFERENCES terms(id)`); } catch { /* already exists */ }
 
   const db = drizzle(sqlite, {
     schema: { ...schema, ...curriculumSchema },

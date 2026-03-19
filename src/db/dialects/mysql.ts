@@ -382,8 +382,8 @@ export const myPlans = mysqlTable(
     groupId: varchar("group_id", { length: 255 }),
     name: varchar("name", { length: 255 }).notNull(),
     patternType: varchar("pattern_type", { length: 255 }).notNull().default("basic"),
-    validFrom: varchar("valid_from", { length: 255 }),
-    validUntil: varchar("valid_until", { length: 255 }),
+    termId: varchar("term_id", { length: 255 })
+      .references(() => terms.id),
     weeklySchedule: json("weekly_schedule").$type<
       Record<string, Array<{ startTime: string; endTime: string; title: string; period?: number; duration?: number }>>
     >().notNull(),
@@ -623,8 +623,8 @@ export const appSettings = mysqlTable("app_settings", {
 export const terms = mysqlTable("terms", {
   id: varchar("id", { length: 255 }).primaryKey(),
   name: varchar("name", { length: 255 }).notNull(),
-  startDate: varchar("start_date", { length: 20 }),
-  endDate: varchar("end_date", { length: 20 }),
+  startDate: varchar("start_date", { length: 20 }).notNull(),
+  endDate: varchar("end_date", { length: 20 }).notNull(),
   createdAt: timestamp("created_at")
     .$defaultFn(() => new Date())
     .notNull(),

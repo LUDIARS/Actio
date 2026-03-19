@@ -256,10 +256,9 @@ export function DataManagementPage() {
   const [tab, setTab] = useState<"list" | "swap" | "auto" | "decide">("list");
 
   // ターム管理
-  interface Term { id: string; name: string; startDate?: string; endDate?: string; }
+  interface Term { id: string; name: string; startDate: string; endDate: string; }
   const [terms, setTerms] = useState<Term[]>([]);
   const [selectedTermId, setSelectedTermId] = useState("");
-  const [newTermName, setNewTermName] = useState("");
   const [saving, setSaving] = useState(false);
 
   // Strategy
@@ -392,21 +391,6 @@ export function DataManagementPage() {
       showMessage(`保存エラー: ${(e as Error).message}`, "error");
     }
     setSaving(false);
-  };
-
-  // ターム作成
-  const handleCreateTerm = async () => {
-    if (!newTermName.trim()) { showMessage("ターム名を入力してください", "error"); return; }
-    try {
-      const result = await m1Schema.createTerm(newTermName.trim());
-      setNewTermName("");
-      const updatedTerms = await m1Schema.getTerms();
-      setTerms(updatedTerms.terms || []);
-      setSelectedTermId(result.id);
-      showMessage(`ターム「${newTermName.trim()}」を作成しました`);
-    } catch (e: unknown) {
-      showMessage(`作成エラー: ${(e as Error).message}`, "error");
-    }
   };
 
   const getDeptName = (id: string) => departments.find((d) => d.id === id)?.name || "-";
@@ -774,22 +758,22 @@ export function DataManagementPage() {
       {/* ターム選択 */}
       <div className="card" style={{ marginBottom: "1rem" }}>
         <div style={{ display: "flex", gap: "0.75rem", alignItems: "flex-end", flexWrap: "wrap" }}>
-          <div className="form-group" style={{ minWidth: 200 }}>
+          <div className="form-group" style={{ minWidth: 250 }}>
             <label>ターム</label>
             <select value={selectedTermId} onChange={(e) => setSelectedTermId(e.target.value)}>
               <option value="">選択してください</option>
-              {terms.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+              {terms.map((t) => <option key={t.id} value={t.id}>{t.name} ({t.startDate}~{t.endDate})</option>)}
             </select>
           </div>
-          <div className="form-group" style={{ minWidth: 150 }}>
-            <label>新規ターム</label>
-            <input type="text" value={newTermName} onChange={(e) => setNewTermName(e.target.value)} placeholder="例: 2026前期" />
-          </div>
-          <button onClick={handleCreateTerm} style={{ marginBottom: "1rem", fontSize: "0.8rem" }}>作成</button>
           {selectedTermId && entries.length > 0 && (
             <button className="primary" onClick={savePlacementsToDb} disabled={saving} style={{ marginBottom: "1rem", fontSize: "0.8rem" }}>
               {saving ? "保存中..." : "配置を保存"}
             </button>
+          )}
+          {terms.length === 0 && (
+            <span style={{ fontSize: "0.75rem", color: "var(--text-muted)", marginBottom: "1rem" }}>
+              <a href="/schema-management" style={{ color: "var(--accent)" }}>スキーマ管理</a>でタームを作成してください
+            </span>
           )}
         </div>
       </div>

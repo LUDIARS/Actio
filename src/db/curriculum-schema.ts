@@ -62,10 +62,9 @@ export const curricula = sqliteTable(
     /** 担当講師ID (nullable: 未アサイン状態を許容) */
     instructorId: text("instructor_id")
       .references(() => instructors.id),
-    /** カリキュラム期間 開始日 (YYYY-MM-DD) — プランの期間指定と同じ */
-    validFrom: text("valid_from"),
-    /** カリキュラム期間 終了日 (YYYY-MM-DD) */
-    validUntil: text("valid_until"),
+    /** 所属タームID (nullable: 未設定を許容) */
+    termId: text("term_id")
+      .references(() => terms.id),
     createdAt: integer("created_at", { mode: "timestamp" })
       .$defaultFn(() => new Date())
       .notNull(),
@@ -105,10 +104,10 @@ export const terms = sqliteTable(
     id: text("id").primaryKey(),
     /** ターム名 (例: "前期", "2026年度前期") */
     name: text("name").notNull(),
-    /** 適用開始日 (YYYY-MM-DD) */
-    startDate: text("start_date"),
-    /** 適用終了日 (YYYY-MM-DD) */
-    endDate: text("end_date"),
+    /** 開始日 (YYYY-MM-DD) */
+    startDate: text("start_date").notNull(),
+    /** 終了日 (YYYY-MM-DD) */
+    endDate: text("end_date").notNull(),
     createdAt: integer("created_at", { mode: "timestamp" })
       .$defaultFn(() => new Date())
       .notNull(),
