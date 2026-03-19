@@ -101,6 +101,28 @@ function canPlace(
   return null;
 }
 
+/**
+ * 指定スロットが属するカリキュラムブロック（連続コマ）を取得する。
+ * 同じ day・同じ curriculumId で連続する全エントリを返す。
+ */
+function findBlock(entries: PlacedEntry[], day: number, period: number): PlacedEntry[] {
+  const entry = entries.find((e) => e.day === day && e.period === period);
+  if (!entry) return [];
+  const block = entries
+    .filter((e) => e.day === day && e.curriculumId === entry.curriculumId)
+    .sort((a, b) => a.period - b.period);
+  // 連続性チェック: period が途切れたら除外
+  const startIdx = block.findIndex((e) => e.period === period);
+  if (startIdx === -1) return [entry];
+  // 前方探索
+  let lo = startIdx;
+  while (lo > 0 && block[lo - 1].period === block[lo].period - 1) lo--;
+  // 後方探索
+  let hi = startIdx;
+  while (hi < block.length - 1 && block[hi + 1].period === block[hi].period + 1) hi++;
+  return block.slice(lo, hi + 1);
+}
+
 function placeOne(
   curriculum: Curriculum,
   day: number,
@@ -407,13 +429,17 @@ export function DataManagementPage() {
 
   // ─── スワップ対象の判定 ──────────────────────────────────
   // 選択コマの入れ替え可能先を算出し、候補数に基づく色を返す
+  // ブロック（連続コマ）単位で移動先を計算する
   const getSwapTargets = useCallback((): Map<string, string> => {
     if (!selectedSlot) return new Map();
-    const fromEntry = entries.find((e) => e.day === selectedSlot.day && e.period === selectedSlot.period);
-    if (!fromEntry) return new Map();
+    const fromBlock = findBlock(entries, selectedSlot.day, selectedSlot.period);
+    if (fromBlock.length === 0) return new Map();
 
-    const fromCur = curricula.find((c) => c.id === fromEntry.curriculumId);
+    const fromCur = curricula.find((c) => c.id === fromBlock[0].curriculumId);
     if (!fromCur) return new Map();
+
+    const blockSize = fromBlock.length;
+    const blockStartPeriod = fromBlock[0].period;
 
     // 講師の候補数が15以上の場合は再計算しない
     const instrId = fromCur.instructorId;
@@ -422,31 +448,47 @@ export function DataManagementPage() {
       if (availSlots && availSlots.size >= 15) return new Map();
     }
 
+    // ブロック全体のエントリを除外した配列
+    const withoutFrom = entries.filter((e) => !fromBlock.some((b) => b.day === e.day && b.period === e.period));
+
     const targets = new Map<string, string>();
     for (let d = 0; d < DAYS_COUNT; d++) {
-      for (let p = 0; p < PERIODS_COUNT; p++) {
-        if (d === selectedSlot.day && p === selectedSlot.period) continue;
-        const toEntry = entries.find((e) => e.day === d && e.period === p);
+      for (let p = 0; p <= PERIODS_COUNT - blockSize; p++) {
+        // 自分自身のブロック位置ならスキップ
+        if (d === selectedSlot.day && p === blockStartPeriod) continue;
 
-        // 空欄 or 入れ替え可能な授業
-        if (!toEntry) {
-          // fromEntry をここに移動できるか
-          const err = canPlace(
-            entries.filter((e) => !(e.day === selectedSlot.day && e.period === selectedSlot.period)),
-            fromCur, d, p, departments, instructorAvail
-          );
+        // 移動先の blockSize スロットを確認
+        const targetSlotEntries: (PlacedEntry | undefined)[] = [];
+        let allEmptyOrSwappable = true;
+        for (let offset = 0; offset < blockSize; offset++) {
+          const existing = withoutFrom.find((e) => e.day === d && e.period === p + offset);
+          targetSlotEntries.push(existing);
+        }
+
+        // 移動先が全て空なら単純移動
+        const allEmpty = targetSlotEntries.every((e) => !e);
+        if (allEmpty) {
+          const err = canPlace(withoutFrom, fromCur, d, p, departments, instructorAvail);
           if (!err) targets.set(`${d}-${p}`, "");
-        } else {
-          // 双方向スワップ: fromをtoの位置に、toをfromの位置に置けるか
-          const toCur = curricula.find((c) => c.id === toEntry.curriculumId);
-          if (!toCur) continue;
-          const withoutBoth = entries.filter(
-            (e) => !(e.day === selectedSlot.day && e.period === selectedSlot.period) &&
-                   !(e.day === d && e.period === p)
-          );
-          const errFrom = canPlace(withoutBoth, fromCur, d, p, departments, instructorAvail);
-          const errTo = canPlace(withoutBoth, toCur, selectedSlot.day, selectedSlot.period, departments, instructorAvail);
-          if (!errFrom && !errTo) targets.set(`${d}-${p}`, "");
+          continue;
+        }
+
+        // 移動先が全て同一カリキュラムのブロックなら双方向スワップ
+        const occupiedEntries = targetSlotEntries.filter((e) => e != null);
+        if (occupiedEntries.length > 0) {
+          const targetCurId = occupiedEntries[0].curriculumId;
+          const targetBlock = findBlock(withoutFrom, d, p);
+          // スワップ可能条件: 移動先ブロックも同じサイズ (or 全スロットが同じカリキュラムで埋まっている)
+          if (targetBlock.length === blockSize && targetBlock[0].period === p &&
+              targetBlock.every((e) => e.curriculumId === targetCurId)) {
+            const toCur = curricula.find((c) => c.id === targetCurId);
+            if (toCur) {
+              const withoutBoth = withoutFrom.filter((e) => !targetBlock.some((b) => b.day === e.day && b.period === e.period));
+              const errFrom = canPlace(withoutBoth, fromCur, d, p, departments, instructorAvail);
+              const errTo = canPlace(withoutBoth, toCur, selectedSlot.day, blockStartPeriod, departments, instructorAvail);
+              if (!errFrom && !errTo) targets.set(`${d}-${p}`, "");
+            }
+          }
         }
       }
     }
@@ -464,43 +506,43 @@ export function DataManagementPage() {
     return colored;
   }, [selectedSlot, entries, curricula, departments, instructorAvail]);
 
-  // ─── D&D ドロップ先の有効スロットを計算 ──────────────────
+  // ─── D&D ドロップ先の有効スロットを計算 (ブロック単位) ──
   const dragTargets = useMemo((): Map<string, string> => {
     if (!draggingCurriculum) return new Map();
     const cur = curricula.find((c) => c.id === draggingCurriculum);
     if (!cur) return new Map();
-    const isPlaced = entries.some((e) => e.curriculumId === draggingCurriculum);
+
+    const blockSize = cur.periods || 1;
+    const fromEntries = entries.filter((e) => e.curriculumId === draggingCurriculum);
+    const isPlaced = fromEntries.length > 0;
+    const withoutFrom = entries.filter((e) => e.curriculumId !== draggingCurriculum);
+    const fromStartPeriod = isPlaced ? Math.min(...fromEntries.map((e) => e.period)) : -1;
+    const fromDay = isPlaced ? fromEntries[0].day : -1;
     const targets = new Map<string, string>();
 
     for (let d = 0; d < DAYS_COUNT; d++) {
-      for (let p = 0; p < PERIODS_COUNT; p++) {
-        const existing = entries.find((e) => e.day === d && e.period === p);
-        if (isPlaced) {
-          // 配置済みからの移動: 空欄 or 入れ替え可能
-          const fromEntry = entries.find((e) => e.curriculumId === draggingCurriculum);
-          if (!fromEntry) continue;
-          if (fromEntry.day === d && fromEntry.period === p) continue;
-          if (!existing) {
-            const err = canPlace(
-              entries.filter((e) => e.curriculumId !== draggingCurriculum),
-              cur, d, p, departments, instructorAvail
-            );
-            if (!err) targets.set(`${d}-${p}`, "");
-          } else {
-            const toCur = curricula.find((c) => c.id === existing.curriculumId);
-            if (!toCur || existing.curriculumId === draggingCurriculum) continue;
-            const withoutBoth = entries.filter(
-              (e) => e.curriculumId !== draggingCurriculum && !(e.day === d && e.period === p)
-            );
-            const errFrom = canPlace(withoutBoth, cur, d, p, departments, instructorAvail);
-            const errTo = canPlace(withoutBoth, toCur, fromEntry.day, fromEntry.period, departments, instructorAvail);
-            if (!errFrom && !errTo) targets.set(`${d}-${p}`, "");
-          }
-        } else {
-          // 未配置からの新規配置
-          if (!existing) {
-            const err = canPlace(entries, cur, d, p, departments, instructorAvail);
-            if (!err) targets.set(`${d}-${p}`, "");
+      for (let p = 0; p <= PERIODS_COUNT - blockSize; p++) {
+        if (isPlaced && d === fromDay && p === fromStartPeriod) continue;
+
+        // 移動先の blockSize スロットを確認
+        const allEmpty = Array.from({ length: blockSize }, (_, offset) =>
+          !withoutFrom.find((e) => e.day === d && e.period === p + offset)
+        ).every(Boolean);
+
+        if (allEmpty) {
+          const err = canPlace(withoutFrom, cur, d, p, departments, instructorAvail);
+          if (!err) targets.set(`${d}-${p}`, "");
+        } else if (isPlaced) {
+          // ブロック同士のスワップ: 移動先が同サイズブロックか確認
+          const targetBlock = findBlock(withoutFrom, d, p);
+          if (targetBlock.length === blockSize && targetBlock[0].period === p) {
+            const toCur = curricula.find((c) => c.id === targetBlock[0].curriculumId);
+            if (toCur && toCur.id !== draggingCurriculum) {
+              const withoutBoth = withoutFrom.filter((e) => !targetBlock.some((b) => b.day === e.day && b.period === e.period));
+              const errFrom = canPlace(withoutBoth, cur, d, p, departments, instructorAvail);
+              const errTo = canPlace(withoutBoth, toCur, fromDay, fromStartPeriod, departments, instructorAvail);
+              if (!errFrom && !errTo) targets.set(`${d}-${p}`, "");
+            }
           }
         }
       }
@@ -530,26 +572,42 @@ export function DataManagementPage() {
     const cur = curricula.find((c) => c.id === draggingCurriculum);
     if (!cur) return;
 
-    const isPlaced = entries.some((e) => e.curriculumId === draggingCurriculum);
-    const existing = entries.find((e) => e.day === day && e.period === period);
+    const blockSize = cur.periods || 1;
+    const fromEntries = entries.filter((e) => e.curriculumId === draggingCurriculum);
+    const isPlaced = fromEntries.length > 0;
 
     if (isPlaced) {
-      const fromEntry = entries.find((e) => e.curriculumId === draggingCurriculum);
-      if (!fromEntry || (fromEntry.day === day && fromEntry.period === period)) return;
-      if (existing) {
-        // 入れ替え
+      const fromStartPeriod = Math.min(...fromEntries.map((e) => e.period));
+      const fromDay = fromEntries[0].day;
+      if (fromDay === day && fromStartPeriod === period) return;
+
+      const withoutFrom = entries.filter((e) => e.curriculumId !== draggingCurriculum);
+      // 移動先にブロックがあるか確認
+      const targetBlock = findBlock(withoutFrom, day, period);
+
+      if (targetBlock.length === blockSize && targetBlock[0].period === period) {
+        // ブロック同士の入れ替え
+        const toCurId = targetBlock[0].curriculumId;
+        const periodDelta = period - fromStartPeriod;
+        const dayDelta = day - fromDay;
         setEntries((prev) => prev.map((e) => {
-          if (e.curriculumId === draggingCurriculum) return { ...e, day, period };
-          if (e.day === day && e.period === period) return { ...e, day: fromEntry.day, period: fromEntry.period };
+          if (e.curriculumId === draggingCurriculum) return { ...e, day: e.day + dayDelta, period: e.period + periodDelta };
+          if (e.curriculumId === toCurId && targetBlock.some((b) => b.day === e.day && b.period === e.period)) {
+            return { ...e, day: e.day - dayDelta, period: e.period - periodDelta };
+          }
           return e;
         }));
-        showMessage("入れ替えが完了しました");
+        showMessage("ブロック入れ替えが完了しました");
       } else {
-        // 移動
+        // ブロック移動 (空きスロットへ)
+        const periodDelta = period - fromStartPeriod;
+        const dayDelta = day - fromDay;
         setEntries((prev) => prev.map((e) =>
-          e.curriculumId === draggingCurriculum ? { ...e, day, period } : e
+          e.curriculumId === draggingCurriculum
+            ? { ...e, day: e.day + dayDelta, period: e.period + periodDelta }
+            : e
         ));
-        showMessage("移動しました");
+        showMessage("ブロック移動しました");
       }
     } else {
       // 新規配置
@@ -567,14 +625,46 @@ export function DataManagementPage() {
     if (tab !== "swap") return;
     if (selectedSlot) {
       if (selectedSlot.day === day && selectedSlot.period === period) { setSelectedSlot(null); return; }
-      const fromEntry = entries.find((e) => e.day === selectedSlot.day && e.period === selectedSlot.period);
-      if (fromEntry) {
-        setEntries((prev) => prev.map((e) => {
-          if (e.day === selectedSlot.day && e.period === selectedSlot.period) return { ...e, day, period };
-          if (e.day === day && e.period === period) return { ...e, day: selectedSlot.day, period: selectedSlot.period };
-          return e;
-        }));
-        showMessage("スワップが完了しました");
+      const fromBlock = findBlock(entries, selectedSlot.day, selectedSlot.period);
+      if (fromBlock.length > 0) {
+        const blockSize = fromBlock.length;
+        const fromStartPeriod = fromBlock[0].period;
+        const fromDay = selectedSlot.day;
+        const fromCurId = fromBlock[0].curriculumId;
+
+        // 移動先にブロックがあるか確認 (from を除外してから)
+        const withoutFrom = entries.filter((e) => !fromBlock.some((b) => b.day === e.day && b.period === e.period));
+        const targetBlock = findBlock(withoutFrom, day, period);
+
+        if (targetBlock.length === blockSize && targetBlock[0].period === period) {
+          // ブロック同士の入れ替え
+          const toCurId = targetBlock[0].curriculumId;
+          const periodDelta = period - fromStartPeriod;
+          const dayDelta = day - fromDay;
+          setEntries((prev) => prev.map((e) => {
+            if (e.curriculumId === fromCurId && fromBlock.some((b) => b.day === e.day && b.period === e.period)) {
+              return { ...e, day: e.day + dayDelta, period: e.period + periodDelta };
+            }
+            if (e.curriculumId === toCurId && targetBlock.some((b) => b.day === e.day && b.period === e.period)) {
+              return { ...e, day: e.day - dayDelta, period: e.period - periodDelta };
+            }
+            return e;
+          }));
+          showMessage("ブロック入れ替えが完了しました");
+        } else if (targetBlock.length === 0) {
+          // 空きスロットへのブロック移動
+          const periodDelta = period - fromStartPeriod;
+          const dayDelta = day - fromDay;
+          setEntries((prev) => prev.map((e) => {
+            if (e.curriculumId === fromCurId && fromBlock.some((b) => b.day === e.day && b.period === e.period)) {
+              return { ...e, day: e.day + dayDelta, period: e.period + periodDelta };
+            }
+            return e;
+          }));
+          showMessage("ブロック移動しました");
+        } else {
+          showMessage("異なるブロックサイズ同士の入れ替えはできません", "error");
+        }
       }
       setSelectedSlot(null);
     } else if (entries.find((e) => e.day === day && e.period === period)) {

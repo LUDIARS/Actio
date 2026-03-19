@@ -437,7 +437,7 @@ m1.put("/terms/:termId/placements", async (c) => {
   return c.json({ message: `${placements.length}件の配置を保存しました`, count: placements.length });
 });
 
-/** 配置データの個別スワップ */
+/** 配置データのブロックスワップ (連続コマ単位で移動) */
 m1.post("/terms/:termId/placements/swap", async (c) => {
   const { termId } = c.req.param();
   const { fromDay, fromPeriod, toDay, toPeriod } = await c.req.json<{
@@ -452,52 +452,82 @@ m1.post("/terms/:termId/placements/swap", async (c) => {
   const fromEntry = placements.find(
     (p) => p.day === fromDay && p.period === fromPeriod
   );
-  const toEntry = placements.find(
-    (p) => p.day === toDay && p.period === toPeriod
-  );
-
   if (!fromEntry) {
     return c.json({ error: "スワップ元にデータがありません" }, 400);
   }
 
-  // スワップ実行: from のデータを to に移動、to のデータを from に移動
+  // fromEntry と同じカリキュラム・同じ曜日の連続ブロックを取得
+  const fromBlock = placements
+    .filter((p) => p.day === fromDay && p.curriculumId === fromEntry.curriculumId)
+    .sort((a, b) => a.period - b.period);
+  // 連続性を確認して from のブロックを抽出
+  const fromIdx = fromBlock.findIndex((p) => p.period === fromPeriod);
+  let lo = fromIdx;
+  while (lo > 0 && fromBlock[lo - 1].period === fromBlock[lo].period - 1) lo--;
+  let hi = fromIdx;
+  while (hi < fromBlock.length - 1 && fromBlock[hi + 1].period === fromBlock[hi].period + 1) hi++;
+  const fromContiguous = fromBlock.slice(lo, hi + 1);
+  const blockSize = fromContiguous.length;
+  const fromStartPeriod = fromContiguous[0].period;
+
+  // 移動先ブロックを確認
+  const toEntry = placements.find(
+    (p) => p.day === toDay && p.period === toPeriod
+  );
+
+  const periodDelta = toPeriod - fromStartPeriod;
+  const dayDelta = toDay - fromDay;
+
   if (toEntry) {
-    // 双方向スワップ
-    await curriculumPlacementRepo.deleteById(fromEntry.id);
-    await curriculumPlacementRepo.deleteById(toEntry.id);
-    await curriculumPlacementRepo.create({
-      id: uuidv4(),
-      termId,
-      curriculumId: fromEntry.curriculumId,
-      day: toDay,
-      period: toPeriod,
-      roomId: fromEntry.roomId,
-      candidateCount: fromEntry.candidateCount,
-    });
-    await curriculumPlacementRepo.create({
-      id: uuidv4(),
-      termId,
-      curriculumId: toEntry.curriculumId,
-      day: fromDay,
-      period: fromPeriod,
-      roomId: toEntry.roomId,
-      candidateCount: toEntry.candidateCount,
-    });
+    // 移動先のブロックを取得
+    const toBlock = placements
+      .filter((p) => p.day === toDay && p.curriculumId === toEntry.curriculumId)
+      .sort((a, b) => a.period - b.period);
+    const toIdx = toBlock.findIndex((p) => p.period === toPeriod);
+    let tLo = toIdx;
+    while (tLo > 0 && toBlock[tLo - 1].period === toBlock[tLo].period - 1) tLo--;
+    let tHi = toIdx;
+    while (tHi < toBlock.length - 1 && toBlock[tHi + 1].period === toBlock[tHi].period + 1) tHi++;
+    const toContiguous = toBlock.slice(tLo, tHi + 1);
+
+    if (toContiguous.length !== blockSize) {
+      return c.json({ error: "異なるブロックサイズ同士の入れ替えはできません" }, 400);
+    }
+
+    // 双方向ブロックスワップ
+    for (const p of fromContiguous) await curriculumPlacementRepo.deleteById(p.id);
+    for (const p of toContiguous) await curriculumPlacementRepo.deleteById(p.id);
+
+    for (const p of fromContiguous) {
+      await curriculumPlacementRepo.create({
+        id: uuidv4(), termId,
+        curriculumId: p.curriculumId,
+        day: p.day + dayDelta, period: p.period + periodDelta,
+        roomId: p.roomId, candidateCount: p.candidateCount,
+      });
+    }
+    for (const p of toContiguous) {
+      await curriculumPlacementRepo.create({
+        id: uuidv4(), termId,
+        curriculumId: p.curriculumId,
+        day: p.day - dayDelta, period: p.period - periodDelta,
+        roomId: p.roomId, candidateCount: p.candidateCount,
+      });
+    }
   } else {
-    // 片方向移動 (from → to, to は空)
-    await curriculumPlacementRepo.deleteById(fromEntry.id);
-    await curriculumPlacementRepo.create({
-      id: uuidv4(),
-      termId,
-      curriculumId: fromEntry.curriculumId,
-      day: toDay,
-      period: toPeriod,
-      roomId: fromEntry.roomId,
-      candidateCount: fromEntry.candidateCount,
-    });
+    // 片方向ブロック移動
+    for (const p of fromContiguous) await curriculumPlacementRepo.deleteById(p.id);
+    for (const p of fromContiguous) {
+      await curriculumPlacementRepo.create({
+        id: uuidv4(), termId,
+        curriculumId: p.curriculumId,
+        day: p.day + dayDelta, period: p.period + periodDelta,
+        roomId: p.roomId, candidateCount: p.candidateCount,
+      });
+    }
   }
 
-  return c.json({ message: "スワップが完了しました" });
+  return c.json({ message: "ブロックスワップが完了しました" });
 });
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
