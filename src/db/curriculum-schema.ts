@@ -18,7 +18,7 @@
  * 時間割配置は M2 で実施
  */
 
-import { sqliteTable, text, integer, index } from "drizzle-orm/sqlite-core";
+import { sqliteTable, text, integer, index, unique } from "drizzle-orm/sqlite-core";
 
 // ─── 学科 (Departments) ──────────────────────────────────
 // トップレイヤの設定項目。カリキュラムは学科の下にぶら下がる。
@@ -62,10 +62,9 @@ export const curricula = sqliteTable(
     /** 担当講師ID (nullable: 未アサイン状態を許容) */
     instructorId: text("instructor_id")
       .references(() => instructors.id),
-    /** カリキュラム期間 開始日 (YYYY-MM-DD) — プランの期間指定と同じ */
-    validFrom: text("valid_from"),
-    /** カリキュラム期間 終了日 (YYYY-MM-DD) */
-    validUntil: text("valid_until"),
+    /** 所属タームID (nullable: 未設定を許容) */
+    termId: text("term_id")
+      .references(() => terms.id),
     createdAt: integer("created_at", { mode: "timestamp" })
       .$defaultFn(() => new Date())
       .notNull(),
@@ -93,6 +92,60 @@ export const curriculumDepartments = sqliteTable(
   (table) => [
     index("idx_cd_curriculum").on(table.curriculumId),
     index("idx_cd_department").on(table.departmentId),
+  ]
+);
+
+// ─── ターム (Terms) ──────────────────────────────────────
+// カリキュラムの期間区分。ターム単位で配置を管理・決定する。
+
+export const terms = sqliteTable(
+  "terms",
+  {
+    id: text("id").primaryKey(),
+    /** ターム名 (例: "前期", "2026年度前期") */
+    name: text("name").notNull(),
+    /** 開始日 (YYYY-MM-DD) */
+    startDate: text("start_date").notNull(),
+    /** 終了日 (YYYY-MM-DD) */
+    endDate: text("end_date").notNull(),
+    createdAt: integer("created_at", { mode: "timestamp" })
+      .$defaultFn(() => new Date())
+      .notNull(),
+  }
+);
+
+// ─── カリキュラム配置 (Curriculum Placements) ────────────
+// カリキュラムの時間割配置データ。ターム単位で管理。
+// 自動配置・手動配置の結果をDBに保存し、入れ替え調整後にプラン化する。
+
+export const curriculumPlacements = sqliteTable(
+  "curriculum_placements",
+  {
+    id: text("id").primaryKey(),
+    /** タームID */
+    termId: text("term_id")
+      .references(() => terms.id)
+      .notNull(),
+    /** カリキュラムID */
+    curriculumId: text("curriculum_id")
+      .references(() => curricula.id)
+      .notNull(),
+    /** 曜日 (0=月, 1=火, ..., 6=日) */
+    day: integer("day").notNull(),
+    /** コマ (0始まり) */
+    period: integer("period").notNull(),
+    /** 教室ID (nullable) */
+    roomId: text("room_id"),
+    /** 配置候補数 (自動配置時のスロット候補数) */
+    candidateCount: integer("candidate_count").notNull().default(0),
+    createdAt: integer("created_at", { mode: "timestamp" })
+      .$defaultFn(() => new Date())
+      .notNull(),
+  },
+  (table) => [
+    index("idx_placement_term").on(table.termId),
+    index("idx_placement_curriculum").on(table.curriculumId),
+    unique("unique_placement_slot").on(table.termId, table.day, table.period, table.roomId),
   ]
 );
 

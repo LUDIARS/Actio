@@ -1,5 +1,5 @@
-import { useState, useEffect, useCallback, useRef } from "react";
-import { TimetableGrid, type GridSlot } from "../components/TimetableGrid";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
+import type { GridSlot } from "../components/TimetableGrid";
 import {
   DAY_LABELS,
   DAYS_COUNT,
@@ -99,6 +99,28 @@ function canPlace(
   }
 
   return null;
+}
+
+/**
+ * 指定スロットが属するカリキュラムブロック（連続コマ）を取得する。
+ * 同じ day・同じ curriculumId で連続する全エントリを返す。
+ */
+function findBlock(entries: PlacedEntry[], day: number, period: number): PlacedEntry[] {
+  const entry = entries.find((e) => e.day === day && e.period === period);
+  if (!entry) return [];
+  const block = entries
+    .filter((e) => e.day === day && e.curriculumId === entry.curriculumId)
+    .sort((a, b) => a.period - b.period);
+  // 連続性チェック: period が途切れたら除外
+  const startIdx = block.findIndex((e) => e.period === period);
+  if (startIdx === -1) return [entry];
+  // 前方探索
+  let lo = startIdx;
+  while (lo > 0 && block[lo - 1].period === block[lo].period - 1) lo--;
+  // 後方探索
+  let hi = startIdx;
+  while (hi < block.length - 1 && block[hi + 1].period === block[hi].period + 1) hi++;
+  return block.slice(lo, hi + 1);
 }
 
 function placeOne(
@@ -251,14 +273,15 @@ export function DataManagementPage() {
   const [selectedSlot, setSelectedSlot] = useState<{ day: number; period: number } | null>(null);
   const [confirmed, setConfirmed] = useState(false);
 
-  const [selectedCurriculum, setSelectedCurriculum] = useState("");
-  const [manualDay, setManualDay] = useState(0);
-  const [manualPeriod, setManualPeriod] = useState(0);
-
   const [message, setMessage] = useState("");
   const [messageType, setMessageType] = useState<"success" | "error">("success");
-  const [tab, setTab] = useState<"manual" | "overview" | "auto" | "dbview">("manual");
-  const [filterDept, setFilterDept] = useState("");
+  const [tab, setTab] = useState<"list" | "swap" | "auto" | "decide">("list");
+
+  // ターム管理
+  interface Term { id: string; name: string; startDate: string; endDate: string; }
+  const [terms, setTerms] = useState<Term[]>([]);
+  const [selectedTermId, setSelectedTermId] = useState("");
+  const [saving, setSaving] = useState(false);
 
   // Strategy
   const [strategy, setStrategy] = useState<PlacementStrategy>("spread");
@@ -280,6 +303,10 @@ export function DataManagementPage() {
 
   const [disassembleDept, setDisassembleDept] = useState("");
 
+  // D&D state
+  const [draggingCurriculum, setDraggingCurriculum] = useState<string | null>(null);
+  const [dragOverSlot, setDragOverSlot] = useState<{ day: number; period: number } | null>(null);
+
   const showMessage = (msg: string, type: "success" | "error" = "success") => {
     setMessage(msg);
     setMessageType(type);
@@ -288,17 +315,20 @@ export function DataManagementPage() {
 
   const fetchMasterData = useCallback(async () => {
     try {
-      const [deptData, instData, currData] = await Promise.all([
+      const [deptData, instData, currData, termData] = await Promise.all([
         m1Schema.getDepartments(),
         m1Schema.getInstructors(),
         m1Schema.getCurricula(),
+        m1Schema.getTerms(),
       ]);
       const depts = deptData.departments || [];
       const insts = instData.instructors || [];
       const currs = currData.curricula || [];
+      const loadedTerms = termData.terms || [];
       setDepartments(depts);
       setInstructors(insts);
       setCurricula(currs);
+      setTerms(loadedTerms);
 
       const availMap: InstructorAvailMap = new Map();
       const instructorIds = [...new Set(
@@ -322,29 +352,73 @@ export function DataManagementPage() {
         availMap.set(instrId, slotKeys);
       }
       setInstructorAvail(availMap);
-    } catch (e: any) {
-      showMessage(`データ取得エラー: ${e.message}`, "error");
+    } catch (e: unknown) {
+      showMessage(`データ取得エラー: ${(e as Error).message}`, "error");
     }
   }, []);
 
   useEffect(() => { fetchMasterData(); }, [fetchMasterData]);
 
+  // ターム選択時に配置データをロード
+  const loadPlacementsFromDb = useCallback(async (termId: string) => {
+    if (!termId) { setEntries([]); return; }
+    try {
+      const data = await m1Schema.getPlacements(termId);
+      const placements = data.placements || [];
+      const newEntries: PlacedEntry[] = [];
+      for (const p of placements) {
+        const cur = curricula.find((c) => c.id === p.curriculumId);
+        if (!cur) continue;
+        const deptIds = (cur.departmentIds && cur.departmentIds.length > 0) ? cur.departmentIds : [cur.departmentId];
+        const deptNames = deptIds.map((id: string) => departments.find((d) => d.id === id)?.name || "-").join(", ");
+        const instName = cur.instructorId ? (instructors.find((i) => i.id === cur.instructorId)?.name || "-") : "未アサイン";
+        newEntries.push({
+          day: p.day,
+          period: p.period,
+          curriculumId: p.curriculumId,
+          curriculumName: cur.name,
+          instructorId: cur.instructorId || "",
+          instructorName: instName,
+          departmentIds: deptIds,
+          departmentNames: deptNames,
+          periods: cur.periods || 1,
+        });
+      }
+      setEntries(newEntries);
+      setConfirmed(false);
+    } catch (e: unknown) {
+      showMessage(`配置データ取得エラー: ${(e as Error).message}`, "error");
+    }
+  }, [curricula, departments, instructors]);
+
+  useEffect(() => {
+    if (selectedTermId && curricula.length > 0) {
+      loadPlacementsFromDb(selectedTermId);
+    }
+  }, [selectedTermId, loadPlacementsFromDb, curricula.length]);
+
+  // 配置データをDBに保存
+  const savePlacementsToDb = async () => {
+    if (!selectedTermId) { showMessage("タームを選択してください", "error"); return; }
+    setSaving(true);
+    try {
+      const placements = entries.map((e) => ({
+        curriculumId: e.curriculumId,
+        day: e.day,
+        period: e.period,
+      }));
+      const result = await m1Schema.savePlacements(selectedTermId, placements);
+      showMessage(result.message);
+    } catch (e: unknown) {
+      showMessage(`保存エラー: ${(e as Error).message}`, "error");
+    }
+    setSaving(false);
+  };
+
   const getDeptName = (id: string) => departments.find((d) => d.id === id)?.name || "-";
   const getInstName = (id: string | null) => {
     if (!id) return "未アサイン";
     return instructors.find((i) => i.id === id)?.name || "-";
-  };
-
-  const handlePlace = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedCurriculum) { showMessage("科目を選択してください", "error"); return; }
-    const curriculum = curricula.find((c) => c.id === selectedCurriculum);
-    if (!curriculum) return;
-    const err = canPlace(entries, curriculum, manualDay, manualPeriod, departments, instructorAvail);
-    if (err) { showMessage(err, "error"); return; }
-    const newEntries = placeOne(curriculum, manualDay, manualPeriod, departments, instructors);
-    setEntries((prev) => [...prev, ...newEntries]);
-    showMessage(`「${curriculum.name}」を ${DAY_LABELS[manualDay]} ${manualPeriod + 1}限に配置しました`);
   };
 
   const handleRemoveEntry = (curriculumId: string) => {
@@ -353,19 +427,243 @@ export function DataManagementPage() {
     if (entry) showMessage(`「${entry.curriculumName}」を削除しました`);
   };
 
-  const handleSlotClick = (day: number, period: number) => {
-    if (tab === "manual") { setManualDay(day); setManualPeriod(period); return; }
-    if (tab !== "overview") return;
-    if (selectedSlot) {
-      if (selectedSlot.day === day && selectedSlot.period === period) { setSelectedSlot(null); return; }
-      const fromEntry = entries.find((e) => e.day === selectedSlot.day && e.period === selectedSlot.period);
-      if (fromEntry) {
+  // ─── スワップ対象の判定 ──────────────────────────────────
+  // 選択コマの入れ替え可能先を算出し、候補数に基づく色を返す
+  // ブロック（連続コマ）単位で移動先を計算する
+  const getSwapTargets = useCallback((): Map<string, string> => {
+    if (!selectedSlot) return new Map();
+    const fromBlock = findBlock(entries, selectedSlot.day, selectedSlot.period);
+    if (fromBlock.length === 0) return new Map();
+
+    const fromCur = curricula.find((c) => c.id === fromBlock[0].curriculumId);
+    if (!fromCur) return new Map();
+
+    const blockSize = fromBlock.length;
+    const blockStartPeriod = fromBlock[0].period;
+
+    // 講師の候補数が15以上の場合は再計算しない
+    const instrId = fromCur.instructorId;
+    if (instrId) {
+      const availSlots = instructorAvail.get(instrId);
+      if (availSlots && availSlots.size >= 15) return new Map();
+    }
+
+    // ブロック全体のエントリを除外した配列
+    const withoutFrom = entries.filter((e) => !fromBlock.some((b) => b.day === e.day && b.period === e.period));
+
+    const targets = new Map<string, string>();
+    for (let d = 0; d < DAYS_COUNT; d++) {
+      for (let p = 0; p <= PERIODS_COUNT - blockSize; p++) {
+        // 自分自身のブロック位置ならスキップ
+        if (d === selectedSlot.day && p === blockStartPeriod) continue;
+
+        // 移動先の blockSize スロットを確認
+        const targetSlotEntries: (PlacedEntry | undefined)[] = [];
+        for (let offset = 0; offset < blockSize; offset++) {
+          const existing = withoutFrom.find((e) => e.day === d && e.period === p + offset);
+          targetSlotEntries.push(existing);
+        }
+
+        // 移動先が全て空なら単純移動
+        const allEmpty = targetSlotEntries.every((e) => !e);
+        if (allEmpty) {
+          const err = canPlace(withoutFrom, fromCur, d, p, departments, instructorAvail);
+          if (!err) targets.set(`${d}-${p}`, "");
+          continue;
+        }
+
+        // 移動先が全て同一カリキュラムのブロックなら双方向スワップ
+        const occupiedEntries = targetSlotEntries.filter((e) => e != null);
+        if (occupiedEntries.length > 0) {
+          const targetCurId = occupiedEntries[0].curriculumId;
+          const targetBlock = findBlock(withoutFrom, d, p);
+          // スワップ可能条件: 移動先ブロックも同じサイズ (or 全スロットが同じカリキュラムで埋まっている)
+          if (targetBlock.length === blockSize && targetBlock[0].period === p &&
+              targetBlock.every((e) => e.curriculumId === targetCurId)) {
+            const toCur = curricula.find((c) => c.id === targetCurId);
+            if (toCur) {
+              const withoutBoth = withoutFrom.filter((e) => !targetBlock.some((b) => b.day === e.day && b.period === e.period));
+              const errFrom = canPlace(withoutBoth, fromCur, d, p, departments, instructorAvail);
+              const errTo = canPlace(withoutBoth, toCur, selectedSlot.day, blockStartPeriod, departments, instructorAvail);
+              if (!errFrom && !errTo) targets.set(`${d}-${p}`, "");
+            }
+          }
+        }
+      }
+    }
+
+    // 候補数に応じた色: <=3=灰, >=7=オレンジ, >=15=緑
+    const count = targets.size;
+    let color = "#6E7681"; // 灰色 (3以下)
+    if (count >= 15) color = "#3FB950"; // 緑
+    else if (count >= 7) color = "#D29922"; // オレンジ
+
+    const colored = new Map<string, string>();
+    for (const key of targets.keys()) {
+      colored.set(key, color);
+    }
+    return colored;
+  }, [selectedSlot, entries, curricula, departments, instructorAvail]);
+
+  // ─── D&D ドロップ先の有効スロットを計算 (ブロック単位) ──
+  const dragTargets = useMemo((): Map<string, string> => {
+    if (!draggingCurriculum) return new Map();
+    const cur = curricula.find((c) => c.id === draggingCurriculum);
+    if (!cur) return new Map();
+
+    const blockSize = cur.periods || 1;
+    const fromEntries = entries.filter((e) => e.curriculumId === draggingCurriculum);
+    const isPlaced = fromEntries.length > 0;
+    const withoutFrom = entries.filter((e) => e.curriculumId !== draggingCurriculum);
+    const fromStartPeriod = isPlaced ? Math.min(...fromEntries.map((e) => e.period)) : -1;
+    const fromDay = isPlaced ? fromEntries[0].day : -1;
+    const targets = new Map<string, string>();
+
+    for (let d = 0; d < DAYS_COUNT; d++) {
+      for (let p = 0; p <= PERIODS_COUNT - blockSize; p++) {
+        if (isPlaced && d === fromDay && p === fromStartPeriod) continue;
+
+        // 移動先の blockSize スロットを確認
+        const allEmpty = Array.from({ length: blockSize }, (_, offset) =>
+          !withoutFrom.find((e) => e.day === d && e.period === p + offset)
+        ).every(Boolean);
+
+        if (allEmpty) {
+          const err = canPlace(withoutFrom, cur, d, p, departments, instructorAvail);
+          if (!err) targets.set(`${d}-${p}`, "");
+        } else if (isPlaced) {
+          // ブロック同士のスワップ: 移動先が同サイズブロックか確認
+          const targetBlock = findBlock(withoutFrom, d, p);
+          if (targetBlock.length === blockSize && targetBlock[0].period === p) {
+            const toCur = curricula.find((c) => c.id === targetBlock[0].curriculumId);
+            if (toCur && toCur.id !== draggingCurriculum) {
+              const withoutBoth = withoutFrom.filter((e) => !targetBlock.some((b) => b.day === e.day && b.period === e.period));
+              const errFrom = canPlace(withoutBoth, cur, d, p, departments, instructorAvail);
+              const errTo = canPlace(withoutBoth, toCur, fromDay, fromStartPeriod, departments, instructorAvail);
+              if (!errFrom && !errTo) targets.set(`${d}-${p}`, "");
+            }
+          }
+        }
+      }
+    }
+
+    const count = targets.size;
+    let color = "#6E7681";
+    if (count >= 15) color = "#3FB950";
+    else if (count >= 7) color = "#D29922";
+    const colored = new Map<string, string>();
+    for (const key of targets.keys()) colored.set(key, color);
+    return colored;
+  }, [draggingCurriculum, entries, curricula, departments, instructorAvail]);
+
+  // ─── D&D ハンドラ ──────────────────────────────────────────
+  const handleDragStart = (curriculumId: string) => {
+    setDraggingCurriculum(curriculumId);
+  };
+
+  const handleDragEnd = () => {
+    setDraggingCurriculum(null);
+    setDragOverSlot(null);
+  };
+
+  const handleSlotDrop = (day: number, period: number) => {
+    if (!draggingCurriculum) return;
+    const cur = curricula.find((c) => c.id === draggingCurriculum);
+    if (!cur) return;
+
+    const blockSize = cur.periods || 1;
+    const fromEntries = entries.filter((e) => e.curriculumId === draggingCurriculum);
+    const isPlaced = fromEntries.length > 0;
+
+    if (isPlaced) {
+      const fromStartPeriod = Math.min(...fromEntries.map((e) => e.period));
+      const fromDay = fromEntries[0].day;
+      if (fromDay === day && fromStartPeriod === period) return;
+
+      const withoutFrom = entries.filter((e) => e.curriculumId !== draggingCurriculum);
+      // 移動先にブロックがあるか確認
+      const targetBlock = findBlock(withoutFrom, day, period);
+
+      if (targetBlock.length === blockSize && targetBlock[0].period === period) {
+        // ブロック同士の入れ替え
+        const toCurId = targetBlock[0].curriculumId;
+        const periodDelta = period - fromStartPeriod;
+        const dayDelta = day - fromDay;
         setEntries((prev) => prev.map((e) => {
-          if (e.day === selectedSlot.day && e.period === selectedSlot.period) return { ...e, day, period };
-          if (e.day === day && e.period === period) return { ...e, day: selectedSlot.day, period: selectedSlot.period };
+          if (e.curriculumId === draggingCurriculum) return { ...e, day: e.day + dayDelta, period: e.period + periodDelta };
+          if (e.curriculumId === toCurId && targetBlock.some((b) => b.day === e.day && b.period === e.period)) {
+            return { ...e, day: e.day - dayDelta, period: e.period - periodDelta };
+          }
           return e;
         }));
-        showMessage("スワップが完了しました");
+        showMessage("ブロック入れ替えが完了しました");
+      } else {
+        // ブロック移動 (空きスロットへ)
+        const periodDelta = period - fromStartPeriod;
+        const dayDelta = day - fromDay;
+        setEntries((prev) => prev.map((e) =>
+          e.curriculumId === draggingCurriculum
+            ? { ...e, day: e.day + dayDelta, period: e.period + periodDelta }
+            : e
+        ));
+        showMessage("ブロック移動しました");
+      }
+    } else {
+      // 新規配置
+      const err = canPlace(entries, cur, day, period, departments, instructorAvail);
+      if (err) { showMessage(err, "error"); return; }
+      const newEntries = placeOne(cur, day, period, departments, instructors);
+      setEntries((prev) => [...prev, ...newEntries]);
+      showMessage(`「${cur.name}」を配置しました`);
+    }
+    setDraggingCurriculum(null);
+    setDragOverSlot(null);
+  };
+
+  const handleSlotClick = (day: number, period: number) => {
+    if (tab !== "swap") return;
+    if (selectedSlot) {
+      if (selectedSlot.day === day && selectedSlot.period === period) { setSelectedSlot(null); return; }
+      const fromBlock = findBlock(entries, selectedSlot.day, selectedSlot.period);
+      if (fromBlock.length > 0) {
+        const blockSize = fromBlock.length;
+        const fromStartPeriod = fromBlock[0].period;
+        const fromDay = selectedSlot.day;
+        const fromCurId = fromBlock[0].curriculumId;
+
+        // 移動先にブロックがあるか確認 (from を除外してから)
+        const withoutFrom = entries.filter((e) => !fromBlock.some((b) => b.day === e.day && b.period === e.period));
+        const targetBlock = findBlock(withoutFrom, day, period);
+
+        if (targetBlock.length === blockSize && targetBlock[0].period === period) {
+          // ブロック同士の入れ替え
+          const toCurId = targetBlock[0].curriculumId;
+          const periodDelta = period - fromStartPeriod;
+          const dayDelta = day - fromDay;
+          setEntries((prev) => prev.map((e) => {
+            if (e.curriculumId === fromCurId && fromBlock.some((b) => b.day === e.day && b.period === e.period)) {
+              return { ...e, day: e.day + dayDelta, period: e.period + periodDelta };
+            }
+            if (e.curriculumId === toCurId && targetBlock.some((b) => b.day === e.day && b.period === e.period)) {
+              return { ...e, day: e.day - dayDelta, period: e.period - periodDelta };
+            }
+            return e;
+          }));
+          showMessage("ブロック入れ替えが完了しました");
+        } else if (targetBlock.length === 0) {
+          // 空きスロットへのブロック移動
+          const periodDelta = period - fromStartPeriod;
+          const dayDelta = day - fromDay;
+          setEntries((prev) => prev.map((e) => {
+            if (e.curriculumId === fromCurId && fromBlock.some((b) => b.day === e.day && b.period === e.period)) {
+              return { ...e, day: e.day + dayDelta, period: e.period + periodDelta };
+            }
+            return e;
+          }));
+          showMessage("ブロック移動しました");
+        } else {
+          showMessage("異なるブロックサイズ同士の入れ替えはできません", "error");
+        }
       }
       setSelectedSlot(null);
     } else if (entries.find((e) => e.day === day && e.period === period)) {
@@ -373,15 +671,7 @@ export function DataManagementPage() {
     }
   };
 
-  const filteredCurricula = filterDept
-    ? curricula.filter((c) => {
-        const deptIds = c.departmentIds && c.departmentIds.length > 0 ? c.departmentIds : [c.departmentId];
-        return deptIds.includes(filterDept);
-      })
-    : curricula;
-
   const placedIds = new Set(entries.map((e) => e.curriculumId));
-  const unplacedCurricula = filteredCurricula.filter((c) => !placedIds.has(c.id));
 
   // ─── バラし再構築 ──────────────────────────────────────────
   const handleDisassemble = () => {
@@ -471,14 +761,22 @@ export function DataManagementPage() {
       const result = await m1Schema.confirmPlacements(placements, termLabel || undefined);
       setConfirmed(true);
       showMessage(result.message);
-    } catch (e: any) {
-      showMessage(`確定エラー: ${e.message}`, "error");
+    } catch (e: unknown) {
+      showMessage(`確定エラー: ${(e as Error).message}`, "error");
     } finally {
       setConfirming(false);
     }
   };
 
   // ─── Grid ──────────────────────────────────────────────────
+
+  const swapTargets = useMemo(
+    () => tab === "swap" && !draggingCurriculum ? getSwapTargets() : new Map<string, string>(),
+    [tab, getSwapTargets, draggingCurriculum]
+  );
+
+  // D&D or click-based targets
+  const activeHighlights = draggingCurriculum ? dragTargets : swapTargets;
 
   const buildSlots = useCallback((): GridSlot[][] => {
     const grid: GridSlot[][] = Array.from({ length: DAYS_COUNT }, () =>
@@ -495,22 +793,36 @@ export function DataManagementPage() {
     for (const entry of entries) {
       const primaryDept = entry.departmentIds[0];
       const color = deptColorMap.get(primaryDept) || undefined;
+      const isSelected = selectedSlot?.day === entry.day && selectedSlot?.period === entry.period;
+      const hlColor = activeHighlights.get(`${entry.day}-${entry.period}`);
+      const isDragOver = dragOverSlot?.day === entry.day && dragOverSlot?.period === entry.period;
       grid[entry.day][entry.period] = {
         label: entry.curriculumName,
         sublabel: entry.instructorName,
         status: "class",
-        color:
-          selectedSlot?.day === entry.day && selectedSlot?.period === entry.period
-            ? "var(--accent)"
-            : color ? `${color}33` : undefined,
+        color: isSelected ? "var(--accent)" : isDragOver ? "var(--accent)" : color ? `${color}33` : undefined,
+        highlightColor: hlColor || undefined,
       };
     }
 
-    return grid;
-  }, [entries, selectedSlot, departments]);
+    // 空スロットのハイライト (D&D or click swap)
+    if (tab === "swap") {
+      for (const [key, hlColor] of activeHighlights) {
+        const [d, p] = key.split("-").map(Number);
+        if (!grid[d][p].label) {
+          grid[d][p] = {
+            ...grid[d][p],
+            highlightColor: hlColor,
+          };
+        }
+      }
+    }
 
-  const totalUnplacedPeriods = unplacedCurricula.reduce((sum, c) => sum + (c.periods || 1), 0);
+    return grid;
+  }, [entries, selectedSlot, departments, activeHighlights, tab, dragOverSlot]);
+
   const allUnplaced = curricula.filter((c) => !placedIds.has(c.id));
+  const totalUnplacedPeriods = allUnplaced.reduce((sum, c) => sum + (c.periods || 1), 0);
 
   return (
     <div>
@@ -532,13 +844,36 @@ export function DataManagementPage() {
         </div>
       )}
 
+      {/* ターム選択 */}
+      <div className="card" style={{ marginBottom: "1rem" }}>
+        <div style={{ display: "flex", gap: "0.75rem", alignItems: "flex-end", flexWrap: "wrap" }}>
+          <div className="form-group" style={{ minWidth: 250 }}>
+            <label>ターム</label>
+            <select value={selectedTermId} onChange={(e) => setSelectedTermId(e.target.value)}>
+              <option value="">選択してください</option>
+              {terms.map((t) => <option key={t.id} value={t.id}>{t.name} ({t.startDate}~{t.endDate})</option>)}
+            </select>
+          </div>
+          {selectedTermId && entries.length > 0 && (
+            <button className="primary" onClick={savePlacementsToDb} disabled={saving} style={{ marginBottom: "1rem", fontSize: "0.8rem" }}>
+              {saving ? "保存中..." : "配置を保存"}
+            </button>
+          )}
+          {terms.length === 0 && (
+            <span style={{ fontSize: "0.75rem", color: "var(--text-muted)", marginBottom: "1rem" }}>
+              <a href="/schema-management" style={{ color: "var(--accent)" }}>スキーマ管理</a>でタームを作成してください
+            </span>
+          )}
+        </div>
+      </div>
+
       {/* Tab switcher */}
       <div style={{ display: "flex", gap: "0.25rem", borderBottom: "1px solid var(--border)", marginBottom: "1.5rem" }}>
         {([
-          { key: "manual" as const, label: "配置" },
-          { key: "overview" as const, label: "一覧・スワップ" },
-          { key: "auto" as const, label: "自動配置" },
-          { key: "dbview" as const, label: "DB管理" },
+          { key: "list" as const, label: "一覧" },
+          { key: "swap" as const, label: "配置・入れ替え" },
+          { key: "auto" as const, label: "一括配置" },
+          { key: "decide" as const, label: "プラン決定" },
         ]).map((t) => (
           <button
             key={t.key}
@@ -555,8 +890,8 @@ export function DataManagementPage() {
         ))}
       </div>
 
-      {/* 配置タブ */}
-      {tab === "manual" && (
+      {/* 一覧タブ */}
+      {tab === "list" && (
         <div>
           <div style={{ display: "flex", gap: "0.75rem", marginBottom: "1rem", fontSize: "0.8rem", flexWrap: "wrap" }}>
             <span className="badge blue">学科: {departments.length}</span>
@@ -566,52 +901,11 @@ export function DataManagementPage() {
             <span className="badge red">未配置: {allUnplaced.length} ({totalUnplacedPeriods}コマ)</span>
           </div>
 
-          <div className="card" style={{ marginBottom: "1rem" }}>
-            <h3 style={{ fontSize: "0.85rem", marginBottom: "0.75rem", color: "var(--text-muted)" }}>科目をグリッドに配置</h3>
-            <form onSubmit={handlePlace}>
-              <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap", alignItems: "flex-end" }}>
-                <div className="form-group" style={{ flex: 1, minWidth: 140 }}>
-                  <label>学科フィルタ</label>
-                  <select value={filterDept} onChange={(e) => setFilterDept(e.target.value)}>
-                    <option value="">全学科</option>
-                    {departments.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
-                  </select>
-                </div>
-                <div className="form-group" style={{ flex: 2, minWidth: 200 }}>
-                  <label>科目 (未配置: {unplacedCurricula.length}件)</label>
-                  <select value={selectedCurriculum} onChange={(e) => setSelectedCurriculum(e.target.value)} required>
-                    <option value="">選択してください</option>
-                    {unplacedCurricula.map((c) => {
-                      const deptNames = (c.departmentIds && c.departmentIds.length > 0) ? c.departmentIds.map((id) => getDeptName(id)).join(",") : getDeptName(c.departmentId);
-                      return <option key={c.id} value={c.id}>{c.name} [{deptNames}] {getInstName(c.instructorId)} ({c.periods || 1}コマ)</option>;
-                    })}
-                  </select>
-                </div>
-                <div className="form-group" style={{ flex: 0, minWidth: 80 }}>
-                  <label>曜日</label>
-                  <select value={manualDay} onChange={(e) => setManualDay(parseInt(e.target.value))}>
-                    {DAY_LABELS.map((d, i) => <option key={i} value={i}>{d}</option>)}
-                  </select>
-                </div>
-                <div className="form-group" style={{ flex: 0, minWidth: 100 }}>
-                  <label>時限</label>
-                  <select value={manualPeriod} onChange={(e) => setManualPeriod(parseInt(e.target.value))}>
-                    {Array.from({ length: PERIODS_COUNT }, (_, i) => <option key={i} value={i}>{getPeriodLabel(i)}</option>)}
-                  </select>
-                </div>
-                <button type="submit" className="primary" style={{ marginBottom: "1rem" }}>配置</button>
-              </div>
-            </form>
-            <p style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>
-              グリッドのセルをクリックすると曜日・時限が自動設定されます。講師の出講可能スロット外には配置できません。
-            </p>
-          </div>
-
           {entries.length > 0 && (
             <div className="card" style={{ marginBottom: "1rem" }}>
               <h3 style={{ fontSize: "0.85rem", marginBottom: "0.75rem", color: "var(--text-muted)" }}>配置済み ({placedIds.size}件)</h3>
               <table className="table">
-                <thead><tr><th>科目</th><th>学科</th><th>講師</th><th>曜日</th><th>時限</th><th>コマ</th><th></th></tr></thead>
+                <thead><tr><th>科目</th><th>学科</th><th>講師</th><th>曜日</th><th>時限</th><th>コマ</th></tr></thead>
                 <tbody>
                   {Array.from(new Set(entries.map((e) => e.curriculumId))).map((curId) => {
                     const group = entries.filter((e) => e.curriculumId === curId);
@@ -625,7 +919,6 @@ export function DataManagementPage() {
                         <td>{DAY_LABELS[first.day]}</td>
                         <td>{periods.map((p) => `${p + 1}限`).join("-")}</td>
                         <td style={{ textAlign: "center" }}>{first.periods}</td>
-                        <td><button className="danger" style={{ padding: "0.2rem 0.5rem", fontSize: "0.75rem" }} onClick={() => handleRemoveEntry(curId)}>削除</button></td>
                       </tr>
                     );
                   })}
@@ -636,23 +929,32 @@ export function DataManagementPage() {
         </div>
       )}
 
-      {/* 一覧・スワップタブ */}
-      {tab === "overview" && (
+      {/* 配置・入れ替えタブ */}
+      {tab === "swap" && (
         <div>
           {selectedSlot && (
             <div style={{ marginBottom: "0.5rem", fontSize: "0.8rem", color: "var(--orange)" }}>
               入れ替え先を選択してください（{DAY_LABELS[selectedSlot.day]} {selectedSlot.period + 1}限）
+              {swapTargets.size > 0 && (
+                <span style={{ marginLeft: "0.5rem" }}>
+                  — 候補 {swapTargets.size}箇所
+                  {swapTargets.size <= 3 && <span style={{ color: "#6E7681" }}> (少)</span>}
+                  {swapTargets.size >= 7 && swapTargets.size < 15 && <span style={{ color: "#D29922" }}> (中)</span>}
+                  {swapTargets.size >= 15 && <span style={{ color: "#3FB950" }}> (多)</span>}
+                </span>
+              )}
             </div>
           )}
-          {entries.length === 0 && (
-            <div className="card" style={{ marginBottom: "1rem" }}>
-              <p style={{ fontSize: "0.85rem", color: "var(--text-muted)" }}>まだ配置されていません。「配置」タブから科目を配置してください。</p>
-            </div>
-          )}
+          <div className="card" style={{ marginBottom: "1rem" }}>
+            <p style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>
+              科目カードをドラッグしてグリッドに配置できます。配置済みの科目同士はドラッグで入れ替え可能です。
+              候補色: <span style={{ color: "#6E7681" }}>灰色(3以下)</span> / <span style={{ color: "#D29922" }}>オレンジ(7以上)</span> / <span style={{ color: "#3FB950" }}>緑(15以上)</span>
+            </p>
+          </div>
         </div>
       )}
 
-      {/* 自動配置タブ */}
+      {/* 一括配置タブ */}
       {tab === "auto" && (
         <div>
           <div style={{ display: "flex", gap: "0.75rem", marginBottom: "1rem", fontSize: "0.8rem", flexWrap: "wrap", alignItems: "center" }}>
@@ -765,12 +1067,64 @@ export function DataManagementPage() {
             </div>
           </div>
 
-          {/* 配置確定 */}
+          {/* 全クリア */}
+          <div className="card">
+            <button
+              className="danger"
+              onClick={() => {
+                if (confirm("全ての配置をクリアしますか？")) {
+                  setEntries([]);
+                  setConfirmed(false);
+                  showMessage("全配置をクリアしました");
+                }
+              }}
+              disabled={entries.length === 0 || retrying}
+              style={{ fontSize: "0.8rem" }}
+            >
+              全配置をクリア
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* プラン決定タブ */}
+      {tab === "decide" && (
+        <div>
+          {/* カリキュラム決定 */}
           <div className="card" style={{ marginBottom: "1rem" }}>
-            <h3 style={{ fontSize: "0.85rem", marginBottom: "0.5rem", color: "var(--text-muted)" }}>配置の確定</h3>
+            <h3 style={{ fontSize: "0.85rem", marginBottom: "0.5rem", color: "var(--text-muted)" }}>カリキュラム決定</h3>
+            <p style={{ fontSize: "0.75rem", color: "var(--text-muted)", marginBottom: "0.75rem" }}>
+              選択中のタームの配置データをプランに変換します。「カリキュラム&#123;ターム名&#125;」のラベルでプランを作成します。
+              再実行すると同じラベルのプランを削除してから再作成します。各学科ごとにプランが作成されます。
+            </p>
+            <button
+              className="primary"
+              onClick={async () => {
+                if (!selectedTermId) { showMessage("タームを選択してください", "error"); return; }
+                if (entries.length === 0) { showMessage("配置データがありません", "error"); return; }
+                // まず配置を保存
+                await savePlacementsToDb();
+                setConfirming(true);
+                try {
+                  const result = await m1Schema.decideTerm(selectedTermId);
+                  showMessage(result.message);
+                } catch (e: unknown) {
+                  showMessage(`決定エラー: ${(e as Error).message}`, "error");
+                }
+                setConfirming(false);
+              }}
+              disabled={!selectedTermId || entries.length === 0 || confirming}
+            >
+              {confirming ? "処理中..." : `カリキュラム決定 (${placedIds.size}件)`}
+            </button>
+          </div>
+
+          {/* 配置確定 (グループスケジュール登録) */}
+          <div className="card" style={{ marginBottom: "1rem" }}>
+            <h3 style={{ fontSize: "0.85rem", marginBottom: "0.5rem", color: "var(--text-muted)" }}>グループスケジュール登録</h3>
             <p style={{ fontSize: "0.75rem", color: "var(--text-muted)", marginBottom: "0.75rem" }}>
               配置をグループスケジュールとして登録します。学科名と同じグループが自動作成されます。
-              ラベルを指定すると、同じラベルの既存データを削除してから登録します（多重登録防止）。
+              ラベルを指定すると、同じラベルの既存データを削除してから登録します。
             </p>
             <div style={{ display: "flex", gap: "0.75rem", alignItems: "flex-end", flexWrap: "wrap" }}>
               <div className="form-group" style={{ minWidth: 200 }}>
@@ -793,35 +1147,196 @@ export function DataManagementPage() {
             </div>
           </div>
 
-          {/* 全クリア */}
-          <div className="card">
-            <button
-              className="danger"
-              onClick={() => {
-                if (confirm("全ての配置をクリアしますか？")) {
-                  setEntries([]);
-                  setConfirmed(false);
-                  showMessage("全配置をクリアしました");
-                }
-              }}
-              disabled={entries.length === 0 || retrying}
-              style={{ fontSize: "0.8rem" }}
-            >
-              全配置をクリア
-            </button>
+          {/* エクスポート / インポート */}
+          <div className="card" style={{ marginBottom: "1rem" }}>
+            <h3 style={{ fontSize: "0.85rem", marginBottom: "0.5rem", color: "var(--text-muted)" }}>エクスポート / インポート</h3>
+            <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap" }}>
+              <button
+                onClick={async () => {
+                  try {
+                    const data = await m1Schema.exportData();
+                    const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement("a");
+                    a.href = url;
+                    a.download = `curriculum-export-${new Date().toISOString().slice(0, 10)}.json`;
+                    a.click();
+                    URL.revokeObjectURL(url);
+                    showMessage("エクスポートしました");
+                  } catch (e: unknown) {
+                    showMessage(`エクスポートエラー: ${(e as Error).message}`, "error");
+                  }
+                }}
+                style={{ fontSize: "0.8rem" }}
+              >
+                エクスポート (JSON)
+              </button>
+              <label style={{ display: "inline-flex", alignItems: "center", cursor: "pointer", fontSize: "0.8rem", padding: "0.4rem 0.8rem", border: "1px solid var(--border)", borderRadius: "var(--radius-sm)" }}>
+                インポート (JSON)
+                <input
+                  type="file"
+                  accept=".json"
+                  style={{ display: "none" }}
+                  onChange={async (e) => {
+                    const file = e.target.files?.[0];
+                    if (!file) return;
+                    try {
+                      const text = await file.text();
+                      const data = JSON.parse(text);
+                      const result = await m1Schema.importData(data);
+                      showMessage(result.message);
+                      fetchMasterData();
+                    } catch (err: unknown) {
+                      showMessage(`インポートエラー: ${(err as Error).message}`, "error");
+                    }
+                    e.target.value = "";
+                  }}
+                />
+              </label>
+            </div>
+          </div>
+
+          {/* DB管理 */}
+          <GroupScheduleManager showMessage={showMessage} />
+        </div>
+      )}
+
+      {/* Timetable Grid with D&D */}
+      {tab !== "decide" && (
+        <div className="grid-7x11">
+          {/* Header row */}
+          <div className="header-cell" />
+          {DAY_LABELS.map((label) => (
+            <div key={label} className="header-cell">{label}</div>
+          ))}
+
+          {/* Period rows */}
+          {Array.from({ length: PERIODS_COUNT }, (_, period) => (
+            <>
+              <div key={`p-${period}`} className="period-label">{getPeriodLabel(period)}</div>
+              {Array.from({ length: DAYS_COUNT }, (_, day) => {
+                const slot = buildSlots()[day]?.[period] || {};
+                const isDropTarget = tab === "swap" && draggingCurriculum && activeHighlights.has(`${day}-${period}`);
+                const className = ["slot-cell", slot.status || "free", slot.highlight ? "highlight" : ""].filter(Boolean).join(" ");
+
+                return (
+                  <div
+                    key={`${day}-${period}`}
+                    className={className}
+                    style={{
+                      ...(slot.color ? { background: slot.color } : {}),
+                      ...(slot.highlightColor ? { boxShadow: `inset 0 0 0 2px ${slot.highlightColor}` } : {}),
+                      cursor: tab === "swap" ? (slot.label ? "grab" : "default") : "pointer",
+                    }}
+                    draggable={tab === "swap" && !!slot.label}
+                    onDragStart={(e) => {
+                      if (tab !== "swap" || !slot.label) return;
+                      const entry = entries.find((en) => en.day === day && en.period === period);
+                      if (entry) {
+                        e.dataTransfer.setData("text/plain", entry.curriculumId);
+                        handleDragStart(entry.curriculumId);
+                      }
+                    }}
+                    onDragEnd={handleDragEnd}
+                    onDragOver={(e) => {
+                      if (tab === "swap" && draggingCurriculum && (isDropTarget || activeHighlights.has(`${day}-${period}`))) {
+                        e.preventDefault();
+                        setDragOverSlot({ day, period });
+                      }
+                    }}
+                    onDragLeave={() => {
+                      if (dragOverSlot?.day === day && dragOverSlot?.period === period) {
+                        setDragOverSlot(null);
+                      }
+                    }}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      handleSlotDrop(day, period);
+                    }}
+                    onClick={() => {
+                      handleSlotClick(day, period);
+                    }}
+                  >
+                    {slot.label || ""}
+                    {slot.sublabel && (
+                      <div style={{ fontSize: "0.6rem", opacity: 0.7, marginTop: 1 }}>{slot.sublabel}</div>
+                    )}
+                  </div>
+                );
+              })}
+            </>
+          ))}
+        </div>
+      )}
+
+      {/* 未配置カリキュラム (配置・入れ替えタブ) */}
+      {tab === "swap" && allUnplaced.length > 0 && (
+        <div className="card" style={{ marginTop: "1rem" }}>
+          <h3 style={{ fontSize: "0.85rem", marginBottom: "0.75rem", color: "var(--text-muted)" }}>
+            未配置カリキュラム ({allUnplaced.length}件 / {totalUnplacedPeriods}コマ)
+          </h3>
+          <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+            {allUnplaced.map((c) => {
+              const deptNames = (c.departmentIds && c.departmentIds.length > 0)
+                ? c.departmentIds.map((id) => getDeptName(id)).join(",")
+                : getDeptName(c.departmentId);
+              const deptColor = (() => {
+                const palette = ["#3B82F6", "#10B981", "#F59E0B", "#EF4444", "#8B5CF6", "#EC4899", "#06B6D4", "#84CC16", "#F97316", "#6366F1"];
+                const idx = departments.findIndex((d) => d.id === (c.departmentIds?.[0] || c.departmentId));
+                return palette[idx >= 0 ? idx % palette.length : 0];
+              })();
+              return (
+                <div
+                  key={c.id}
+                  draggable
+                  onDragStart={() => handleDragStart(c.id)}
+                  onDragEnd={handleDragEnd}
+                  style={{
+                    padding: "0.4rem 0.75rem",
+                    borderRadius: "var(--radius-sm)",
+                    background: `${deptColor}22`,
+                    border: `1px solid ${deptColor}66`,
+                    cursor: "grab",
+                    fontSize: "0.75rem",
+                    lineHeight: 1.3,
+                    userSelect: "none",
+                    opacity: draggingCurriculum === c.id ? 0.5 : 1,
+                  }}
+                >
+                  <div style={{ fontWeight: 600 }}>{c.name}</div>
+                  <div style={{ color: "var(--text-muted)", fontSize: "0.65rem" }}>
+                    {deptNames} / {getInstName(c.instructorId)} / {c.periods || 1}コマ
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
       )}
 
-      {/* DB管理タブ */}
-      {tab === "dbview" && (
-        <GroupScheduleManager showMessage={showMessage} />
+      {/* 配置済みの削除 (配置・入れ替えタブ) */}
+      {tab === "swap" && entries.length > 0 && (
+        <div className="card" style={{ marginTop: "1rem" }}>
+          <h3 style={{ fontSize: "0.85rem", marginBottom: "0.5rem", color: "var(--text-muted)" }}>配置済みカリキュラム</h3>
+          <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+            {Array.from(new Set(entries.map((e) => e.curriculumId))).map((curId) => {
+              const first = entries.find((e) => e.curriculumId === curId)!;
+              return (
+                <span key={curId} style={{ fontSize: "0.75rem", display: "inline-flex", alignItems: "center", gap: "0.3rem" }}>
+                  {first.curriculumName} ({DAY_LABELS[first.day]}{first.period + 1}限)
+                  <button
+                    className="danger"
+                    style={{ padding: "0.1rem 0.3rem", fontSize: "0.65rem" }}
+                    onClick={() => handleRemoveEntry(curId)}
+                  >x</button>
+                </span>
+              );
+            })}
+          </div>
+        </div>
       )}
 
-      {/* Timetable Grid */}
-      {tab !== "dbview" && <TimetableGrid slots={buildSlots()} onSlotClick={handleSlotClick} />}
-
-      {tab !== "dbview" && (
+      {tab !== "decide" && (
         <div style={{ marginTop: "1rem", fontSize: "0.8rem", color: "var(--text-muted)" }}>
           マスタデータの追加・編集は
           <a href="/schema-management" style={{ color: "var(--accent)", marginLeft: "0.25rem" }}>スキーマ管理</a>
@@ -858,13 +1373,15 @@ function GroupScheduleManager({ showMessage }: { showMessage: (msg: string, type
     try {
       const data = await m1Schema.getGroupSchedules();
       setSchedules(data.schedules || []);
-    } catch (e: any) {
-      showMessage(`取得エラー: ${e.message}`, "error");
+    } catch (e: unknown) {
+      showMessage(`取得エラー: ${(e as Error).message}`, "error");
     }
     setLoading(false);
   }, [showMessage]);
 
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => { fetchSchedules(); }, [fetchSchedules]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   const handleDelete = async (id: string, title: string) => {
     if (!confirm(`「${title}」を削除しますか？`)) return;
@@ -872,8 +1389,8 @@ function GroupScheduleManager({ showMessage }: { showMessage: (msg: string, type
       await m1Schema.deleteGroupSchedule(id);
       showMessage(`「${title}」を削除しました`);
       fetchSchedules();
-    } catch (e: any) {
-      showMessage(`削除エラー: ${e.message}`, "error");
+    } catch (e: unknown) {
+      showMessage(`削除エラー: ${(e as Error).message}`, "error");
     }
   };
 
@@ -884,8 +1401,8 @@ function GroupScheduleManager({ showMessage }: { showMessage: (msg: string, type
       const result = await m1Schema.deleteGroupSchedulesByLabel(label);
       showMessage(`ラベル「${label}」の${result.deletedCount}件を削除しました`);
       fetchSchedules();
-    } catch (e: any) {
-      showMessage(`削除エラー: ${e.message}`, "error");
+    } catch (e: unknown) {
+      showMessage(`削除エラー: ${(e as Error).message}`, "error");
     }
   };
 

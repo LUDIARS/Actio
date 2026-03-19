@@ -558,10 +558,9 @@ export const curricula = pgTable(
     periods: integer("periods").notNull().default(1),
     instructorId: text("instructor_id")
       .references(() => instructors.id),
-    /** カリキュラム期間 開始日 (YYYY-MM-DD) */
-    validFrom: text("valid_from"),
-    /** カリキュラム期間 終了日 (YYYY-MM-DD) */
-    validUntil: text("valid_until"),
+    /** 所属タームID */
+    termId: text("term_id")
+      .references(() => terms.id),
     createdAt: timestamp("created_at")
       .$defaultFn(() => new Date())
       .notNull(),
@@ -621,6 +620,45 @@ export const appSettings = pgTable("app_settings", {
     .notNull(),
 });
 
+// ─── Terms ──────────────────────────────────────────────────
+
+export const terms = pgTable("terms", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  startDate: text("start_date").notNull(),
+  endDate: text("end_date").notNull(),
+  createdAt: timestamp("created_at")
+    .$defaultFn(() => new Date())
+    .notNull(),
+});
+
+// ─── Curriculum Placements ──────────────────────────────────
+
+export const curriculumPlacements = pgTable(
+  "curriculum_placements",
+  {
+    id: text("id").primaryKey(),
+    termId: text("term_id")
+      .references(() => terms.id)
+      .notNull(),
+    curriculumId: text("curriculum_id")
+      .references(() => curricula.id)
+      .notNull(),
+    day: integer("day").notNull(),
+    period: integer("period").notNull(),
+    roomId: text("room_id"),
+    candidateCount: integer("candidate_count").notNull().default(0),
+    createdAt: timestamp("created_at")
+      .$defaultFn(() => new Date())
+      .notNull(),
+  },
+  (table) => [
+    index("idx_placement_term").on(table.termId),
+    index("idx_placement_curriculum").on(table.curriculumId),
+    unique("unique_placement_slot").on(table.termId, table.day, table.period, table.roomId),
+  ]
+);
+
 // ─── Schema Exports ──────────────────────────────────────────
 
 export const schema = {
@@ -655,6 +693,8 @@ export const curriculumSchema = {
   curricula,
   curriculumDepartments,
   instructorAvailableSlots,
+  terms,
+  curriculumPlacements,
 };
 
 // ─── Connection ──────────────────────────────────────────────
@@ -688,6 +728,8 @@ const DB_SCHEMA = {
   curricula,
   curriculumDepartments,
   instructorAvailableSlots,
+  terms,
+  curriculumPlacements,
 };
 
 /**
@@ -773,6 +815,42 @@ export async function createConnectionWithRetry() {
     process.env.DATABASE_URL || "postgresql://localhost:5432/schedula";
   console.log("[db:postgres] createConnectionWithRetry 開始");
   const client = await waitForPostgres(connectionString);
+
+  // 新規テーブルの自動作成 (migrate.ts を手動実行しなくても動くように)
+  try {
+    await client`
+      CREATE TABLE IF NOT EXISTS terms (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        start_date TEXT NOT NULL,
+        end_date TEXT NOT NULL,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `;
+    await client`
+      CREATE TABLE IF NOT EXISTS curriculum_placements (
+        id TEXT PRIMARY KEY,
+        term_id TEXT NOT NULL REFERENCES terms(id),
+        curriculum_id TEXT NOT NULL REFERENCES curricula(id),
+        day INTEGER NOT NULL,
+        period INTEGER NOT NULL,
+        room_id TEXT,
+        candidate_count INTEGER NOT NULL DEFAULT 0,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        UNIQUE(term_id, day, period, room_id)
+      )
+    `;
+    await client`CREATE INDEX IF NOT EXISTS idx_placement_term ON curriculum_placements(term_id)`;
+    await client`CREATE INDEX IF NOT EXISTS idx_placement_curriculum ON curriculum_placements(curriculum_id)`;
+    console.log("[db:postgres] terms/curriculum_placements テーブル確認完了");
+  } catch (err) {
+    console.warn("[db:postgres] テーブル自動作成エラー (既存の場合は無視):", err instanceof Error ? err.message : err);
+  }
+
+  // カラム追加マイグレーション (既存DBとの互換)
+  try { await client`ALTER TABLE group_schedules ADD COLUMN IF NOT EXISTS label TEXT`; } catch { /* ignore */ }
+  try { await client`ALTER TABLE curricula ADD COLUMN IF NOT EXISTS term_id TEXT REFERENCES terms(id)`; } catch { /* ignore */ }
+
   console.log("[db:postgres] Drizzle ORM インスタンスを作成中...");
   const drizzleDb = drizzle(client, { schema: DB_SCHEMA });
   console.log("[db:postgres] Drizzle ORM インスタンス作成完了");

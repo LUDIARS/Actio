@@ -337,13 +337,13 @@ export const m1Schema = {
   getCurriculaByDepartment(departmentId: string) {
     return request<{ curricula: any[] }>(`/api/m1/departments/${departmentId}/curricula`);
   },
-  createCurriculum(departmentId: string, name: string, instructorId?: string, periods?: number, departmentIds?: string[], validFrom?: string, validUntil?: string) {
+  createCurriculum(departmentId: string, name: string, instructorId?: string, periods?: number, departmentIds?: string[], termId?: string) {
     return request<any>(`/api/m1/departments/${departmentId}/curricula`, {
       method: "POST",
-      body: JSON.stringify({ name, instructorId, periods, departmentIds, validFrom, validUntil }),
+      body: JSON.stringify({ name, instructorId, periods, departmentIds, termId }),
     });
   },
-  updateCurriculum(id: string, body: { name?: string; instructorId?: string | null; periods?: number; departmentIds?: string[]; validFrom?: string | null; validUntil?: string | null }) {
+  updateCurriculum(id: string, body: { name?: string; instructorId?: string | null; periods?: number; departmentIds?: string[]; termId?: string | null }) {
     return request<any>(`/api/m1/curricula/${id}`, {
       method: "PUT",
       body: JSON.stringify(body),
@@ -392,6 +392,81 @@ export const m1Schema = {
   // ラベル単位でグループスケジュールを一括削除
   deleteGroupSchedulesByLabel(label: string) {
     return request<{ deletedCount: number; label: string }>(`/api/m1/group-schedules/by-label/${encodeURIComponent(label)}`, { method: "DELETE" });
+  },
+
+  // ターム (Terms)
+  getTerms() {
+    return request<{ terms: Array<{ id: string; name: string; startDate: string; endDate: string }> }>("/api/m1/terms");
+  },
+  createTerm(name: string, startDate: string, endDate: string) {
+    return request<{ id: string; name: string }>("/api/m1/terms", {
+      method: "POST",
+      body: JSON.stringify({ name, startDate, endDate }),
+    });
+  },
+  updateTerm(id: string, body: { name?: string; startDate?: string; endDate?: string }) {
+    return request<{ id: string }>(`/api/m1/terms/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(body),
+    });
+  },
+  deleteTerm(id: string) {
+    return request<{ deleted: string }>(`/api/m1/terms/${id}`, { method: "DELETE" });
+  },
+
+  // カリキュラム配置 (Placements)
+  getPlacements(termId: string) {
+    return request<{ placements: Array<{ id: string; termId: string; curriculumId: string; day: number; period: number; roomId?: string; candidateCount: number }> }>(`/api/m1/terms/${termId}/placements`);
+  },
+  savePlacements(termId: string, placements: Array<{
+    curriculumId: string;
+    day: number;
+    period: number;
+    roomId?: string;
+    candidateCount?: number;
+  }>) {
+    return request<{ message: string; count: number }>(
+      `/api/m1/terms/${termId}/placements`,
+      { method: "PUT", body: JSON.stringify({ placements }) }
+    );
+  },
+  swapPlacement(termId: string, fromDay: number, fromPeriod: number, toDay: number, toPeriod: number) {
+    return request<{ message: string }>(
+      `/api/m1/terms/${termId}/placements/swap`,
+      { method: "POST", body: JSON.stringify({ fromDay, fromPeriod, toDay, toPeriod }) }
+    );
+  },
+
+  // カリキュラム決定
+  decideTerm(termId: string) {
+    return request<{ message: string; labelPrefix: string; plansCreated: number; results: Array<{ departmentName: string; plansCreated: number }> }>(
+      `/api/m1/terms/${termId}/decide`,
+      { method: "POST" }
+    );
+  },
+
+  // エクスポート / インポート
+  exportData() {
+    return request<{ version: number; exportedAt: string; departments: Array<{ name: string }>; instructors: Array<{ name: string }>; curricula: Array<{ name: string }> }>("/api/m1/export");
+  },
+  importData(data: {
+    departments?: Array<{ name: string }>;
+    instructors?: Array<{ name: string; availability?: Array<{ day: number; periods: number[] }> }>;
+    curricula?: Array<{
+      name: string;
+      departmentName: string;
+      instructorName?: string | null;
+      periods?: number;
+      departmentNames?: string[];
+    }>;
+    termName?: string;
+    termStartDate?: string;
+    termEndDate?: string;
+  }) {
+    return request<{ message: string; departmentsCreated: number; instructorsCreated: number; curriculaCreated: number }>("/api/m1/import", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
   },
 };
 

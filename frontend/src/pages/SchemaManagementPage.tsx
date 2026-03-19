@@ -22,10 +22,16 @@ interface Curriculum {
   departmentId: string;
   periods: number;
   instructorId: string | null;
+  termId: string | null;
   departmentIds?: string[];
-  validFrom: string | null;
-  validUntil: string | null;
   createdAt: string;
+}
+
+interface Term {
+  id: string;
+  name: string;
+  startDate: string;
+  endDate: string;
 }
 
 interface AvailableSlot {
@@ -35,7 +41,7 @@ interface AvailableSlot {
   periods: number[];
 }
 
-type ActiveTab = "departments" | "instructors" | "curricula" | "availability";
+type ActiveTab = "departments" | "instructors" | "curricula" | "terms" | "availability";
 
 // ─── Component ──────────────────────────────────────────────
 
@@ -53,6 +59,7 @@ export function SchemaManagementPage() {
   const tabs: { key: ActiveTab; label: string }[] = [
     { key: "departments", label: "学科" },
     { key: "instructors", label: "講師" },
+    { key: "terms", label: "ターム" },
     { key: "curricula", label: "カリキュラム" },
     { key: "availability", label: "出講可能スロット" },
   ];
@@ -108,6 +115,7 @@ export function SchemaManagementPage() {
 
       {tab === "departments" && <DepartmentsTab showMessage={showMessage} />}
       {tab === "instructors" && <InstructorsTab showMessage={showMessage} />}
+      {tab === "terms" && <TermsTab showMessage={showMessage} />}
       {tab === "curricula" && <CurriculaTab showMessage={showMessage} />}
       {tab === "availability" && <AvailabilityTab showMessage={showMessage} />}
     </div>
@@ -450,12 +458,239 @@ function InstructorsTab({ showMessage }: { showMessage: (msg: string, type?: "su
   );
 }
 
+// ─── Terms Tab ─────────────────────────────────────────────
+
+function TermsTab({ showMessage }: { showMessage: (msg: string, type?: "success" | "error") => void }) {
+  const [terms, setTerms] = useState<Term[]>([]);
+  const [newName, setNewName] = useState("");
+  const [newStartDate, setNewStartDate] = useState("");
+  const [newEndDate, setNewEndDate] = useState("");
+  const [editId, setEditId] = useState<string | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editStartDate, setEditStartDate] = useState("");
+  const [editEndDate, setEditEndDate] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  const fetchTerms = useCallback(async () => {
+    try {
+      const data = await m1Schema.getTerms();
+      setTerms(data.terms || []);
+    } catch (e: any) {
+      showMessage(`取得エラー: ${e.message}`, "error");
+    }
+  }, [showMessage]);
+
+  /* eslint-disable react-hooks/set-state-in-effect */
+  useEffect(() => {
+    fetchTerms();
+  }, [fetchTerms]);
+  /* eslint-enable react-hooks/set-state-in-effect */
+
+  const handleCreate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newName.trim()) return;
+    if (!newStartDate || !newEndDate) {
+      showMessage("開始日と終了日は必須です", "error");
+      return;
+    }
+    setLoading(true);
+    try {
+      await m1Schema.createTerm(newName.trim(), newStartDate, newEndDate);
+      setNewName("");
+      setNewStartDate("");
+      setNewEndDate("");
+      showMessage(`ターム「${newName.trim()}」を作成しました`);
+      fetchTerms();
+    } catch (e: any) {
+      showMessage(`作成エラー: ${e.message}`, "error");
+    }
+    setLoading(false);
+  };
+
+  const handleUpdate = async (id: string) => {
+    if (!editName.trim()) return;
+    try {
+      await m1Schema.updateTerm(id, {
+        name: editName.trim(),
+        startDate: editStartDate,
+        endDate: editEndDate,
+      });
+      setEditId(null);
+      showMessage("タームを更新しました");
+      fetchTerms();
+    } catch (e: any) {
+      showMessage(`更新エラー: ${e.message}`, "error");
+    }
+  };
+
+  const handleDelete = async (id: string, name: string) => {
+    if (!confirm(`ターム「${name}」を削除しますか？関連する配置データも削除されます。`)) return;
+    try {
+      await m1Schema.deleteTerm(id);
+      showMessage(`ターム「${name}」を削除しました`);
+      fetchTerms();
+    } catch (e: any) {
+      showMessage(`削除エラー: ${e.message}`, "error");
+    }
+  };
+
+  return (
+    <div>
+      <div className="card" style={{ marginBottom: "1rem" }}>
+        <h3 style={{ fontSize: "0.85rem", marginBottom: "0.75rem", color: "var(--text-muted)" }}>
+          タームを追加
+        </h3>
+        <form onSubmit={handleCreate} style={{ display: "flex", gap: "0.75rem", alignItems: "flex-end", flexWrap: "wrap" }}>
+          <div className="form-group" style={{ flex: 2, minWidth: 150 }}>
+            <label>ターム名</label>
+            <input
+              type="text"
+              value={newName}
+              onChange={(e) => setNewName(e.target.value)}
+              placeholder="例: 2026年度前期"
+              required
+            />
+          </div>
+          <div className="form-group" style={{ flex: 1, minWidth: 140 }}>
+            <label>開始日</label>
+            <input
+              type="date"
+              value={newStartDate}
+              onChange={(e) => setNewStartDate(e.target.value)}
+              required
+            />
+          </div>
+          <div className="form-group" style={{ flex: 1, minWidth: 140 }}>
+            <label>終了日</label>
+            <input
+              type="date"
+              value={newEndDate}
+              onChange={(e) => setNewEndDate(e.target.value)}
+              required
+            />
+          </div>
+          <button type="submit" className="primary" disabled={loading} style={{ marginBottom: "1rem" }}>
+            追加
+          </button>
+        </form>
+      </div>
+
+      <div className="card">
+        <h3 style={{ fontSize: "0.85rem", marginBottom: "0.75rem", color: "var(--text-muted)" }}>
+          ターム一覧 ({terms.length}件)
+        </h3>
+        {terms.length === 0 ? (
+          <p style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>データがありません</p>
+        ) : (
+          <table className="table">
+            <thead>
+              <tr>
+                <th>ターム名</th>
+                <th>開始日</th>
+                <th>終了日</th>
+                <th>操作</th>
+              </tr>
+            </thead>
+            <tbody>
+              {terms.map((t) => (
+                <tr key={t.id}>
+                  <td>
+                    {editId === t.id ? (
+                      <input
+                        type="text"
+                        value={editName}
+                        onChange={(e) => setEditName(e.target.value)}
+                        onKeyDown={(e) => e.key === "Enter" && handleUpdate(t.id)}
+                        autoFocus
+                        style={{ padding: "0.2rem 0.4rem", fontSize: "0.85rem" }}
+                      />
+                    ) : (
+                      <span style={{ fontWeight: 500 }}>{t.name}</span>
+                    )}
+                  </td>
+                  <td style={{ fontSize: "0.8rem" }}>
+                    {editId === t.id ? (
+                      <input
+                        type="date"
+                        value={editStartDate}
+                        onChange={(e) => setEditStartDate(e.target.value)}
+                        style={{ padding: "0.15rem 0.3rem", fontSize: "0.8rem" }}
+                      />
+                    ) : (
+                      t.startDate
+                    )}
+                  </td>
+                  <td style={{ fontSize: "0.8rem" }}>
+                    {editId === t.id ? (
+                      <input
+                        type="date"
+                        value={editEndDate}
+                        onChange={(e) => setEditEndDate(e.target.value)}
+                        style={{ padding: "0.15rem 0.3rem", fontSize: "0.8rem" }}
+                      />
+                    ) : (
+                      t.endDate
+                    )}
+                  </td>
+                  <td>
+                    <div style={{ display: "flex", gap: "0.25rem" }}>
+                      {editId === t.id ? (
+                        <>
+                          <button
+                            className="primary"
+                            style={{ padding: "0.2rem 0.5rem", fontSize: "0.75rem" }}
+                            onClick={() => handleUpdate(t.id)}
+                          >
+                            保存
+                          </button>
+                          <button
+                            style={{ padding: "0.2rem 0.5rem", fontSize: "0.75rem" }}
+                            onClick={() => setEditId(null)}
+                          >
+                            取消
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          <button
+                            style={{ padding: "0.2rem 0.5rem", fontSize: "0.75rem" }}
+                            onClick={() => {
+                              setEditId(t.id);
+                              setEditName(t.name);
+                              setEditStartDate(t.startDate);
+                              setEditEndDate(t.endDate);
+                            }}
+                          >
+                            編集
+                          </button>
+                          <button
+                            className="danger"
+                            style={{ padding: "0.2rem 0.5rem", fontSize: "0.75rem" }}
+                            onClick={() => handleDelete(t.id, t.name)}
+                          >
+                            削除
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ─── Curricula Tab ──────────────────────────────────────────
 
 function CurriculaTab({ showMessage }: { showMessage: (msg: string, type?: "success" | "error") => void }) {
   const [curricula, setCurricula] = useState<Curriculum[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
   const [instructors, setInstructors] = useState<Instructor[]>([]);
+  const [terms, setTerms] = useState<Term[]>([]);
   const [filterDept, setFilterDept] = useState<string>("");
 
   // Create form
@@ -464,8 +699,7 @@ function CurriculaTab({ showMessage }: { showMessage: (msg: string, type?: "succ
   const [newDeptIds, setNewDeptIds] = useState<string[]>([]);
   const [newInstId, setNewInstId] = useState("");
   const [newPeriods, setNewPeriods] = useState<number>(1);
-  const [newValidFrom, setNewValidFrom] = useState("");
-  const [newValidUntil, setNewValidUntil] = useState("");
+  const [newTermId, setNewTermId] = useState("");
   const [loading, setLoading] = useState(false);
 
   // Edit state
@@ -474,19 +708,20 @@ function CurriculaTab({ showMessage }: { showMessage: (msg: string, type?: "succ
   const [editInstId, setEditInstId] = useState<string>("");
   const [editPeriods, setEditPeriods] = useState<number>(1);
   const [editDeptIds, setEditDeptIds] = useState<string[]>([]);
-  const [editValidFrom, setEditValidFrom] = useState("");
-  const [editValidUntil, setEditValidUntil] = useState("");
+  const [editTermId, setEditTermId] = useState("");
 
   const fetchAll = useCallback(async () => {
     try {
-      const [deptData, instData, currData] = await Promise.all([
+      const [deptData, instData, currData, termData] = await Promise.all([
         m1Schema.getDepartments(),
         m1Schema.getInstructors(),
         m1Schema.getCurricula(),
+        m1Schema.getTerms(),
       ]);
       setDepartments(deptData.departments || []);
       setInstructors(instData.instructors || []);
       setCurricula(currData.curricula || []);
+      setTerms(termData.terms || []);
     } catch (e: any) {
       showMessage(`取得エラー: ${e.message}`, "error");
     }
@@ -509,14 +744,13 @@ function CurriculaTab({ showMessage }: { showMessage: (msg: string, type?: "succ
       const deptIds = newDeptIds.length > 0 ? newDeptIds : [newDeptId];
       await m1Schema.createCurriculum(
         newDeptId, newName.trim(), newInstId || undefined, newPeriods, deptIds,
-        newValidFrom || undefined, newValidUntil || undefined
+        newTermId || undefined
       );
       setNewName("");
       setNewInstId("");
       setNewPeriods(1);
       setNewDeptIds([]);
-      setNewValidFrom("");
-      setNewValidUntil("");
+      setNewTermId("");
       showMessage(`カリキュラム「${newName.trim()}」を作成しました`);
       fetchAll();
     } catch (e: any) {
@@ -532,8 +766,7 @@ function CurriculaTab({ showMessage }: { showMessage: (msg: string, type?: "succ
         instructorId: editInstId || null,
         periods: editPeriods,
         departmentIds: editDeptIds.length > 0 ? editDeptIds : undefined,
-        validFrom: editValidFrom || null,
-        validUntil: editValidUntil || null,
+        termId: editTermId || null,
       });
       setEditId(null);
       showMessage("カリキュラムを更新しました");
@@ -615,21 +848,14 @@ function CurriculaTab({ showMessage }: { showMessage: (msg: string, type?: "succ
                 style={{ width: 70 }}
               />
             </div>
-            <div className="form-group" style={{ flex: 1, minWidth: 130 }}>
-              <label>開始日</label>
-              <input
-                type="date"
-                value={newValidFrom}
-                onChange={(e) => setNewValidFrom(e.target.value)}
-              />
-            </div>
-            <div className="form-group" style={{ flex: 1, minWidth: 130 }}>
-              <label>終了日</label>
-              <input
-                type="date"
-                value={newValidUntil}
-                onChange={(e) => setNewValidUntil(e.target.value)}
-              />
+            <div className="form-group" style={{ flex: 1, minWidth: 140 }}>
+              <label>ターム</label>
+              <select value={newTermId} onChange={(e) => setNewTermId(e.target.value)}>
+                <option value="">未設定</option>
+                {terms.map((t) => (
+                  <option key={t.id} value={t.id}>{t.name} ({t.startDate}~{t.endDate})</option>
+                ))}
+              </select>
             </div>
             <button type="submit" className="primary" disabled={loading} style={{ marginBottom: "1rem" }}>
               追加
@@ -689,7 +915,7 @@ function CurriculaTab({ showMessage }: { showMessage: (msg: string, type?: "succ
                 <th>科目名</th>
                 <th>学科</th>
                 <th>コマ数</th>
-                <th>期間</th>
+                <th>ターム</th>
                 <th>担当講師</th>
                 <th>操作</th>
               </tr>
@@ -753,23 +979,19 @@ function CurriculaTab({ showMessage }: { showMessage: (msg: string, type?: "succ
                   </td>
                   <td style={{ fontSize: "0.75rem" }}>
                     {editId === c.id ? (
-                      <div style={{ display: "flex", flexDirection: "column", gap: "0.2rem" }}>
-                        <input
-                          type="date"
-                          value={editValidFrom}
-                          onChange={(e) => setEditValidFrom(e.target.value)}
-                          style={{ padding: "0.15rem 0.3rem", fontSize: "0.75rem" }}
-                        />
-                        <input
-                          type="date"
-                          value={editValidUntil}
-                          onChange={(e) => setEditValidUntil(e.target.value)}
-                          style={{ padding: "0.15rem 0.3rem", fontSize: "0.75rem" }}
-                        />
-                      </div>
+                      <select
+                        value={editTermId}
+                        onChange={(e) => setEditTermId(e.target.value)}
+                        style={{ padding: "0.2rem 0.4rem", fontSize: "0.75rem" }}
+                      >
+                        <option value="">未設定</option>
+                        {terms.map((t) => (
+                          <option key={t.id} value={t.id}>{t.name}</option>
+                        ))}
+                      </select>
                     ) : (
-                      c.validFrom || c.validUntil
-                        ? `${c.validFrom || "?"} ~ ${c.validUntil || "未定"}`
+                      c.termId
+                        ? (() => { const t = terms.find((t) => t.id === c.termId); return t ? t.name : <span style={{ color: "var(--text-muted)", fontStyle: "italic" }}>不明</span>; })()
                         : <span style={{ color: "var(--text-muted)", fontStyle: "italic" }}>未設定</span>
                     )}
                   </td>
@@ -823,8 +1045,7 @@ function CurriculaTab({ showMessage }: { showMessage: (msg: string, type?: "succ
                               setEditInstId(c.instructorId || "");
                               setEditPeriods(c.periods ?? 1);
                               setEditDeptIds(c.departmentIds || [c.departmentId]);
-                              setEditValidFrom(c.validFrom || "");
-                              setEditValidUntil(c.validUntil || "");
+                              setEditTermId(c.termId || "");
                             }}
                           >
                             編集

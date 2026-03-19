@@ -5,7 +5,7 @@
  * ルートハンドラが直接 Drizzle クエリを書かなくて済むようにする。
  */
 
-import { eq, and, count, inArray, desc } from "drizzle-orm";
+import { eq, and, count, inArray, desc, like } from "drizzle-orm";
 import { db, schema, curriculumSchema } from "./connection.js";
 
 // ─── Types ──────────────────────────────────────────────────
@@ -250,6 +250,95 @@ export const availableSlotRepo = {
   },
 };
 
+// ─── M1: Term Repository ────────────────────────────────────
+
+export type Term = typeof curriculumSchema.terms.$inferSelect;
+export type NewTerm = typeof curriculumSchema.terms.$inferInsert;
+
+export const termRepo = {
+  async findAll(): Promise<Term[]> {
+    return db.select().from(curriculumSchema.terms);
+  },
+
+  async findById(id: string): Promise<Term | undefined> {
+    const [term] = await db
+      .select()
+      .from(curriculumSchema.terms)
+      .where(eq(curriculumSchema.terms.id, id));
+    return term;
+  },
+
+  async create(data: NewTerm): Promise<void> {
+    await db.insert(curriculumSchema.terms).values(data);
+  },
+
+  async update(id: string, data: Partial<Omit<NewTerm, "id">>): Promise<void> {
+    await db
+      .update(curriculumSchema.terms)
+      .set(data)
+      .where(eq(curriculumSchema.terms.id, id));
+  },
+
+  async deleteById(id: string): Promise<void> {
+    await db
+      .delete(curriculumSchema.terms)
+      .where(eq(curriculumSchema.terms.id, id));
+  },
+};
+
+// ─── M1: Curriculum Placement Repository ────────────────────
+
+export type CurriculumPlacement = typeof curriculumSchema.curriculumPlacements.$inferSelect;
+export type NewCurriculumPlacement = typeof curriculumSchema.curriculumPlacements.$inferInsert;
+
+export const curriculumPlacementRepo = {
+  async findByTerm(termId: string): Promise<CurriculumPlacement[]> {
+    return db
+      .select()
+      .from(curriculumSchema.curriculumPlacements)
+      .where(eq(curriculumSchema.curriculumPlacements.termId, termId));
+  },
+
+  async findByTermAndCurriculum(termId: string, curriculumId: string): Promise<CurriculumPlacement[]> {
+    return db
+      .select()
+      .from(curriculumSchema.curriculumPlacements)
+      .where(
+        and(
+          eq(curriculumSchema.curriculumPlacements.termId, termId),
+          eq(curriculumSchema.curriculumPlacements.curriculumId, curriculumId)
+        )
+      );
+  },
+
+  async create(data: NewCurriculumPlacement): Promise<void> {
+    await db.insert(curriculumSchema.curriculumPlacements).values(data);
+  },
+
+  async deleteByTerm(termId: string): Promise<void> {
+    await db
+      .delete(curriculumSchema.curriculumPlacements)
+      .where(eq(curriculumSchema.curriculumPlacements.termId, termId));
+  },
+
+  async deleteByTermAndCurriculum(termId: string, curriculumId: string): Promise<void> {
+    await db
+      .delete(curriculumSchema.curriculumPlacements)
+      .where(
+        and(
+          eq(curriculumSchema.curriculumPlacements.termId, termId),
+          eq(curriculumSchema.curriculumPlacements.curriculumId, curriculumId)
+        )
+      );
+  },
+
+  async deleteById(id: string): Promise<void> {
+    await db
+      .delete(curriculumSchema.curriculumPlacements)
+      .where(eq(curriculumSchema.curriculumPlacements.id, id));
+  },
+};
+
 // ─── MyPlan Repository ──────────────────────────────────────
 
 export type MyPlan = typeof schema.myPlans.$inferSelect;
@@ -432,6 +521,29 @@ export const planRepo = {
     await db
       .delete(schema.plans)
       .where(eq(schema.plans.id, id));
+  },
+
+  async findByUserIdAndNameLike(userId: string, namePattern: string): Promise<Plan[]> {
+    return db
+      .select()
+      .from(schema.plans)
+      .where(
+        and(
+          eq(schema.plans.userId, userId),
+          like(schema.plans.name, namePattern)
+        )
+      );
+  },
+
+  async deleteByUserIdAndNameLike(userId: string, namePattern: string): Promise<void> {
+    await db
+      .delete(schema.plans)
+      .where(
+        and(
+          eq(schema.plans.userId, userId),
+          like(schema.plans.name, namePattern)
+        )
+      );
   },
 };
 
