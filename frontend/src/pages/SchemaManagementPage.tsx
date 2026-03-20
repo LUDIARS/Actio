@@ -42,7 +42,7 @@ interface AvailableSlot {
   periods: number[];
 }
 
-type ActiveTab = "departments" | "instructors" | "curricula" | "terms" | "availability" | "rooms";
+type ActiveTab = "departments" | "instructors" | "curricula" | "terms" | "availability";
 
 // ─── Component ──────────────────────────────────────────────
 
@@ -63,7 +63,6 @@ export function SchemaManagementPage() {
     { key: "terms", label: "ターム" },
     { key: "curricula", label: "カリキュラム" },
     { key: "availability", label: "出講可能スロット" },
-    { key: "rooms", label: "教室" },
   ];
 
   return (
@@ -123,7 +122,6 @@ export function SchemaManagementPage() {
       {tab === "terms" && <TermsTab showMessage={showMessage} />}
       {tab === "curricula" && <CurriculaTab showMessage={showMessage} />}
       {tab === "availability" && <AvailabilityTab showMessage={showMessage} />}
-      {tab === "rooms" && <RoomsTab showMessage={showMessage} />}
     </div>
   );
 }
@@ -1287,161 +1285,6 @@ function AvailabilityTab({ showMessage }: { showMessage: (msg: string, type?: "s
             </tbody>
           </table>
         </div>
-      )}
-    </div>
-  );
-}
-
-// ─── Rooms Tab ──────────────────────────────────────────────
-
-interface Room {
-  id: string;
-  name: string;
-  capacity: number;
-  type: string;
-  equipment: string[];
-}
-
-function RoomsTab({ showMessage }: { showMessage: (msg: string, type?: "success" | "error") => void }) {
-  const [rooms, setRooms] = useState<Room[]>([]);
-  const [newName, setNewName] = useState("");
-  const [newCapacity, setNewCapacity] = useState(30);
-  const [newType, setNewType] = useState("classroom");
-  const [editId, setEditId] = useState<string | null>(null);
-  const [editName, setEditName] = useState("");
-  const [editCapacity, setEditCapacity] = useState(0);
-  const [editType, setEditType] = useState("");
-  const [loading, setLoading] = useState(false);
-
-  const fetchRooms = useCallback(async () => {
-    try {
-      const data = await m1Schema.getRooms();
-      setRooms(data.rooms || []);
-    } catch (e: any) {
-      showMessage(`取得エラー: ${e.message}`, "error");
-    }
-  }, [showMessage]);
-
-  useEffect(() => { fetchRooms(); }, [fetchRooms]);
-
-  const handleCreate = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newName.trim()) return;
-    setLoading(true);
-    try {
-      await m1Schema.createRoom({ name: newName.trim(), capacity: newCapacity, type: newType });
-      setNewName("");
-      setNewCapacity(30);
-      setNewType("classroom");
-      showMessage(`教室「${newName.trim()}」を作成しました`);
-      fetchRooms();
-    } catch (e: any) {
-      showMessage(`作成エラー: ${e.message}`, "error");
-    }
-    setLoading(false);
-  };
-
-  const handleUpdate = async (id: string) => {
-    if (!editName.trim()) return;
-    try {
-      await m1Schema.updateRoom(id, { name: editName.trim(), capacity: editCapacity, type: editType });
-      setEditId(null);
-      showMessage("教室を更新しました");
-      fetchRooms();
-    } catch (e: any) {
-      showMessage(`更新エラー: ${e.message}`, "error");
-    }
-  };
-
-  const handleDelete = async (id: string, name: string) => {
-    if (!confirm(`教室「${name}」を削除しますか？`)) return;
-    try {
-      await m1Schema.deleteRoom(id);
-      showMessage(`教室「${name}」を削除しました`);
-      fetchRooms();
-    } catch (e: any) {
-      showMessage(`削除エラー: ${e.message}`, "error");
-    }
-  };
-
-  return (
-    <div>
-      <form onSubmit={handleCreate} style={{ display: "flex", gap: "0.5rem", marginBottom: "1rem", flexWrap: "wrap", alignItems: "flex-end" }}>
-        <div className="form-group" style={{ minWidth: 150 }}>
-          <label>教室名</label>
-          <input value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="例: 101教室" />
-        </div>
-        <div className="form-group" style={{ minWidth: 80 }}>
-          <label>定員</label>
-          <input type="number" value={newCapacity} onChange={(e) => setNewCapacity(Number(e.target.value))} min={0} />
-        </div>
-        <div className="form-group" style={{ minWidth: 120 }}>
-          <label>タイプ</label>
-          <select value={newType} onChange={(e) => setNewType(e.target.value)}>
-            <option value="classroom">教室</option>
-            <option value="lab">実習室</option>
-            <option value="hall">ホール</option>
-            <option value="other">その他</option>
-          </select>
-        </div>
-        <button type="submit" className="primary" disabled={loading || !newName.trim()} style={{ marginBottom: "1rem" }}>
-          追加
-        </button>
-      </form>
-
-      {rooms.length === 0 ? (
-        <div className="empty-state"><p>教室が登録されていません</p></div>
-      ) : (
-        <table className="table">
-          <thead>
-            <tr><th>教室名</th><th>定員</th><th>タイプ</th><th>操作</th></tr>
-          </thead>
-          <tbody>
-            {rooms.map((r) => (
-              <tr key={r.id}>
-                <td>
-                  {editId === r.id ? (
-                    <input value={editName} onChange={(e) => setEditName(e.target.value)} style={{ width: "100%" }} />
-                  ) : (
-                    <span style={{ fontWeight: 500 }}>{r.name}</span>
-                  )}
-                </td>
-                <td>
-                  {editId === r.id ? (
-                    <input type="number" value={editCapacity} onChange={(e) => setEditCapacity(Number(e.target.value))} style={{ width: 60 }} min={0} />
-                  ) : (
-                    r.capacity
-                  )}
-                </td>
-                <td>
-                  {editId === r.id ? (
-                    <select value={editType} onChange={(e) => setEditType(e.target.value)}>
-                      <option value="classroom">教室</option>
-                      <option value="lab">実習室</option>
-                      <option value="hall">ホール</option>
-                      <option value="other">その他</option>
-                    </select>
-                  ) : (
-                    r.type === "classroom" ? "教室" : r.type === "lab" ? "実習室" : r.type === "hall" ? "ホール" : r.type
-                  )}
-                </td>
-                <td>
-                  {editId === r.id ? (
-                    <div style={{ display: "flex", gap: "0.25rem" }}>
-                      <button onClick={() => handleUpdate(r.id)} style={{ fontSize: "0.75rem", padding: "0.2rem 0.5rem" }}>保存</button>
-                      <button onClick={() => setEditId(null)} style={{ fontSize: "0.75rem", padding: "0.2rem 0.5rem" }}>取消</button>
-                    </div>
-                  ) : (
-                    <div style={{ display: "flex", gap: "0.25rem" }}>
-                      <button onClick={() => { setEditId(r.id); setEditName(r.name); setEditCapacity(r.capacity); setEditType(r.type); }} style={{ fontSize: "0.75rem", padding: "0.2rem 0.5rem" }}>編集</button>
-                      <button className="danger" onClick={() => handleDelete(r.id, r.name)} style={{ fontSize: "0.75rem", padding: "0.2rem 0.5rem" }}>削除</button>
-                    </div>
-                  )}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
       )}
     </div>
   );

@@ -669,29 +669,6 @@ export const roomRepo = {
   async findAll() {
     return db.select().from(schema.rooms);
   },
-
-  async findById(id: string) {
-    const [room] = await db
-      .select()
-      .from(schema.rooms)
-      .where(eq(schema.rooms.id, id));
-    return room;
-  },
-
-  async create(data: typeof schema.rooms.$inferInsert) {
-    await db.insert(schema.rooms).values(data);
-  },
-
-  async update(id: string, data: Partial<typeof schema.rooms.$inferInsert>) {
-    await db
-      .update(schema.rooms)
-      .set(data)
-      .where(eq(schema.rooms.id, id));
-  },
-
-  async deleteById(id: string) {
-    await db.delete(schema.rooms).where(eq(schema.rooms.id, id));
-  },
 };
 
 // ─── Group Member Repository ────────────────────────────────
