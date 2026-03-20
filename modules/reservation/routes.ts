@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import { v4 as uuidv4 } from "uuid";
-import { reservationRepo, scheduleEntryExtRepo, userRepo, roomRepo } from "../../src/db/repository.js";
+import { reservationRepo, scheduleEntryExtRepo, userRepo } from "../../src/db/repository.js";
 import type { CreateReservationInput } from "../../src/shared/types.js";
 import { getUserId } from "../../src/middleware/getUserId.js";
 import { logActivity } from "../../src/activity-logger.js";
@@ -184,57 +184,6 @@ m4.delete("/reservations/:id", async (c) => {
     message: "Reservation cancelled",
     reservation: cancelled,
   });
-});
-
-// ─── GET /api/m4/rooms/availability ──────────────────────────
-// 全教室の空き状況を返す (各曜日×コマで予約済み・授業中の教室を除外)
-// NOTE: この静的パスは /rooms/:roomId/schedule より前に定義する必要がある
-m4.get("/rooms/availability", async (c) => {
-  const rooms = await roomRepo.findAll();
-  const reservations = await reservationRepo.findAll();
-  const confirmedReservations = reservations.filter((r: any) => r.status === "confirmed");
-
-  const currentTerm = `term-${new Date().getFullYear()}`;
-
-  // 各教室の使用中スロットを集める
-  const roomOccupied = new Map<string, Set<string>>();
-  for (const r of confirmedReservations) {
-    const key = r.roomId;
-    if (!roomOccupied.has(key)) roomOccupied.set(key, new Set());
-    roomOccupied.get(key)!.add(`${r.day}-${r.period}`);
-  }
-
-  // 授業の使用中スロットも追加
-  for (const room of rooms) {
-    const classSchedule = await scheduleEntryExtRepo.findConfirmedByRoom(room.id, currentTerm);
-    if (!roomOccupied.has(room.id)) roomOccupied.set(room.id, new Set());
-    for (const entry of classSchedule) {
-      roomOccupied.get(room.id)!.add(`${entry.day}-${entry.period}`);
-    }
-  }
-
-  // 各教室の空き状況を構築
-  const availability = rooms.map((room: any) => {
-    const occupied = roomOccupied.get(room.id) || new Set<string>();
-    const freeSlots: Array<{ day: number; period: number }> = [];
-    for (let d = 0; d < 7; d++) {
-      for (let p = 0; p < 11; p++) {
-        if (!occupied.has(`${d}-${p}`)) {
-          freeSlots.push({ day: d, period: p });
-        }
-      }
-    }
-    return {
-      id: room.id,
-      name: room.name,
-      capacity: room.capacity,
-      type: room.type,
-      freeSlots,
-      occupiedCount: occupied.size,
-    };
-  });
-
-  return c.json({ rooms: availability });
 });
 
 // ─── GET /api/m4/rooms/:roomId/schedule ─────────────────────
