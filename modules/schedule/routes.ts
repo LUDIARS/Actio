@@ -38,6 +38,7 @@ import {
   termRepo,
   curriculumPlacementRepo,
   myPlanRepo,
+  roomRepo,
 } from "../../src/db/repository.js";
 import { logActivity } from "../../src/activity-logger.js";
 import { getBlockedDates, getClassDays } from "../holiday/utils.js";
@@ -1393,6 +1394,74 @@ m1.delete("/group-schedules/:id", async (c) => {
   const userId = getUserId(c) || "";
   const user = await userRepo.findById(userId);
   logActivity(userId, user?.name || "Unknown", "グループスケジュール削除", `グループスケジュール「${schedule.title}」を削除しました`);
+
+  return c.json({ deleted: id });
+});
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// 教室 (Rooms)
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+/** 教室一覧 */
+m1.get("/rooms", async (c) => {
+  const rooms = await roomRepo.findAll();
+  return c.json({ rooms });
+});
+
+/** 教室作成 */
+m1.post("/rooms", async (c) => {
+  const body = await c.req.json<{ name: string; capacity?: number; type?: string; equipment?: string[] }>();
+  if (!body.name) return c.json({ error: "name is required" }, 400);
+
+  const id = uuidv4();
+  await roomRepo.create({
+    id,
+    name: body.name,
+    capacity: body.capacity || 0,
+    type: body.type || "classroom",
+    equipment: body.equipment || [],
+  });
+
+  const userId = getUserId(c) || "";
+  const user = await userRepo.findById(userId);
+  logActivity(userId, user?.name || "Unknown", "教室作成", `教室「${body.name}」が追加されました`);
+
+  return c.json({ id, name: body.name }, 201);
+});
+
+/** 教室更新 */
+m1.put("/rooms/:id", async (c) => {
+  const { id } = c.req.param();
+  const body = await c.req.json<{ name?: string; capacity?: number; type?: string; equipment?: string[] }>();
+
+  const existing = await roomRepo.findById(id);
+  if (!existing) return c.json({ error: "Room not found" }, 404);
+
+  await roomRepo.update(id, {
+    ...(body.name !== undefined ? { name: body.name } : {}),
+    ...(body.capacity !== undefined ? { capacity: body.capacity } : {}),
+    ...(body.type !== undefined ? { type: body.type } : {}),
+    ...(body.equipment !== undefined ? { equipment: body.equipment } : {}),
+  });
+
+  const userId = getUserId(c) || "";
+  const user = await userRepo.findById(userId);
+  logActivity(userId, user?.name || "Unknown", "教室更新", `教室「${body.name || existing.name}」が更新されました`);
+
+  return c.json({ id, name: body.name || existing.name });
+});
+
+/** 教室削除 */
+m1.delete("/rooms/:id", async (c) => {
+  const { id } = c.req.param();
+  const existing = await roomRepo.findById(id);
+  if (!existing) return c.json({ error: "Room not found" }, 404);
+
+  await roomRepo.deleteById(id);
+
+  const userId = getUserId(c) || "";
+  const user = await userRepo.findById(userId);
+  logActivity(userId, user?.name || "Unknown", "教室削除", `教室「${existing.name}」が削除されました`);
 
   return c.json({ deleted: id });
 });

@@ -1238,6 +1238,41 @@ export function DataManagementPage() {
                       const entry = entries.find((en) => en.day === day && en.period === period);
                       if (entry) {
                         e.dataTransfer.setData("text/plain", entry.curriculumId);
+                        // ブロック全体のカスタムドラッグイメージを生成
+                        const block = findBlock(entries, day, period);
+                        if (block.length > 1) {
+                          const ghost = document.createElement("div");
+                          ghost.style.display = "flex";
+                          ghost.style.flexDirection = "column";
+                          ghost.style.gap = "1px";
+                          ghost.style.position = "absolute";
+                          ghost.style.left = "-9999px";
+                          ghost.style.background = "var(--border)";
+                          ghost.style.borderRadius = "4px";
+                          ghost.style.overflow = "hidden";
+                          const blockStart = block[0].period;
+                          const grabOffset = period - blockStart; // 掴んだ位置のオフセット
+                          for (const b of block) {
+                            const cell = document.createElement("div");
+                            cell.textContent = b.curriculumName;
+                            cell.style.padding = "0.25rem 0.5rem";
+                            cell.style.fontSize = "0.7rem";
+                            cell.style.minHeight = "40px";
+                            cell.style.minWidth = "80px";
+                            cell.style.display = "flex";
+                            cell.style.alignItems = "center";
+                            cell.style.justifyContent = "center";
+                            cell.style.background = "var(--slot-class, #2d333b)";
+                            cell.style.color = "var(--text, #adbac7)";
+                            cell.style.fontWeight = "500";
+                            ghost.appendChild(cell);
+                          }
+                          document.body.appendChild(ghost);
+                          // 掴んだブロック位置に合わせてオフセット
+                          const cellHeight = 41; // min-height 40px + 1px gap
+                          e.dataTransfer.setDragImage(ghost, ghost.offsetWidth / 2, grabOffset * cellHeight + cellHeight / 2);
+                          requestAnimationFrame(() => document.body.removeChild(ghost));
+                        }
                         handleDragStart(entry.curriculumId);
                       }
                     }}

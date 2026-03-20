@@ -166,9 +166,22 @@ export const HELP_MODULES: HelpModule[] = [
               "データ管理ページでは、7日×11コマの時間割グリッドに科目を配置します。",
               "未配置の科目一覧から、グリッドのセルをクリックして科目を選択すると配置されます。配置済みの科目はセルをクリックして移動や削除ができます。",
               "すべての科目を配置したら「確定」ボタンを押して時間割を確定させます。確定後も再編集は可能です。",
+              "複数コマの科目をドラッグする場合、ブロック全体がゴーストイメージとして表示され、直感的に操作できます。",
             ],
             requiredRole: "admin",
             tutorialId: "data-placement",
+          },
+          {
+            id: "schema-rooms",
+            title: "教室の管理",
+            summary: "教室の追加・編集・削除",
+            content: [
+              "スキーマ管理ページの「教室」タブから、教室を管理します。",
+              "教室名、定員、タイプ（教室/実習室/ホール/その他）を設定できます。",
+              "ここで登録した教室は、教室予約システムの空き教室検索で使用されます。",
+            ],
+            requiredRole: "admin",
+            tutorialId: "schema-rooms",
           },
         ],
       },
@@ -243,40 +256,11 @@ export const HELP_MODULES: HelpModule[] = [
     ],
   },
 
-  // ── Smart Scheduler ──
-  {
-    id: "smart-scheduler",
-    title: "自動配置スケジューラ",
-    description: "制約条件に基づく時間割の自動生成",
-    icon: "A",
-    route: "/smart-scheduler",
-    topics: [
-      {
-        id: "scheduler-usage",
-        title: "自動配置の使い方",
-        summary: "タスク設定から自動配置の実行まで",
-        content: [
-          "自動配置スケジューラは、講師の空き時間や教室の制約条件を考慮して、最適な時間割を自動的に生成します。",
-          "タスクを作成して制約条件を設定し、ソルバーを実行すると候補が提示されます。プレビューを確認して確定すると時間割に反映されます。",
-        ],
-        steps: [
-          { title: "タスクを作成", description: "自動配置ページで「新規タスク」をクリックし、配置する科目群を選択します" },
-          { title: "制約条件を設定", description: "講師の空き時間、教室の制約、休日設定などを確認・調整します" },
-          { title: "ソルバーを実行", description: "「実行」ボタンで自動配置を開始します。処理に少し時間がかかる場合があります" },
-          { title: "結果をプレビュー", description: "生成された候補を時間割グリッドで確認します" },
-          { title: "配置を確定", description: "プレビューが問題なければ「確定」ボタンで時間割に反映させます" },
-        ],
-        requiredRole: "admin",
-        tutorialId: "smart-scheduler-flow",
-      },
-    ],
-  },
-
-  // ── Reservations (M4) ──
+  // ── Reservations & Schedulers (統合) ──
   {
     id: "reservations",
-    title: "教室予約 (M4)",
-    description: "教室・設備の予約管理",
+    title: "予約・スケジューラ",
+    description: "教室予約、空きコマ提案、自動配置を一元管理",
     icon: "R",
     route: "/reservations",
     topics: [
@@ -285,15 +269,49 @@ export const HELP_MODULES: HelpModule[] = [
         title: "教室予約の使い方",
         summary: "予約の作成・確認・キャンセル",
         content: [
-          "教室予約機能では、教室や設備の利用予約を管理できます。",
-          "空き教室を検索し、日時を指定して予約を作成します。予約一覧から既存の予約の確認やキャンセルも行えます。",
+          "教室予約機能では、グループ単位で教室の利用予約を管理できます。予約管理タブから操作します。",
+          "グループをプルダウンで選択すると、メンバーが自動的に参加者として選択されます。個別にオン/オフを切り替えられ、他の予定とバッティングしている参加者には警告マークが表示されます。",
+          "コマの選択は「自動提案」と「自由選択」の2つのモードがあります。自動提案では、参加者全員が参加可能で空き教室がある時間帯が候補として表示されます。",
+          "教室は「教室を選択」ボタンからポップアップで選択します。選択したコマで空いている教室と使用中の教室が表示されます。",
         ],
         steps: [
-          { title: "予約を作成", description: "予約ページで「新規予約」をクリックし、教室・日時・用途を入力します" },
-          { title: "予約一覧を確認", description: "現在の予約状況を一覧で確認できます" },
-          { title: "予約をキャンセル", description: "不要になった予約は「キャンセル」ボタンで取り消せます" },
+          { title: "グループを選択", description: "プルダウンから予約するグループを選択します。メンバーが自動的に参加者として選択されます" },
+          { title: "参加者を調整", description: "参加しないメンバーはクリックして外せます。バッティングがある場合は「!」マークが表示されます" },
+          { title: "コマを選択", description: "「自動提案」で全員が空いている候補から選ぶか、「自由選択」で手動で指定します" },
+          { title: "教室を選択", description: "「教室を選択」ボタンで空き教室一覧から選択します" },
+          { title: "予約を確定", description: "内容を確認して「予約を確定」ボタンで予約を作成します" },
         ],
         tutorialId: "reservation-basics",
+      },
+      {
+        id: "scheduler-usage",
+        title: "オートスケジューラ",
+        summary: "グループの空きコマ計算とMTG候補の自動提案",
+        content: [
+          "オートスケジューラタブでは、グループメンバーの空き状況を自動計算し、最適なMTGスロットを提案します。",
+          "グループIDを入力して「空き計算」を実行すると、ヒートマップで空き状況が表示され、MTG候補がランキング形式で提案されます。",
+          "候補から直接予約画面に移動して、予約を作成できます。",
+        ],
+        tutorialId: "scheduler-auto",
+      },
+      {
+        id: "smart-scheduler-usage",
+        title: "自動配置スケジューラ",
+        summary: "タスク設定から自動配置の実行まで",
+        content: [
+          "自動配置タブでは、入れたい予定をグループの空き状況を見て自動配置します。",
+          "グループを選択し、配置したいタスク（タイトル、コマ数、優先度、希望曜日）を追加します。",
+          "「自動配置を実行」ボタンでソルバーが最適な配置を計算し、結果をプレビューして確定できます。",
+          "休日や業務時間の考慮オプションも利用できます。",
+        ],
+        steps: [
+          { title: "グループを選択", description: "プルダウンからグループを選択します" },
+          { title: "タスクを追加", description: "「+ 追加」から配置したい予定のタイトル・コマ数・優先度を入力します" },
+          { title: "自動配置を実行", description: "「自動配置を実行」ボタンで最適な配置を計算します" },
+          { title: "結果を確認", description: "週間プレビューで配置結果を確認します" },
+          { title: "配置を確定", description: "「この配置で確定」で確定します" },
+        ],
+        tutorialId: "smart-scheduler-flow",
       },
     ],
   },
@@ -432,7 +450,7 @@ export const PAGE_HELP_MAP: Record<string, PageHelpConfig> = {
   "/schema-management": {
     moduleId: "curriculum",
     topicId: "curriculum-overview",
-    quickTip: "学科・講師・カリキュラムのマスタデータを管理します。まず学科を登録し、次に講師、最後にカリキュラムを設定してください。",
+    quickTip: "学科・講師・カリキュラム・教室のマスタデータを管理します。まず学科を登録し、次に講師、カリキュラム、教室を設定してください。",
   },
   "/data-management": {
     moduleId: "curriculum",
@@ -454,15 +472,10 @@ export const PAGE_HELP_MAP: Record<string, PageHelpConfig> = {
     topicId: "calendar-usage",
     quickTip: "個人の予定を管理します。Google Calendar と連携して予定を同期することもできます。",
   },
-  "/smart-scheduler": {
-    moduleId: "smart-scheduler",
-    topicId: "scheduler-usage",
-    quickTip: "制約条件をもとに時間割を自動生成します。タスクを作成してソルバーを実行してください。",
-  },
   "/reservations": {
     moduleId: "reservations",
     topicId: "reservation-usage",
-    quickTip: "教室や設備の予約を管理します。空き教室を確認して予約を作成してください。",
+    quickTip: "グループを選択して参加者を設定し、空きコマと空き教室を確認して予約を作成できます。オートスケジューラ・自動配置タブも利用できます。",
   },
   "/notifications": {
     moduleId: "notifications",
