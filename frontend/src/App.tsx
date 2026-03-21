@@ -5,6 +5,7 @@ import { LoginPage } from "./pages/LoginPage";
 import { Dashboard } from "./pages/Dashboard";
 import { DataManagementPage } from "./pages/DataManagementPage";
 import { ReservationsPage } from "./pages/ReservationsPage";
+import { FacilityBookingPage } from "./pages/FacilityBookingPage";
 import { NotificationsPage } from "./pages/NotificationsPage";
 
 import { VotingPage } from "./pages/VotingPage";
@@ -57,7 +58,8 @@ function AppRoutes() {
         <Route path="/scheduler" element={<Navigate to="/reservations" replace />} />
         <Route path="/smart-scheduler" element={<Navigate to="/reservations" replace />} />
         <Route path="/reservations" element={<ReservationsPage />} />
-        <Route path="/reservations/new" element={<ReservationsPage />} />
+        <Route path="/reservations/facility" element={<FacilityBookingPage />} />
+        <Route path="/reservations/new" element={<FacilityBookingPage />} />
         <Route path="/notifications" element={<NotificationsPage />} />
         <Route path="/voting" element={<VotingPage />} />
         <Route path="/calendar" element={<CalendarPage />} />
