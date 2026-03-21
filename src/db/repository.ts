@@ -1370,3 +1370,89 @@ export const groupEventRepo = {
     await db.delete(schema.groupEvents).where(eq(schema.groupEvents.id, id));
   },
 };
+
+// ─── Integration Settings Repository ─────────────────────────
+
+export type IntegrationSetting = typeof schema.integrationSettings.$inferSelect;
+export type NewIntegrationSetting = typeof schema.integrationSettings.$inferInsert;
+
+export const integrationSettingRepo = {
+  async findByUserAndService(userId: string, service: string): Promise<IntegrationSetting | undefined> {
+    const [row] = await db
+      .select()
+      .from(schema.integrationSettings)
+      .where(
+        and(
+          eq(schema.integrationSettings.userId, userId),
+          eq(schema.integrationSettings.service, service)
+        )
+      );
+    return row;
+  },
+
+  async findByUserId(userId: string): Promise<IntegrationSetting[]> {
+    return db
+      .select()
+      .from(schema.integrationSettings)
+      .where(eq(schema.integrationSettings.userId, userId));
+  },
+
+  async upsert(data: NewIntegrationSetting): Promise<void> {
+    const existing = await integrationSettingRepo.findByUserAndService(data.userId, data.service);
+    if (existing) {
+      await db
+        .update(schema.integrationSettings)
+        .set({ ...data, updatedAt: new Date() })
+        .where(eq(schema.integrationSettings.id, existing.id));
+    } else {
+      await db.insert(schema.integrationSettings).values(data);
+    }
+  },
+
+  async update(id: string, data: Partial<Omit<NewIntegrationSetting, "id">>): Promise<void> {
+    await db
+      .update(schema.integrationSettings)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(schema.integrationSettings.id, id));
+  },
+
+  async deleteById(id: string): Promise<void> {
+    await db
+      .delete(schema.integrationSettings)
+      .where(eq(schema.integrationSettings.id, id));
+  },
+};
+
+// ─── Sync Log Repository ────────────────────────────────────
+
+export type SyncLog = typeof schema.syncLogs.$inferSelect;
+export type NewSyncLog = typeof schema.syncLogs.$inferInsert;
+
+export const syncLogRepo = {
+  async findByUserId(userId: string, limit = 50): Promise<SyncLog[]> {
+    return db
+      .select()
+      .from(schema.syncLogs)
+      .where(eq(schema.syncLogs.userId, userId))
+      .orderBy(desc(schema.syncLogs.createdAt))
+      .limit(limit);
+  },
+
+  async findByUserAndService(userId: string, service: string, limit = 50): Promise<SyncLog[]> {
+    return db
+      .select()
+      .from(schema.syncLogs)
+      .where(
+        and(
+          eq(schema.syncLogs.userId, userId),
+          eq(schema.syncLogs.service, service)
+        )
+      )
+      .orderBy(desc(schema.syncLogs.createdAt))
+      .limit(limit);
+  },
+
+  async create(data: NewSyncLog): Promise<void> {
+    await db.insert(schema.syncLogs).values(data);
+  },
+};

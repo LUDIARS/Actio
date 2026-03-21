@@ -255,6 +255,10 @@ export const personalEvents = sqliteTable(
     /** 繰り返し元のプランID (プランから自動生成された場合) */
     planId: text("plan_id"),
     isPrivate: integer("is_private", { mode: "boolean" }).notNull().default(true),
+    /** Google Calendar同期時のイベントID */
+    googleCalendarEventId: text("google_calendar_event_id"),
+    /** Notion同期時のページID */
+    notionPageId: text("notion_page_id"),
     createdAt: integer("created_at", { mode: "timestamp" })
       .$defaultFn(() => new Date())
       .notNull(),
@@ -607,6 +611,73 @@ export const holidays = sqliteTable(
     index("idx_holiday_group").on(table.groupId),
     index("idx_holiday_date").on(table.date),
     index("idx_holiday_type").on(table.holidayType),
+  ]
+);
+
+// ─── Integration Settings (外部サービス連携設定) ─────────────
+// ユーザーごとのNotion/Google Calendar等の連携トークン・設定を保存
+
+export const integrationSettings = sqliteTable(
+  "integration_settings",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .references(() => users.id)
+      .notNull(),
+    /** サービス種別: google_calendar / notion */
+    service: text("service").notNull(),
+    /** アクセストークン (暗号化推奨) */
+    accessToken: text("access_token"),
+    /** リフレッシュトークン */
+    refreshToken: text("refresh_token"),
+    /** トークン有効期限 */
+    tokenExpiresAt: integer("token_expires_at"),
+    /** サービス固有の設定 JSON (例: Notion DB ID, Google Calendar ID) */
+    config: text("config", { mode: "json" }).$type<Record<string, unknown>>().notNull().default({}),
+    /** 連携有効/無効 */
+    isActive: integer("is_active", { mode: "boolean" }).notNull().default(true),
+    createdAt: integer("created_at", { mode: "timestamp" })
+      .$defaultFn(() => new Date())
+      .notNull(),
+    updatedAt: integer("updated_at", { mode: "timestamp" })
+      .$defaultFn(() => new Date())
+      .notNull(),
+  },
+  (table) => [
+    unique("unique_user_service").on(table.userId, table.service),
+    index("idx_integration_user").on(table.userId),
+  ]
+);
+
+// ─── Sync Log (同期ログ) ──────────────────────────────────────
+// 外部サービスとの同期結果を記録
+
+export const syncLogs = sqliteTable(
+  "sync_logs",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .references(() => users.id)
+      .notNull(),
+    /** サービス種別: google_calendar / notion */
+    service: text("service").notNull(),
+    /** sync_push / sync_pull / create / update / delete */
+    action: text("action").notNull(),
+    /** 対象のローカルイベントID */
+    localEventId: text("local_event_id"),
+    /** 外部サービス側のID */
+    externalId: text("external_id"),
+    /** success / error */
+    status: text("status").notNull(),
+    /** エラー時のメッセージ */
+    errorMessage: text("error_message"),
+    createdAt: integer("created_at", { mode: "timestamp" })
+      .$defaultFn(() => new Date())
+      .notNull(),
+  },
+  (table) => [
+    index("idx_sync_log_user").on(table.userId),
+    index("idx_sync_log_service").on(table.service),
   ]
 );
 

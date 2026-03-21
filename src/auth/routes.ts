@@ -261,6 +261,7 @@ auth.get("/google", (c) => {
     "profile",
     "https://www.googleapis.com/auth/calendar.readonly",
     "https://www.googleapis.com/auth/calendar.events.readonly",
+    "https://www.googleapis.com/auth/calendar.events",
   ].join(" ");
 
   const params = new URLSearchParams({
