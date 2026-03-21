@@ -1,45 +1,16 @@
 import { useState, useEffect, useCallback } from "react";
 import { m1Schema } from "../lib/api";
+import type { Department, Instructor, Curriculum, AvailableSlot } from "../lib/api-types";
 import { HelpButton } from "../components/HelpOverlay";
 import { DAY_LABELS, PERIODS_COUNT, getPeriodLabel } from "../lib/constants";
 
 // ─── Types ──────────────────────────────────────────────────
-
-interface Department {
-  id: string;
-  name: string;
-  createdAt: string;
-}
-
-interface Instructor {
-  id: string;
-  name: string;
-  createdAt: string;
-}
-
-interface Curriculum {
-  id: string;
-  name: string;
-  departmentId: string;
-  periods: number;
-  instructorId: string | null;
-  termId: string | null;
-  departmentIds?: string[];
-  createdAt: string;
-}
 
 interface Term {
   id: string;
   name: string;
   startDate: string;
   endDate: string;
-}
-
-interface AvailableSlot {
-  id: string;
-  instructorId: string;
-  day: number;
-  periods: number[];
 }
 
 type ActiveTab = "departments" | "instructors" | "curricula" | "terms" | "availability" | "rooms";

@@ -2,21 +2,9 @@ import { useState, useEffect, useCallback } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import { calendarApi, groupApi, myPlanApi } from "../lib/api";
+import type { PersonalEvent } from "../lib/api-types";
 import { HelpButton } from "../components/HelpOverlay";
 import { DAY_LABELS, getPeriodLabel } from "../lib/constants";
-
-interface PersonalEvent {
-  id: string;
-  title: string;
-  day: number;
-  period: number;
-  duration: number;
-  startTime: string | null;
-  endTime: string | null;
-  eventType: string;
-  planId: string | null;
-  isPrivate: boolean;
-}
 
 interface GoogleCalEvent {
   id: string;

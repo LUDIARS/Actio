@@ -7,18 +7,7 @@ import {
   CANDIDATE_COLORS,
 } from "../lib/constants";
 import { m1 } from "../lib/api";
-
-interface ScheduleEntry {
-  day: number;
-  period: number;
-  curriculumId: string;
-  curriculumName?: string;
-  roomId: string;
-  roomName?: string;
-  instructorId: string;
-  instructorName?: string;
-  candidateCount: number;
-}
+import type { ScheduleEntry } from "../lib/api-types";
 
 export function SchedulePage() {
   const [entries, setEntries] = useState<ScheduleEntry[]>([]);

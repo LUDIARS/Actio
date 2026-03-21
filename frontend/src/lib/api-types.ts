@@ -93,15 +93,18 @@ export interface CalendarStatusResponse {
 
 export interface PersonalEvent {
   id: string;
-  userId: string;
+  userId?: string;
   title: string;
   description: string | null;
   day: number;
   period: number;
   duration: number;
   eventType: string;
+  planId: string | null;
+  startTime: string | null;
+  endTime: string | null;
   isPrivate: boolean;
-  createdAt: string;
+  createdAt?: string;
 }
 
 export interface PersonalEventsResponse {
@@ -141,23 +144,29 @@ export interface ConflictsResponse {
 export interface Department {
   id: string;
   name: string;
+  createdAt: string;
 }
 
 export interface Instructor {
   id: string;
   name: string;
+  createdAt: string;
 }
 
 export interface Curriculum {
   id: string;
   name: string;
+  departmentId: string;
   instructorId: string | null;
   periods: number;
-  departmentIds: string[];
+  departmentIds?: string[];
   termId: string | null;
+  createdAt: string;
 }
 
 export interface AvailableSlot {
+  id?: string;
+  instructorId?: string;
   day: number;
   periods: number[];
 }
@@ -182,7 +191,7 @@ export interface GroupScheduleEntry {
   label: string | null;
   createdBy: string;
   createdAt: string;
-  groupName?: string;
+  groupName: string;
 }
 
 // ─── Groups ─────────────────────────────────────────────────
@@ -302,9 +311,13 @@ export interface Webhook {
   events: string[];
   secret?: string;
   isActive: boolean;
-  failCount?: number;
-  lastDeliveredAt?: string | null;
+  failCount: number;
+  lastDeliveredAt: string | null;
   createdAt: string;
+}
+
+export interface WebhookCreateResponse extends Webhook {
+  secret: string;
 }
 
 export interface WebhookListResponse {
@@ -360,13 +373,16 @@ export interface NotificationPreferencesResponse {
 
 export interface NotificationHistoryItem {
   id: string;
-  userId: string;
+  userId?: string;
   event: string;
   channel: string;
-  status: string;
-  message: string;
+  status?: string;
+  title: string;
+  body: string;
+  message?: string;
+  isRead: boolean;
   createdAt: string;
-  readAt: string | null;
+  readAt?: string | null;
 }
 
 export interface NotificationHistoryResponse {
@@ -388,7 +404,7 @@ export interface MyPlan {
   userId: string;
   groupId: string | null;
   name: string;
-  patternType: string;
+  patternType: "basic" | "special";
   validFrom: string | null;
   validUntil: string | null;
   weeklySchedule: Record<string, MyPlanEntry[]>;
@@ -499,7 +515,8 @@ export interface VotingEvent {
   createdBy: string;
   deadline: string | null;
   status: string;
-  candidates?: VotingCandidate[];
+  createdAt: string;
+  candidates: VotingCandidate[];
 }
 
 export interface VotingEventCreateResponse {
@@ -509,21 +526,21 @@ export interface VotingEventCreateResponse {
 }
 
 export interface VotingEventListResponse {
-  events: Array<VotingEvent & { candidates: VotingCandidate[] }>;
+  events: VotingEvent[];
 }
 
 export interface Vote {
   id: string;
-  eventId: string;
+  eventId?: string;
   candidateId: string;
   userId: string;
-  answer: string;
+  answer: "ok" | "maybe" | "ng";
   comment: string;
   isAutoReply: boolean;
 }
 
 export interface VotingEventDetailResponse {
-  event: VotingEvent & { candidates: VotingCandidate[] };
+  event: VotingEvent;
   summary: Record<string, { ok: number; maybe: number; ng: number }>;
   responses: Record<string, Record<string, Vote>>;
   respondents: Record<string, string>;
@@ -587,22 +604,36 @@ export interface M3SuggestionsResponse {
 // ─── M1 Legacy Schedule ─────────────────────────────────────
 
 export interface ScheduleEntry {
-  id: string;
   day: number;
   period: number;
-  curriculumName: string;
-  departmentName: string;
-  instructorName: string;
-  roomId: string | null;
+  curriculumId: string;
+  curriculumName?: string;
+  roomId: string;
+  roomName?: string;
+  instructorId: string;
+  instructorName?: string;
+  departmentName?: string;
+  candidateCount: number;
+  isConfirmed?: boolean;
 }
 
 export interface ScheduleResponse {
-  schedule: ScheduleEntry[];
+  entries: ScheduleEntry[];
 }
 
 export interface GenerateResponse {
   message: string;
   entries: ScheduleEntry[];
+  stats?: {
+    placed: number;
+    unplaced: number;
+  };
+}
+
+export interface SwapResponse {
+  success: boolean;
+  message?: string;
+  entries?: ScheduleEntry[];
 }
 
 // ─── Holidays ───────────────────────────────────────────────

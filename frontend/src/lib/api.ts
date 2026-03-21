@@ -3,17 +3,17 @@ import type {
   UserProfile, UserListResponse, UserListWithGroupsResponse, UserRoleUpdateResponse,
   CalendarEventsResponse, CalendarListResponse, CalendarStatusResponse,
   PersonalEventsResponse, PersonalEvent, PlansResponse, Plan, ConflictsResponse,
-  Department, Instructor, Curriculum, Room, GroupScheduleEntry,
+  Department, Instructor, Curriculum, AvailableSlot, Room, GroupScheduleEntry,
   GroupMyResponse, GroupDetailResponse, GroupCreateResponse, GroupEventsResponse, GroupEventResponse, GroupScheduleResponse,
   MessageResponse, DeletedResponse,
   Reservation, ReservationListResponse, RoomScheduleResponse,
-  WebhookListResponse, Webhook, WebhookTestResponse, WebhookRotateResponse, WebhookLogsResponse,
+  WebhookListResponse, WebhookCreateResponse, WebhookTestResponse, WebhookRotateResponse, WebhookLogsResponse,
   NotificationPreferencesResponse, NotificationHistoryResponse,
   MyPlanListResponse, MyPlanResponse,
   SchedulingTaskListResponse, SchedulingTaskResponse, SolveResponse, ConfirmResponse, SchedulingResultsResponse, SchedulerAvailabilityResponse,
   VotingEventCreateResponse, VotingEventListResponse, VotingEventDetailResponse, VotingSubmitResponse, VotingAutoReplyResponse, VotingUpdateResponse,
   M3Group, M3AvailabilityResponse, M3SuggestionsResponse,
-  ScheduleResponse, GenerateResponse,
+  ScheduleResponse, GenerateResponse, SwapResponse,
   HolidayListResponse, ActivityLogsResponse,
 } from "./api-types";
 
@@ -372,7 +372,7 @@ export const m1Schema = {
 
   // 出講可能スロット (Instructor Available Slots)
   getAvailability(instructorId: string) {
-    return request<{ slots: Array<{ day: number; periods: number[] }> }>(`/api/m1/instructors/${instructorId}/availability`);
+    return request<{ slots: AvailableSlot[] }>(`/api/m1/instructors/${instructorId}/availability`);
   },
   setAvailability(instructorId: string, slots: { day: number; periods: number[] }[]) {
     return request<MessageResponse>(`/api/m1/instructors/${instructorId}/availability`, {
@@ -595,7 +595,7 @@ export const m1 = {
     toDay: number;
     toPeriod: number;
   }) {
-    return request<MessageResponse>("/api/m1/schedule/swap", {
+    return request<SwapResponse>("/api/m1/schedule/swap", {
       method: "POST",
       body: JSON.stringify(body),
     });
@@ -681,7 +681,7 @@ export const m5 = {
     return request<WebhookListResponse>("/api/m5/webhooks");
   },
   createWebhook(body: { url: string; events: string[] }) {
-    return request<Webhook>("/api/m5/webhooks", {
+    return request<WebhookCreateResponse>("/api/m5/webhooks", {
       method: "POST",
       body: JSON.stringify(body),
     });

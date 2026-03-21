@@ -1,34 +1,11 @@
 import { useState, useEffect, useCallback } from "react";
 import { useAuth } from "../contexts/AuthContext";
 import { calendarApi } from "../lib/api";
+import type { PersonalEvent, Plan } from "../lib/api-types";
 import { HelpButton } from "../components/HelpOverlay";
 import { DAY_LABELS, getPeriodLabel } from "../lib/constants";
 
 type Tab = "events" | "plans" | "google" | "conflicts";
-
-interface PersonalEvent {
-  id: string;
-  title: string;
-  description: string | null;
-  day: number;
-  period: number;
-  duration: number;
-  eventType: string;
-  planId: string | null;
-  isPrivate: boolean;
-}
-
-interface Plan {
-  id: string;
-  name: string;
-  description: string | null;
-  days: number[];
-  startPeriod: number;
-  duration: number;
-  eventType: string;
-  isPrivate: boolean;
-  isActive: boolean;
-}
 
 export function CalendarPage() {
   const { googleAuthUrl } = useAuth();
