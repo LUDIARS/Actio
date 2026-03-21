@@ -105,12 +105,13 @@ export function Dashboard() {
 
   const loadData = useCallback(async () => {
     try {
+      const logErr = (label: string) => (err: Error) => { console.error(`[Dashboard] ${label}:`, err.message); };
       const [statusRes, eventsRes, conflictsRes, groupsRes, myPlansRes] = await Promise.all([
-        calendarApi.getStatus().catch(() => ({ connected: false, email: "" })),
-        calendarApi.getPersonalEvents().catch(() => ({ events: [] })),
-        calendarApi.getConflicts().catch(() => ({ conflicts: [] })),
-        groupApi.listMyGroups().catch(() => ({ groups: [] })),
-        myPlanApi.list().catch(() => ({ plans: [] })),
+        calendarApi.getStatus().catch((e: Error) => { logErr("status")(e); return { connected: false, email: "" }; }),
+        calendarApi.getPersonalEvents().catch((e: Error) => { logErr("events")(e); return { events: [] }; }),
+        calendarApi.getConflicts().catch((e: Error) => { logErr("conflicts")(e); return { conflicts: [] }; }),
+        groupApi.listMyGroups().catch((e: Error) => { logErr("groups")(e); return { groups: [] }; }),
+        myPlanApi.list().catch((e: Error) => { logErr("plans")(e); return { plans: [] }; }),
       ]);
       setConflicts(conflictsRes.conflicts || []);
       setGoogleConnected(statusRes.connected);

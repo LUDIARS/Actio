@@ -41,17 +41,14 @@ async function isUserBusy(userId: string, day: number, period: number): Promise<
   const personalEvent = await personalEventRepo.findByUserDayPeriod(userId, day, period);
   if (personalEvent) return true;
 
-  // ユーザーが所属するグループのスケジュールをチェック
+  // ユーザーが所属するグループのスケジュールをバッチ取得
   const memberships = await groupMemberRepo.findByUserId(userId);
-  for (const m of memberships) {
-    const schedules = await groupScheduleRepo.findByGroupId(m.groupId);
-    for (const s of schedules) {
-      if (s.day === day) {
-        // durationを考慮したスロット重複判定
-        if (period >= s.period && period < s.period + s.duration) {
-          return true;
-        }
-      }
+  const groupIds = memberships.map((m) => m.groupId);
+  const allSchedules = await groupScheduleRepo.findByGroupIds(groupIds);
+
+  for (const s of allSchedules) {
+    if (s.day === day && period >= s.period && period < s.period + s.duration) {
+      return true;
     }
   }
 

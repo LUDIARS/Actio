@@ -7,6 +7,7 @@ import {
   groupScheduleRepo,
   groupEventRepo,
   userRepo,
+  userListRepo,
 } from "../../src/db/repository.js";
 import { logActivity } from "../../src/activity-logger.js";
 
@@ -19,22 +20,32 @@ groupRoutes.get("/my", async (c) => {
   if (!userId) return c.json({ error: "Authentication required" }, 401);
 
   const memberships = await groupMemberRepo.findByUserId(userId);
+  const groupIds = memberships.map((m) => m.groupId);
 
-  const groups = [];
-  for (const m of memberships) {
-    const group = await groupRepo.findById(m.groupId);
-    if (!group) continue;
+  // バッチ取得でN+1回避
+  const allGroups = await groupRepo.findByIds(groupIds);
+  const groupMap = new Map(allGroups.map((g) => [g.id, g]));
 
-    const members = await groupMemberRepo.findByGroupId(m.groupId);
-    groups.push({
-      id: group.id,
-      name: group.name,
-      description: group.description,
-      memberCount: members.length,
-      role: m.role,
-      createdAt: group.createdAt,
-    });
-  }
+  // 各グループのメンバー数を取得
+  const allMembers = groupIds.length > 0
+    ? await Promise.all(groupIds.map((gid) => groupMemberRepo.findByGroupId(gid)))
+    : [];
+  const memberCountMap = new Map(groupIds.map((gid, i) => [gid, allMembers[i]?.length || 0]));
+
+  const groups = memberships
+    .map((m) => {
+      const group = groupMap.get(m.groupId);
+      if (!group) return null;
+      return {
+        id: group.id,
+        name: group.name,
+        description: group.description,
+        memberCount: memberCountMap.get(m.groupId) || 0,
+        role: m.role,
+        createdAt: group.createdAt,
+      };
+    })
+    .filter(Boolean);
 
   return c.json({ groups });
 });
@@ -54,18 +65,17 @@ groupRoutes.get("/:id", async (c) => {
   const membership = await groupMemberRepo.findByGroupAndUser(groupId, userId);
   if (!membership) return c.json({ error: "Not a member of this group" }, 403);
 
-  // メンバー一覧
+  // メンバー一覧（バッチ取得でN+1回避）
   const memberRows = await groupMemberRepo.findByGroupId(groupId);
-  const members = [];
-  for (const m of memberRows) {
-    const user = await userRepo.findById(m.userId);
-    members.push({
-      userId: m.userId,
-      name: user?.name || "Unknown",
-      email: user?.email || "",
-      role: m.role,
-    });
-  }
+  const userIds = memberRows.map((m) => m.userId);
+  const users = userIds.length > 0 ? await userListRepo.findByIds(userIds) : [];
+  const userMap = new Map(users.map((u) => [u.id, u]));
+  const members = memberRows.map((m) => ({
+    userId: m.userId,
+    name: userMap.get(m.userId)?.name || "Unknown",
+    email: userMap.get(m.userId)?.email || "",
+    role: m.role,
+  }));
 
   // グループの予定
   const schedules = await groupScheduleRepo.findByGroupId(groupId);

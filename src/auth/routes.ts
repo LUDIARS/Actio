@@ -5,10 +5,9 @@ import jwt from "jsonwebtoken";
 import { userRepo, userListRepo, groupMemberRepo, groupRepo, appSettingsRepo } from "../db/repository.js";
 import * as sessionStore from "../session/store.js";
 import { logActivity } from "../activity-logger.js";
+import { JWT_SECRET } from "../config/jwt.js";
 
 const auth = new Hono();
-
-const JWT_SECRET = process.env.JWT_SECRET || "schedula-dev-secret-change-in-production";
 
 // セッション設定: DB設定 > 環境変数 > デフォルト値
 async function getSessionConfig() {

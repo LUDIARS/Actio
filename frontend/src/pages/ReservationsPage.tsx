@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { DAY_LABELS, DAYS_COUNT, PERIODS_COUNT } from "../lib/constants";
 import { m4, m3, smartSchedulerApi, groupApi, m1Schema } from "../lib/api";
+import { useAuth } from "../contexts/AuthContext";
 import { HelpButton } from "../components/HelpOverlay";
 import { TimetableGrid, type GridSlot } from "../components/TimetableGrid";
 
@@ -680,6 +681,7 @@ interface AvailabilitySlot {
 }
 
 function SchedulerTab() {
+  const { user } = useAuth();
   const navigate = useNavigate();
   const [groupId, setGroupId] = useState("");
   const [groupName, setGroupName] = useState("");
@@ -702,7 +704,7 @@ function SchedulerTab() {
     if (!newGroupName.trim()) return;
     const members = newMembers.split(",").map((s) => s.trim()).filter(Boolean);
     try {
-      const result = await m3.createGroup({ name: newGroupName, members, createdBy: localStorage.getItem("userId") || "user-1" });
+      const result = await m3.createGroup({ name: newGroupName, members, createdBy: user?.id || "" });
       setGroupId(result.id);
       setGroupName(result.name);
       setShowCreate(false);
@@ -911,8 +913,8 @@ function SmartSchedulerTab() {
   };
 
   useEffect(() => {
-    groupApi.listMyGroups().then((res: any) => { setGroups(res.groups || []); }).catch(() => {});
-    m1Schema.getInstructors().then((res: any) => { setInstructors(res.instructors || []); }).catch(() => {});
+    groupApi.listMyGroups().then((res: any) => { setGroups(res.groups || []); }).catch((err: Error) => { console.error("[Reservations] グループ取得失敗:", err.message); });
+    m1Schema.getInstructors().then((res: any) => { setInstructors(res.instructors || []); }).catch((err: Error) => { console.error("[Reservations] 講師取得失敗:", err.message); });
   }, []);
 
   const loadTasks = useCallback(async () => {
