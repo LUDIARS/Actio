@@ -4,39 +4,86 @@
 
 現在の「予約 (M4)」モジュールを以下の方針で再設計する:
 
-1. **予約をプラグインアーキテクチャに変更** — 予約メニューから任意の「予定モジュール」を起動できる汎用フレームワーク化
+1. **予約をプラグインアーキテクチャに変更** — 共通 CRUD インターフェースを持つプラグインフレームワーク。各プラグインのデータは最終的にカレンダー予定形式に集約される。
 2. **施設予約を M1 の一部として切り出し** — 現在の M4 ロジック (教室×曜日×コマの予約) を M1 サブモジュールに移動
-3. **最終的にカレンダー予定で管理** — 予約確定後、カレンダーの personalEvent / groupEvent として登録
+3. **カレンダー予定で管理** — 予約作成時に即カレンダー予定として登録
+
+### 決定事項
+
+| 項目 | 決定 |
+|------|------|
+| プラグイン粒度 | 案B: 共通 CRUD インターフェース |
+| 旧 M4 パス | 削除 (後方互換不要) |
+| カレンダー連携 | 作成時に即登録 |
+| スマートスケジューラ | ランチャーから除外 |
 
 ---
 
 ## 1. プラグインアーキテクチャ
 
-### 1.1 予約プラグインインターフェース
+### 1.1 共通カレンダー予定スキーマ
+
+すべての予約プラグインは、最終的にこの共通スキーマに集約される。
+プラグイン固有の中間スキーマを持つことは許容するが、確定時にこの形式でカレンダーに登録する。
+
+```typescript
+// src/shared/types.ts に追加
+
+/** 予約プラグインが出力する共通カレンダー予定 */
+export interface ReservationCalendarEvent {
+  /** 予約者ユーザID */
+  reservedBy: string;
+  /** カレンダー予定ID (personalEvent.id) */
+  calendarEventId: string;
+  /** 開始日時 */
+  startTime: string;  // ISO 8601
+  /** 終了日時 */
+  endTime: string;    // ISO 8601
+  /** 予定名 */
+  title: string;
+  /** グループID (nullable) */
+  groupId: string | null;
+  /** 概要・備考 */
+  description: string;
+}
+```
+
+### 1.2 予約プラグインインターフェース
 
 ```typescript
 // src/shared/types.ts に追加
 
 export interface ReservationPlugin {
-  /** プラグイン識別子 (例: "facility", "voting", "custom") */
+  /** プラグイン識別子 (例: "facility", "voting") */
   id: string;
   /** 表示名 (例: "施設予約", "日程調整") */
   name: string;
   /** 説明 */
   description: string;
-  /** アイコン名 (Lucide icon 等) */
+  /** アイコン名 (Lucide icon) */
   icon: string;
   /** バックエンド API ベースパス (例: "/api/m1/facility-booking") */
   apiBasePath: string;
   /** フロントエンドルートパス (例: "/reservations/facility") */
   frontendPath: string;
+  /** 共通 CRUD 操作のエンドポイントパス (apiBasePath からの相対) */
+  operations: {
+    /** 予約一覧取得: GET */
+    list: string;
+    /** 予約作成: POST */
+    create: string;
+    /** 予約キャンセル: DELETE /:id */
+    cancel: string;
+  };
 }
 ```
 
-### 1.2 プラグインレジストリ (バックエンド)
+### 1.3 プラグインレジストリ (バックエンド)
 
 ```typescript
 // src/reservation-plugins.ts (新規)
+
+import type { ReservationPlugin } from "./shared/types.js";
 
 const plugins: ReservationPlugin[] = [];
 
@@ -55,11 +102,9 @@ export function getReservationPlugins(): ReservationPlugin[] {
 GET /api/reservations/plugins → ReservationPlugin[]
 ```
 
-各モジュールの初期化時に `registerReservationPlugin()` を呼ぶ。
+### 1.4 フロントエンド: 予約ランチャーページ
 
-### 1.3 フロントエンド: 予約ランチャーページ
-
-現在の `ReservationsPage.tsx` を **ランチャー (プラグイン選択画面)** に変更。
+現在の `ReservationsPage.tsx` を **ランチャー (プラグイン選択画面)** に改修。
 
 ```
 /reservations          → プラグイン一覧 (カード形式で表示)
@@ -78,15 +123,26 @@ GET /api/reservations/plugins → ReservationPlugin[]
 │  │ 教室・会議│  │ 投票で   │        │
 │  │ 室の予約  │  │ 日程決定  │        │
 │  └──────────┘  └──────────┘        │
-│                                     │
-│  ┌──────────┐                      │
-│  │ ⚡       │                      │
-│  │ スマート  │                      │
-│  │ スケジュー│                      │
-│  │ ラー     │                      │
-│  └──────────┘                      │
 └─────────────────────────────────────┘
 ```
+
+※ スマートスケジューラはランチャーに含めない (独立ページとして運用)
+
+### 1.5 共通 CRUD フロー
+
+各プラグインは以下の共通操作を実装する:
+
+```
+POST   {apiBasePath}/reservations     → 予約作成 + カレンダー予定即時登録
+GET    {apiBasePath}/reservations     → 予約一覧 (ReservationCalendarEvent[] 形式を含む)
+DELETE {apiBasePath}/reservations/:id → 予約キャンセル + カレンダー予定連動削除
+```
+
+**共通フロー:**
+1. ユーザがプラグイン固有UIで予約情報を入力
+2. プラグインが中間データを処理 (例: 施設予約なら空き教室チェック)
+3. 予約確定 → `personalEventRepo.create()` でカレンダー予定を即時登録
+4. 予約キャンセル → カレンダー予定も連動削除
 
 ---
 
@@ -96,86 +152,51 @@ GET /api/reservations/plugins → ReservationPlugin[]
 
 ```
 modules/school/
-  index.ts                  ← 既存 (SchulaModule)
+  index.ts                  ← 既存 (SchulaModule) に施設予約サブモジュール追加
   facility-booking/         ← 新規
-    routes.ts               ← 施設予約エンドポイント
+    routes.ts               ← 施設予約エンドポイント (旧M4ロジック移植)
     index.ts                ← プラグイン登録
 ```
 
 ### 2.2 API エンドポイント
 
-既存 M4 ルートを M1 配下に移動。パスを変更:
+旧 M4 ルートを M1 配下に移動。**旧パスは削除。**
 
-| 旧パス (M4)                        | 新パス (M1)                                    |
-|------------------------------------|-------------------------------------------------|
-| `POST /api/m4/reservations`        | `POST /api/m1/facility-booking/reservations`    |
-| `GET  /api/m4/reservations`        | `GET  /api/m1/facility-booking/reservations`    |
-| `GET  /api/m4/reservations/:id`    | `GET  /api/m1/facility-booking/reservations/:id`|
-| `PUT  /api/m4/reservations/:id`    | `PUT  /api/m1/facility-booking/reservations/:id`|
-| `DELETE /api/m4/reservations/:id`  | `DELETE /api/m1/facility-booking/reservations/:id`|
-| `GET  /api/m4/rooms/availability`  | `GET  /api/m1/facility-booking/rooms/availability`|
-| `GET  /api/m4/rooms/:id/schedule`  | `GET  /api/m1/facility-booking/rooms/:id/schedule`|
+| エンドポイント | メソッド | 説明 |
+|---------------|---------|------|
+| `/api/m1/facility-booking/reservations` | POST | 施設予約作成 + カレンダー予定登録 |
+| `/api/m1/facility-booking/reservations` | GET | 施設予約一覧 |
+| `/api/m1/facility-booking/reservations/:id` | GET | 施設予約詳細 |
+| `/api/m1/facility-booking/reservations/:id` | PUT | 施設予約更新 |
+| `/api/m1/facility-booking/reservations/:id` | DELETE | 施設予約キャンセル + カレンダー予定削除 |
+| `/api/m1/facility-booking/rooms/availability` | GET | 教室空き状況 |
+| `/api/m1/facility-booking/rooms/:roomId/schedule` | GET | 教室スケジュール |
 
-**後方互換:** 旧 `/api/m4/*` パスはそのまま残し、新パスへのリダイレクト or エイリアスとする。
+### 2.3 カレンダー連携
 
-### 2.3 カレンダー連携 (予約→カレンダー予定)
+**予約作成時:**
+1. `reservationRepo.create()` で予約レコード作成
+2. `personalEventRepo.create()` で予約者のカレンダーに予定登録
+3. レスポンスに `calendarEventId` を含める
 
-予約確定時に、カレンダーの予定として自動登録する機能を追加:
-
-```typescript
-// POST /api/m1/facility-booking/reservations のレスポンスに追加
-{
-  reservation: { ... },
-  calendarEventId: "ev_xxx"  // 自動作成されたカレンダー予定ID (任意)
-}
-```
-
-**フロー:**
-1. ユーザが施設予約を作成
-2. `reservationRepo.create()` で予約レコード作成
-3. (オプション) `personalEventRepo.create()` で予約者のカレンダーに予定追加
-4. 予約キャンセル時 → カレンダー予定も連動削除
-
-**新リポジトリ関数:**
-```typescript
-// repository.ts に追加
-reservationRepo.createWithCalendarEvent(data, calendarData) → { reservation, calendarEvent }
-```
+**予約キャンセル時:**
+1. `reservationRepo` で予約ステータスを `cancelled` に変更
+2. `personalEventRepo` で連携カレンダー予定を削除
 
 ### 2.4 DB スキーマ変更
 
-スキーマ変更は **なし**。既存の `reservations` テーブルをそのまま利用。
-
-カレンダー連携のため、`reservations` テーブルに1カラム追加を検討:
+`reservations` テーブルに1カラム追加:
 
 ```typescript
-// schema.ts - reservations テーブルに追加
+// schema.ts - reservations テーブル
 calendarEventId: text("calendar_event_id")  // 連携先カレンダー予定ID (nullable)
 ```
 
 ---
 
-## 3. 既存モジュールのプラグイン化
+## 3. 既存モジュールのプラグイン登録
 
-### 3.1 スマートスケジューラ
-
-現在 `ReservationsPage.tsx` のタブ2・タブ3にある「オートスケジューラ」「自動配置」を独立プラグインとして登録:
-
-```typescript
-registerReservationPlugin({
-  id: "smart-scheduler",
-  name: "スマートスケジューラ",
-  description: "DPベースの自動配置",
-  icon: "Zap",
-  apiBasePath: "/api/smart-scheduler",
-  frontendPath: "/reservations/smart-scheduler",
-});
-```
-
-ただし、SmartSchedulerPage は既に独立ページとして存在する。
-→ 予約ランチャーからは `/smart-scheduler` へリンクするだけでもよい。
-
-### 3.2 日程調整 (Voting / M6)
+### 3.1 日程調整 (Voting / M6)
 
 ```typescript
 registerReservationPlugin({
@@ -185,17 +206,22 @@ registerReservationPlugin({
   icon: "CalendarCheck",
   apiBasePath: "/api/voting",
   frontendPath: "/voting",
+  operations: {
+    list: "/events",
+    create: "/events",
+    cancel: "/events",
+  },
 });
 ```
 
-既存ページへのリンクとして登録。
+既存の VotingPage へ遷移。将来的に確定した日程をカレンダー予定に変換する拡張が可能。
 
 ---
 
 ## 4. 実装ステップ
 
 ### Phase 1: プラグインフレームワーク
-1. `ReservationPlugin` インターフェース定義 (`src/shared/types.ts`)
+1. `ReservationPlugin` / `ReservationCalendarEvent` 型定義 (`src/shared/types.ts`)
 2. プラグインレジストリ (`src/reservation-plugins.ts`)
 3. `GET /api/reservations/plugins` エンドポイント追加 (`app.ts`)
 4. フロントエンド: `ReservationsPage.tsx` をランチャーに改修
@@ -207,61 +233,32 @@ registerReservationPlugin({
 3. プラグインとして登録
 4. フロントエンド: `FacilityBookingPage.tsx` 作成 (既存の予約UI移植)
 5. フロントエンド: `api.ts` に `facilityBooking` 名前空間追加
-6. 旧 M4 パスの後方互換エイリアス設定
+6. 旧 M4 ルートとフロントエンド参照を削除
 
 ### Phase 3: カレンダー連携
 1. `reservations` テーブルに `calendarEventId` カラム追加
-2. 予約作成時のカレンダー予定自動生成
+2. 予約作成時のカレンダー予定自動生成ロジック
 3. 予約キャンセル時のカレンダー予定連動削除
 4. フロントエンド: カレンダーページで予約由来の予定を表示
 
-### Phase 4: 既存モジュールのプラグイン登録
-1. スマートスケジューラをプラグイン登録
-2. 日程調整 (Voting) をプラグイン登録
+### Phase 4: 日程調整プラグイン登録
+1. Voting モジュールをプラグイン登録
 
 ---
 
-## 5. 検討ポイント (要相談)
-
-### Q1: プラグインの粒度
-- **案A:** プラグインは「ページリンク」だけ (ランチャーからリンクするだけ)
-- **案B:** プラグインは共通の CRUD インターフェースを持つ (create/list/cancel 等の共通操作)
-- **案C:** プラグインはフロントエンドコンポーネントも動的にロード (React lazy import)
-
-→ まずは **案A (リンク)** で始め、共通操作が見えてきたら **案B** に拡張するのが現実的か？
-
-### Q2: 旧 M4 パスの扱い
-- **残す:** `/api/m4/*` → `/api/m1/facility-booking/*` へプロキシ (後方互換)
-- **削除:** 旧パスは廃止、フロントだけ書き換え
-
-→ 外部連携がなければ削除でよいか？
-
-### Q3: カレンダー連携のタイミング
-- **予約作成時に即カレンダー登録** (デフォルト)
-- **確定ステータス変更時にカレンダー登録** (承認フロー付き)
-- **手動でカレンダーにエクスポート** (ユーザ操作)
-
-→ 現状は承認フローがないので「作成時に即登録」が最もシンプル。
-
-### Q4: スマートスケジューラとの関係
-- 現在 `ReservationsPage` のタブにあるスケジューラ関連 UI は `SmartSchedulerPage` と重複している
-- プラグイン化で `ReservationsPage` からスケジューラタブを除去し、ランチャーからのリンクに統一するか？
-
----
-
-## 6. 影響範囲
+## 5. 影響範囲
 
 | ファイル | 変更内容 |
 |---------|---------|
-| `src/shared/types.ts` | `ReservationPlugin` 型追加 |
+| `src/shared/types.ts` | `ReservationPlugin`, `ReservationCalendarEvent` 型追加 |
 | `src/reservation-plugins.ts` | 新規: プラグインレジストリ |
-| `src/app.ts` | プラグイン API 追加、施設予約ルート登録 |
+| `src/app.ts` | プラグイン API 追加、施設予約ルート登録、旧M4ルート削除 |
 | `modules/school/index.ts` | サブモジュールに施設予約追加 |
 | `modules/school/facility-booking/` | 新規: 施設予約ルート |
-| `modules/reservation/routes.ts` | 後方互換エイリアス or 削除 |
+| `modules/reservation/routes.ts` | 削除 |
 | `src/db/schema.ts` | `calendarEventId` カラム追加 |
 | `src/db/repository.ts` | カレンダー連携リポジトリ関数追加 |
 | `frontend/src/pages/ReservationsPage.tsx` | ランチャーUIに改修 |
-| `frontend/src/pages/FacilityBookingPage.tsx` | 新規: 施設予約UI |
-| `frontend/src/lib/api.ts` | `facilityBooking` 名前空間追加、プラグイン API 追加 |
-| `frontend/src/App.tsx` | ルート追加 (`/reservations/facility`) |
+| `frontend/src/pages/FacilityBookingPage.tsx` | 新規: 施設予約UI (旧ReservationsPage予約タブ移植) |
+| `frontend/src/lib/api.ts` | `facilityBooking` 名前空間追加、旧 `m4` 削除、プラグイン API 追加 |
+| `frontend/src/App.tsx` | ルート追加 (`/reservations/facility`)、旧ルート調整 |
