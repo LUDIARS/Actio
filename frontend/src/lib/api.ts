@@ -624,7 +624,7 @@ export const reservationPluginsApi = {
 
 // ─── Facility Booking (施設予約 — M1) ───────────────────────
 
-const FACILITY_BASE = "/api/school/m1/facility-booking";
+const FACILITY_BASE = "/api/school/facility-booking";
 
 export const facilityBooking = {
   createReservation(body: {

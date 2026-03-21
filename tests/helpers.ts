@@ -129,6 +129,7 @@ export function initTestDatabase() {
       status TEXT NOT NULL DEFAULT 'pending',
       note TEXT NOT NULL DEFAULT '',
       version INTEGER NOT NULL DEFAULT 1,
+      calendar_event_id TEXT,
       created_at INTEGER NOT NULL,
       updated_at INTEGER NOT NULL
     );

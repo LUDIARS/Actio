@@ -30,9 +30,9 @@ beforeEach(() => {
 
 const token = generateTestToken(USER_ID);
 
-describe("POST /api/reservations/reservations", () => {
+describe("POST /api/school/facility-booking/reservations", () => {
   it("should create a reservation", async () => {
-    const { status, json } = await request(app, "POST", "/api/reservations/reservations", {
+    const { status, json } = await request(app, "POST", "/api/school/facility-booking/reservations", {
       token,
       body: {
         groupId: GROUP_ID,
@@ -51,7 +51,7 @@ describe("POST /api/reservations/reservations", () => {
   });
 
   it("should reject invalid day/period", async () => {
-    const { status } = await request(app, "POST", "/api/reservations/reservations", {
+    const { status } = await request(app, "POST", "/api/school/facility-booking/reservations", {
       token,
       body: {
         groupId: GROUP_ID,
@@ -68,7 +68,7 @@ describe("POST /api/reservations/reservations", () => {
 
   it("should detect room conflict", async () => {
     // First reservation
-    await request(app, "POST", "/api/reservations/reservations", {
+    await request(app, "POST", "/api/school/facility-booking/reservations", {
       token,
       body: {
         groupId: GROUP_ID,
@@ -81,7 +81,7 @@ describe("POST /api/reservations/reservations", () => {
     });
 
     // Conflicting reservation
-    const { status, json } = await request(app, "POST", "/api/reservations/reservations", {
+    const { status, json } = await request(app, "POST", "/api/school/facility-booking/reservations", {
       token,
       body: {
         groupId: GROUP_ID,
@@ -98,9 +98,9 @@ describe("POST /api/reservations/reservations", () => {
   });
 });
 
-describe("GET /api/reservations/reservations", () => {
+describe("GET /api/school/facility-booking/reservations", () => {
   it("should list all reservations", async () => {
-    await request(app, "POST", "/api/reservations/reservations", {
+    await request(app, "POST", "/api/school/facility-booking/reservations", {
       token,
       body: {
         groupId: GROUP_ID,
@@ -112,7 +112,7 @@ describe("GET /api/reservations/reservations", () => {
       },
     });
 
-    const { status, json } = await request(app, "GET", "/api/reservations/reservations", { token });
+    const { status, json } = await request(app, "GET", "/api/school/facility-booking/reservations", { token });
 
     expect(status).toBe(200);
     expect(json.reservations).toBeDefined();
@@ -120,7 +120,7 @@ describe("GET /api/reservations/reservations", () => {
   });
 
   it("should filter by groupId", async () => {
-    await request(app, "POST", "/api/reservations/reservations", {
+    await request(app, "POST", "/api/school/facility-booking/reservations", {
       token,
       body: {
         groupId: GROUP_ID,
@@ -132,16 +132,16 @@ describe("GET /api/reservations/reservations", () => {
       },
     });
 
-    const { status, json } = await request(app, "GET", `/api/reservations/reservations?groupId=${GROUP_ID}`, { token });
+    const { status, json } = await request(app, "GET", `/api/school/facility-booking/reservations?groupId=${GROUP_ID}`, { token });
 
     expect(status).toBe(200);
     expect(json.reservations.length).toBe(1);
   });
 });
 
-describe("GET /api/reservations/reservations/:id", () => {
+describe("GET /api/school/facility-booking/reservations/:id", () => {
   it("should get single reservation", async () => {
-    const create = await request(app, "POST", "/api/reservations/reservations", {
+    const create = await request(app, "POST", "/api/school/facility-booking/reservations", {
       token,
       body: {
         groupId: GROUP_ID,
@@ -153,21 +153,21 @@ describe("GET /api/reservations/reservations/:id", () => {
       },
     });
 
-    const { status, json } = await request(app, "GET", `/api/reservations/reservations/${create.json.id}`, { token });
+    const { status, json } = await request(app, "GET", `/api/school/facility-booking/reservations/${create.json.id}`, { token });
 
     expect(status).toBe(200);
     expect(json.title).toBe("Single");
   });
 
   it("should 404 for non-existent", async () => {
-    const { status } = await request(app, "GET", "/api/reservations/reservations/nonexistent", { token });
+    const { status } = await request(app, "GET", "/api/school/facility-booking/reservations/nonexistent", { token });
     expect(status).toBe(404);
   });
 });
 
-describe("PUT /api/reservations/reservations/:id", () => {
+describe("PUT /api/school/facility-booking/reservations/:id", () => {
   it("should update reservation with correct version", async () => {
-    const create = await request(app, "POST", "/api/reservations/reservations", {
+    const create = await request(app, "POST", "/api/school/facility-booking/reservations", {
       token,
       body: {
         groupId: GROUP_ID,
@@ -179,7 +179,7 @@ describe("PUT /api/reservations/reservations/:id", () => {
       },
     });
 
-    const { status, json } = await request(app, "PUT", `/api/reservations/reservations/${create.json.id}`, {
+    const { status, json } = await request(app, "PUT", `/api/school/facility-booking/reservations/${create.json.id}`, {
       token,
       body: { title: "Updated", version: 1 },
     });
@@ -190,7 +190,7 @@ describe("PUT /api/reservations/reservations/:id", () => {
   });
 
   it("should reject version conflict", async () => {
-    const create = await request(app, "POST", "/api/reservations/reservations", {
+    const create = await request(app, "POST", "/api/school/facility-booking/reservations", {
       token,
       body: {
         groupId: GROUP_ID,
@@ -202,7 +202,7 @@ describe("PUT /api/reservations/reservations/:id", () => {
       },
     });
 
-    const { status } = await request(app, "PUT", `/api/reservations/reservations/${create.json.id}`, {
+    const { status } = await request(app, "PUT", `/api/school/facility-booking/reservations/${create.json.id}`, {
       token,
       body: { title: "Wrong Version", version: 99 },
     });
@@ -211,9 +211,9 @@ describe("PUT /api/reservations/reservations/:id", () => {
   });
 });
 
-describe("DELETE /api/reservations/reservations/:id", () => {
+describe("DELETE /api/school/facility-booking/reservations/:id", () => {
   it("should cancel a reservation", async () => {
-    const create = await request(app, "POST", "/api/reservations/reservations", {
+    const create = await request(app, "POST", "/api/school/facility-booking/reservations", {
       token,
       body: {
         groupId: GROUP_ID,
@@ -225,16 +225,16 @@ describe("DELETE /api/reservations/reservations/:id", () => {
       },
     });
 
-    const { status, json } = await request(app, "DELETE", `/api/reservations/reservations/${create.json.id}`, { token });
+    const { status, json } = await request(app, "DELETE", `/api/school/facility-booking/reservations/${create.json.id}`, { token });
 
     expect(status).toBe(200);
     expect(json.reservation.status).toBe("cancelled");
   });
 });
 
-describe("GET /api/reservations/rooms/:roomId/schedule", () => {
+describe("GET /api/school/facility-booking/rooms/:roomId/schedule", () => {
   it("should return room schedule", async () => {
-    await request(app, "POST", "/api/reservations/reservations", {
+    await request(app, "POST", "/api/school/facility-booking/reservations", {
       token,
       body: {
         groupId: GROUP_ID,
@@ -246,7 +246,7 @@ describe("GET /api/reservations/rooms/:roomId/schedule", () => {
       },
     });
 
-    const { status, json } = await request(app, "GET", `/api/reservations/rooms/${ROOM_ID}/schedule`, { token });
+    const { status, json } = await request(app, "GET", `/api/school/facility-booking/rooms/${ROOM_ID}/schedule`, { token });
 
     expect(status).toBe(200);
     expect(json.roomId).toBe(ROOM_ID);

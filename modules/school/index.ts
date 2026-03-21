@@ -19,8 +19,9 @@ import { DAY_LABELS, getPeriodTime, PERIODS_COUNT } from "../../src/shared/const
 import type { SchulaModule } from "../../src/shared/types.js";
 
 const schoolRouter = new Hono();
+// NOTE: facility-booking は /m1 の requireRole("admin") を避けるため別パスでマウント
+schoolRouter.route("/facility-booking", facilityBooking);
 schoolRouter.route("/m1", m1);
-schoolRouter.route("/m1/facility-booking", facilityBooking);
 
 // 時間割メタ情報
 schoolRouter.get("/timetable", (c) => {
@@ -46,6 +47,6 @@ export const schoolModule: SchulaModule = {
   basePath: "/api/school",
   submodules: [
     { id: "m1", name: "学校カリキュラム管理", path: "/m1" },
-    { id: "facility-booking", name: "施設予約", path: "/m1/facility-booking" },
+    { id: "facility-booking", name: "施設予約", path: "/facility-booking" },
   ],
 };
