@@ -8,18 +8,19 @@
  *   - 旧 M2 (データ統合) と旧 M3 (オートスケジューラ) を M1 に統合済み
  *   - カリキュラム配置データをスケジューラのプラン形式に自動変換
  *   - 学科をグループとして自動登録するマイグレーション
- *
- * コアの予約システムやWebhook通知はプラットフォーム側に属し、
- * このモジュールとは独立して動作します。
+ *   - 施設予約 (教室・会議室の予約管理)
  */
 
 import { Hono } from "hono";
 import { m1 } from "../schedule/routes.js";
+import { facilityBooking } from "./facility-booking/routes.js";
+import { registerFacilityBookingPlugin } from "./facility-booking/index.js";
 import { DAY_LABELS, getPeriodTime, PERIODS_COUNT } from "../../src/shared/constants.js";
 import type { SchulaModule } from "../../src/shared/types.js";
 
 const schoolRouter = new Hono();
 schoolRouter.route("/m1", m1);
+schoolRouter.route("/m1/facility-booking", facilityBooking);
 
 // 時間割メタ情報
 schoolRouter.get("/timetable", (c) => {
@@ -35,12 +36,16 @@ schoolRouter.get("/timetable", (c) => {
   });
 });
 
+// プラグイン登録
+registerFacilityBookingPlugin();
+
 export const schoolModule: SchulaModule = {
   name: "school",
-  description: "学校カリキュラム管理 — 学科・講師・カリキュラム・マイグレーション",
+  description: "学校カリキュラム管理 — 学科・講師・カリキュラム・マイグレーション・施設予約",
   routes: schoolRouter,
   basePath: "/api/school",
   submodules: [
     { id: "m1", name: "学校カリキュラム管理", path: "/m1" },
+    { id: "facility-booking", name: "施設予約", path: "/m1/facility-booking" },
   ],
 };

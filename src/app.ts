@@ -2,7 +2,6 @@ import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { userContext, requireRole } from "./middleware/auth.js";
 import { auth } from "./auth/routes.js";
-import { m4 } from "../modules/reservation/routes.js";
 import { notification } from "../modules/notification/routes.js";
 import { m6 } from "../modules/voting/routes.js";
 import { groupRoutes } from "../modules/group/routes.js";
@@ -18,6 +17,8 @@ import { initNotificationHandler } from "../modules/notification/core/handler.js
 import { DAY_LABELS, getPeriodTime, PERIODS_COUNT } from "./shared/constants.js";
 import type { SchulaModule } from "./shared/types.js";
 import { getRecentLogs } from "./activity-logger.js";
+import { getReservationPlugins } from "./reservation-plugins.js";
+import { registerReservationPlugin } from "./reservation-plugins.js";
 
 export function createApp() {
   const app = new Hono();
@@ -47,9 +48,6 @@ export function createApp() {
   // ─── Core: Smart Scheduler (自動配置スケジューラ) ────────────
   app.route("/api/smart-scheduler", smartScheduler);
 
-  // ─── Module: Reservations (予約システム) ─────────────────────
-  app.route("/api/reservations", m4);
-
   // ─── Module: Webhooks & Notifications ───────────────────────
   app.route("/api/webhooks", notification);
 
@@ -59,7 +57,7 @@ export function createApp() {
   // ─── Module: Holidays (休日管理) ──────────────────────────────
   app.route("/api/holidays", holidayRoutes);
 
-  // ─── School Module (学校カリキュラム管理: M1) ────────────────
+  // ─── School Module (学校カリキュラム管理 + 施設予約: M1) ─────
   const modules: SchulaModule[] = [schoolModule];
   for (const mod of modules) {
     app.route(mod.basePath, mod.routes);
@@ -67,9 +65,29 @@ export function createApp() {
 
   // ─── Legacy Compatibility ───────────────────────────────────
   app.route("/api/m1", m1);
-  app.route("/api/m4", m4);
   app.route("/api/m5", notification);
   app.route("/api/m6", m6);
+
+  // ─── Reservation Plugin Registry ──────────────────────────
+  // 日程調整 (Voting) をプラグイン登録
+  registerReservationPlugin({
+    id: "voting",
+    name: "日程調整",
+    description: "投票で日程を決定",
+    icon: "CalendarCheck",
+    apiBasePath: "/api/voting",
+    frontendPath: "/voting",
+    operations: {
+      list: "/events",
+      create: "/events",
+      cancel: "/events",
+    },
+  });
+
+  // ─── Reservation Plugins API ──────────────────────────────
+  app.get("/api/reservations/plugins", (c) => {
+    return c.json({ plugins: getReservationPlugins() });
+  });
 
   // ─── Timetable ─────────────────────────────────────────────
   app.get("/api/timetable", (c) => {
@@ -118,10 +136,14 @@ export function createApp() {
       },
       modules: {
         ...registeredModules,
-        reservations: "予約システム - /api/reservations",
         webhooks: "Webhook・リマインド通知 - /api/webhooks",
         voting: "日程調整Voting - /api/voting",
       },
+      reservationPlugins: getReservationPlugins().map((p) => ({
+        id: p.id,
+        name: p.name,
+        path: p.frontendPath,
+      })),
     });
   });
 
