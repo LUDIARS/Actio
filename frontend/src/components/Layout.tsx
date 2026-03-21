@@ -22,7 +22,7 @@ const NAV_ITEMS: NavItem[] = [
   { to: "/my-plan", label: "マイプラン", removable: true },
   { to: "/groups", label: "グループ", removable: true },
   { to: "/calendar", label: "カレンダー", removable: true },
-  { to: "/reservations", label: "予約・スケジューラ", removable: true },
+  { to: "/reservations", label: "予約管理", removable: true },
   { to: "/notifications", label: "M5 通知", removable: true },
   { to: "/voting", label: "M6 日程調整", removable: true },
   { to: "/admin/users", label: "ユーザー管理" },

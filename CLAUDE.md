@@ -70,6 +70,22 @@ m1.get("/departments", async (c) => {
 
 旧 M2 (データ統合) と旧 M3 (オートスケジューラ) は M1 に統合済み。
 
+- **施設予約** (`modules/school/facility-booking/`) — M1 サブモジュール
+  - 教室・会議室の予約管理 (`/api/school/m1/facility-booking`)
+  - 予約作成時にカレンダー予定 (personalEvent) を即時登録
+  - 予約キャンセル時にカレンダー予定を連動削除
+  - 予約プラグインとして登録 (`GET /api/reservations/plugins`)
+
+### 予約プラグインシステム
+
+`src/reservation-plugins.ts` — 予約モジュールのプラグインフレームワーク
+
+- `ReservationPlugin` インターフェース: 共通 CRUD 操作 (list/create/cancel)
+- `ReservationCalendarEvent` 共通スキーマ: 全プラグインのデータはカレンダー予定に集約
+- `GET /api/reservations/plugins` — 登録済みプラグイン一覧
+- フロントエンド `/reservations` はランチャー画面 (プラグイン選択)
+- 登録済みプラグイン: 施設予約 (`facility`), 日程調整 (`voting`)
+
 ### 休日管理モジュール
 
 `modules/holiday/` — 休日・休業期間管理 (`/api/holidays`)
@@ -82,7 +98,6 @@ m1.get("/departments", async (c) => {
 
 ### その他モジュール
 
-- **予約システム** (`modules/reservation/`) — M4 (`/api/reservations`)
 - **通知** (`modules/notification/`) — M5 (`/api/webhooks`)
 - **日程調整Voting** (`modules/voting/`) — M6 (`/api/voting`)
 
@@ -112,7 +127,7 @@ m1.get("/departments", async (c) => {
 | `modules/group/` | `frontend/src/pages/GroupsPage.tsx` | `api.ts` の `groups` |
 | `modules/myplan/` | `frontend/src/pages/MyPlanPage.tsx` | `api.ts` の `myplan` |
 | `modules/smart-scheduler/` | `frontend/src/pages/SmartSchedulerPage.tsx` | `api.ts` の `smartScheduler` |
-| `modules/reservation/` | `frontend/src/pages/ReservationsPage.tsx` | `api.ts` の `m4` |
+| `modules/school/facility-booking/` | `frontend/src/pages/ReservationsPage.tsx` (ランチャー), `FacilityBookingPage.tsx` | `api.ts` の `facilityBooking`, `reservationPluginsApi` |
 | `modules/notification/` | `frontend/src/pages/NotificationsPage.tsx` | `api.ts` の `m5` |
 | `modules/voting/` | `frontend/src/pages/VotingPage.tsx` | `api.ts` の `m6Voting` |
 | `modules/holiday/` | `frontend/src/pages/GroupsPage.tsx` (個別予定), `SmartSchedulerPage.tsx` (休日オプション) | `api.ts` の `holidayApi`, `groupApi` |

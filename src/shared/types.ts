@@ -253,6 +253,51 @@ export interface VotingSummary {
   respondents: Record<string, string>;
 }
 
+// ─── Reservation Plugin System ──────────────────────────────
+
+/** 予約プラグインが出力する共通カレンダー予定スキーマ */
+export interface ReservationCalendarEvent {
+  /** 予約者ユーザID */
+  reservedBy: string;
+  /** カレンダー予定ID (personalEvent.id) */
+  calendarEventId: string;
+  /** 開始日時 (ISO 8601) */
+  startTime: string;
+  /** 終了日時 (ISO 8601) */
+  endTime: string;
+  /** 予定名 */
+  title: string;
+  /** グループID (nullable) */
+  groupId: string | null;
+  /** 概要・備考 */
+  description: string;
+}
+
+/** 予約プラグインインターフェース */
+export interface ReservationPlugin {
+  /** プラグイン識別子 (例: "facility", "voting") */
+  id: string;
+  /** 表示名 (例: "施設予約", "日程調整") */
+  name: string;
+  /** 説明 */
+  description: string;
+  /** アイコン名 (Lucide icon) */
+  icon: string;
+  /** バックエンド API ベースパス */
+  apiBasePath: string;
+  /** フロントエンドルートパス */
+  frontendPath: string;
+  /** 共通 CRUD 操作のエンドポイントパス (apiBasePath からの相対) */
+  operations: {
+    /** 予約一覧取得: GET */
+    list: string;
+    /** 予約作成: POST */
+    create: string;
+    /** 予約キャンセル: DELETE /:id */
+    cancel: string;
+  };
+}
+
 // ─── Module System ──────────────────────────────────────────
 
 import type { Hono } from "hono";

@@ -215,6 +215,8 @@ export const reservations = sqliteTable(
     status: text("status").notNull().default("pending"),
     note: text("note").notNull().default(""),
     version: integer("version").notNull().default(1),
+    /** 連携先カレンダー予定ID (nullable) */
+    calendarEventId: text("calendar_event_id"),
     createdAt: integer("created_at", { mode: "timestamp" })
       .$defaultFn(() => new Date())
       .notNull(),

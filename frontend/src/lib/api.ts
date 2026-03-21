@@ -614,9 +614,19 @@ export const m3 = {
   },
 };
 
-// ─── M4 ─────────────────────────────────────────────────────
+// ─── Reservation Plugins ────────────────────────────────────
 
-export const m4 = {
+export const reservationPluginsApi = {
+  listPlugins() {
+    return request<any>("/api/reservations/plugins");
+  },
+};
+
+// ─── Facility Booking (施設予約 — M1) ───────────────────────
+
+const FACILITY_BASE = "/api/school/facility-booking";
+
+export const facilityBooking = {
   createReservation(body: {
     groupId: string;
     title: string;
@@ -626,34 +636,34 @@ export const m4 = {
     participants: string[];
     note?: string;
   }) {
-    return request<any>("/api/m4/reservations", {
+    return request<any>(`${FACILITY_BASE}/reservations`, {
       method: "POST",
       body: JSON.stringify(body),
     });
   },
   listReservations() {
-    return request<any>("/api/m4/reservations");
+    return request<any>(`${FACILITY_BASE}/reservations`);
   },
   getReservation(id: string) {
-    return request<any>(`/api/m4/reservations/${id}`);
+    return request<any>(`${FACILITY_BASE}/reservations/${id}`);
   },
   updateReservation(
     id: string,
     body: { title?: string; note?: string; version: number }
   ) {
-    return request<any>(`/api/m4/reservations/${id}`, {
+    return request<any>(`${FACILITY_BASE}/reservations/${id}`, {
       method: "PUT",
       body: JSON.stringify(body),
     });
   },
   cancelReservation(id: string) {
-    return request<any>(`/api/m4/reservations/${id}`, { method: "DELETE" });
+    return request<any>(`${FACILITY_BASE}/reservations/${id}`, { method: "DELETE" });
   },
   getRoomSchedule(roomId: string) {
-    return request<any>(`/api/m4/rooms/${roomId}/schedule`);
+    return request<any>(`${FACILITY_BASE}/rooms/${roomId}/schedule`);
   },
   getRoomsAvailability() {
-    return request<any>("/api/m4/rooms/availability");
+    return request<any>(`${FACILITY_BASE}/rooms/availability`);
   },
 };
 
