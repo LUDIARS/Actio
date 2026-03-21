@@ -631,9 +631,19 @@ export const m3 = {
   },
 };
 
-// ─── M4 ─────────────────────────────────────────────────────
+// ─── Reservation Plugins ────────────────────────────────────
 
-export const m4 = {
+export const reservationPluginsApi = {
+  listPlugins() {
+    return request<any>("/api/reservations/plugins");
+  },
+};
+
+// ─── Facility Booking (施設予約 — M1) ───────────────────────
+
+const FACILITY_BASE = "/api/school/facility-booking";
+
+export const facilityBooking = {
   createReservation(body: {
     groupId: string;
     title: string;
@@ -643,34 +653,34 @@ export const m4 = {
     participants: string[];
     note?: string;
   }) {
-    return request<Reservation>("/api/m4/reservations", {
+    return request<Reservation>(`${FACILITY_BASE}/reservations`, {
       method: "POST",
       body: JSON.stringify(body),
     });
   },
   listReservations() {
-    return request<ReservationListResponse>("/api/m4/reservations");
+    return request<ReservationListResponse>(`${FACILITY_BASE}/reservations`);
   },
   getReservation(id: string) {
-    return request<Reservation>(`/api/m4/reservations/${id}`);
+    return request<Reservation>(`${FACILITY_BASE}/reservations/${id}`);
   },
   updateReservation(
     id: string,
     body: { title?: string; note?: string; version: number }
   ) {
-    return request<Reservation>(`/api/m4/reservations/${id}`, {
+    return request<Reservation>(`${FACILITY_BASE}/reservations/${id}`, {
       method: "PUT",
       body: JSON.stringify(body),
     });
   },
   cancelReservation(id: string) {
-    return request<{ message: string; reservation: Reservation }>(`/api/m4/reservations/${id}`, { method: "DELETE" });
+    return request<{ message: string; reservation: Reservation }>(`${FACILITY_BASE}/reservations/${id}`, { method: "DELETE" });
   },
   getRoomSchedule(roomId: string) {
-    return request<RoomScheduleResponse>(`/api/m4/rooms/${roomId}/schedule`);
+    return request<RoomScheduleResponse>(`${FACILITY_BASE}/rooms/${roomId}/schedule`);
   },
   getRoomsAvailability() {
-    return request<{ rooms: Array<{ id: string; name: string; capacity: number; type: string; freeSlots: Array<{ day: number; period: number }>; occupiedCount: number }> }>("/api/m4/rooms/availability");
+    return request<{ rooms: Array<{ id: string; name: string; capacity: number; type: string; freeSlots: Array<{ day: number; period: number }>; occupiedCount: number }> }>(`${FACILITY_BASE}/rooms/availability`);
   },
 };
 

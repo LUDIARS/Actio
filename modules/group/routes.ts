@@ -20,20 +20,20 @@ groupRoutes.get("/my", async (c) => {
   if (!userId) return c.json({ error: "Authentication required" }, 401);
 
   const memberships = await groupMemberRepo.findByUserId(userId);
-  const groupIds = memberships.map((m) => m.groupId);
+  const groupIds = memberships.map((m: any) => m.groupId);
 
   // バッチ取得でN+1回避
   const allGroups = await groupRepo.findByIds(groupIds);
-  const groupMap = new Map(allGroups.map((g) => [g.id, g]));
+  const groupMap = new Map<string, any>(allGroups.map((g: any) => [g.id, g]));
 
   // 各グループのメンバー数を取得
   const allMembers = groupIds.length > 0
-    ? await Promise.all(groupIds.map((gid) => groupMemberRepo.findByGroupId(gid)))
+    ? await Promise.all(groupIds.map((gid: string) => groupMemberRepo.findByGroupId(gid)))
     : [];
-  const memberCountMap = new Map(groupIds.map((gid, i) => [gid, allMembers[i]?.length || 0]));
+  const memberCountMap = new Map(groupIds.map((gid: string, i: number) => [gid, allMembers[i]?.length || 0]));
 
   const groups = memberships
-    .map((m) => {
+    .map((m: any) => {
       const group = groupMap.get(m.groupId);
       if (!group) return null;
       return {
@@ -67,10 +67,10 @@ groupRoutes.get("/:id", async (c) => {
 
   // メンバー一覧（バッチ取得でN+1回避）
   const memberRows = await groupMemberRepo.findByGroupId(groupId);
-  const userIds = memberRows.map((m) => m.userId);
+  const userIds = memberRows.map((m: any) => m.userId);
   const users = userIds.length > 0 ? await userListRepo.findByIds(userIds) : [];
-  const userMap = new Map(users.map((u) => [u.id, u]));
-  const members = memberRows.map((m) => ({
+  const userMap = new Map<string, any>(users.map((u: any) => [u.id, u]));
+  const members = memberRows.map((m: any) => ({
     userId: m.userId,
     name: userMap.get(m.userId)?.name || "Unknown",
     email: userMap.get(m.userId)?.email || "",
