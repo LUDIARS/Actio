@@ -1,26 +1,9 @@
 import { useState, useEffect, useCallback } from "react";
 import { m5 } from "../lib/api";
+import type { Webhook, NotificationHistoryItem } from "../lib/api-types";
 import { HelpButton } from "../components/HelpOverlay";
 
-interface Webhook {
-  id: string;
-  url: string;
-  events: string[];
-  isActive: boolean;
-  failCount: number;
-  lastDeliveredAt: string | null;
-  createdAt: string;
-}
-
-interface Notification {
-  id: string;
-  event: string;
-  channel: string;
-  title: string;
-  body: string;
-  isRead: boolean;
-  createdAt: string;
-}
+type Notification = NotificationHistoryItem;
 
 const AVAILABLE_EVENTS = [
   "schedule.confirmed",

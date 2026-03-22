@@ -1,8 +1,7 @@
 import { createMiddleware } from "hono/factory";
 import jwt from "jsonwebtoken";
 import type { UserRole } from "../shared/constants.js";
-
-const JWT_SECRET = process.env.JWT_SECRET || "schedula-dev-secret-change-in-production";
+import { JWT_SECRET } from "../config/jwt.js";
 
 /**
  * Role-based access control middleware.
@@ -26,19 +25,15 @@ export function requireRole(...allowedRoles: UserRole[]) {
   });
 }
 
+const IS_PRODUCTION = (process.env.NODE_ENV || "development") === "production";
+
 /**
- * Extract user context from JWT Bearer token or legacy headers.
- * Supports both:
- *  - Authorization: Bearer <jwt> (production)
- *  - X-User-Id / X-User-Role headers (development fallback)
+ * Extract user context from JWT Bearer token.
+ * In development only, falls back to X-User-Id / X-User-Role headers.
  */
 export function userContext() {
   return createMiddleware(async (c, next) => {
     const authHeader = c.req.header("Authorization");
-    const method = c.req.method;
-    const path = c.req.path;
-
-    console.log(`[middleware:userContext] ${method} ${path}`);
 
     if (authHeader?.startsWith("Bearer ")) {
       try {
@@ -49,20 +44,20 @@ export function userContext() {
         };
         c.set("userId" as never, payload.userId as never);
         c.set("userRole" as never, payload.role as never);
-        console.log(`[middleware:userContext] JWT認証成功 userId: ${payload.userId}, role: ${payload.role}`);
-      } catch (err) {
-        // Invalid token - fall through to header-based auth
+      } catch {
         c.set("userId" as never, "anonymous" as never);
         c.set("userRole" as never, "general" as never);
-        console.warn(`[middleware:userContext] JWT検証失敗:`, err instanceof Error ? err.message : err);
       }
-    } else {
-      // Legacy header-based auth (development)
+    } else if (!IS_PRODUCTION) {
+      // Legacy header-based auth (development only)
       const userId = c.req.header("X-User-Id") || "anonymous";
       const role = (c.req.header("X-User-Role") as UserRole) || "general";
       c.set("userId" as never, userId as never);
       c.set("userRole" as never, role as never);
-      console.log(`[middleware:userContext] ヘッダー認証 userId: ${userId}, role: ${role}`);
+    } else {
+      // Production: no token = anonymous
+      c.set("userId" as never, "anonymous" as never);
+      c.set("userRole" as never, "general" as never);
     }
 
     await next();

@@ -759,6 +759,11 @@ export const groupRepo = {
     await db.insert(schema.groups).values(data);
   },
 
+  async findByIds(ids: string[]) {
+    if (ids.length === 0) return [];
+    return db.select().from(schema.groups).where(inArray(schema.groups.id, ids));
+  },
+
   async update(id: string, data: Partial<typeof schema.groups.$inferInsert>) {
     await db
       .update(schema.groups)
@@ -775,6 +780,14 @@ export const groupScheduleRepo = {
       .select()
       .from(schema.groupSchedules)
       .where(eq(schema.groupSchedules.groupId, groupId));
+  },
+
+  async findByGroupIds(groupIds: string[]) {
+    if (groupIds.length === 0) return [];
+    return db
+      .select()
+      .from(schema.groupSchedules)
+      .where(inArray(schema.groupSchedules.groupId, groupIds));
   },
 
   async create(data: typeof schema.groupSchedules.$inferInsert) {
@@ -924,6 +937,14 @@ export const votingCandidateRepo = {
       .select()
       .from(schema.votingCandidates)
       .where(eq(schema.votingCandidates.eventId, eventId));
+  },
+
+  async findByEventIds(eventIds: string[]): Promise<VotingCandidate[]> {
+    if (eventIds.length === 0) return [];
+    return db
+      .select()
+      .from(schema.votingCandidates)
+      .where(inArray(schema.votingCandidates.eventId, eventIds));
   },
 
   async create(data: NewVotingCandidate): Promise<void> {

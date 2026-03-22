@@ -77,10 +77,10 @@ export function SmartSchedulerPage() {
   useEffect(() => {
     groupApi.listMyGroups().then((res: any) => {
       setGroups(res.groups || []);
-    }).catch(() => {});
+    }).catch((err: Error) => { console.error("[SmartScheduler] グループ取得失敗:", err.message); });
     m1Schema.getInstructors().then((res: any) => {
       setInstructors(res.instructors || []);
-    }).catch(() => {});
+    }).catch((err: Error) => { console.error("[SmartScheduler] 講師取得失敗:", err.message); });
   }, []);
 
   // グループ選択時にタスク取得
