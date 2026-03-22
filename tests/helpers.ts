@@ -147,6 +147,8 @@ export function initTestDatabase() {
       event_type TEXT NOT NULL DEFAULT 'personal',
       plan_id TEXT,
       is_private INTEGER NOT NULL DEFAULT 1,
+      google_calendar_event_id TEXT,
+      notion_page_id TEXT,
       created_at INTEGER NOT NULL,
       updated_at INTEGER NOT NULL,
       UNIQUE(user_id, day, period)
@@ -330,6 +332,60 @@ export function initTestDatabase() {
       key TEXT PRIMARY KEY,
       value TEXT NOT NULL,
       updated_at INTEGER NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS holidays (
+      id TEXT PRIMARY KEY,
+      group_id TEXT,
+      name TEXT NOT NULL,
+      date TEXT NOT NULL,
+      end_date TEXT,
+      holiday_type TEXT NOT NULL DEFAULT 'custom',
+      recurrence TEXT NOT NULL DEFAULT 'none',
+      source TEXT,
+      created_by TEXT NOT NULL,
+      created_at INTEGER NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS group_events (
+      id TEXT PRIMARY KEY,
+      group_id TEXT NOT NULL REFERENCES "groups"(id),
+      title TEXT NOT NULL,
+      description TEXT,
+      date TEXT NOT NULL,
+      end_date TEXT,
+      all_day INTEGER NOT NULL DEFAULT 1,
+      period INTEGER,
+      duration INTEGER DEFAULT 1,
+      event_type TEXT NOT NULL DEFAULT 'event',
+      created_by TEXT NOT NULL,
+      created_at INTEGER NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS integration_settings (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL REFERENCES users(id),
+      service TEXT NOT NULL,
+      access_token TEXT,
+      refresh_token TEXT,
+      token_expires_at INTEGER,
+      config TEXT NOT NULL DEFAULT '{}',
+      is_active INTEGER NOT NULL DEFAULT 1,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL,
+      UNIQUE(user_id, service)
+    );
+
+    CREATE TABLE IF NOT EXISTS sync_logs (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL REFERENCES users(id),
+      service TEXT NOT NULL,
+      action TEXT NOT NULL,
+      local_event_id TEXT,
+      external_id TEXT,
+      status TEXT NOT NULL,
+      error_message TEXT,
+      created_at INTEGER NOT NULL
     );
   `);
 

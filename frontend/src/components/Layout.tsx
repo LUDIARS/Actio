@@ -25,6 +25,7 @@ const NAV_ITEMS: NavItem[] = [
   { to: "/reservations", label: "予約管理", removable: true },
   { to: "/notifications", label: "M5 通知", removable: true },
   { to: "/voting", label: "M6 日程調整", removable: true },
+  { to: "/integrations", label: "外部連携", removable: true },
   { to: "/admin/users", label: "ユーザー管理" },
   { to: "/admin/settings", label: "設定", adminOnly: true },
   { to: "/admin/activity-logs", label: "操作ログ", adminOnly: true },
