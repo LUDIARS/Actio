@@ -145,7 +145,7 @@ googleCalendarSync.post("/enable", async (c) => {
 
   const body = await c.req.json<{
     calendarId?: string;
-  }>().catch(() => ({}));
+  }>().catch(() => ({} as { calendarId?: string }));
 
   await integrationSettingRepo.upsert({
     id: uuidv4(),
