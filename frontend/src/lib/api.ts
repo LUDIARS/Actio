@@ -999,6 +999,129 @@ export const holidayApi = {
   },
 };
 
+// ─── Integrations (外部サービス連携) ──────────────────────────
+
+export const integrationsApi = {
+  // --- Google Calendar Sync ---
+  googleCalendar: {
+    getStatus() {
+      return request<{
+        connected: boolean;
+        hasWriteScope: boolean;
+        syncEnabled: boolean;
+        config: Record<string, unknown>;
+      }>("/api/integrations/google-calendar/status");
+    },
+    enable(calendarId?: string) {
+      return request<{ message: string }>("/api/integrations/google-calendar/enable", {
+        method: "POST",
+        body: JSON.stringify({ calendarId }),
+      });
+    },
+    disable() {
+      return request<{ message: string }>("/api/integrations/google-calendar/disable", {
+        method: "POST",
+      });
+    },
+    pushEvent(eventId: string) {
+      return request<{ message: string; googleCalendarEventId: string }>(
+        `/api/integrations/google-calendar/push/${eventId}`,
+        { method: "POST" }
+      );
+    },
+    pushAll() {
+      return request<{ created: number; updated: number; errors: number; total: number }>(
+        "/api/integrations/google-calendar/push-all",
+        { method: "POST" }
+      );
+    },
+    deleteEvent(eventId: string) {
+      return request<{ message: string }>(
+        `/api/integrations/google-calendar/push/${eventId}`,
+        { method: "DELETE" }
+      );
+    },
+    getLogs() {
+      return request<{ logs: any[] }>("/api/integrations/google-calendar/logs");
+    },
+  },
+
+  // --- Notion ---
+  notion: {
+    getStatus() {
+      return request<{
+        connected: boolean;
+        databaseId: string | null;
+        isActive: boolean;
+      }>("/api/integrations/notion/status");
+    },
+    connect(token: string, databaseId?: string) {
+      return request<{ message: string }>("/api/integrations/notion/connect", {
+        method: "POST",
+        body: JSON.stringify({ token, databaseId }),
+      });
+    },
+    disconnect() {
+      return request<{ message: string }>("/api/integrations/notion/disconnect", {
+        method: "POST",
+      });
+    },
+    listDatabases() {
+      return request<{
+        databases: Array<{ id: string; title: string; properties: string[] }>;
+      }>("/api/integrations/notion/databases");
+    },
+    setDatabase(databaseId: string) {
+      return request<{ message: string; databaseId: string }>(
+        "/api/integrations/notion/database",
+        { method: "PUT", body: JSON.stringify({ databaseId }) }
+      );
+    },
+    createDatabase(parentPageId: string) {
+      return request<{ message: string; databaseId: string }>(
+        "/api/integrations/notion/database/create",
+        { method: "POST", body: JSON.stringify({ parentPageId }) }
+      );
+    },
+    getPages() {
+      return request<{ pages: any[] }>("/api/integrations/notion/pages");
+    },
+    createPage(properties: Record<string, unknown>) {
+      return request<{ message: string; pageId: string }>(
+        "/api/integrations/notion/pages",
+        { method: "POST", body: JSON.stringify({ properties }) }
+      );
+    },
+    updatePage(pageId: string, properties: Record<string, unknown>) {
+      return request<{ message: string }>(
+        `/api/integrations/notion/pages/${pageId}`,
+        { method: "PUT", body: JSON.stringify({ properties }) }
+      );
+    },
+    deletePage(pageId: string) {
+      return request<{ message: string }>(
+        `/api/integrations/notion/pages/${pageId}`,
+        { method: "DELETE" }
+      );
+    },
+    pushEvent(eventId: string) {
+      return request<{ message: string; notionPageId: string }>(
+        `/api/integrations/notion/sync/push/${eventId}`,
+        { method: "POST" }
+      );
+    },
+    pushAll() {
+      return request<{ created: number; updated: number; errors: number; total: number }>(
+        "/api/integrations/notion/sync/push-all",
+        { method: "POST" }
+      );
+    },
+    getLogs() {
+      return request<{ logs: any[] }>("/api/integrations/notion/sync/logs");
+    },
+  },
+};
+
 // ─── M6: Voting ─────────────────────────────────────────────
 
 export const m6Voting = {
