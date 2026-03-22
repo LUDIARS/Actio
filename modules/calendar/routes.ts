@@ -267,7 +267,7 @@ calendar.get("/personal", async (c) => {
     return c.json({ events });
   } catch (err) {
     console.error("[calendar] /personal query error:", err);
-    return c.json({ events: [] });
+    return c.json({ error: "予定の取得に失敗しました" }, 500);
   }
 });
 

@@ -60,7 +60,8 @@ m1.get("/departments", async (c) => {
 
 /** 学科作成 */
 m1.post("/departments", async (c) => {
-  const userId = getUserId(c) || "";
+  const userId = getUserId(c);
+  if (!userId) return c.json({ error: "Authentication required" }, 401);
   const { name } = await c.req.json<{ name: string }>();
   if (!name?.trim()) {
     return c.json({ error: "name is required" }, 400);
@@ -76,7 +77,8 @@ m1.post("/departments", async (c) => {
 
 /** 学科更新 */
 m1.put("/departments/:id", async (c) => {
-  const userId = getUserId(c) || "";
+  const userId = getUserId(c);
+  if (!userId) return c.json({ error: "Authentication required" }, 401);
   const { id } = c.req.param();
   const { name } = await c.req.json<{ name: string }>();
   if (!name?.trim()) {
@@ -109,7 +111,8 @@ m1.get("/instructors", async (c) => {
 
 /** 講師作成 */
 m1.post("/instructors", async (c) => {
-  const userId = getUserId(c) || "";
+  const userId = getUserId(c);
+  if (!userId) return c.json({ error: "Authentication required" }, 401);
   const { name } = await c.req.json<{ name: string }>();
   if (!name?.trim()) {
     return c.json({ error: "name is required" }, 400);
@@ -125,7 +128,8 @@ m1.post("/instructors", async (c) => {
 
 /** 講師更新 */
 m1.put("/instructors/:id", async (c) => {
-  const userId = getUserId(c) || "";
+  const userId = getUserId(c);
+  if (!userId) return c.json({ error: "Authentication required" }, 401);
   const { id } = c.req.param();
   const { name } = await c.req.json<{ name: string }>();
   if (!name?.trim()) {
@@ -205,7 +209,8 @@ m1.post("/departments/:departmentId/curricula", async (c) => {
     });
   }
 
-  const userId = getUserId(c) || "";
+  const userId = getUserId(c);
+  if (!userId) return c.json({ error: "Authentication required" }, 401);
   const user = await userRepo.findById(userId);
   logActivity(userId, user?.name || "Unknown", "カリキュラム作成", `カリキュラム「${name.trim()}」が追加されました`);
 
@@ -258,7 +263,8 @@ m1.put("/curricula/:id", async (c) => {
     }
   }
 
-  const userId = getUserId(c) || "";
+  const userId = getUserId(c);
+  if (!userId) return c.json({ error: "Authentication required" }, 401);
   const userObj = await userRepo.findById(userId);
   logActivity(userId, userObj?.name || "Unknown", "カリキュラム更新", `カリキュラム(${id})が更新されました`);
 
@@ -314,7 +320,8 @@ m1.put("/instructors/:instructorId/availability", async (c) => {
     inserted.push({ id, instructorId, day: slot.day, periods: slot.periods });
   }
 
-  const userId = getUserId(c) || "";
+  const userId = getUserId(c);
+  if (!userId) return c.json({ error: "Authentication required" }, 401);
   const user = await userRepo.findById(userId);
   logActivity(userId, user?.name || "Unknown", "出講可能スロット設定", `講師(${instructorId})の出講可能スロットが更新されました`);
 
@@ -352,7 +359,8 @@ m1.post("/terms", async (c) => {
     endDate,
   });
 
-  const userId = getUserId(c) || "";
+  const userId = getUserId(c);
+  if (!userId) return c.json({ error: "Authentication required" }, 401);
   const user = await userRepo.findById(userId);
   logActivity(userId, user?.name || "Unknown", "ターム作成", `ターム「${name.trim()}」が追加されました`);
 
@@ -432,7 +440,8 @@ m1.put("/terms/:termId/placements", async (c) => {
     });
   }
 
-  const userId = getUserId(c) || "";
+  const userId = getUserId(c);
+  if (!userId) return c.json({ error: "Authentication required" }, 401);
   const user = await userRepo.findById(userId);
   logActivity(userId, user?.name || "Unknown", "配置データ保存", `ターム(${termId})の配置データが更新されました (${placements.length}件)`);
 
@@ -1375,7 +1384,8 @@ m1.delete("/group-schedules/by-label/:label", async (c) => {
   }
   await groupScheduleRepo.deleteByLabel(label);
 
-  const userId = getUserId(c) || "";
+  const userId = getUserId(c);
+  if (!userId) return c.json({ error: "Authentication required" }, 401);
   const user = await userRepo.findById(userId);
   logActivity(userId, user?.name || "Unknown", "ラベル一括削除", `ラベル「${label}」のスケジュール${existing.length}件を削除しました`);
 
@@ -1391,7 +1401,8 @@ m1.delete("/group-schedules/:id", async (c) => {
   }
   await groupScheduleRepo.deleteById(id);
 
-  const userId = getUserId(c) || "";
+  const userId = getUserId(c);
+  if (!userId) return c.json({ error: "Authentication required" }, 401);
   const user = await userRepo.findById(userId);
   logActivity(userId, user?.name || "Unknown", "グループスケジュール削除", `グループスケジュール「${schedule.title}」を削除しました`);
 
@@ -1422,7 +1433,8 @@ m1.post("/rooms", async (c) => {
     equipment: body.equipment || [],
   });
 
-  const userId = getUserId(c) || "";
+  const userId = getUserId(c);
+  if (!userId) return c.json({ error: "Authentication required" }, 401);
   const user = await userRepo.findById(userId);
   logActivity(userId, user?.name || "Unknown", "教室作成", `教室「${body.name}」が追加されました`);
 
@@ -1444,7 +1456,8 @@ m1.put("/rooms/:id", async (c) => {
     ...(body.equipment !== undefined ? { equipment: body.equipment } : {}),
   });
 
-  const userId = getUserId(c) || "";
+  const userId = getUserId(c);
+  if (!userId) return c.json({ error: "Authentication required" }, 401);
   const user = await userRepo.findById(userId);
   logActivity(userId, user?.name || "Unknown", "教室更新", `教室「${body.name || existing.name}」が更新されました`);
 
@@ -1459,7 +1472,8 @@ m1.delete("/rooms/:id", async (c) => {
 
   await roomRepo.deleteById(id);
 
-  const userId = getUserId(c) || "";
+  const userId = getUserId(c);
+  if (!userId) return c.json({ error: "Authentication required" }, 401);
   const user = await userRepo.findById(userId);
   logActivity(userId, user?.name || "Unknown", "教室削除", `教室「${existing.name}」が削除されました`);
 

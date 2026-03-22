@@ -3,6 +3,7 @@ import { TimetableGrid, type GridSlot } from "../components/TimetableGrid";
 import { useNavigate } from "react-router-dom";
 import { DAY_LABELS, DAYS_COUNT, PERIODS_COUNT } from "../lib/constants";
 import { m3 } from "../lib/api";
+import { useAuth } from "../contexts/AuthContext";
 
 interface Suggestion {
   day: number;
@@ -25,6 +26,7 @@ interface AvailabilitySlot {
 }
 
 export function SchedulerPage() {
+  const { user } = useAuth();
   const navigate = useNavigate();
   const [groupId, setGroupId] = useState("");
   const [groupName, setGroupName] = useState("");
@@ -54,7 +56,7 @@ export function SchedulerPage() {
       const result = await m3.createGroup({
         name: newGroupName,
         members,
-        createdBy: localStorage.getItem("userId") || "user-1",
+        createdBy: user?.id || "",
       });
       setGroupId(result.id);
       setGroupName(result.name);

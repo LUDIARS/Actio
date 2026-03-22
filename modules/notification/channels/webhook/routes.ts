@@ -17,7 +17,8 @@ webhookRoutes.post("/", async (c) => {
     url: string;
     events: string[];
   }>();
-  const createdBy = getUserId(c) || "anonymous";
+  const createdBy = getUserId(c);
+  if (!createdBy) return c.json({ error: "Authentication required" }, 401);
 
   const secret = randomBytes(32).toString("hex");
 

@@ -1,25 +1,10 @@
 import { useState, useEffect, useCallback } from "react";
 import { myPlanApi } from "../lib/api";
+import type { MyPlan, MyPlanEntry } from "../lib/api-types";
 import { HelpButton } from "../components/HelpOverlay";
 import { DAY_LABELS } from "../lib/constants";
 
-interface ScheduleSlot {
-  startTime: string;
-  endTime: string;
-  title: string;
-}
-
-interface MyPlan {
-  id: string;
-  name: string;
-  patternType: "basic" | "special";
-  validFrom: string | null;
-  validUntil: string | null;
-  weeklySchedule: Record<string, ScheduleSlot[]>;
-  isActive: boolean;
-  priority: number;
-  groupId: string | null;
-}
+type ScheduleSlot = MyPlanEntry;
 
 export function MyPlanPage() {
   const [plans, setPlans] = useState<MyPlan[]>([]);

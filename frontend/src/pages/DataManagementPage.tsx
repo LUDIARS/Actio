@@ -8,25 +8,7 @@ import {
   getPeriodLabel,
 } from "../lib/constants";
 import { m1Schema } from "../lib/api";
-
-interface Department {
-  id: string;
-  name: string;
-}
-
-interface Instructor {
-  id: string;
-  name: string;
-}
-
-interface Curriculum {
-  id: string;
-  name: string;
-  departmentId: string;
-  instructorId: string | null;
-  periods: number;
-  departmentIds?: string[];
-}
+import type { Department, Instructor, Curriculum, GroupScheduleEntry } from "../lib/api-types";
 
 interface PlacedEntry {
   day: number;
@@ -1387,19 +1369,6 @@ export function DataManagementPage() {
 }
 
 // ─── GroupScheduleManager (DB管理タブ) ─────────────────────
-
-interface GroupScheduleEntry {
-  id: string;
-  groupId: string;
-  groupName: string;
-  title: string;
-  day: number;
-  period: number;
-  duration: number;
-  label: string | null;
-  scheduleType: string;
-  createdAt: string;
-}
 
 function GroupScheduleManager({ showMessage }: { showMessage: (msg: string, type?: "success" | "error") => void }) {
   const [schedules, setSchedules] = useState<GroupScheduleEntry[]>([]);

@@ -30,7 +30,21 @@ export function createApp() {
   });
 
   // ─── Global Middleware ──────────────────────────────────────
-  app.use("*", cors());
+  app.use("*", cors({
+    origin: process.env.CORS_ORIGIN || process.env.FRONTEND_URL || "http://localhost:8080",
+  }));
+
+  // Security headers
+  app.use("*", async (c, next) => {
+    await next();
+    c.header("X-Content-Type-Options", "nosniff");
+    c.header("X-Frame-Options", "DENY");
+    c.header("X-XSS-Protection", "1; mode=block");
+    if (process.env.NODE_ENV === "production") {
+      c.header("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
+    }
+  });
+
   app.use("/api/*", userContext());
 
   // ─── Auth Routes (認証) — コア ──────────────────────────────

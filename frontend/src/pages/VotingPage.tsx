@@ -1,27 +1,10 @@
 import { useState, useEffect, useCallback } from "react";
 import { useAuth } from "../contexts/AuthContext";
 import { m6Voting } from "../lib/api";
+import type { VotingEvent, Vote } from "../lib/api-types";
 import { HelpButton } from "../components/HelpOverlay";
 
 // ─── Types ──────────────────────────────────────────────────
-
-interface VotingCandidate {
-  id: string;
-  eventId: string;
-  label: string;
-  sortOrder: number;
-}
-
-interface VotingEvent {
-  id: string;
-  title: string;
-  description: string;
-  createdBy: string;
-  deadline: string | null;
-  status: string;
-  createdAt: string;
-  candidates: VotingCandidate[];
-}
 
 interface VoteSummary {
   ok: number;
@@ -29,14 +12,7 @@ interface VoteSummary {
   ng: number;
 }
 
-interface VoteRecord {
-  id: string;
-  candidateId: string;
-  userId: string;
-  answer: string;
-  isAutoReply: boolean;
-  comment: string;
-}
+type VoteRecord = Vote;
 
 type VoteAnswer = "ok" | "maybe" | "ng";
 

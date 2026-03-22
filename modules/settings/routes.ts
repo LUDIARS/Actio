@@ -69,7 +69,8 @@ settingsRoutes.put("/", async (c) => {
       settings[row.key] = row.value;
     }
 
-    const userId = getUserId(c) || "";
+    const userId = getUserId(c);
+    if (!userId) return c.json({ error: "Authentication required" }, 401);
     const user = await userRepo.findById(userId);
     logActivity(userId, user?.name || "Unknown", "アプリ設定更新", `アプリ設定が更新されました（${Object.keys(body.settings).join(", ")}）`);
 

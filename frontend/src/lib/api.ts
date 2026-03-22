@@ -1,4 +1,21 @@
 import { API_BASE } from "./constants";
+import type {
+  UserProfile, UserListResponse, UserListWithGroupsResponse, UserRoleUpdateResponse,
+  CalendarEventsResponse, CalendarListResponse, CalendarStatusResponse,
+  PersonalEventsResponse, PersonalEvent, PlansResponse, Plan, ConflictsResponse,
+  Department, Instructor, Curriculum, AvailableSlot, Room, GroupScheduleEntry,
+  GroupMyResponse, GroupDetailResponse, GroupCreateResponse, GroupEventsResponse, GroupEventResponse, GroupScheduleResponse,
+  MessageResponse, DeletedResponse,
+  Reservation, ReservationListResponse, RoomScheduleResponse,
+  WebhookListResponse, WebhookCreateResponse, WebhookTestResponse, WebhookRotateResponse, WebhookLogsResponse,
+  NotificationPreferencesResponse, NotificationHistoryResponse,
+  MyPlanListResponse, MyPlanResponse,
+  SchedulingTaskListResponse, SchedulingTaskResponse, SolveResponse, ConfirmResponse, SchedulingResultsResponse, SchedulerAvailabilityResponse,
+  VotingEventCreateResponse, VotingEventListResponse, VotingEventDetailResponse, VotingSubmitResponse, VotingAutoReplyResponse, VotingUpdateResponse,
+  M3Group, M3AvailabilityResponse, M3SuggestionsResponse,
+  ScheduleResponse, GenerateResponse, SwapResponse,
+  HolidayListResponse, ActivityLogsResponse,
+} from "./api-types";
 
 // ─── Token Management ──────────────────────────────────────
 
@@ -185,7 +202,7 @@ export const auth = {
   },
 
   async me() {
-    return request<any>("/api/auth/me");
+    return request<UserProfile>("/api/auth/me");
   },
 };
 
@@ -195,21 +212,21 @@ export const calendarApi = {
   // Google Calendar
   getEvents(params?: { timeMin?: string; timeMax?: string }) {
     const query = params ? `?${new URLSearchParams(params as Record<string, string>)}` : "";
-    return request<any>(`/api/calendar/events${query}`);
+    return request<CalendarEventsResponse>(`/api/calendar/events${query}`);
   },
   getCalendars() {
-    return request<any>("/api/calendar/calendars");
+    return request<CalendarListResponse>("/api/calendar/calendars");
   },
   getStatus() {
-    return request<any>("/api/calendar/status");
+    return request<CalendarStatusResponse>("/api/calendar/status");
   },
   disconnect() {
-    return request<any>("/api/calendar/disconnect", { method: "POST" });
+    return request<MessageResponse>("/api/calendar/disconnect", { method: "POST" });
   },
 
   // Personal Events (手動予定)
   getPersonalEvents() {
-    return request<any>("/api/calendar/personal");
+    return request<PersonalEventsResponse>("/api/calendar/personal");
   },
   createPersonalEvent(body: {
     title: string;
@@ -220,7 +237,7 @@ export const calendarApi = {
     eventType?: string;
     isPrivate?: boolean;
   }) {
-    return request<any>("/api/calendar/personal", {
+    return request<PersonalEvent>("/api/calendar/personal", {
       method: "POST",
       body: JSON.stringify(body),
     });
@@ -234,18 +251,18 @@ export const calendarApi = {
     eventType?: string;
     isPrivate?: boolean;
   }) {
-    return request<any>(`/api/calendar/personal/${id}`, {
+    return request<PersonalEvent>(`/api/calendar/personal/${id}`, {
       method: "PUT",
       body: JSON.stringify(body),
     });
   },
   deletePersonalEvent(id: string) {
-    return request<any>(`/api/calendar/personal/${id}`, { method: "DELETE" });
+    return request<DeletedResponse>(`/api/calendar/personal/${id}`, { method: "DELETE" });
   },
 
   // Plans (プラン)
   getPlans() {
-    return request<any>("/api/calendar/plans");
+    return request<PlansResponse>("/api/calendar/plans");
   },
   createPlan(body: {
     name: string;
@@ -256,7 +273,7 @@ export const calendarApi = {
     eventType?: string;
     isPrivate?: boolean;
   }) {
-    return request<any>("/api/calendar/plans", {
+    return request<Plan>("/api/calendar/plans", {
       method: "POST",
       body: JSON.stringify(body),
     });
@@ -271,19 +288,19 @@ export const calendarApi = {
     isPrivate?: boolean;
     isActive?: boolean;
   }) {
-    return request<any>(`/api/calendar/plans/${id}`, {
+    return request<Plan>(`/api/calendar/plans/${id}`, {
       method: "PUT",
       body: JSON.stringify(body),
     });
   },
   deletePlan(id: string) {
-    return request<any>(`/api/calendar/plans/${id}`, { method: "DELETE" });
+    return request<DeletedResponse>(`/api/calendar/plans/${id}`, { method: "DELETE" });
   },
   regeneratePlan(id: string) {
-    return request<any>(`/api/calendar/plans/${id}/regenerate`, { method: "POST" });
+    return request<MessageResponse>(`/api/calendar/plans/${id}/regenerate`, { method: "POST" });
   },
   getConflicts() {
-    return request<any>("/api/calendar/conflicts");
+    return request<ConflictsResponse>("/api/calendar/conflicts");
   },
 };
 
@@ -292,73 +309,73 @@ export const calendarApi = {
 export const m1Schema = {
   // 学科 (Departments)
   getDepartments() {
-    return request<{ departments: any[] }>("/api/m1/departments");
+    return request<{ departments: Department[] }>("/api/m1/departments");
   },
   createDepartment(name: string) {
-    return request<any>("/api/m1/departments", {
+    return request<Department>("/api/m1/departments", {
       method: "POST",
       body: JSON.stringify({ name }),
     });
   },
   updateDepartment(id: string, name: string) {
-    return request<any>(`/api/m1/departments/${id}`, {
+    return request<Department>(`/api/m1/departments/${id}`, {
       method: "PUT",
       body: JSON.stringify({ name }),
     });
   },
   deleteDepartment(id: string) {
-    return request<any>(`/api/m1/departments/${id}`, { method: "DELETE" });
+    return request<DeletedResponse>(`/api/m1/departments/${id}`, { method: "DELETE" });
   },
 
   // 講師 (Instructors)
   getInstructors() {
-    return request<{ instructors: any[] }>("/api/m1/instructors");
+    return request<{ instructors: Instructor[] }>("/api/m1/instructors");
   },
   createInstructor(name: string) {
-    return request<any>("/api/m1/instructors", {
+    return request<Instructor>("/api/m1/instructors", {
       method: "POST",
       body: JSON.stringify({ name }),
     });
   },
   updateInstructor(id: string, name: string) {
-    return request<any>(`/api/m1/instructors/${id}`, {
+    return request<Instructor>(`/api/m1/instructors/${id}`, {
       method: "PUT",
       body: JSON.stringify({ name }),
     });
   },
   deleteInstructor(id: string) {
-    return request<any>(`/api/m1/instructors/${id}`, { method: "DELETE" });
+    return request<DeletedResponse>(`/api/m1/instructors/${id}`, { method: "DELETE" });
   },
 
   // カリキュラム (Curricula)
   getCurricula() {
-    return request<{ curricula: any[] }>("/api/m1/curricula");
+    return request<{ curricula: Curriculum[] }>("/api/m1/curricula");
   },
   getCurriculaByDepartment(departmentId: string) {
-    return request<{ curricula: any[] }>(`/api/m1/departments/${departmentId}/curricula`);
+    return request<{ curricula: Curriculum[] }>(`/api/m1/departments/${departmentId}/curricula`);
   },
   createCurriculum(departmentId: string, name: string, instructorId?: string, periods?: number, departmentIds?: string[], termId?: string) {
-    return request<any>(`/api/m1/departments/${departmentId}/curricula`, {
+    return request<Curriculum>(`/api/m1/departments/${departmentId}/curricula`, {
       method: "POST",
       body: JSON.stringify({ name, instructorId, periods, departmentIds, termId }),
     });
   },
   updateCurriculum(id: string, body: { name?: string; instructorId?: string | null; periods?: number; departmentIds?: string[]; termId?: string | null }) {
-    return request<any>(`/api/m1/curricula/${id}`, {
+    return request<Curriculum>(`/api/m1/curricula/${id}`, {
       method: "PUT",
       body: JSON.stringify(body),
     });
   },
   deleteCurriculum(id: string) {
-    return request<any>(`/api/m1/curricula/${id}`, { method: "DELETE" });
+    return request<DeletedResponse>(`/api/m1/curricula/${id}`, { method: "DELETE" });
   },
 
   // 出講可能スロット (Instructor Available Slots)
   getAvailability(instructorId: string) {
-    return request<{ slots: any[] }>(`/api/m1/instructors/${instructorId}/availability`);
+    return request<{ slots: AvailableSlot[] }>(`/api/m1/instructors/${instructorId}/availability`);
   },
   setAvailability(instructorId: string, slots: { day: number; periods: number[] }[]) {
-    return request<any>(`/api/m1/instructors/${instructorId}/availability`, {
+    return request<MessageResponse>(`/api/m1/instructors/${instructorId}/availability`, {
       method: "PUT",
       body: JSON.stringify({ slots }),
     });
@@ -381,7 +398,7 @@ export const m1Schema = {
 
   // グループスケジュール一覧取得 (DB管理用)
   getGroupSchedules() {
-    return request<{ schedules: any[] }>("/api/m1/group-schedules");
+    return request<{ schedules: GroupScheduleEntry[] }>("/api/m1/group-schedules");
   },
 
   // グループスケジュール個別削除
@@ -470,22 +487,22 @@ export const m1Schema = {
   },
   // 教室 (Rooms)
   getRooms() {
-    return request<{ rooms: any[] }>("/api/m1/rooms");
+    return request<{ rooms: Room[] }>("/api/m1/rooms");
   },
   createRoom(body: { name: string; capacity?: number; type?: string; equipment?: string[] }) {
-    return request<any>("/api/m1/rooms", {
+    return request<Room>("/api/m1/rooms", {
       method: "POST",
       body: JSON.stringify(body),
     });
   },
   updateRoom(id: string, body: { name?: string; capacity?: number; type?: string; equipment?: string[] }) {
-    return request<any>(`/api/m1/rooms/${id}`, {
+    return request<Room>(`/api/m1/rooms/${id}`, {
       method: "PUT",
       body: JSON.stringify(body),
     });
   },
   deleteRoom(id: string) {
-    return request<any>(`/api/m1/rooms/${id}`, { method: "DELETE" });
+    return request<DeletedResponse>(`/api/m1/rooms/${id}`, { method: "DELETE" });
   },
 };
 
@@ -565,12 +582,12 @@ export const m1 = {
     return res.json();
   },
   generate(mode: "pack" | "spread") {
-    return request<any>(`/api/m1/schedule/generate?mode=${mode}`, {
+    return request<GenerateResponse>(`/api/m1/schedule/generate?mode=${mode}`, {
       method: "POST",
     });
   },
   getSchedule() {
-    return request<any>("/api/m1/schedule");
+    return request<ScheduleResponse>("/api/m1/schedule");
   },
   swap(body: {
     fromDay: number;
@@ -578,13 +595,13 @@ export const m1 = {
     toDay: number;
     toPeriod: number;
   }) {
-    return request<any>("/api/m1/schedule/swap", {
+    return request<SwapResponse>("/api/m1/schedule/swap", {
       method: "POST",
       body: JSON.stringify(body),
     });
   },
   confirm() {
-    return request<any>("/api/m1/schedule/confirm", { method: "POST" });
+    return request<MessageResponse>("/api/m1/schedule/confirm", { method: "POST" });
   },
 };
 
@@ -592,25 +609,25 @@ export const m1 = {
 
 export const m3 = {
   createGroup(body: { name: string; members: string[]; createdBy: string }) {
-    return request<any>("/api/m3/groups", {
+    return request<M3Group>("/api/m3/groups", {
       method: "POST",
       body: JSON.stringify(body),
     });
   },
   getGroup(groupId: string) {
-    return request<any>(`/api/m3/groups/${groupId}`);
+    return request<M3Group>(`/api/m3/groups/${groupId}`);
   },
   updateMembers(groupId: string, members: string[]) {
-    return request<any>(`/api/m3/groups/${groupId}/members`, {
+    return request<M3Group>(`/api/m3/groups/${groupId}/members`, {
       method: "PUT",
       body: JSON.stringify({ members }),
     });
   },
   getAvailability(groupId: string) {
-    return request<any>(`/api/m3/groups/${groupId}/availability`);
+    return request<M3AvailabilityResponse>(`/api/m3/groups/${groupId}/availability`);
   },
   getSuggestions(groupId: string) {
-    return request<any>(`/api/m3/groups/${groupId}/suggestions`);
+    return request<M3SuggestionsResponse>(`/api/m3/groups/${groupId}/suggestions`);
   },
 };
 
@@ -636,34 +653,34 @@ export const facilityBooking = {
     participants: string[];
     note?: string;
   }) {
-    return request<any>(`${FACILITY_BASE}/reservations`, {
+    return request<Reservation>(`${FACILITY_BASE}/reservations`, {
       method: "POST",
       body: JSON.stringify(body),
     });
   },
   listReservations() {
-    return request<any>(`${FACILITY_BASE}/reservations`);
+    return request<ReservationListResponse>(`${FACILITY_BASE}/reservations`);
   },
   getReservation(id: string) {
-    return request<any>(`${FACILITY_BASE}/reservations/${id}`);
+    return request<Reservation>(`${FACILITY_BASE}/reservations/${id}`);
   },
   updateReservation(
     id: string,
     body: { title?: string; note?: string; version: number }
   ) {
-    return request<any>(`${FACILITY_BASE}/reservations/${id}`, {
+    return request<Reservation>(`${FACILITY_BASE}/reservations/${id}`, {
       method: "PUT",
       body: JSON.stringify(body),
     });
   },
   cancelReservation(id: string) {
-    return request<any>(`${FACILITY_BASE}/reservations/${id}`, { method: "DELETE" });
+    return request<{ message: string; reservation: Reservation }>(`${FACILITY_BASE}/reservations/${id}`, { method: "DELETE" });
   },
   getRoomSchedule(roomId: string) {
-    return request<any>(`${FACILITY_BASE}/rooms/${roomId}/schedule`);
+    return request<RoomScheduleResponse>(`${FACILITY_BASE}/rooms/${roomId}/schedule`);
   },
   getRoomsAvailability() {
-    return request<any>(`${FACILITY_BASE}/rooms/availability`);
+    return request<{ rooms: Array<{ id: string; name: string; capacity: number; type: string; freeSlots: Array<{ day: number; period: number }>; occupiedCount: number }> }>(`${FACILITY_BASE}/rooms/availability`);
   },
 };
 
@@ -671,42 +688,42 @@ export const facilityBooking = {
 
 export const m5 = {
   listWebhooks() {
-    return request<any>("/api/m5/webhooks");
+    return request<WebhookListResponse>("/api/m5/webhooks");
   },
   createWebhook(body: { url: string; events: string[] }) {
-    return request<any>("/api/m5/webhooks", {
+    return request<WebhookCreateResponse>("/api/m5/webhooks", {
       method: "POST",
       body: JSON.stringify(body),
     });
   },
   deleteWebhook(id: string) {
-    return request<any>(`/api/m5/webhooks/${id}`, { method: "DELETE" });
+    return request<MessageResponse>(`/api/m5/webhooks/${id}`, { method: "DELETE" });
   },
   testWebhook(id: string) {
-    return request<any>(`/api/m5/webhooks/${id}/test`, { method: "POST" });
+    return request<WebhookTestResponse>(`/api/m5/webhooks/${id}/test`, { method: "POST" });
   },
   rotateSecret(id: string) {
-    return request<any>(`/api/m5/webhooks/${id}/rotate-secret`, {
+    return request<WebhookRotateResponse>(`/api/m5/webhooks/${id}/rotate-secret`, {
       method: "POST",
     });
   },
   getWebhookLogs(id: string) {
-    return request<any>(`/api/m5/webhooks/${id}/logs`);
+    return request<WebhookLogsResponse>(`/api/m5/webhooks/${id}/logs`);
   },
   getPreferences() {
-    return request<any>("/api/m5/notifications/preferences");
+    return request<NotificationPreferencesResponse>("/api/m5/notifications/preferences");
   },
-  updatePreferences(body: any) {
-    return request<any>("/api/m5/notifications/preferences", {
+  updatePreferences(body: Record<string, unknown>) {
+    return request<Record<string, unknown>>("/api/m5/notifications/preferences", {
       method: "PUT",
       body: JSON.stringify(body),
     });
   },
   getHistory() {
-    return request<any>("/api/m5/notifications/history");
+    return request<NotificationHistoryResponse>("/api/m5/notifications/history");
   },
   markRead(id: string) {
-    return request<any>(`/api/m5/notifications/${id}/read`, {
+    return request<MessageResponse>(`/api/m5/notifications/${id}/read`, {
       method: "POST",
     });
   },
@@ -733,13 +750,13 @@ export const settingsApi = {
 
 export const adminApi = {
   listUsers() {
-    return request<any>("/api/auth/users");
+    return request<UserListResponse>("/api/auth/users");
   },
   listUsersByGroup() {
-    return request<any>("/api/auth/users/list");
+    return request<UserListWithGroupsResponse>("/api/auth/users/list");
   },
   updateUserRole(userId: string, role: string) {
-    return request<any>(`/api/auth/users/${userId}/role`, {
+    return request<UserRoleUpdateResponse>(`/api/auth/users/${userId}/role`, {
       method: "PUT",
       body: JSON.stringify({ role }),
     });
@@ -750,7 +767,7 @@ export const adminApi = {
 
 export const activityLogApi = {
   getLogs(limit = 50) {
-    return request<{ logs: any[] }>(`/api/admin/activity-logs?limit=${limit}`);
+    return request<ActivityLogsResponse>(`/api/admin/activity-logs?limit=${limit}`);
   },
 };
 
@@ -776,22 +793,22 @@ export const adminDbApi = {
 
 export const groupApi = {
   listMyGroups() {
-    return request<any>("/api/groups/my");
+    return request<GroupMyResponse>("/api/groups/my");
   },
   getGroup(groupId: string) {
-    return request<any>(`/api/groups/${groupId}`);
+    return request<GroupDetailResponse>(`/api/groups/${groupId}`);
   },
   createGroup(body: { name: string; description?: string }) {
-    return request<any>("/api/groups", {
+    return request<GroupCreateResponse>("/api/groups", {
       method: "POST",
       body: JSON.stringify(body),
     });
   },
   joinGroup(groupId: string) {
-    return request<any>(`/api/groups/${groupId}/join`, { method: "POST" });
+    return request<MessageResponse>(`/api/groups/${groupId}/join`, { method: "POST" });
   },
   leaveGroup(groupId: string) {
-    return request<any>(`/api/groups/${groupId}/leave`, { method: "POST" });
+    return request<MessageResponse>(`/api/groups/${groupId}/leave`, { method: "POST" });
   },
   addSchedule(groupId: string, body: {
     title: string;
@@ -801,14 +818,14 @@ export const groupApi = {
     scheduleType?: string;
     date?: string;
   }) {
-    return request<any>(`/api/groups/${groupId}/schedules`, {
+    return request<GroupScheduleResponse>(`/api/groups/${groupId}/schedules`, {
       method: "POST",
       body: JSON.stringify(body),
     });
   },
   // グループ個別予定
   getEvents(groupId: string) {
-    return request<any>(`/api/groups/${groupId}/events`);
+    return request<GroupEventsResponse>(`/api/groups/${groupId}/events`);
   },
   addEvent(groupId: string, body: {
     title: string;
@@ -820,7 +837,7 @@ export const groupApi = {
     duration?: number;
     eventType?: string;
   }) {
-    return request<any>(`/api/groups/${groupId}/events`, {
+    return request<GroupEventResponse>(`/api/groups/${groupId}/events`, {
       method: "POST",
       body: JSON.stringify(body),
     });
@@ -835,13 +852,13 @@ export const groupApi = {
     duration?: number;
     eventType?: string;
   }) {
-    return request<any>(`/api/groups/${groupId}/events/${eventId}`, {
+    return request<GroupEventResponse>(`/api/groups/${groupId}/events/${eventId}`, {
       method: "PUT",
       body: JSON.stringify(body),
     });
   },
   deleteEvent(groupId: string, eventId: string) {
-    return request<any>(`/api/groups/${groupId}/events/${eventId}`, { method: "DELETE" });
+    return request<DeletedResponse>(`/api/groups/${groupId}/events/${eventId}`, { method: "DELETE" });
   },
 };
 
@@ -849,7 +866,7 @@ export const groupApi = {
 
 export const myPlanApi = {
   list() {
-    return request<any>("/api/myplans");
+    return request<MyPlanListResponse>("/api/myplans");
   },
   create(body: {
     name: string;
@@ -859,7 +876,7 @@ export const myPlanApi = {
     weeklySchedule: Record<string, Array<{ startTime: string; endTime: string; title: string }>>;
     groupId?: string;
   }) {
-    return request<any>("/api/myplans", {
+    return request<MyPlanResponse>("/api/myplans", {
       method: "POST",
       body: JSON.stringify(body),
     });
@@ -872,16 +889,16 @@ export const myPlanApi = {
     weeklySchedule?: Record<string, Array<{ startTime: string; endTime: string; title: string }>>;
     isActive?: boolean;
   }) {
-    return request<any>(`/api/myplans/${id}`, {
+    return request<MyPlanResponse>(`/api/myplans/${id}`, {
       method: "PUT",
       body: JSON.stringify(body),
     });
   },
   remove(id: string) {
-    return request<any>(`/api/myplans/${id}`, { method: "DELETE" });
+    return request<MessageResponse>(`/api/myplans/${id}`, { method: "DELETE" });
   },
   generateSchedule(id: string) {
-    return request<any>(`/api/myplans/${id}/generate`, { method: "POST" });
+    return request<{ generatedEvents: number }>(`/api/myplans/${id}/generate`, { method: "POST" });
   },
 };
 
@@ -889,7 +906,7 @@ export const myPlanApi = {
 
 export const smartSchedulerApi = {
   getTasks(groupId: string) {
-    return request<any>(`/api/smart-scheduler/tasks/${groupId}`);
+    return request<SchedulingTaskListResponse>(`/api/smart-scheduler/tasks/${groupId}`);
   },
   createTask(body: {
     groupId: string;
@@ -900,7 +917,7 @@ export const smartSchedulerApi = {
     preferredPeriods?: number[];
     instructorId?: string;
   }) {
-    return request<any>("/api/smart-scheduler/tasks", {
+    return request<SchedulingTaskResponse>("/api/smart-scheduler/tasks", {
       method: "POST",
       body: JSON.stringify(body),
     });
@@ -913,28 +930,28 @@ export const smartSchedulerApi = {
     preferredPeriods?: number[];
     instructorId?: string | null;
   }) {
-    return request<any>(`/api/smart-scheduler/tasks/${id}`, {
+    return request<SchedulingTaskResponse>(`/api/smart-scheduler/tasks/${id}`, {
       method: "PUT",
       body: JSON.stringify(body),
     });
   },
   deleteTask(id: string) {
-    return request<any>(`/api/smart-scheduler/tasks/${id}`, { method: "DELETE" });
+    return request<MessageResponse>(`/api/smart-scheduler/tasks/${id}`, { method: "DELETE" });
   },
   solve(groupId: string, options?: { considerHolidays?: boolean; considerBusinessDays?: boolean }) {
-    return request<any>(`/api/smart-scheduler/solve/${groupId}`, {
+    return request<SolveResponse>(`/api/smart-scheduler/solve/${groupId}`, {
       method: "POST",
       body: options ? JSON.stringify(options) : undefined,
     });
   },
   confirm(resultId: string) {
-    return request<any>(`/api/smart-scheduler/confirm/${resultId}`, { method: "POST" });
+    return request<ConfirmResponse>(`/api/smart-scheduler/confirm/${resultId}`, { method: "POST" });
   },
   getResults(groupId: string) {
-    return request<any>(`/api/smart-scheduler/results/${groupId}`);
+    return request<SchedulingResultsResponse>(`/api/smart-scheduler/results/${groupId}`);
   },
   getAvailability(groupId: string) {
-    return request<any>(`/api/smart-scheduler/availability/${groupId}`);
+    return request<SchedulerAvailabilityResponse>(`/api/smart-scheduler/availability/${groupId}`);
   },
 };
 
@@ -955,7 +972,7 @@ export const holidayApi = {
   /** 休日一覧取得 */
   getHolidays(params?: { groupId?: string; startDate?: string; endDate?: string }) {
     const query = params ? `?${new URLSearchParams(Object.entries(params).filter(([, v]) => v) as [string, string][])}` : "";
-    return request<{ holidays: any[] }>(`/api/holidays${query}`);
+    return request<HolidayListResponse>(`/api/holidays${query}`);
   },
   /** 休日追加 */
   createHoliday(body: {
@@ -991,28 +1008,28 @@ export const m6Voting = {
     deadline?: string;
     candidates: string[];
   }) {
-    return request<any>("/api/voting/events", {
+    return request<VotingEventCreateResponse>("/api/voting/events", {
       method: "POST",
       body: JSON.stringify(body),
     });
   },
   listEvents() {
-    return request<any>("/api/voting/events");
+    return request<VotingEventListResponse>("/api/voting/events");
   },
   getEvent(eventId: string) {
-    return request<any>(`/api/voting/events/${eventId}`);
+    return request<VotingEventDetailResponse>(`/api/voting/events/${eventId}`);
   },
   submitVotes(
     eventId: string,
     votes: { candidateId: string; answer: string; comment?: string }[]
   ) {
-    return request<any>(`/api/voting/events/${eventId}/votes`, {
+    return request<VotingSubmitResponse>(`/api/voting/events/${eventId}/votes`, {
       method: "POST",
       body: JSON.stringify({ votes }),
     });
   },
   autoReply(eventId: string) {
-    return request<any>(`/api/voting/events/${eventId}/auto-reply`, {
+    return request<VotingAutoReplyResponse>(`/api/voting/events/${eventId}/auto-reply`, {
       method: "POST",
     });
   },
@@ -1020,13 +1037,13 @@ export const m6Voting = {
     eventId: string,
     body: { status?: string; title?: string; description?: string; deadline?: string }
   ) {
-    return request<any>(`/api/voting/events/${eventId}`, {
+    return request<VotingUpdateResponse>(`/api/voting/events/${eventId}`, {
       method: "PUT",
       body: JSON.stringify(body),
     });
   },
   deleteEvent(eventId: string) {
-    return request<any>(`/api/voting/events/${eventId}`, {
+    return request<VotingUpdateResponse>(`/api/voting/events/${eventId}`, {
       method: "DELETE",
     });
   },
