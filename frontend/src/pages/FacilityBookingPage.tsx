@@ -68,6 +68,8 @@ export function FacilityBookingPage() {
 
   const [roomsAvailability, setRoomsAvailability] = useState<RoomAvailability[]>([]);
   const [showRoomPicker, setShowRoomPicker] = useState(false);
+  const [allGroups, setAllGroups] = useState<GroupInfo[]>([]);
+  const [participantGroupIds, setParticipantGroupIds] = useState<string[]>([]);
 
   const [slotMode, setSlotMode] = useState<SlotMode>("auto");
 
@@ -100,6 +102,7 @@ export function FacilityBookingPage() {
     try {
       const res = await groupApi.listMyGroups();
       setGroups(res.groups || []);
+      setAllGroups(res.groups || []);
     } catch { /* ignore */ }
   }, []);
 
@@ -226,6 +229,7 @@ export function FacilityBookingPage() {
         period: form.period,
         roomId: form.roomId,
         participants,
+        participantGroupIds: participantGroupIds.length > 0 ? participantGroupIds : undefined,
         note: form.note,
       });
       showMsg("予約を作成しました（カレンダーに自動登録済み）");
@@ -305,6 +309,9 @@ export function FacilityBookingPage() {
             <div style={{ marginTop: "0.75rem" }}>
               <label style={{ fontSize: "0.8rem", fontWeight: 600, display: "block", marginBottom: "0.3rem" }}>
                 参加者 ({Array.from(participantSelection.values()).filter(Boolean).length}/{members.length})
+                {participantGroupIds.length > 0 && (
+                  <span style={{ fontWeight: 400, color: "var(--text-muted)" }}> + グループ {participantGroupIds.length}件</span>
+                )}
               </label>
               <div style={{ display: "flex", gap: "0.4rem", flexWrap: "wrap" }}>
                 {members.map((m) => {
@@ -342,6 +349,39 @@ export function FacilityBookingPage() {
                   );
                 })}
               </div>
+              {allGroups.length > 1 && (
+                <div style={{ marginTop: "0.5rem" }}>
+                  <label style={{ fontSize: "0.75rem", color: "var(--text-muted)", display: "block", marginBottom: "0.25rem" }}>
+                    グループを参加者に追加
+                  </label>
+                  <div style={{ display: "flex", gap: "0.4rem", flexWrap: "wrap" }}>
+                    {allGroups.filter((g) => g.id !== form.groupId).map((g) => {
+                      const selected = participantGroupIds.includes(g.id);
+                      return (
+                        <button
+                          key={g.id}
+                          onClick={() => {
+                            setParticipantGroupIds((prev) =>
+                              selected ? prev.filter((id) => id !== g.id) : [...prev, g.id]
+                            );
+                          }}
+                          style={{
+                            padding: "0.2rem 0.5rem",
+                            fontSize: "0.7rem",
+                            background: selected ? "var(--accent)" : "var(--bg-surface-2)",
+                            color: selected ? "#fff" : "var(--text-muted)",
+                            border: "1px solid var(--border)",
+                            borderRadius: "var(--radius-sm)",
+                            cursor: "pointer",
+                          }}
+                        >
+                          {g.name} ({g.memberCount}人)
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
             </div>
           )}
 

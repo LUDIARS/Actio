@@ -651,6 +651,7 @@ export const facilityBooking = {
     period: number;
     roomId: string;
     participants: string[];
+    participantGroupIds?: string[];
     note?: string;
   }) {
     return request<Reservation>(`${FACILITY_BASE}/reservations`, {
