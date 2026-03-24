@@ -25,11 +25,18 @@ interface GroupEvent {
   eventType: string;
 }
 
+interface GroupMember {
+  userId: string;
+  name: string;
+  email: string;
+  role: string;
+}
+
 interface GroupDetail {
   id: string;
   name: string;
   description: string | null;
-  members: Array<{ userId: string; name: string; email: string; role: string }>;
+  members: GroupMember[];
   schedules: Array<{
     id: string;
     title: string;
@@ -42,8 +49,26 @@ interface GroupDetail {
   events: GroupEvent[];
 }
 
+interface SearchUser {
+  id: string;
+  name: string;
+  email: string;
+}
+
+const ROLE_LABELS: Record<string, string> = {
+  owner: "オーナー",
+  leader: "リーダー",
+  member: "一般",
+};
+
+const ROLE_BADGE_CLASS: Record<string, string> = {
+  owner: "blue",
+  leader: "orange",
+  member: "green",
+};
+
 export function GroupsPage() {
-  useAuth();
+  const { user: currentUser } = useAuth();
   const [groups, setGroups] = useState<Group[]>([]);
   const [selectedGroup, setSelectedGroup] = useState<GroupDetail | null>(null);
   const [selectedGroupId, setSelectedGroupId] = useState<string>("");
@@ -68,12 +93,25 @@ export function GroupsPage() {
     description: "",
   });
 
+  // 招待関連
+  const [showInvite, setShowInvite] = useState(false);
+  const [allUsers, setAllUsers] = useState<SearchUser[]>([]);
+  const [inviteFilter, setInviteFilter] = useState("");
+  const [inviting, setInviting] = useState(false);
+
+  // 現在のユーザのグループ内ロール
+  const myGroupRole =
+    selectedGroup?.members.find((m) => m.userId === currentUser?.id)?.role || "";
+  const isSystemAdmin = currentUser?.role === "admin";
+  const canManage =
+    isSystemAdmin || myGroupRole === "owner" || myGroupRole === "leader";
+
   const fetchGroups = useCallback(async () => {
     try {
       const data = await groupApi.listMyGroups();
       setGroups(data.groups || []);
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : String(err));
     }
     setLoading(false);
   }, []);
@@ -99,8 +137,8 @@ export function GroupsPage() {
       setSelectedGroupId(groupId);
       const data = await groupApi.getGroup(groupId);
       setSelectedGroup(data.group || null);
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : String(err));
     }
   };
 
@@ -111,8 +149,8 @@ export function GroupsPage() {
       await groupApi.joinGroup(joinGroupId.trim());
       setJoinGroupId("");
       await loadGroups();
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : String(err));
     }
   };
 
@@ -123,8 +161,8 @@ export function GroupsPage() {
       setSelectedGroup(null);
       setSelectedGroupId("");
       await loadGroups();
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : String(err));
     }
   };
 
@@ -143,8 +181,8 @@ export function GroupsPage() {
       setShowAddEvent(false);
       setEventForm({ title: "", date: "", endDate: "", eventType: "event", description: "" });
       await loadGroupDetail(selectedGroup.id);
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : String(err));
     }
   };
 
@@ -154,8 +192,8 @@ export function GroupsPage() {
     try {
       await groupApi.deleteEvent(selectedGroup.id, eventId);
       await loadGroupDetail(selectedGroup.id);
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : String(err));
     }
   };
 
@@ -168,10 +206,60 @@ export function GroupsPage() {
       setShowAddSchedule(false);
       setScheduleForm({ title: "", day: 0, period: 0, duration: 1, scheduleType: "recurring", date: "" });
       await loadGroupDetail(selectedGroup.id);
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : String(err));
     }
   };
+
+  // 招待: ユーザ一覧を取得
+  const openInviteDialog = async () => {
+    setShowInvite(true);
+    setInviteFilter("");
+    try {
+      const data = await groupApi.searchUsers();
+      setAllUsers(data.users || []);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : String(err));
+    }
+  };
+
+  const handleInvite = async (targetUserId: string) => {
+    if (!selectedGroup) return;
+    setInviting(true);
+    setError("");
+    try {
+      await groupApi.inviteMember(selectedGroup.id, targetUserId);
+      await loadGroupDetail(selectedGroup.id);
+      // 招待済みユーザを一覧から除外するため再取得
+      const data = await groupApi.searchUsers();
+      setAllUsers(data.users || []);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : String(err));
+    }
+    setInviting(false);
+  };
+
+  const handleRoleChange = async (targetUserId: string, newRole: string) => {
+    if (!selectedGroup) return;
+    setError("");
+    try {
+      await groupApi.updateMemberRole(selectedGroup.id, targetUserId, newRole);
+      await loadGroupDetail(selectedGroup.id);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : String(err));
+    }
+  };
+
+  // 招待候補: 既にメンバーでないユーザのみ表示
+  const memberUserIds = new Set(selectedGroup?.members.map((m) => m.userId) || []);
+  const filteredUsers = allUsers
+    .filter((u) => !memberUserIds.has(u.id))
+    .filter(
+      (u) =>
+        !inviteFilter ||
+        u.name.toLowerCase().includes(inviteFilter.toLowerCase()) ||
+        u.email.toLowerCase().includes(inviteFilter.toLowerCase())
+    );
 
   return (
     <div>
@@ -210,7 +298,7 @@ export function GroupsPage() {
             <option value="">グループを選択...</option>
             {groups.map((g) => (
               <option key={g.id} value={g.id}>
-                {g.name} ({g.memberCount}人 / {g.role})
+                {g.name} ({g.memberCount}人 / {ROLE_LABELS[g.role] || g.role})
               </option>
             ))}
           </select>
@@ -469,7 +557,7 @@ export function GroupsPage() {
                       {ev.eventType === "holiday" ? "休日" : ev.eventType === "examination_period" ? "審査会" : ev.eventType === "event" ? "行事" : "他"}
                     </span>
                     <span style={{ fontSize: "0.75rem", color: "var(--text-muted)", whiteSpace: "nowrap" }}>
-                      {ev.date}{ev.endDate && ev.endDate !== ev.date ? ` 〜 ${ev.endDate}` : ""}
+                      {ev.date}{ev.endDate && ev.endDate !== ev.date ? ` ~ ${ev.endDate}` : ""}
                     </span>
                     <button
                       className="danger"
@@ -486,27 +574,110 @@ export function GroupsPage() {
 
           {/* メンバー */}
           <div className="card">
-            <h3 style={{ fontSize: "0.9rem", fontWeight: 600, marginBottom: "0.5rem" }}>
-              メンバー ({selectedGroup.members.length}人)
-            </h3>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.5rem", flexWrap: "wrap", gap: "0.5rem" }}>
+              <h3 style={{ fontSize: "0.9rem", fontWeight: 600 }}>
+                メンバー ({selectedGroup.members.length}人)
+              </h3>
+              {canManage && (
+                <button
+                  className="primary"
+                  style={{ fontSize: "0.75rem", padding: "0.2rem 0.5rem" }}
+                  onClick={() => (showInvite ? setShowInvite(false) : openInviteDialog())}
+                >
+                  {showInvite ? "閉じる" : "メンバーを招待"}
+                </button>
+              )}
+            </div>
+
+            {/* 招待パネル */}
+            {showInvite && (
+              <div style={{ background: "var(--bg-surface-2)", borderRadius: "var(--radius-sm)", padding: "0.75rem", marginBottom: "1rem" }}>
+                <div className="form-group" style={{ marginBottom: "0.5rem" }}>
+                  <input
+                    type="text"
+                    value={inviteFilter}
+                    onChange={(e) => setInviteFilter(e.target.value)}
+                    placeholder="名前またはメールで検索..."
+                    style={{ fontSize: "0.8rem" }}
+                  />
+                </div>
+                {filteredUsers.length === 0 ? (
+                  <div style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>
+                    招待可能なユーザが見つかりません
+                  </div>
+                ) : (
+                  <div style={{ maxHeight: "200px", overflowY: "auto", display: "flex", flexDirection: "column", gap: "0.3rem" }}>
+                    {filteredUsers.map((u) => (
+                      <div
+                        key={u.id}
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "space-between",
+                          gap: "0.5rem",
+                          padding: "0.3rem 0.5rem",
+                          background: "var(--bg-surface)",
+                          borderRadius: "var(--radius-sm)",
+                          fontSize: "0.8rem",
+                        }}
+                      >
+                        <div style={{ minWidth: 0, flex: 1 }}>
+                          <div style={{ fontWeight: 500 }}>{u.name}</div>
+                          <div style={{ fontSize: "0.7rem", color: "var(--text-muted)" }}>{u.email}</div>
+                        </div>
+                        <button
+                          className="primary"
+                          style={{ fontSize: "0.7rem", padding: "0.15rem 0.4rem", whiteSpace: "nowrap" }}
+                          onClick={() => handleInvite(u.id)}
+                          disabled={inviting}
+                        >
+                          招待
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            <div style={{ display: "flex", flexDirection: "column", gap: "0.4rem" }}>
               {selectedGroup.members.map((m) => (
                 <div
                   key={m.userId}
                   style={{
                     display: "flex",
                     alignItems: "center",
-                    gap: "0.4rem",
-                    padding: "0.3rem 0.6rem",
+                    gap: "0.5rem",
+                    padding: "0.4rem 0.6rem",
                     background: "var(--bg-surface-2)",
                     borderRadius: "var(--radius-sm)",
                     fontSize: "0.8rem",
+                    flexWrap: "wrap",
                   }}
                 >
-                  <span style={{ fontWeight: 500 }}>{m.name}</span>
-                  <span className={`badge ${m.role === "owner" ? "blue" : "green"}`} style={{ fontSize: "0.6rem" }}>
-                    {m.role}
+                  <span style={{ fontWeight: 500, flex: "1 1 auto", minWidth: 0 }}>
+                    {m.name}
+                    <span style={{ fontSize: "0.7rem", color: "var(--text-muted)", marginLeft: "0.4rem" }}>
+                      {m.email}
+                    </span>
                   </span>
+                  <span
+                    className={`badge ${ROLE_BADGE_CLASS[m.role] || "green"}`}
+                    style={{ fontSize: "0.6rem" }}
+                  >
+                    {ROLE_LABELS[m.role] || m.role}
+                  </span>
+                  {/* ロール変更ドロップダウン: owner以外かつ管理権限がある場合 */}
+                  {canManage && m.role !== "owner" && m.userId !== currentUser?.id && (
+                    <select
+                      value={m.role}
+                      onChange={(e) => handleRoleChange(m.userId, e.target.value)}
+                      style={{ fontSize: "0.7rem", padding: "0.1rem 0.2rem", width: "auto" }}
+                    >
+                      <option value="leader">リーダー</option>
+                      <option value="member">一般</option>
+                    </select>
+                  )}
                 </div>
               ))}
             </div>

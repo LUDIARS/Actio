@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import { v4 as uuidv4 } from "uuid";
-import { getUserId } from "../../src/middleware/getUserId.js";
+import { getUserId, getUserRole } from "../../src/middleware/getUserId.js";
 import {
   groupRepo,
   groupMemberRepo,
@@ -13,6 +13,18 @@ import { logActivity } from "../../src/activity-logger.js";
 
 const groupRoutes = new Hono();
 
+/**
+ * グループ内の権限チェック: システム管理者 or グループ owner/leader
+ */
+function canManageGroup(
+  systemRole: string,
+  memberRole: string | undefined
+): boolean {
+  if (systemRole === "admin") return true;
+  if (memberRole === "owner" || memberRole === "leader") return true;
+  return false;
+}
+
 // ─── GET /my - 自分が所属するグループ一覧 ────────────────────
 
 groupRoutes.get("/my", async (c) => {
@@ -20,21 +32,42 @@ groupRoutes.get("/my", async (c) => {
   if (!userId) return c.json({ error: "Authentication required" }, 401);
 
   const memberships = await groupMemberRepo.findByUserId(userId);
-  const groupIds = memberships.map((m: any) => m.groupId);
+  const groupIds = memberships.map(
+    (m: { groupId: string }) => m.groupId
+  );
 
   // バッチ取得でN+1回避
   const allGroups = await groupRepo.findByIds(groupIds);
-  const groupMap = new Map<string, any>(allGroups.map((g: any) => [g.id, g]));
+  const groupMap = new Map(
+    allGroups.map((g: { id: string }) => [g.id, g])
+  );
 
   // 各グループのメンバー数を取得
-  const allMembers = groupIds.length > 0
-    ? await Promise.all(groupIds.map((gid: string) => groupMemberRepo.findByGroupId(gid)))
-    : [];
-  const memberCountMap = new Map(groupIds.map((gid: string, i: number) => [gid, allMembers[i]?.length || 0]));
+  const allMembers =
+    groupIds.length > 0
+      ? await Promise.all(
+          groupIds.map((gid: string) =>
+            groupMemberRepo.findByGroupId(gid)
+          )
+        )
+      : [];
+  const memberCountMap = new Map(
+    groupIds.map((gid: string, i: number) => [
+      gid,
+      allMembers[i]?.length || 0,
+    ])
+  );
 
   const groups = memberships
-    .map((m: any) => {
-      const group = groupMap.get(m.groupId);
+    .map((m: { groupId: string; role: string }) => {
+      const group = groupMap.get(m.groupId) as
+        | {
+            id: string;
+            name: string;
+            description: string | null;
+            createdAt: Date;
+          }
+        | undefined;
       if (!group) return null;
       return {
         id: group.id,
@@ -57,42 +90,81 @@ groupRoutes.get("/:id", async (c) => {
   if (!userId) return c.json({ error: "Authentication required" }, 401);
 
   const groupId = c.req.param("id");
-  const group = await groupRepo.findById(groupId);
 
-  if (!group) return c.json({ error: "Group not found" }, 404);
+  try {
+    const group = await groupRepo.findById(groupId);
+    if (!group) return c.json({ error: "Group not found" }, 404);
 
-  // メンバーシップ確認
-  const membership = await groupMemberRepo.findByGroupAndUser(groupId, userId);
-  if (!membership) return c.json({ error: "Not a member of this group" }, 403);
+    // メンバーシップ確認
+    const membership = await groupMemberRepo.findByGroupAndUser(
+      groupId,
+      userId
+    );
+    if (!membership)
+      return c.json({ error: "Not a member of this group" }, 403);
 
-  // メンバー一覧（バッチ取得でN+1回避）
-  const memberRows = await groupMemberRepo.findByGroupId(groupId);
-  const userIds = memberRows.map((m: any) => m.userId);
-  const users = userIds.length > 0 ? await userListRepo.findByIds(userIds) : [];
-  const userMap = new Map<string, any>(users.map((u: any) => [u.id, u]));
-  const members = memberRows.map((m: any) => ({
-    userId: m.userId,
-    name: userMap.get(m.userId)?.name || "Unknown",
-    email: userMap.get(m.userId)?.email || "",
-    role: m.role,
-  }));
+    // メンバー一覧（バッチ取得でN+1回避）
+    const memberRows = await groupMemberRepo.findByGroupId(groupId);
+    const userIds = memberRows.map(
+      (m: { userId: string }) => m.userId
+    );
+    const users =
+      userIds.length > 0 ? await userListRepo.findByIds(userIds) : [];
+    const userMap = new Map(
+      users.map((u: { id: string; name: string; email: string }) => [
+        u.id,
+        u,
+      ])
+    );
+    const members = memberRows.map(
+      (m: { userId: string; role: string }) => ({
+        userId: m.userId,
+        name:
+          (userMap.get(m.userId) as { name: string } | undefined)
+            ?.name || "Unknown",
+        email:
+          (userMap.get(m.userId) as { email: string } | undefined)
+            ?.email || "",
+        role: m.role,
+      })
+    );
 
-  // グループの予定
-  const schedules = await groupScheduleRepo.findByGroupId(groupId);
+    // グループの予定
+    const schedules = await groupScheduleRepo.findByGroupId(groupId);
 
-  // グループの個別予定
-  const events = await groupEventRepo.findByGroupId(groupId);
+    // グループの個別予定 (テーブルが存在しない場合に備えてtry-catch)
+    let events: unknown[] = [];
+    try {
+      events = await groupEventRepo.findByGroupId(groupId);
+    } catch (err) {
+      console.warn(
+        `[groups] グループ個別予定の取得に失敗: ${err instanceof Error ? err.message : err}`
+      );
+    }
 
-  return c.json({
-    group: {
-      id: group.id,
-      name: group.name,
-      description: group.description,
-      members,
-      schedules,
-      events,
-    },
-  });
+    return c.json({
+      group: {
+        id: group.id,
+        name: group.name,
+        description: group.description,
+        members,
+        schedules,
+        events,
+      },
+    });
+  } catch (err) {
+    console.error(
+      `[groups] グループ詳細取得エラー (groupId=${groupId}):`,
+      err
+    );
+    return c.json(
+      {
+        error: "グループ情報の取得に失敗しました",
+        detail: err instanceof Error ? err.message : String(err),
+      },
+      500
+    );
+  }
 });
 
 // ─── POST / - グループ作成 ──────────────────────────────────
@@ -126,7 +198,12 @@ groupRoutes.post("/", async (c) => {
   });
 
   const user = await userRepo.findById(userId);
-  logActivity(userId, user?.name || "Unknown", "グループ作成", `グループ「${body.name}」が追加されました`);
+  logActivity(
+    userId,
+    user?.name || "Unknown",
+    "グループ作成",
+    `グループ「${body.name}」が追加されました`
+  );
 
   return c.json({ groupId, message: "Group created" }, 201);
 });
@@ -143,7 +220,10 @@ groupRoutes.post("/:id/join", async (c) => {
   if (!group) return c.json({ error: "Group not found" }, 404);
 
   // 既存メンバーかチェック
-  const existing = await groupMemberRepo.findByGroupAndUser(groupId, userId);
+  const existing = await groupMemberRepo.findByGroupAndUser(
+    groupId,
+    userId
+  );
   if (existing) return c.json({ error: "Already a member" }, 409);
 
   await groupMemberRepo.create({
@@ -156,10 +236,17 @@ groupRoutes.post("/:id/join", async (c) => {
 
   // groups.members JSON も更新
   const currentMembers = (group.members as string[]) || [];
-  await groupRepo.update(groupId, { members: [...currentMembers, userId] });
+  await groupRepo.update(groupId, {
+    members: [...currentMembers, userId],
+  });
 
   const user = await userRepo.findById(userId);
-  logActivity(userId, user?.name || "Unknown", "グループ参加", `グループ「${group.name}」に参加しました`);
+  logActivity(
+    userId,
+    user?.name || "Unknown",
+    "グループ参加",
+    `グループ「${group.name}」に参加しました`
+  );
 
   return c.json({ message: "Joined group" });
 });
@@ -172,7 +259,10 @@ groupRoutes.post("/:id/leave", async (c) => {
 
   const groupId = c.req.param("id");
 
-  const membership = await groupMemberRepo.findByGroupAndUser(groupId, userId);
+  const membership = await groupMemberRepo.findByGroupAndUser(
+    groupId,
+    userId
+  );
   if (!membership) return c.json({ error: "Not a member" }, 404);
 
   await groupMemberRepo.deleteByGroupAndUser(groupId, userId);
@@ -180,14 +270,176 @@ groupRoutes.post("/:id/leave", async (c) => {
   // groups.members JSON も更新
   const group = await groupRepo.findById(groupId);
   if (group) {
-    const updatedMembers = ((group.members as string[]) || []).filter((m) => m !== userId);
+    const updatedMembers = ((group.members as string[]) || []).filter(
+      (m) => m !== userId
+    );
     await groupRepo.update(groupId, { members: updatedMembers });
   }
 
   const user = await userRepo.findById(userId);
-  logActivity(userId, user?.name || "Unknown", "グループ脱退", `グループ「${group?.name || groupId}」から脱退しました`);
+  logActivity(
+    userId,
+    user?.name || "Unknown",
+    "グループ脱退",
+    `グループ「${group?.name || groupId}」から脱退しました`
+  );
 
   return c.json({ message: "Left group" });
+});
+
+// ─── POST /:id/invite - グループに招待 ──────────────────────
+
+groupRoutes.post("/:id/invite", async (c) => {
+  const userId = getUserId(c);
+  if (!userId) return c.json({ error: "Authentication required" }, 401);
+
+  const systemRole = getUserRole(c);
+  const groupId = c.req.param("id");
+
+  const group = await groupRepo.findById(groupId);
+  if (!group) return c.json({ error: "Group not found" }, 404);
+
+  // 権限チェック: システム管理者 or グループ owner/leader
+  const membership = await groupMemberRepo.findByGroupAndUser(
+    groupId,
+    userId
+  );
+  if (!canManageGroup(systemRole, membership?.role)) {
+    return c.json(
+      { error: "グループリーダーまたは管理者のみ招待できます" },
+      403
+    );
+  }
+
+  const body = await c.req.json<{ userId: string }>();
+  if (!body.userId)
+    return c.json({ error: "userId is required" }, 400);
+
+  // 招待対象ユーザの存在確認
+  const targetUser = await userRepo.findById(body.userId);
+  if (!targetUser)
+    return c.json({ error: "User not found" }, 404);
+
+  // 既存メンバーかチェック
+  const existing = await groupMemberRepo.findByGroupAndUser(
+    groupId,
+    body.userId
+  );
+  if (existing)
+    return c.json({ error: "既にグループのメンバーです" }, 409);
+
+  await groupMemberRepo.create({
+    id: uuidv4(),
+    groupId,
+    userId: body.userId,
+    role: "member",
+    joinedAt: new Date(),
+  });
+
+  // groups.members JSON も更新
+  const currentMembers = (group.members as string[]) || [];
+  await groupRepo.update(groupId, {
+    members: [...currentMembers, body.userId],
+  });
+
+  const inviter = await userRepo.findById(userId);
+  logActivity(
+    userId,
+    inviter?.name || "Unknown",
+    "グループ招待",
+    `「${targetUser.name}」をグループ「${group.name}」に招待しました`
+  );
+
+  return c.json({
+    message: `${targetUser.name} をグループに招待しました`,
+  });
+});
+
+// ─── PUT /:id/members/:memberId/role - メンバーロール変更 ─────
+
+groupRoutes.put("/:id/members/:memberId/role", async (c) => {
+  const userId = getUserId(c);
+  if (!userId) return c.json({ error: "Authentication required" }, 401);
+
+  const systemRole = getUserRole(c);
+  const groupId = c.req.param("id");
+  const targetUserId = c.req.param("memberId");
+
+  const group = await groupRepo.findById(groupId);
+  if (!group) return c.json({ error: "Group not found" }, 404);
+
+  // 権限チェック: システム管理者 or グループ owner/leader
+  const membership = await groupMemberRepo.findByGroupAndUser(
+    groupId,
+    userId
+  );
+  if (!canManageGroup(systemRole, membership?.role)) {
+    return c.json(
+      {
+        error:
+          "グループリーダーまたは管理者のみロールを変更できます",
+      },
+      403
+    );
+  }
+
+  const body = await c.req.json<{ role: string }>();
+  const validRoles = ["leader", "member"];
+  if (!validRoles.includes(body.role)) {
+    return c.json(
+      { error: `role は ${validRoles.join("/")} のいずれかを指定してください` },
+      400
+    );
+  }
+
+  // 対象メンバーの存在確認
+  const targetMember = await groupMemberRepo.findByGroupAndUser(
+    groupId,
+    targetUserId
+  );
+  if (!targetMember)
+    return c.json({ error: "対象メンバーが見つかりません" }, 404);
+
+  // ownerのロールは変更不可
+  if (targetMember.role === "owner") {
+    return c.json(
+      { error: "オーナーのロールは変更できません" },
+      403
+    );
+  }
+
+  await groupMemberRepo.updateRole(groupId, targetUserId, body.role);
+
+  const targetUser = await userRepo.findById(targetUserId);
+  const actor = await userRepo.findById(userId);
+  logActivity(
+    userId,
+    actor?.name || "Unknown",
+    "ロール変更",
+    `「${targetUser?.name || targetUserId}」のロールを「${body.role}」に変更しました（グループ: ${group.name}）`
+  );
+
+  return c.json({
+    message: `ロールを ${body.role} に変更しました`,
+  });
+});
+
+// ─── GET /users/search - 招待用ユーザ検索 ────────────────────
+
+groupRoutes.get("/users/search", async (c) => {
+  const userId = getUserId(c);
+  if (!userId) return c.json({ error: "Authentication required" }, 401);
+
+  const allUsers = await userListRepo.findAllBasic();
+  const users = allUsers.map(
+    (u: { id: string; name: string; email: string }) => ({
+      id: u.id,
+      name: u.name,
+      email: u.email,
+    })
+  );
+
+  return c.json({ users });
 });
 
 // ─── POST /:id/schedules - グループ予定追加 ──────────────────
@@ -199,7 +451,10 @@ groupRoutes.post("/:id/schedules", async (c) => {
   const groupId = c.req.param("id");
 
   // メンバーシップ確認
-  const membership = await groupMemberRepo.findByGroupAndUser(groupId, userId);
+  const membership = await groupMemberRepo.findByGroupAndUser(
+    groupId,
+    userId
+  );
   if (!membership) return c.json({ error: "Not a member" }, 403);
 
   const body = await c.req.json<{
@@ -215,8 +470,10 @@ groupRoutes.post("/:id/schedules", async (c) => {
     return c.json({ error: "title, day, period are required" }, 400);
   }
 
-  if (body.day < 0 || body.day > 6) return c.json({ error: "day must be 0-6" }, 400);
-  if (body.period < 0 || body.period > 10) return c.json({ error: "period must be 0-10" }, 400);
+  if (body.day < 0 || body.day > 6)
+    return c.json({ error: "day must be 0-6" }, 400);
+  if (body.period < 0 || body.period > 10)
+    return c.json({ error: "period must be 0-10" }, 400);
 
   const id = uuidv4();
 
@@ -236,7 +493,12 @@ groupRoutes.post("/:id/schedules", async (c) => {
   const created = await groupScheduleRepo.findById(id);
 
   const user = await userRepo.findById(userId);
-  logActivity(userId, user?.name || "Unknown", "グループ予定追加", `グループ予定「${body.title}」が追加されました`);
+  logActivity(
+    userId,
+    user?.name || "Unknown",
+    "グループ予定追加",
+    `グループ予定「${body.title}」が追加されました`
+  );
 
   return c.json({ schedule: created }, 201);
 });
@@ -248,7 +510,10 @@ groupRoutes.get("/:id/events", async (c) => {
   if (!userId) return c.json({ error: "Authentication required" }, 401);
 
   const groupId = c.req.param("id");
-  const membership = await groupMemberRepo.findByGroupAndUser(groupId, userId);
+  const membership = await groupMemberRepo.findByGroupAndUser(
+    groupId,
+    userId
+  );
   if (!membership) return c.json({ error: "Not a member" }, 403);
 
   const events = await groupEventRepo.findByGroupId(groupId);
@@ -262,7 +527,10 @@ groupRoutes.post("/:id/events", async (c) => {
   if (!userId) return c.json({ error: "Authentication required" }, 401);
 
   const groupId = c.req.param("id");
-  const membership = await groupMemberRepo.findByGroupAndUser(groupId, userId);
+  const membership = await groupMemberRepo.findByGroupAndUser(
+    groupId,
+    userId
+  );
   if (!membership) return c.json({ error: "Not a member" }, 403);
 
   const body = await c.req.json<{
@@ -298,7 +566,12 @@ groupRoutes.post("/:id/events", async (c) => {
   const created = await groupEventRepo.findById(id);
 
   const user = await userRepo.findById(userId);
-  logActivity(userId, user?.name || "Unknown", "グループ予定追加", `グループ個別予定「${body.title}」が追加されました`);
+  logActivity(
+    userId,
+    user?.name || "Unknown",
+    "グループ予定追加",
+    `グループ個別予定「${body.title}」が追加されました`
+  );
 
   return c.json({ event: created }, 201);
 });
@@ -312,7 +585,10 @@ groupRoutes.put("/:id/events/:eventId", async (c) => {
   const groupId = c.req.param("id");
   const eventId = c.req.param("eventId");
 
-  const membership = await groupMemberRepo.findByGroupAndUser(groupId, userId);
+  const membership = await groupMemberRepo.findByGroupAndUser(
+    groupId,
+    userId
+  );
   if (!membership) return c.json({ error: "Not a member" }, 403);
 
   const existing = await groupEventRepo.findById(eventId);
@@ -333,13 +609,15 @@ groupRoutes.put("/:id/events/:eventId", async (c) => {
 
   const updates: Record<string, unknown> = {};
   if (body.title !== undefined) updates.title = body.title;
-  if (body.description !== undefined) updates.description = body.description;
+  if (body.description !== undefined)
+    updates.description = body.description;
   if (body.date !== undefined) updates.date = body.date;
   if (body.endDate !== undefined) updates.endDate = body.endDate;
   if (body.allDay !== undefined) updates.allDay = body.allDay;
   if (body.period !== undefined) updates.period = body.period;
   if (body.duration !== undefined) updates.duration = body.duration;
-  if (body.eventType !== undefined) updates.eventType = body.eventType;
+  if (body.eventType !== undefined)
+    updates.eventType = body.eventType;
 
   await groupEventRepo.update(eventId, updates);
   const updated = await groupEventRepo.findById(eventId);
@@ -355,7 +633,10 @@ groupRoutes.delete("/:id/events/:eventId", async (c) => {
   const groupId = c.req.param("id");
   const eventId = c.req.param("eventId");
 
-  const membership = await groupMemberRepo.findByGroupAndUser(groupId, userId);
+  const membership = await groupMemberRepo.findByGroupAndUser(
+    groupId,
+    userId
+  );
   if (!membership) return c.json({ error: "Not a member" }, 403);
 
   const existing = await groupEventRepo.findById(eventId);

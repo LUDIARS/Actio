@@ -11,3 +11,7 @@ export function getUserId(c: Context): string | null {
   if (ctxId && ctxId !== "anonymous") return ctxId;
   return c.req.header("X-User-Id") || null;
 }
+
+export function getUserRole(c: Context): string {
+  return (c.get("userRole" as never) as string) || "general";
+}
