@@ -738,6 +738,18 @@ export const groupMemberRepo = {
         )
       );
   },
+
+  async updateRole(groupId: string, userId: string, role: string) {
+    await db
+      .update(schema.groupMembers)
+      .set({ role })
+      .where(
+        and(
+          eq(schema.groupMembers.groupId, groupId),
+          eq(schema.groupMembers.userId, userId)
+        )
+      );
+  },
 };
 
 // ─── Group Repository ───────────────────────────────────────
