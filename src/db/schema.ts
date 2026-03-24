@@ -25,6 +25,9 @@ export const users = sqliteTable("users", {
   // Google Calendar連携用
   calendarAccessId: text("calendar_access_id"),
 
+  // 最終ログイン日時
+  lastLoginAt: integer("last_login_at", { mode: "timestamp" }),
+
   createdAt: integer("created_at", { mode: "timestamp" })
     .$defaultFn(() => new Date())
     .notNull(),

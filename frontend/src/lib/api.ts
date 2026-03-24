@@ -204,6 +204,13 @@ export const auth = {
   async me() {
     return request<UserProfile>("/api/auth/me");
   },
+
+  async changePassword(body: { currentPassword?: string; newPassword: string }) {
+    return request<MessageResponse>("/api/auth/password", {
+      method: "PUT",
+      body: JSON.stringify(body),
+    });
+  },
 };
 
 // ─── Calendar (Google Calendar + 手動予定 + プラン) ────────
