@@ -55,7 +55,7 @@ export function UserManagementPage() {
       if (isAdmin) {
         const data = await adminApi.listUsers();
         // Admin API returns users without groups, add empty groups array
-        setUsers(data.users.map((u: UserItem) => ({ ...u, groups: u.groups || [] })));
+        setUsers(data.users.map((u) => ({ ...u, groups: [] as GroupInfo[] })));
       } else {
         const data = await adminApi.listUsersByGroup();
         setUsers(data.users);
