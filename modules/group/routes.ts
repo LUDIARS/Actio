@@ -183,7 +183,6 @@ groupRoutes.post("/", async (c) => {
     id: groupId,
     name: body.name,
     description: body.description || null,
-    members: [userId],
     createdBy: userId,
     createdAt: now,
   });
@@ -234,12 +233,6 @@ groupRoutes.post("/:id/join", async (c) => {
     joinedAt: new Date(),
   });
 
-  // groups.members JSON も更新
-  const currentMembers = (group.members as string[]) || [];
-  await groupRepo.update(groupId, {
-    members: [...currentMembers, userId],
-  });
-
   const user = await userRepo.findById(userId);
   logActivity(
     userId,
@@ -267,15 +260,7 @@ groupRoutes.post("/:id/leave", async (c) => {
 
   await groupMemberRepo.deleteByGroupAndUser(groupId, userId);
 
-  // groups.members JSON も更新
   const group = await groupRepo.findById(groupId);
-  if (group) {
-    const updatedMembers = ((group.members as string[]) || []).filter(
-      (m) => m !== userId
-    );
-    await groupRepo.update(groupId, { members: updatedMembers });
-  }
-
   const user = await userRepo.findById(userId);
   logActivity(
     userId,
@@ -334,12 +319,6 @@ groupRoutes.post("/:id/invite", async (c) => {
     userId: body.userId,
     role: "member",
     joinedAt: new Date(),
-  });
-
-  // groups.members JSON も更新
-  const currentMembers = (group.members as string[]) || [];
-  await groupRepo.update(groupId, {
-    members: [...currentMembers, body.userId],
   });
 
   const inviter = await userRepo.findById(userId);

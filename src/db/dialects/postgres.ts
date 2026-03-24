@@ -93,48 +93,12 @@ export const scheduleEntries = pgTable(
   ]
 );
 
-// ─── Unified Slots ───────────────────────────────────────────
-
-export const unifiedSlots = pgTable(
-  "unified_slots",
-  {
-    id: text("id").primaryKey(),
-    userId: text("user_id").notNull(),
-    day: integer("day").notNull(),
-    period: integer("period").notNull(),
-    status: text("status").notNull().default("free"),
-    majorLabel: text("major_label"),
-    isPrivate: boolean("is_private").notNull().default(false),
-    sourceModule: text("source_module").notNull(),
-    cachedAt: timestamp("cached_at")
-      .$defaultFn(() => new Date())
-      .notNull(),
-  },
-  (table) => [
-    index("idx_unified_user").on(table.userId),
-    unique("unique_user_slot").on(table.userId, table.day, table.period, table.sourceModule),
-  ]
-);
-
-// ─── Member Profiles ─────────────────────────────────────────
-
-export const memberProfiles = pgTable("member_profiles", {
-  userId: text("user_id").primaryKey(),
-  name: text("name").notNull(),
-  major: text("major").notNull(),
-  attendanceDays: jsonb("attendance_days").$type<number[]>().notNull().default([]),
-  createdAt: timestamp("created_at")
-    .$defaultFn(() => new Date())
-    .notNull(),
-});
-
 // ─── Groups ──────────────────────────────────────────────────
 
 export const groups = pgTable("groups", {
   id: text("id").primaryKey(),
   name: text("name").notNull(),
   description: text("description"),
-  members: jsonb("members").$type<string[]>().notNull().default([]),
   createdBy: text("created_by").notNull(),
   createdAt: timestamp("created_at")
     .$defaultFn(() => new Date())
@@ -666,8 +630,6 @@ export const schema = {
   sessions,
   rooms,
   scheduleEntries,
-  unifiedSlots,
-  memberProfiles,
   groups,
   groupMembers,
   groupSchedules,
@@ -704,8 +666,6 @@ const DB_SCHEMA = {
   sessions,
   rooms,
   scheduleEntries,
-  unifiedSlots,
-  memberProfiles,
   groups,
   groupMembers,
   groupSchedules,

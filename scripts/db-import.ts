@@ -44,8 +44,6 @@ const INSERT_ORDER = [
   "curriculumDepartments",
   "instructorAvailableSlots",
   "scheduleEntries",
-  "unifiedSlots",
-  "memberProfiles",
   "groupMembers",
   "groupSchedules",
   "reservations",

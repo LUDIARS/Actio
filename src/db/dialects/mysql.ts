@@ -94,48 +94,13 @@ export const scheduleEntries = mysqlTable(
   ]
 );
 
-// ─── Unified Slots ──────────────────────────────────────────
-
-export const unifiedSlots = mysqlTable(
-  "unified_slots",
-  {
-    id: varchar("id", { length: 255 }).primaryKey(),
-    userId: varchar("user_id", { length: 255 }).notNull(),
-    day: int("day").notNull(),
-    period: int("period").notNull(),
-    status: varchar("status", { length: 255 }).notNull().default("free"),
-    majorLabel: varchar("major_label", { length: 255 }),
-    isPrivate: boolean("is_private").notNull().default(false),
-    sourceModule: varchar("source_module", { length: 255 }).notNull(),
-    cachedAt: timestamp("cached_at")
-      .$defaultFn(() => new Date())
-      .notNull(),
-  },
-  (table) => [
-    index("idx_unified_user").on(table.userId),
-    unique("unique_user_slot").on(table.userId, table.day, table.period, table.sourceModule),
-  ]
-);
-
-// ─── Member Profiles ────────────────────────────────────────
-
-export const memberProfiles = mysqlTable("member_profiles", {
-  userId: varchar("user_id", { length: 255 }).primaryKey(),
-  name: varchar("name", { length: 255 }).notNull(),
-  major: varchar("major", { length: 255 }).notNull(),
-  attendanceDays: json("attendance_days").$type<number[]>().notNull(),
-  createdAt: timestamp("created_at")
-    .$defaultFn(() => new Date())
-    .notNull(),
-});
-
 // ─── Groups ─────────────────────────────────────────────────
 // Note: "groups" is a reserved word in MySQL, so we use backtick-escaped table name
 
 export const groups = mysqlTable("`groups`", {
   id: varchar("id", { length: 255 }).primaryKey(),
   name: varchar("name", { length: 255 }).notNull(),
-  members: json("members").$type<string[]>().notNull(),
+  description: varchar("description", { length: 1024 }),
   createdBy: varchar("created_by", { length: 255 }).notNull(),
   createdAt: timestamp("created_at")
     .$defaultFn(() => new Date())
@@ -664,8 +629,6 @@ export const schema = {
   sessions,
   rooms,
   scheduleEntries,
-  unifiedSlots,
-  memberProfiles,
   groups,
   groupMembers,
   groupSchedules,
@@ -702,8 +665,6 @@ const allTables = {
   sessions,
   rooms,
   scheduleEntries,
-  unifiedSlots,
-  memberProfiles,
   groups,
   groupMembers,
   groupSchedules,

@@ -16,8 +16,6 @@ const TABLE_NAMES = [
   "sessions",
   "rooms",
   "scheduleEntries",
-  "unifiedSlots",
-  "memberProfiles",
   "groups",
   "groupMembers",
   "groupSchedules",
