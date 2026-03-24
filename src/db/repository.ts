@@ -1191,6 +1191,7 @@ export const userListRepo = {
       role: schema.users.role,
       major: schema.users.major,
       createdAt: schema.users.createdAt,
+      lastLoginAt: schema.users.lastLoginAt,
     }).from(schema.users);
   },
 
@@ -1202,6 +1203,7 @@ export const userListRepo = {
       role: schema.users.role,
       major: schema.users.major,
       createdAt: schema.users.createdAt,
+      lastLoginAt: schema.users.lastLoginAt,
     }).from(schema.users)
       .where(inArray(schema.users.id, userIds));
   },

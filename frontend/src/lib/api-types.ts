@@ -36,6 +36,7 @@ export interface UserBasic {
   role: string;
   major: string | null;
   createdAt: string;
+  lastLoginAt: string | null;
 }
 
 export interface UserWithGroups extends UserBasic {

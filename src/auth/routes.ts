@@ -159,6 +159,9 @@ auth.post("/login", async (c) => {
     console.log("[auth:login] セッション保存中...");
     await sessionStore.createSession(user.id, refreshToken, expiresAt);
 
+    // 最終ログイン日時を更新
+    await userRepo.update(user.id, { lastLoginAt: new Date(), updatedAt: new Date() });
+
     console.log("[auth:login] ログイン成功 userId:", user.id);
     return c.json({
       user: { id: user.id, name: user.name, email: user.email, role: user.role },
@@ -406,6 +409,9 @@ auth.get("/google/callback", async (c) => {
     const expiresAt = new Date(Date.now() + sessionConfig.refreshDays * 24 * 60 * 60 * 1000);
     await sessionStore.createSession(user.id, refreshToken, expiresAt);
 
+    // 最終ログイン日時を更新
+    await userRepo.update(user.id, { lastLoginAt: new Date(), updatedAt: new Date() });
+
     // フロントエンドにリダイレクト（トークンをURLパラメータで渡す）
     const redirectUrl = new URL(FRONTEND_URL);
     redirectUrl.searchParams.set("accessToken", accessToken);
@@ -600,6 +606,53 @@ auth.put("/users/:id/role", async (c) => {
     });
   } catch (err) {
     console.error("[auth:users:role] エラー:", err);
+    return c.json({ error: "Invalid or expired token" }, 401);
+  }
+});
+
+// ─── PUT /password - パスワード変更 ─────────────────────────
+
+auth.put("/password", async (c) => {
+  console.log("[auth:password] リクエスト受信");
+
+  const authHeader = c.req.header("Authorization");
+  if (!authHeader?.startsWith("Bearer ")) {
+    return c.json({ error: "No token provided" }, 401);
+  }
+
+  try {
+    const token = authHeader.slice(7);
+    const payload = jwt.verify(token, JWT_SECRET) as { userId: string; role: string };
+
+    const body = await c.req.json<{ currentPassword?: string; newPassword: string }>();
+
+    if (!body.newPassword || body.newPassword.length < 8) {
+      return c.json({ error: "新しいパスワードは8文字以上で入力してください" }, 400);
+    }
+
+    const user = await userRepo.findById(payload.userId);
+    if (!user) {
+      return c.json({ error: "ユーザーが見つかりません" }, 404);
+    }
+
+    // パスワードが既に設定されている場合は現在のパスワードを検証
+    if (user.passwordHash) {
+      if (!body.currentPassword) {
+        return c.json({ error: "現在のパスワードを入力してください" }, 400);
+      }
+      const valid = await bcrypt.compare(body.currentPassword, user.passwordHash);
+      if (!valid) {
+        return c.json({ error: "現在のパスワードが正しくありません" }, 401);
+      }
+    }
+
+    const newHash = await bcrypt.hash(body.newPassword, 12);
+    await userRepo.update(payload.userId, { passwordHash: newHash, updatedAt: new Date() });
+
+    console.log("[auth:password] パスワード変更成功 userId:", payload.userId);
+    return c.json({ message: "パスワードを変更しました" });
+  } catch (err) {
+    console.error("[auth:password] エラー:", err);
     return c.json({ error: "Invalid or expired token" }, 401);
   }
 });
