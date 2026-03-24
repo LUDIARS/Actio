@@ -861,6 +861,24 @@ export const groupApi = {
   deleteEvent(groupId: string, eventId: string) {
     return request<DeletedResponse>(`/api/groups/${groupId}/events/${eventId}`, { method: "DELETE" });
   },
+  // メンバー招待
+  inviteMember(groupId: string, targetUserId: string) {
+    return request<MessageResponse>(`/api/groups/${groupId}/invite`, {
+      method: "POST",
+      body: JSON.stringify({ userId: targetUserId }),
+    });
+  },
+  // ロール変更
+  updateMemberRole(groupId: string, memberId: string, role: string) {
+    return request<MessageResponse>(`/api/groups/${groupId}/members/${memberId}/role`, {
+      method: "PUT",
+      body: JSON.stringify({ role }),
+    });
+  },
+  // 招待用ユーザ一覧
+  searchUsers() {
+    return request<{ users: Array<{ id: string; name: string; email: string }> }>("/api/groups/users/search");
+  },
 };
 
 // ─── MyPlan ──────────────────────────────────────────────────
