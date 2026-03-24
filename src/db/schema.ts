@@ -90,50 +90,12 @@ export const scheduleEntries = sqliteTable(
   ]
 );
 
-// ─── M2: Unified Slots (cached) ────────────────────────────
-
-export const unifiedSlots = sqliteTable(
-  "unified_slots",
-  {
-    id: text("id").primaryKey(),
-    userId: text("user_id").notNull(),
-    day: integer("day").notNull(),
-    period: integer("period").notNull(),
-    status: text("status").notNull().default("free"),
-    majorLabel: text("major_label"),
-    isPrivate: integer("is_private", { mode: "boolean" }).notNull().default(false),
-    sourceModule: text("source_module").notNull(),
-    cachedAt: integer("cached_at", { mode: "timestamp" })
-      .$defaultFn(() => new Date())
-      .notNull(),
-  },
-  (table) => [
-    index("idx_unified_user").on(table.userId),
-    unique("unique_user_slot").on(table.userId, table.day, table.period, table.sourceModule),
-  ]
-);
-
-// ─── M2: Member Profiles ────────────────────────────────────
-
-export const memberProfiles = sqliteTable("member_profiles", {
-  userId: text("user_id").primaryKey(),
-  name: text("name").notNull(),
-  major: text("major").notNull(),
-  /** JSON array of day numbers */
-  attendanceDays: text("attendance_days", { mode: "json" }).$type<number[]>().notNull().default([]),
-  createdAt: integer("created_at", { mode: "timestamp" })
-    .$defaultFn(() => new Date())
-    .notNull(),
-});
-
 // ─── Groups ─────────────────────────────────────────────────
 
 export const groups = sqliteTable("groups", {
   id: text("id").primaryKey(),
   name: text("name").notNull(),
   description: text("description"),
-  /** JSON array of member user IDs (legacy, kept for backward compat) */
-  members: text("members", { mode: "json" }).$type<string[]>().notNull().default([]),
   createdBy: text("created_by").notNull(),
   createdAt: integer("created_at", { mode: "timestamp" })
     .$defaultFn(() => new Date())
