@@ -129,9 +129,9 @@ facilityBooking.get("/reservations", async (c) => {
 
   // 教室名を一括取得
   const rooms = await roomRepo.findAll();
-  const roomMap = new Map(rooms.map((r) => [r.id, r.name]));
+  const roomMap = new Map(rooms.map((r: { id: string; name: string }) => [r.id, r.name]));
 
-  const publicResults = results.map((r) => ({
+  const publicResults = results.map((r: typeof results[number]) => ({
     id: r.id,
     groupId: r.groupId,
     title: r.title,

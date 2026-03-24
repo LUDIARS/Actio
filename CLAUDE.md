@@ -47,6 +47,34 @@ m1.get("/departments", async (c) => {
 - `holidayRepo` — 休日・休業期間管理
 - `groupEventRepo` — グループ個別予定 (日付ベース)
 
+## TypeScript コーディングルール
+
+**`any` 型を使用してはいけません。** 必ず適切な型注釈を付けてください。
+
+### なぜ？
+
+- `any` は型チェックを無効化し、実行時エラーの原因になる
+- `noImplicitAny` が有効なため、`any` を使うとビルドエラーになる
+- 型安全性を保つことで、リファクタリングやコードレビューの品質が向上する
+
+### やること
+
+1. 関数の引数・戻り値には明示的な型を付ける
+2. コールバック関数のパラメータにも型注釈を付ける（例: `.map((r: Room) => ...)`）
+3. `any` の代わりに `unknown` や具体的な型、ジェネリクスを使用する
+4. リポジトリの戻り値型は Drizzle の推論型（`typeof schema.table.$inferSelect`）を活用する
+
+### 例
+
+```typescript
+// ✅ 正しい: 明示的な型
+const rooms = await roomRepo.findAll();
+const roomMap = new Map(rooms.map((r: { id: string; name: string }) => [r.id, r.name]));
+
+// ❌ 間違い: any 型
+const roomMap = new Map(rooms.map((r: any) => [r.id, r.name]));
+```
+
 ## アーキテクチャ
 
 ### コア機能 (基本実装)
