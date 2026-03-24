@@ -13,21 +13,36 @@ import {
   userRepo,
   roomRepo,
   personalEventRepo,
+  groupMemberRepo,
 } from "../../../src/db/repository.js";
 import type { CreateReservationInput } from "../../../src/shared/types.js";
 import { getUserId } from "../../../src/middleware/getUserId.js";
 import { logActivity } from "../../../src/activity-logger.js";
-import { getPeriodTime } from "../../../src/shared/constants.js";
+import { getPeriodTime, EVENT_NAMES } from "../../../src/shared/constants.js";
+import { emitEvent } from "../../notification/core/handler.js";
 
 const facilityBooking = new Hono();
 
 // ─── POST /reservations ─────────────────────────────────────
 facilityBooking.post("/reservations", async (c) => {
-  const body = await c.req.json<CreateReservationInput>();
+  const body = await c.req.json<CreateReservationInput & { participantGroupIds?: string[] }>();
   const createdBy = getUserId(c) || "anonymous";
 
   if (body.day < 0 || body.day > 6 || body.period < 0 || body.period > 10) {
     return c.json({ error: "Invalid day or period" }, 400);
+  }
+
+  // グループIDから参加者を展開
+  const participants = [...(body.participants || [])];
+  if (body.participantGroupIds && body.participantGroupIds.length > 0) {
+    for (const gid of body.participantGroupIds) {
+      const members = await groupMemberRepo.findByGroupId(gid);
+      for (const m of members) {
+        if (!participants.includes(m.userId)) {
+          participants.push(m.userId);
+        }
+      }
+    }
   }
 
   // 予約コンフリクトチェック
@@ -47,6 +62,10 @@ facilityBooking.post("/reservations", async (c) => {
   if (scheduleConflict.length > 0) {
     return c.json({ error: "Conflict: room is used for a class at this time slot" }, 409);
   }
+
+  // 教室名を取得
+  const room = await roomRepo.findById(body.roomId);
+  const roomName = room?.name || body.roomId;
 
   const reservationId = uuidv4();
 
@@ -77,7 +96,7 @@ facilityBooking.post("/reservations", async (c) => {
     period: body.period,
     roomId: body.roomId,
     createdBy,
-    participants: body.participants,
+    participants,
     status: "confirmed",
     note: body.note || "",
     version: 1,
@@ -85,9 +104,19 @@ facilityBooking.post("/reservations", async (c) => {
   });
 
   const user = await userRepo.findById(createdBy);
-  logActivity(createdBy, user?.name || "Unknown", "施設予約作成", `予約「${body.title}」が追加されました（教室: ${body.roomId}）`);
+  logActivity(createdBy, user?.name || "Unknown", "施設予約作成", `予約「${body.title}」が追加されました（教室: ${roomName}）`);
 
-  return c.json({ ...reservation, calendarEventId }, 201);
+  // 通知を送信
+  await emitEvent(EVENT_NAMES.RESERVATION_CREATED, {
+    title: body.title,
+    day: body.day,
+    period: body.period + 1,
+    room: roomName,
+    participants,
+    createdBy,
+  });
+
+  return c.json({ ...reservation, roomName, calendarEventId }, 201);
 });
 
 // ─── GET /reservations ──────────────────────────────────────
@@ -98,13 +127,18 @@ facilityBooking.get("/reservations", async (c) => {
     ? await reservationRepo.findByGroupId(groupId)
     : await reservationRepo.findAll();
 
-  const publicResults = results.map((r) => ({
+  // 教室名を一括取得
+  const rooms = await roomRepo.findAll();
+  const roomMap = new Map(rooms.map((r: { id: string; name: string }) => [r.id, r.name]));
+
+  const publicResults = results.map((r: typeof results[number]) => ({
     id: r.id,
     groupId: r.groupId,
     title: r.title,
     day: r.day,
     period: r.period,
     roomId: r.roomId,
+    roomName: roomMap.get(r.roomId) || r.roomId,
     createdBy: r.createdBy,
     participants: r.participants,
     status: r.status,
@@ -123,7 +157,8 @@ facilityBooking.get("/reservations/:id", async (c) => {
   if (!reservation) {
     return c.json({ error: "Reservation not found" }, 404);
   }
-  return c.json(reservation);
+  const room = await roomRepo.findById(reservation.roomId);
+  return c.json({ ...reservation, roomName: room?.name || reservation.roomId });
 });
 
 // ─── PUT /reservations/:id ──────────────────────────────────
@@ -168,12 +203,13 @@ facilityBooking.put("/reservations/:id", async (c) => {
   }
 
   const newTitle = body.title ?? current.title;
+  const newParticipants = body.participants ?? current.participants;
   const updated = await reservationRepo.update(id, {
     title: newTitle,
     day: newDay,
     period: newPeriod,
     roomId: newRoomId,
-    participants: body.participants ?? current.participants,
+    participants: newParticipants,
     note: body.note ?? current.note,
     version: current.version + 1,
     updatedAt: new Date(),
@@ -197,7 +233,19 @@ facilityBooking.put("/reservations/:id", async (c) => {
   const user = await userRepo.findById(userId);
   logActivity(userId, user?.name || "Unknown", "施設予約更新", `予約「${updated?.title || id}」が更新されました`);
 
-  return c.json(updated);
+  // 通知を送信
+  const room = await roomRepo.findById(newRoomId);
+  const roomName = room?.name || newRoomId;
+  await emitEvent(EVENT_NAMES.RESERVATION_UPDATED, {
+    title: newTitle,
+    day: newDay,
+    period: newPeriod + 1,
+    room: roomName,
+    participants: newParticipants,
+    updatedBy: userId,
+  });
+
+  return c.json({ ...updated, roomName });
 });
 
 // ─── DELETE /reservations/:id ───────────────────────────────
@@ -218,6 +266,19 @@ facilityBooking.delete("/reservations/:id", async (c) => {
   if (calendarEventId) {
     await personalEventRepo.deleteById(calendarEventId);
   }
+
+  // 通知を送信
+  const room = await roomRepo.findById(current.roomId);
+  const roomName = room?.name || current.roomId;
+  const userId = getUserId(c) || "anonymous";
+  await emitEvent(EVENT_NAMES.RESERVATION_CANCELLED, {
+    title: current.title,
+    day: current.day,
+    period: current.period + 1,
+    room: roomName,
+    participants: current.participants,
+    cancelledBy: userId,
+  });
 
   return c.json({ message: "Reservation cancelled", reservation: cancelled });
 });
