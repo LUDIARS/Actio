@@ -12,6 +12,7 @@ import {
 } from "drizzle-orm/mysql-core";
 import { drizzle } from "drizzle-orm/mysql2";
 import mysql from "mysql2/promise";
+import { secretManager } from "../../config/secrets.js";
 
 // ─── Users ───────────────────────────────────────────────────
 
@@ -692,7 +693,7 @@ const allTables = {
 };
 
 export function createConnection() {
-  const url = process.env.DATABASE_URL || "mysql://root@localhost:3306/schedula";
+  const url = secretManager.getOrDefault("DATABASE_URL", "mysql://root@localhost:3306/schedula");
   const pool = mysql.createPool(url);
   return drizzle(pool, { schema: { ...allTables }, mode: "default" });
 }

@@ -14,12 +14,14 @@ import { holidayRoutes } from "../modules/holiday/routes.js";
 import { integrations } from "../modules/integrations/index.js";
 import { dbViewer } from "./admin/db-viewer.js";
 import { settingsRoutes } from "../modules/settings/routes.js";
+import { secretsRoutes } from "../modules/secrets/routes.js";
 import { initNotificationHandler } from "../modules/notification/core/handler.js";
 import { DAY_LABELS, getPeriodTime, PERIODS_COUNT } from "./shared/constants.js";
 import type { SchulaModule } from "./shared/types.js";
 import { getRecentLogs } from "./activity-logger.js";
 import { getReservationPlugins } from "./reservation-plugins.js";
 import { registerReservationPlugin } from "./reservation-plugins.js";
+import { secretManager } from "./config/secrets.js";
 
 export function createApp() {
   const app = new Hono();
@@ -32,7 +34,8 @@ export function createApp() {
 
   // ─── Global Middleware ──────────────────────────────────────
   app.use("*", cors({
-    origin: process.env.CORS_ORIGIN || process.env.FRONTEND_URL || "http://localhost:8080",
+    origin: secretManager.getOrDefault("CORS_ORIGIN",
+      secretManager.getOrDefault("FRONTEND_URL", "http://localhost:8080")),
   }));
 
   // Security headers
@@ -41,7 +44,7 @@ export function createApp() {
     c.header("X-Content-Type-Options", "nosniff");
     c.header("X-Frame-Options", "DENY");
     c.header("X-XSS-Protection", "1; mode=block");
-    if (process.env.NODE_ENV === "production") {
+    if (secretManager.get("NODE_ENV") === "production") {
       c.header("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
     }
   });
@@ -122,6 +125,9 @@ export function createApp() {
 
   // ─── Admin Settings (設定管理) ───────────────────────────────
   app.route("/api/settings", settingsRoutes);
+
+  // ─── Admin Secrets (シークレット管理: Infisical) ────────────
+  app.route("/api/secrets", secretsRoutes);
 
   // ─── Admin: Activity Logs (操作ログ) ────────────────────────
   app.get("/api/admin/activity-logs", requireRole("admin"), async (c) => {

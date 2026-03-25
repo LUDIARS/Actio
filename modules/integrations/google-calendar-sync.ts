@@ -15,6 +15,7 @@ import {
   syncLogRepo,
 } from "../../src/db/repository.js";
 import { logActivity } from "../../src/activity-logger.js";
+import { secretManager } from "../../src/config/secrets.js";
 
 const googleCalendarSync = new Hono();
 
@@ -59,8 +60,8 @@ async function getValidGoogleToken(userId: string): Promise<string | null> {
     return user.googleAccessToken;
   }
 
-  const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || "";
-  const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET || "";
+  const GOOGLE_CLIENT_ID = secretManager.getOrDefault("GOOGLE_CLIENT_ID", "");
+  const GOOGLE_CLIENT_SECRET = secretManager.getOrDefault("GOOGLE_CLIENT_SECRET", "");
 
   try {
     const res = await fetch("https://oauth2.googleapis.com/token", {

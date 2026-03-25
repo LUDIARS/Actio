@@ -779,6 +779,36 @@ export const activityLogApi = {
   },
 };
 
+// ─── Secrets (シークレット管理: Infisical) ───────────────────
+
+export const secretsApi = {
+  getStatus() {
+    return request<{ infisicalEnabled: boolean; cachedSecretCount: number }>("/api/secrets/status");
+  },
+  listKeys() {
+    return request<{ keys: Array<{ key: string; scope: "shared" | "personal"; hasValue: boolean }> }>("/api/secrets/keys");
+  },
+  getValue(key: string) {
+    return request<{ key: string; masked: string; length: number }>(`/api/secrets/value/${encodeURIComponent(key)}`);
+  },
+  refresh() {
+    return request<{ message: string; cachedSecretCount: number }>("/api/secrets/refresh", {
+      method: "POST",
+    });
+  },
+  setSecret(key: string, value: string, scope: "shared" | "personal" = "shared") {
+    return request<{ message: string; scope: string }>(`/api/secrets/${encodeURIComponent(key)}`, {
+      method: "PUT",
+      body: JSON.stringify({ value, scope }),
+    });
+  },
+  deleteSecret(key: string, scope: "shared" | "personal" = "shared") {
+    return request<{ message: string }>(`/api/secrets/${encodeURIComponent(key)}?scope=${scope}`, {
+      method: "DELETE",
+    });
+  },
+};
+
 // ─── Admin DB Viewer (テスト用) ──────────────────────────────
 
 export const adminDbApi = {
