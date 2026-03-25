@@ -421,7 +421,7 @@ export function insertTestGroup(data: { id: string; name: string; createdBy: str
   const now = Date.now();
   sqlite
     .prepare(
-      `INSERT INTO "groups" (id, name, members, created_by, created_at) VALUES (?, ?, '[]', ?, ?)`
+      `INSERT INTO "groups" (id, name, created_by, created_at) VALUES (?, ?, ?, ?)`
     )
     .run(data.id, data.name, data.createdBy, now);
   sqlite.close();
