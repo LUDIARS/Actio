@@ -6,7 +6,7 @@ import {
   userRepo,
 } from "../../src/db/repository.js";
 import { webhookRoutes } from "./channels/webhook/routes.js";
-import { getUserId } from "../../src/middleware/getUserId.js";
+import { getUserId, getUserRole } from "../../src/middleware/getUserId.js";
 import { logActivity } from "../../src/activity-logger.js";
 
 const notification = new Hono();
@@ -135,6 +135,33 @@ notification.post("/notifications/:id/read", async (c) => {
   }
 
   return c.json({ message: "Marked as read" });
+});
+
+// ─── DELETE /notifications/:id ───────────────────────────────
+notification.delete("/notifications/:id", async (c) => {
+  const userId = getUserId(c);
+  if (!userId) {
+    return c.json({ error: "X-User-Id header required" }, 400);
+  }
+
+  const id = c.req.param("id");
+  const notif = await notificationRepo.findById(id);
+
+  if (!notif) {
+    return c.json({ error: "Notification not found" }, 404);
+  }
+
+  const role = getUserRole(c);
+  if (notif.userId !== userId && role !== "admin") {
+    return c.json({ error: "Forbidden" }, 403);
+  }
+
+  await notificationRepo.deleteById(id);
+
+  const user = await userRepo.findById(userId);
+  logActivity(userId, user?.name || "Unknown", "通知削除", `通知「${notif.title}」を削除しました`);
+
+  return c.json({ message: "Notification deleted" });
 });
 
 export { notification };

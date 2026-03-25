@@ -588,42 +588,34 @@ export function FacilityBookingPage() {
       {reservations.length === 0 ? (
         <div className="empty-state"><p>予約がありません</p></div>
       ) : (
-        <table className="table">
-          <thead>
-            <tr>
-              <th>タイトル</th>
-              <th>曜日・コマ</th>
-              <th>教室</th>
-              <th>参加者</th>
-              <th>ステータス</th>
-              <th>作成日</th>
-              <th />
-            </tr>
-          </thead>
-          <tbody>
-            {reservations.map((r) => (
-              <tr key={r.id}>
-                <td style={{ fontWeight: 600 }}>{r.title}</td>
-                <td>{DAY_LABELS[r.day]} {r.period + 1}限</td>
-                <td>{r.roomName || r.roomId}</td>
-                <td>
-                  <div style={{ display: "flex", gap: "0.25rem", flexWrap: "wrap" }}>
-                    {r.participants.map((p) => (
-                      <span key={p} style={{ fontSize: "0.7rem", background: "var(--bg-surface-2)", padding: "0.1rem 0.3rem", borderRadius: 3 }}>{p}</span>
-                    ))}
+        <div className="flex-col" style={{ gap: "0.5rem" }}>
+          {reservations.map((r) => (
+            <div key={r.id} className="card" style={{ padding: "0.75rem" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "0.5rem" }}>
+                <div style={{ minWidth: 0, flex: 1 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", flexWrap: "wrap" }}>
+                    <span style={{ fontWeight: 600, fontSize: "0.9rem" }}>{r.title}</span>
+                    {statusBadge(r.status)}
                   </div>
-                </td>
-                <td>{statusBadge(r.status)}</td>
-                <td style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>{new Date(r.createdAt).toLocaleDateString("ja-JP")}</td>
-                <td>
-                  {r.status === "confirmed" && (
-                    <button className="danger" style={{ fontSize: "0.75rem", padding: "0.2rem 0.5rem" }} onClick={() => handleCancel(r.id)}>キャンセル</button>
-                  )}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+                  <div style={{ fontSize: "0.8rem", color: "var(--text-muted)", marginTop: "0.25rem" }}>
+                    {DAY_LABELS[r.day]} {r.period + 1}限 / {r.roomName || r.roomId}
+                    <span style={{ marginLeft: "0.75rem" }}>{new Date(r.createdAt).toLocaleDateString("ja-JP")}</span>
+                  </div>
+                </div>
+                {r.status === "confirmed" && (
+                  <button className="danger" style={{ fontSize: "0.75rem", padding: "0.2rem 0.5rem", whiteSpace: "nowrap" }} onClick={() => handleCancel(r.id)}>キャンセル</button>
+                )}
+              </div>
+              {r.participants.length > 0 && (
+                <div style={{ display: "flex", gap: "0.25rem", flexWrap: "wrap", marginTop: "0.4rem" }}>
+                  {r.participants.map((p) => (
+                    <span key={p} style={{ fontSize: "0.7rem", background: "var(--bg-surface-2)", padding: "0.1rem 0.3rem", borderRadius: 3 }}>{p}</span>
+                  ))}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
       )}
     </div>
   );
