@@ -306,6 +306,58 @@ setupRoutes.post("/test-ssm", async (c) => {
   }
 });
 
+// ─── POST /ssm-secrets — SSM にアプリ環境変数を一括登録 ─────
+
+setupRoutes.post("/ssm-secrets", async (c) => {
+  const body = await c.req.json<{
+    region: string;
+    pathPrefix: string;
+    secrets: Record<string, string>;
+  }>();
+
+  if (!body.pathPrefix?.trim()) {
+    return c.json({ error: "パスプレフィックスは必須です" }, 400);
+  }
+  if (!body.secrets || Object.keys(body.secrets).length === 0) {
+    return c.json({ error: "登録するシークレットがありません" }, 400);
+  }
+
+  const { SsmParameterStoreClient } = await import("../../src/config/ssm.js");
+
+  const client = new SsmParameterStoreClient({
+    region: body.region?.trim() || "ap-northeast-1",
+    pathPrefix: body.pathPrefix.trim(),
+  });
+
+  try {
+    const result = await client.putParameters(body.secrets);
+
+    if (result.errors.length > 0) {
+      return c.json({
+        success: false,
+        message: `${result.written} 件登録、${result.errors.length} 件失敗`,
+        written: result.written,
+        errors: result.errors,
+      }, 400);
+    }
+
+    return c.json({
+      success: true,
+      message: `${result.written} 件のシークレットを SSM に登録しました`,
+      written: result.written,
+      errors: [],
+    });
+  } catch (err) {
+    return c.json(
+      {
+        success: false,
+        message: err instanceof Error ? err.message : "SSM への書き込みに失敗しました",
+      },
+      500
+    );
+  }
+});
+
 // ─── POST /skip — セットアップをスキップ ────────────────────
 
 setupRoutes.post("/skip", (c) => {

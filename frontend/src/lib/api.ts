@@ -1285,6 +1285,12 @@ export const setupApi = {
       { method: "POST", body: JSON.stringify(body) }
     );
   },
+  saveSsmSecrets(body: { region: string; pathPrefix: string; secrets: Record<string, string> }) {
+    return request<{ success: boolean; message: string; written: number; errors: string[] }>(
+      "/api/setup/ssm-secrets",
+      { method: "POST", body: JSON.stringify(body) }
+    );
+  },
   skip() {
     return request<{ success: boolean; message: string }>("/api/setup/skip", {
       method: "POST",

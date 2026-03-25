@@ -7,7 +7,157 @@ interface InfisicalSetupPageProps {
 
 type AuthMethod = "universal" | "token";
 type ProviderChoice = "infisical" | "ssm";
-type Step = "welcome" | "provider" | "config" | "test" | "done";
+type Step = "welcome" | "provider" | "config" | "test" | "secrets" | "done";
+
+// アプリが使用する環境変数の定義
+interface EnvVarDef {
+  key: string;
+  label: string;
+  hint: string;
+  required: boolean;
+  type: "text" | "password" | "select";
+  placeholder?: string;
+  options?: { value: string; label: string }[];
+  defaultValue?: string;
+  group: "db" | "auth" | "google" | "server";
+}
+
+const APP_ENV_VARS: EnvVarDef[] = [
+  // データベース
+  {
+    key: "DB_DIALECT",
+    label: "データベース種別",
+    hint: "使用するデータベースエンジン",
+    required: true,
+    type: "select",
+    options: [
+      { value: "postgres", label: "PostgreSQL (推奨)" },
+      { value: "sqlite", label: "SQLite" },
+      { value: "mysql", label: "MySQL" },
+    ],
+    defaultValue: "postgres",
+    group: "db",
+  },
+  {
+    key: "DATABASE_URL",
+    label: "DATABASE_URL",
+    hint: "PostgreSQL/MySQL の接続文字列。例: postgresql://user:pass@host:5432/schedula",
+    required: false,
+    type: "text",
+    placeholder: "postgresql://schedula:schedula@db:5432/schedula",
+    group: "db",
+  },
+  {
+    key: "DATABASE_PATH",
+    label: "DATABASE_PATH",
+    hint: "SQLite 使用時のファイルパス (DB_DIALECT=sqlite の場合のみ)",
+    required: false,
+    type: "text",
+    placeholder: "data/schedula.db",
+    group: "db",
+  },
+  // 認証
+  {
+    key: "JWT_SECRET",
+    label: "JWT_SECRET",
+    hint: "JWT トークン署名用のシークレット。本番環境では必須。",
+    required: true,
+    type: "password",
+    placeholder: "ランダムな文字列を入力",
+    group: "auth",
+  },
+  // サーバー
+  {
+    key: "FRONTEND_URL",
+    label: "FRONTEND_URL",
+    hint: "フロントエンドの公開URL。OAuth コールバック等に使用。",
+    required: false,
+    type: "text",
+    placeholder: "https://schedula.example.com",
+    group: "server",
+  },
+  {
+    key: "PORT",
+    label: "PORT",
+    hint: "バックエンドサーバーのポート番号",
+    required: false,
+    type: "text",
+    placeholder: "3000",
+    defaultValue: "3000",
+    group: "server",
+  },
+  {
+    key: "NODE_ENV",
+    label: "NODE_ENV",
+    hint: "実行環境",
+    required: false,
+    type: "select",
+    options: [
+      { value: "production", label: "production" },
+      { value: "development", label: "development" },
+    ],
+    defaultValue: "production",
+    group: "server",
+  },
+  {
+    key: "CORS_ORIGIN",
+    label: "CORS_ORIGIN",
+    hint: "CORS 許可オリジン (未設定時は FRONTEND_URL を使用)",
+    required: false,
+    type: "text",
+    placeholder: "https://schedula.example.com",
+    group: "server",
+  },
+  // Google OAuth
+  {
+    key: "GOOGLE_CLIENT_ID",
+    label: "GOOGLE_CLIENT_ID",
+    hint: "Google OAuth クライアントID (Google 認証を使う場合)",
+    required: false,
+    type: "text",
+    placeholder: "xxxx.apps.googleusercontent.com",
+    group: "google",
+  },
+  {
+    key: "GOOGLE_CLIENT_SECRET",
+    label: "GOOGLE_CLIENT_SECRET",
+    hint: "Google OAuth クライアントシークレット",
+    required: false,
+    type: "password",
+    placeholder: "",
+    group: "google",
+  },
+  {
+    key: "GOOGLE_REDIRECT_URI",
+    label: "GOOGLE_REDIRECT_URI",
+    hint: "Google OAuth コールバックURL",
+    required: false,
+    type: "text",
+    placeholder: "https://schedula.example.com/api/auth/google/callback",
+    group: "google",
+  },
+  // Redis
+  {
+    key: "REDIS_URL",
+    label: "REDIS_URL",
+    hint: "Redis 接続URL (セッション永続化に使用。未設定ならDBフォールバック)",
+    required: false,
+    type: "text",
+    placeholder: "redis://localhost:6379",
+    group: "server",
+  },
+];
+
+const GROUP_LABELS: Record<string, string> = {
+  db: "データベース",
+  auth: "認証",
+  server: "サーバー設定",
+  google: "Google OAuth (任意)",
+};
+
+const GROUP_ORDER = ["db", "auth", "server", "google"];
+
+// ────────────────────────────────────────────────────────────
 
 export function InfisicalSetupPage({ onComplete }: InfisicalSetupPageProps) {
   const [step, setStep] = useState<Step>("welcome");
@@ -26,9 +176,19 @@ export function InfisicalSetupPage({ onComplete }: InfisicalSetupPageProps) {
   const [ssmRegion, setSsmRegion] = useState("ap-northeast-1");
   const [ssmPathPrefix, setSsmPathPrefix] = useState("/schedula/prod/");
 
+  // アプリ環境変数 (SSM に登録する値)
+  const [appSecrets, setAppSecrets] = useState<Record<string, string>>(() => {
+    const defaults: Record<string, string> = {};
+    for (const v of APP_ENV_VARS) {
+      defaults[v.key] = v.defaultValue ?? "";
+    }
+    return defaults;
+  });
+
   // UI 状態
   const [testing, setTesting] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [savingSecrets, setSavingSecrets] = useState(false);
   const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [skipping, setSkipping] = useState(false);
@@ -82,20 +242,57 @@ export function InfisicalSetupPage({ onComplete }: InfisicalSetupPageProps) {
     }
   };
 
-  const handleSave = async () => {
+  const handleSaveProvider = async () => {
     setSaving(true);
     setError(null);
     try {
       if (providerChoice === "infisical") {
         await setupApi.saveInfisical(infisicalFormData);
+        setStep("done");
       } else {
         await setupApi.saveSsm(ssmFormData);
+        // SSM の場合は環境変数登録ステップへ
+        setStep("secrets");
       }
-      setStep("done");
     } catch (err) {
       setError(err instanceof Error ? err.message : "保存に失敗しました");
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleSaveSecrets = async () => {
+    setSavingSecrets(true);
+    setError(null);
+    try {
+      // 空でない値のみ送信
+      const nonEmpty: Record<string, string> = {};
+      for (const [key, value] of Object.entries(appSecrets)) {
+        if (value.trim()) {
+          nonEmpty[key] = value.trim();
+        }
+      }
+
+      if (Object.keys(nonEmpty).length > 0) {
+        const result = await setupApi.saveSsmSecrets({
+          region: ssmRegion.trim(),
+          pathPrefix: ssmPathPrefix.trim(),
+          secrets: nonEmpty,
+        });
+
+        if (!result.success) {
+          setError(result.message);
+          return;
+        }
+      }
+
+      // SecretManager を再初期化 (新しいシークレットを読み込み)
+      await setupApi.saveSsm(ssmFormData);
+      setStep("done");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "シークレットの登録に失敗しました");
+    } finally {
+      setSavingSecrets(false);
     }
   };
 
@@ -112,7 +309,32 @@ export function InfisicalSetupPage({ onComplete }: InfisicalSetupPageProps) {
     }
   };
 
-  const stepList: Step[] = ["welcome", "provider", "config", "test", "done"];
+  const updateAppSecret = (key: string, value: string) => {
+    setAppSecrets((prev) => ({ ...prev, [key]: value }));
+  };
+
+  const currentStepList: Step[] = providerChoice === "ssm"
+    ? ["welcome", "provider", "config", "test", "secrets", "done"]
+    : ["welcome", "provider", "config", "test", "done"];
+
+  const cardStyle = {
+    padding: "0.75rem 1rem",
+    background: "var(--bg-card, #f8fafc)",
+    borderRadius: 8,
+    border: "1px solid var(--border, #e2e8f0)",
+    marginBottom: "1rem",
+    fontSize: "0.85rem",
+    lineHeight: 1.6,
+  };
+
+  const backBtnStyle = {
+    padding: "0.7rem 1.5rem",
+    background: "var(--bg-surface-2, #f1f5f9)",
+    border: "1px solid var(--border)",
+    borderRadius: "var(--radius-sm)",
+    cursor: "pointer",
+    color: "var(--text-muted)",
+  };
 
   return (
     <div style={{
@@ -125,11 +347,12 @@ export function InfisicalSetupPage({ onComplete }: InfisicalSetupPageProps) {
     }}>
       <div style={{
         width: "100%",
-        maxWidth: 560,
+        maxWidth: step === "secrets" ? 700 : 560,
         background: "var(--bg-surface)",
         border: "1px solid var(--border)",
         borderRadius: "var(--radius)",
         padding: "2rem",
+        transition: "max-width 0.3s",
       }}>
         {/* ヘッダー */}
         <div style={{ textAlign: "center", marginBottom: "1.5rem" }}>
@@ -148,12 +371,12 @@ export function InfisicalSetupPage({ onComplete }: InfisicalSetupPageProps) {
           gap: "0.5rem",
           marginBottom: "2rem",
         }}>
-          {stepList.map((s, i) => (
+          {currentStepList.map((s, i) => (
             <div key={s} style={{
               width: 32,
               height: 4,
               borderRadius: 2,
-              background: stepList.indexOf(step) >= i
+              background: currentStepList.indexOf(step) >= i
                 ? "var(--accent, #3b82f6)"
                 : "var(--border, #e2e8f0)",
               transition: "background 0.2s",
@@ -183,15 +406,7 @@ export function InfisicalSetupPage({ onComplete }: InfisicalSetupPageProps) {
             <p style={{ color: "var(--text-muted)", marginBottom: "1rem", lineHeight: 1.6 }}>
               Schedula は外部のシークレット管理サービスと連携して、環境変数やAPIキーを安全に一元管理できます。
             </p>
-            <div style={{
-              padding: "1rem",
-              background: "var(--bg-card, #f8fafc)",
-              borderRadius: 8,
-              border: "1px solid var(--border, #e2e8f0)",
-              marginBottom: "1.5rem",
-              fontSize: "0.9rem",
-              lineHeight: 1.6,
-            }}>
+            <div style={{ ...cardStyle, fontSize: "0.9rem" }}>
               <strong>対応プロバイダー</strong>
               <ul style={{ margin: "0.5rem 0 0", paddingLeft: "1.25rem" }}>
                 <li><strong>AWS SSM Parameter Store</strong> — AWS のマネージドサービス。IAM ロールで認証。</li>
@@ -211,13 +426,9 @@ export function InfisicalSetupPage({ onComplete }: InfisicalSetupPageProps) {
                 onClick={handleSkip}
                 disabled={skipping}
                 style={{
+                  ...backBtnStyle,
                   flex: 1,
                   padding: "0.7rem",
-                  background: "var(--bg-surface-2, #f1f5f9)",
-                  border: "1px solid var(--border)",
-                  borderRadius: "var(--radius-sm)",
-                  cursor: "pointer",
-                  color: "var(--text-muted)",
                 }}
               >
                 {skipping ? "スキップ中..." : "スキップ (後で設定)"}
@@ -286,14 +497,7 @@ export function InfisicalSetupPage({ onComplete }: InfisicalSetupPageProps) {
             <div style={{ display: "flex", gap: "0.75rem" }}>
               <button
                 onClick={() => { setStep("welcome"); setError(null); }}
-                style={{
-                  padding: "0.7rem 1.5rem",
-                  background: "var(--bg-surface-2, #f1f5f9)",
-                  border: "1px solid var(--border)",
-                  borderRadius: "var(--radius-sm)",
-                  cursor: "pointer",
-                  color: "var(--text-muted)",
-                }}
+                style={backBtnStyle}
               >
                 戻る
               </button>
@@ -346,15 +550,7 @@ export function InfisicalSetupPage({ onComplete }: InfisicalSetupPageProps) {
               </small>
             </div>
 
-            <div style={{
-              padding: "0.75rem 1rem",
-              background: "var(--bg-card, #f8fafc)",
-              borderRadius: 8,
-              border: "1px solid var(--border, #e2e8f0)",
-              marginBottom: "1rem",
-              fontSize: "0.85rem",
-              lineHeight: 1.6,
-            }}>
+            <div style={cardStyle}>
               <strong>認証方法</strong>
               <p style={{ margin: "0.25rem 0 0" }}>
                 AWS の認証情報は環境変数 (<code>AWS_ACCESS_KEY_ID</code> / <code>AWS_SECRET_ACCESS_KEY</code>)
@@ -365,14 +561,7 @@ export function InfisicalSetupPage({ onComplete }: InfisicalSetupPageProps) {
             <div style={{ display: "flex", gap: "0.75rem", marginTop: "1.5rem" }}>
               <button
                 onClick={() => { setStep("provider"); setError(null); }}
-                style={{
-                  padding: "0.7rem 1.5rem",
-                  background: "var(--bg-surface-2, #f1f5f9)",
-                  border: "1px solid var(--border)",
-                  borderRadius: "var(--radius-sm)",
-                  cursor: "pointer",
-                  color: "var(--text-muted)",
-                }}
+                style={backBtnStyle}
               >
                 戻る
               </button>
@@ -514,14 +703,7 @@ export function InfisicalSetupPage({ onComplete }: InfisicalSetupPageProps) {
             <div style={{ display: "flex", gap: "0.75rem", marginTop: "1.5rem" }}>
               <button
                 onClick={() => { setStep("provider"); setError(null); }}
-                style={{
-                  padding: "0.7rem 1.5rem",
-                  background: "var(--bg-surface-2, #f1f5f9)",
-                  border: "1px solid var(--border)",
-                  borderRadius: "var(--radius-sm)",
-                  cursor: "pointer",
-                  color: "var(--text-muted)",
-                }}
+                style={backBtnStyle}
               >
                 戻る
               </button>
@@ -544,14 +726,7 @@ export function InfisicalSetupPage({ onComplete }: InfisicalSetupPageProps) {
               接続テスト
             </h2>
 
-            <div style={{
-              padding: "1rem",
-              background: "var(--bg-card, #f8fafc)",
-              borderRadius: 8,
-              border: "1px solid var(--border, #e2e8f0)",
-              marginBottom: "1rem",
-              fontSize: "0.9rem",
-            }}>
+            <div style={{ ...cardStyle, fontSize: "0.9rem" }}>
               <div style={{ display: "grid", gap: "0.25rem" }}>
                 <div><strong>プロバイダー:</strong> {providerChoice === "ssm" ? "SSM Parameter Store" : "Infisical"}</div>
                 {providerChoice === "ssm" ? (
@@ -592,11 +767,9 @@ export function InfisicalSetupPage({ onComplete }: InfisicalSetupPageProps) {
                 onClick={handleTestConnection}
                 disabled={testing}
                 style={{
+                  ...backBtnStyle,
                   flex: 1,
                   padding: "0.7rem",
-                  background: "var(--bg-surface-2, #f1f5f9)",
-                  border: "1px solid var(--border)",
-                  borderRadius: "var(--radius-sm)",
                   cursor: testing ? "not-allowed" : "pointer",
                   color: "var(--text)",
                 }}
@@ -608,24 +781,116 @@ export function InfisicalSetupPage({ onComplete }: InfisicalSetupPageProps) {
             <div style={{ display: "flex", gap: "0.75rem" }}>
               <button
                 onClick={() => { setStep("config"); setTestResult(null); setError(null); }}
-                style={{
-                  padding: "0.7rem 1.5rem",
-                  background: "var(--bg-surface-2, #f1f5f9)",
-                  border: "1px solid var(--border)",
-                  borderRadius: "var(--radius-sm)",
-                  cursor: "pointer",
-                  color: "var(--text-muted)",
-                }}
+                style={backBtnStyle}
               >
                 戻る
               </button>
               <button
-                onClick={handleSave}
+                onClick={handleSaveProvider}
                 disabled={saving}
                 className="primary"
                 style={{ flex: 1, padding: "0.7rem" }}
               >
-                {saving ? "保存中..." : "設定を保存して完了"}
+                {saving
+                  ? "保存中..."
+                  : providerChoice === "ssm"
+                    ? "保存して環境変数設定へ"
+                    : "設定を保存して完了"
+                }
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Step: Secrets (SSM のみ — アプリ環境変数を SSM に登録) */}
+        {step === "secrets" && providerChoice === "ssm" && (
+          <div>
+            <h2 style={{ fontSize: "1.2rem", marginBottom: "0.5rem" }}>
+              環境変数の登録
+            </h2>
+            <p style={{ color: "var(--text-muted)", marginBottom: "1rem", fontSize: "0.9rem", lineHeight: 1.6 }}>
+              アプリが使用する環境変数を SSM Parameter Store (<code>{ssmPathPrefix}</code>) に登録します。
+              空欄の項目はスキップされます。後から AWS コンソールや CLI でも追加・変更できます。
+            </p>
+
+            {GROUP_ORDER.map((group) => {
+              const vars = APP_ENV_VARS.filter((v) => v.group === group);
+              if (vars.length === 0) return null;
+
+              return (
+                <div key={group} style={{ marginBottom: "1.5rem" }}>
+                  <h3 style={{
+                    fontSize: "0.95rem",
+                    marginBottom: "0.75rem",
+                    paddingBottom: "0.35rem",
+                    borderBottom: "1px solid var(--border, #e2e8f0)",
+                    color: "var(--text)",
+                  }}>
+                    {GROUP_LABELS[group]}
+                  </h3>
+
+                  {vars.map((v) => (
+                    <div key={v.key} className="form-group" style={{ marginBottom: "0.75rem" }}>
+                      <label style={{ fontSize: "0.85rem" }}>
+                        <code style={{ fontWeight: 600 }}>{v.key}</code>
+                        {v.required && <span style={{ color: "var(--red, #ef4444)", marginLeft: 4 }}>*</span>}
+                        <span style={{ fontWeight: 400, color: "var(--text-muted)", marginLeft: 8 }}>
+                          {v.label !== v.key ? v.label : ""}
+                        </span>
+                      </label>
+                      {v.type === "select" ? (
+                        <select
+                          value={appSecrets[v.key] || ""}
+                          onChange={(e) => updateAppSecret(v.key, e.target.value)}
+                          style={{ width: "100%", padding: "0.5rem" }}
+                        >
+                          <option value="">-- 選択 --</option>
+                          {v.options?.map((opt) => (
+                            <option key={opt.value} value={opt.value}>{opt.label}</option>
+                          ))}
+                        </select>
+                      ) : (
+                        <input
+                          type={v.type}
+                          value={appSecrets[v.key] || ""}
+                          onChange={(e) => updateAppSecret(v.key, e.target.value)}
+                          placeholder={v.placeholder}
+                          style={{ fontFamily: v.type === "text" ? "monospace" : undefined }}
+                        />
+                      )}
+                      <small style={{ color: "var(--text-muted)", fontSize: "0.8rem" }}>
+                        {v.hint}
+                      </small>
+                    </div>
+                  ))}
+                </div>
+              );
+            })}
+
+            <div style={{ display: "flex", gap: "0.75rem", marginTop: "1rem" }}>
+              <button
+                onClick={() => { setStep("test"); setError(null); }}
+                style={backBtnStyle}
+              >
+                戻る
+              </button>
+              <button
+                onClick={() => { setStep("done"); }}
+                style={{
+                  ...backBtnStyle,
+                  padding: "0.7rem 1rem",
+                  color: "var(--text-muted)",
+                }}
+              >
+                スキップ
+              </button>
+              <button
+                onClick={handleSaveSecrets}
+                disabled={savingSecrets}
+                className="primary"
+                style={{ flex: 1, padding: "0.7rem" }}
+              >
+                {savingSecrets ? "登録中..." : "SSM に登録して完了"}
               </button>
             </div>
           </div>
@@ -650,13 +915,46 @@ export function InfisicalSetupPage({ onComplete }: InfisicalSetupPageProps) {
             <h2 style={{ fontSize: "1.2rem", marginBottom: "0.75rem" }}>
               セットアップ完了
             </h2>
-            <p style={{ color: "var(--text-muted)", marginBottom: "1.5rem", lineHeight: 1.6 }}>
+            <p style={{ color: "var(--text-muted)", marginBottom: "1rem", lineHeight: 1.6 }}>
               {providerChoice === "ssm"
                 ? "SSM Parameter Store の設定が完了しました。"
                 : "Infisical の設定が完了しました。"}
               <br />
               シークレットの管理は管理者メニューの「シークレット管理」から行えます。
             </p>
+
+            {providerChoice === "ssm" && (
+              <div style={{
+                textAlign: "left",
+                padding: "1rem",
+                background: "var(--bg-card, #f8fafc)",
+                borderRadius: 8,
+                border: "1px solid var(--border, #e2e8f0)",
+                marginBottom: "1.5rem",
+                fontSize: "0.85rem",
+                lineHeight: 1.6,
+              }}>
+                <strong>.env に必要な最小構成 (ブートストラップ用):</strong>
+                <pre style={{
+                  background: "var(--bg-code, #1e293b)",
+                  color: "var(--text-code, #e2e8f0)",
+                  padding: "0.75rem",
+                  borderRadius: 6,
+                  marginTop: "0.5rem",
+                  fontSize: "0.8rem",
+                  overflowX: "auto",
+                }}>
+{`SECRETS_PROVIDER=ssm
+SSM_PATH_PREFIX=${ssmPathPrefix}
+AWS_REGION=${ssmRegion}`}
+                </pre>
+                <p style={{ marginTop: "0.5rem", color: "var(--text-muted)" }}>
+                  EC2 で IAM ロールを使用する場合、これだけで動作します。
+                  その他の環境変数は全て SSM から自動取得されます。
+                </p>
+              </div>
+            )}
+
             <button
               onClick={onComplete}
               className="primary"

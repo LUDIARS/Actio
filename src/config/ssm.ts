@@ -14,6 +14,7 @@
 import {
   SSMClient,
   GetParametersByPathCommand,
+  PutParameterCommand,
   type Parameter,
 } from "@aws-sdk/client-ssm";
 
@@ -83,11 +84,51 @@ export class SsmParameterStoreClient {
   }
 
   /**
+   * パラメータを書き込み (SecureString)
+   * キー名にプレフィックスを付与して保存する
+   * 例: JWT_SECRET → /schedula/prod/JWT_SECRET
+   */
+  async putParameter(key: string, value: string): Promise<void> {
+    const name = this.pathPrefix + key;
+    const command = new PutParameterCommand({
+      Name: name,
+      Value: value,
+      Type: "SecureString",
+      Overwrite: true,
+    });
+    await this.client.send(command);
+  }
+
+  /**
+   * 複数パラメータを一括書き込み
+   */
+  async putParameters(params: Record<string, string>): Promise<{ written: number; errors: string[] }> {
+    let written = 0;
+    const errors: string[] = [];
+
+    for (const [key, value] of Object.entries(params)) {
+      if (!value.trim()) continue; // 空の値はスキップ
+      try {
+        await this.putParameter(key, value);
+        written++;
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        errors.push(`${key}: ${msg}`);
+      }
+    }
+    return { written, errors };
+  }
+
+  /**
    * 接続テスト: パスプレフィックス配下のパラメータ数を返す
    */
   async testConnection(): Promise<number> {
     const params = await this.getParameters();
     return params.size;
+  }
+
+  getPathPrefix(): string {
+    return this.pathPrefix;
   }
 
   isConfigured(): boolean {
