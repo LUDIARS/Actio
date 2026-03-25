@@ -788,7 +788,7 @@ export const activityLogApi = {
 
 export const secretsApi = {
   getStatus() {
-    return request<{ infisicalEnabled: boolean; cachedSecretCount: number }>("/api/secrets/status");
+    return request<{ infisicalEnabled: boolean; ssmEnabled: boolean; providerType: string; cachedSecretCount: number }>("/api/secrets/status");
   },
   listKeys() {
     return request<{ keys: Array<{ key: string; scope: "shared" | "personal"; hasValue: boolean }> }>("/api/secrets/keys");
@@ -1240,6 +1240,8 @@ export const setupApi = {
     return request<{
       needsSetup: boolean;
       infisicalConfigured: boolean;
+      ssmConfigured: boolean;
+      providerType: string;
       setupSkipped: boolean;
     }>("/api/setup/status");
   },
@@ -1257,6 +1259,12 @@ export const setupApi = {
       { method: "POST", body: JSON.stringify(body) }
     );
   },
+  testSsm(body: { region: string; pathPrefix: string }) {
+    return request<{ success: boolean; message: string; secretCount?: number }>(
+      "/api/setup/test-ssm",
+      { method: "POST", body: JSON.stringify(body) }
+    );
+  },
   saveInfisical(body: {
     siteUrl?: string;
     projectId: string;
@@ -1271,6 +1279,12 @@ export const setupApi = {
       { method: "POST", body: JSON.stringify(body) }
     );
   },
+  saveSsm(body: { region: string; pathPrefix: string }) {
+    return request<{ success: boolean; message: string; ssmEnabled: boolean; providerType: string }>(
+      "/api/setup/ssm",
+      { method: "POST", body: JSON.stringify(body) }
+    );
+  },
   skip() {
     return request<{ success: boolean; message: string }>("/api/setup/skip", {
       method: "POST",
@@ -1280,6 +1294,7 @@ export const setupApi = {
     return request<{
       hasEnvFile: boolean;
       hasInfisicalConfig: boolean;
+      hasSsmConfig: boolean;
       envVars: Record<string, boolean>;
     }>("/api/setup/env-check");
   },
