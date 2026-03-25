@@ -11,6 +11,7 @@ import {
 } from "drizzle-orm/pg-core";
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
+import { secretManager } from "../../config/secrets.js";
 
 // ─── Users ───────────────────────────────────────────────────
 
@@ -755,7 +756,7 @@ export async function waitForPostgres(
 
 export function createConnection() {
   const connectionString =
-    process.env.DATABASE_URL || "postgresql://localhost:5432/schedula";
+    secretManager.getOrDefault("DATABASE_URL", "postgresql://localhost:5432/schedula");
   console.log(
     `[db:postgres] createConnection called (lazy — 接続は初回クエリ時に確立されます)`
   );
@@ -772,7 +773,7 @@ export function createConnection() {
  */
 export async function createConnectionWithRetry() {
   const connectionString =
-    process.env.DATABASE_URL || "postgresql://localhost:5432/schedula";
+    secretManager.getOrDefault("DATABASE_URL", "postgresql://localhost:5432/schedula");
   console.log("[db:postgres] createConnectionWithRetry 開始");
   const client = await waitForPostgres(connectionString);
 

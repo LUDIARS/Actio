@@ -30,6 +30,7 @@ const NAV_ITEMS: NavItem[] = [
   { to: "/admin/settings", label: "設定", adminOnly: true },
   { to: "/admin/activity-logs", label: "操作ログ", adminOnly: true },
   { to: "/admin/db", label: "DB Viewer", adminOnly: true },
+  { to: "/admin/secrets", label: "シークレット", adminOnly: true },
   { to: "/help", label: "ヘルプ" },
 ];
 

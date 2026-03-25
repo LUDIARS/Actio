@@ -6,8 +6,9 @@
  */
 
 import Redis from "ioredis";
+import { secretManager } from "../config/secrets.js";
 
-const REDIS_URL = process.env.REDIS_URL || "";
+const REDIS_URL = secretManager.getOrDefault("REDIS_URL", "");
 
 let redis: Redis | null = null;
 

@@ -1,21 +1,25 @@
 /**
  * Database connection factory
  *
- * 環境変数 DB_DIALECT で使用するデータベースを選択:
+ * secretManager 経由で DB_DIALECT を取得し使用するデータベースを選択:
  *   - "sqlite" (デフォルト): SQLite (better-sqlite3)
  *   - "postgres": PostgreSQL (postgres.js)
  *   - "mysql": MySQL (mysql2)
  *
- * 接続先は DATABASE_URL (postgres/mysql) または DATABASE_PATH (sqlite) で設定
+ * 接続先は DATABASE_URL (postgres/mysql) または DATABASE_PATH (sqlite) で設定。
+ * Infisical 設定時はそこから、未設定時は process.env から取得される。
  */
+
+import { secretManager } from "../config/secrets.js";
 
 export type DbDialect = "sqlite" | "postgres" | "mysql";
 
-const dialect: DbDialect = (process.env.DB_DIALECT as DbDialect) || "sqlite";
+const dialect: DbDialect =
+  (secretManager.get("DB_DIALECT") as DbDialect) || "sqlite";
 
 console.log(`[db:connection] DB_DIALECT = "${dialect}"`);
 console.log(
-  `[db:connection] DATABASE_URL = ${process.env.DATABASE_URL ? "(設定済み)" : "(未設定)"}`
+  `[db:connection] DATABASE_URL = ${secretManager.get("DATABASE_URL") ? "(設定済み)" : "(未設定)"}`
 );
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any

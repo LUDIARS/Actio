@@ -2,6 +2,7 @@ import { createMiddleware } from "hono/factory";
 import jwt from "jsonwebtoken";
 import type { UserRole } from "../shared/constants.js";
 import { JWT_SECRET } from "../config/jwt.js";
+import { secretManager } from "../config/secrets.js";
 
 /**
  * Role-based access control middleware.
@@ -25,7 +26,7 @@ export function requireRole(...allowedRoles: UserRole[]) {
   });
 }
 
-const IS_PRODUCTION = (process.env.NODE_ENV || "development") === "production";
+const IS_PRODUCTION = secretManager.getOrDefault("NODE_ENV", "development") === "production";
 
 /**
  * Extract user context from JWT Bearer token.

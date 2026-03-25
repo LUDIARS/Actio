@@ -6,6 +6,7 @@ import { userRepo, userListRepo, groupMemberRepo, groupRepo, appSettingsRepo } f
 import * as sessionStore from "../session/store.js";
 import { logActivity } from "../activity-logger.js";
 import { JWT_SECRET } from "../config/jwt.js";
+import { secretManager } from "../config/secrets.js";
 
 const auth = new Hono();
 
@@ -24,12 +25,12 @@ async function getSessionConfig() {
   return { refreshDays, accessMinutes };
 }
 
-// Google OAuth設定
-const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || "";
-const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET || "";
-const GOOGLE_REDIRECT_URI = process.env.GOOGLE_REDIRECT_URI || "http://localhost:8080/api/auth/google/callback";
+// Google OAuth設定 — secretManager 経由 (Infisical or env fallback)
+const GOOGLE_CLIENT_ID = secretManager.getOrDefault("GOOGLE_CLIENT_ID", "");
+const GOOGLE_CLIENT_SECRET = secretManager.getOrDefault("GOOGLE_CLIENT_SECRET", "");
+const GOOGLE_REDIRECT_URI = secretManager.getOrDefault("GOOGLE_REDIRECT_URI", "http://localhost:8080/api/auth/google/callback");
 // フロントエンドURL（OAuthコールバック後のリダイレクト先）
-const FRONTEND_URL = process.env.FRONTEND_URL || "http://localhost:8080";
+const FRONTEND_URL = secretManager.getOrDefault("FRONTEND_URL", "http://localhost:8080");
 
 // ─── Helper: JWTトークン生成 ────────────────────────────────
 
