@@ -22,6 +22,7 @@ import { getRecentLogs } from "./activity-logger.js";
 import { getReservationPlugins } from "./reservation-plugins.js";
 import { registerReservationPlugin } from "./reservation-plugins.js";
 import { secretManager } from "./config/secrets.js";
+import { setupRoutes } from "../modules/setup/routes.js";
 
 export function createApp() {
   const app = new Hono();
@@ -48,6 +49,9 @@ export function createApp() {
       c.header("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
     }
   });
+
+  // ─── Setup Routes (認証不要: 初回セットアップ) ──────────────
+  app.route("/api/setup", setupRoutes);
 
   app.use("/api/*", userContext());
 
