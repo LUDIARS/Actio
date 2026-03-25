@@ -1,8 +1,9 @@
 /**
  * シークレット管理 API (管理者専用)
  *
- * Infisical 連携のステータス確認、シークレットの閲覧・作成・更新・削除を提供。
- * Infisical 未設定時は読み取り専用のステータス情報のみ返す。
+ * シークレットプロバイダーのステータス確認、シークレットの閲覧・作成・更新・削除を提供。
+ * Infisical: 読み書き対応 / SSM: 読み取り専用 (書き込みは AWS コンソール/CLI で)
+ * プロバイダー未設定時は読み取り専用のステータス情報のみ返す。
  */
 
 import { Hono } from "hono";
@@ -11,11 +12,13 @@ import { secretManager, type SecretScope } from "../../src/config/secrets.js";
 
 const secretsRoutes = new Hono();
 
-// ─── GET /status - Infisical 接続ステータス ──────────────────
+// ─── GET /status - プロバイダー接続ステータス ────────────────
 
 secretsRoutes.get("/status", requireRole("admin"), (c) => {
   return c.json({
     infisicalEnabled: secretManager.isInfisicalEnabled(),
+    ssmEnabled: secretManager.isSsmEnabled(),
+    providerType: secretManager.getProviderType(),
     cachedSecretCount: secretManager.listKeys().length,
   });
 });
@@ -31,9 +34,9 @@ secretsRoutes.get("/keys", requireRole("admin"), (c) => {
 // ─── GET /value/:key - 特定のシークレットの値を取得 ──────────
 
 secretsRoutes.get("/value/:key", requireRole("admin"), (c) => {
-  if (!secretManager.isInfisicalEnabled()) {
+  if (!secretManager.isExternalProviderEnabled()) {
     return c.json(
-      { error: "Infisical が設定されていません。環境変数を直接確認してください。" },
+      { error: "外部シークレットプロバイダーが設定されていません。環境変数を直接確認してください。" },
       400
     );
   }
@@ -54,9 +57,9 @@ secretsRoutes.get("/value/:key", requireRole("admin"), (c) => {
 // ─── POST /refresh - 手動リフレッシュ ────────────────────────
 
 secretsRoutes.post("/refresh", requireRole("admin"), async (c) => {
-  if (!secretManager.isInfisicalEnabled()) {
+  if (!secretManager.isExternalProviderEnabled()) {
     return c.json(
-      { error: "Infisical が設定されていません" },
+      { error: "外部シークレットプロバイダーが設定されていません" },
       400
     );
   }
@@ -68,10 +71,17 @@ secretsRoutes.post("/refresh", requireRole("admin"), async (c) => {
   });
 });
 
-// ─── PUT /:key - シークレットの作成/更新 ─────────────────────
+// ─── PUT /:key - シークレットの作成/更新 (Infisical のみ) ────
 
 secretsRoutes.put("/:key", requireRole("admin"), async (c) => {
   if (!secretManager.isInfisicalEnabled()) {
+    const providerType = secretManager.getProviderType();
+    if (providerType === "ssm") {
+      return c.json(
+        { error: "SSM Parameter Store へのシークレット書き込みは AWS コンソールまたは CLI から行ってください。" },
+        400
+      );
+    }
     return c.json(
       { error: "Infisical が設定されていません" },
       400
@@ -102,10 +112,17 @@ secretsRoutes.put("/:key", requireRole("admin"), async (c) => {
   }
 });
 
-// ─── DELETE /:key - シークレットの削除 ───────────────────────
+// ─── DELETE /:key - シークレットの削除 (Infisical のみ) ──────
 
 secretsRoutes.delete("/:key", requireRole("admin"), async (c) => {
   if (!secretManager.isInfisicalEnabled()) {
+    const providerType = secretManager.getProviderType();
+    if (providerType === "ssm") {
+      return c.json(
+        { error: "SSM Parameter Store のシークレット削除は AWS コンソールまたは CLI から行ってください。" },
+        400
+      );
+    }
     return c.json(
       { error: "Infisical が設定されていません" },
       400

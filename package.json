@@ -27,6 +27,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@aws-sdk/client-ssm": "^3.1016.0",
     "@hono/node-server": "^1.19.11",
     "bcryptjs": "^3.0.3",
     "better-sqlite3": "^12.8.0",
