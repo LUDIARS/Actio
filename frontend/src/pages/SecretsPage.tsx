@@ -10,7 +10,8 @@ interface SecretKey {
 
 export function SecretsPage() {
   const { user } = useAuth();
-  const [infisicalEnabled, setInfisicalEnabled] = useState(false);
+  const [providerEnabled, setProviderEnabled] = useState(false);
+  const [providerType, setProviderType] = useState<string>("env");
   const [keys, setKeys] = useState<SecretKey[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -33,9 +34,11 @@ export function SecretsPage() {
       setLoading(true);
       setError(null);
       const status = await secretsApi.getStatus();
-      setInfisicalEnabled(status.infisicalEnabled);
+      const enabled = status.infisicalEnabled || status.ssmEnabled;
+      setProviderEnabled(enabled);
+      setProviderType(status.providerType || "env");
 
-      if (status.infisicalEnabled) {
+      if (enabled) {
         const keysRes = await secretsApi.listKeys();
         setKeys(keysRes.keys);
       }
@@ -125,7 +128,11 @@ export function SecretsPage() {
     <div style={{ padding: "1.5rem", maxWidth: 900 }}>
       <h2 style={{ marginBottom: "0.5rem" }}>シークレット管理</h2>
       <p style={{ color: "var(--text-muted)", marginBottom: "1.5rem" }}>
-        Infisical を使ったシークレット・環境変数の一元管理
+        {providerType === "ssm"
+          ? "SSM Parameter Store を使ったシークレット・環境変数の一元管理"
+          : providerType === "infisical"
+            ? "Infisical を使ったシークレット・環境変数の一元管理"
+            : "シークレット・環境変数の管理"}
       </p>
 
       {error && (
@@ -160,7 +167,7 @@ export function SecretsPage() {
 
       {loading ? (
         <p>読み込み中...</p>
-      ) : !infisicalEnabled ? (
+      ) : !providerEnabled ? (
         <div style={{
           padding: "2rem",
           background: "var(--bg-card, #f8fafc)",
@@ -168,12 +175,12 @@ export function SecretsPage() {
           border: "1px solid var(--border, #e2e8f0)",
           textAlign: "center",
         }}>
-          <h3 style={{ marginBottom: "1rem" }}>Infisical 未設定</h3>
+          <h3 style={{ marginBottom: "1rem" }}>シークレットプロバイダー未設定</h3>
           <p style={{ color: "var(--text-muted)", marginBottom: "1rem" }}>
             現在は環境変数フォールバックモードで動作しています。
           </p>
           <p style={{ color: "var(--text-muted)", fontSize: "0.9rem" }}>
-            Infisical を有効にするには、以下の環境変数を設定してサーバーを再起動してください:
+            プロバイダーを有効にするには、以下の環境変数を設定してサーバーを再起動してください:
           </p>
           <pre style={{
             textAlign: "left",
@@ -185,18 +192,17 @@ export function SecretsPage() {
             fontSize: "0.85rem",
             overflowX: "auto",
           }}>
-{`INFISICAL_PROJECT_ID=<your-project-id>
+{`# ─── AWS SSM Parameter Store ───
+SECRETS_PROVIDER=ssm
+SSM_PATH_PREFIX=/schedula/prod/
+AWS_REGION=ap-northeast-1
+
+# ─── または Infisical ───
+SECRETS_PROVIDER=infisical
+INFISICAL_PROJECT_ID=<your-project-id>
 INFISICAL_ENVIRONMENT=dev
-
-# Universal Auth (推奨)
 INFISICAL_CLIENT_ID=<client-id>
-INFISICAL_CLIENT_SECRET=<client-secret>
-
-# または Service Token
-INFISICAL_TOKEN=<service-token>
-
-# オプション
-INFISICAL_SITE_URL=https://app.infisical.com`}
+INFISICAL_CLIENT_SECRET=<client-secret>`}
           </pre>
         </div>
       ) : (
@@ -209,7 +215,7 @@ INFISICAL_SITE_URL=https://app.infisical.com`}
               className="btn btn-secondary"
               style={{ padding: "0.5rem 1rem" }}
             >
-              {refreshing ? "リフレッシュ中..." : "Infisical からリフレッシュ"}
+              {refreshing ? "リフレッシュ中..." : `${providerType === "ssm" ? "SSM" : "Infisical"} からリフレッシュ`}
             </button>
             <span style={{ color: "var(--text-muted)", alignSelf: "center", fontSize: "0.85rem" }}>
               {keys.length} 件のシークレット
@@ -229,7 +235,9 @@ INFISICAL_SITE_URL=https://app.infisical.com`}
                   <tr style={{ borderBottom: "1px solid var(--border, #e2e8f0)" }}>
                     <th style={{ textAlign: "left", padding: "0.5rem" }}>キー</th>
                     <th style={{ textAlign: "center", padding: "0.5rem", width: 80 }}>状態</th>
+                    {providerType === "infisical" && (
                     <th style={{ textAlign: "right", padding: "0.5rem", width: 200 }}>操作</th>
+                    )}
                   </tr>
                 </thead>
                 <tbody>
@@ -245,6 +253,7 @@ INFISICAL_SITE_URL=https://app.infisical.com`}
                           background: k.hasValue ? "#22c55e" : "#ef4444",
                         }} />
                       </td>
+                      {providerType === "infisical" && (
                       <td style={{ padding: "0.5rem", textAlign: "right" }}>
                         {editingKey === k.key ? (
                           <span style={{ display: "inline-flex", gap: "0.25rem" }}>
@@ -277,14 +286,22 @@ INFISICAL_SITE_URL=https://app.infisical.com`}
                           </span>
                         )}
                       </td>
+                      )}
                     </tr>
                   ))}
                 </tbody>
               </table>
             )}
+
+            {providerType === "ssm" && (
+              <p style={{ color: "var(--text-muted)", fontSize: "0.85rem", marginTop: "0.5rem" }}>
+                SSM Parameter Store のシークレットの編集・削除は AWS コンソールまたは CLI から行ってください。
+              </p>
+            )}
           </section>
 
-          {/* 個人 (personal) */}
+          {/* 個人 (personal) — Infisical のみ */}
+          {providerType === "infisical" && (
           <section style={{ marginBottom: "2rem" }}>
             <h3 style={{ marginBottom: "0.75rem", borderBottom: "2px solid var(--border, #e2e8f0)", paddingBottom: "0.5rem" }}>
               個人オーバーライド (personal)
@@ -351,8 +368,10 @@ INFISICAL_SITE_URL=https://app.infisical.com`}
               </table>
             )}
           </section>
+          )}
 
-          {/* 新規追加フォーム */}
+          {/* 新規追加フォーム — Infisical のみ */}
+          {providerType === "infisical" && (
           <section>
             <h3 style={{ marginBottom: "0.75rem", borderBottom: "2px solid var(--border, #e2e8f0)", paddingBottom: "0.5rem" }}>
               シークレット追加
@@ -399,6 +418,7 @@ INFISICAL_SITE_URL=https://app.infisical.com`}
               </button>
             </div>
           </section>
+          )}
         </>
       )}
     </div>
