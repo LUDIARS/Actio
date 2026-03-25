@@ -1,3 +1,4 @@
+import { useState, useEffect } from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
 import { Layout } from "./components/Layout";
@@ -20,6 +21,8 @@ import { ActivityLogsPage } from "./pages/ActivityLogsPage";
 import { HelpPage } from "./pages/HelpPage";
 import { IntegrationsPage } from "./pages/IntegrationsPage";
 import { SecretsPage } from "./pages/SecretsPage";
+import { InfisicalSetupPage } from "./pages/InfisicalSetupPage";
+import { setupApi } from "./lib/api";
 import "./global.css";
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
@@ -78,6 +81,34 @@ function AppRoutes() {
 }
 
 function App() {
+  const [setupChecking, setSetupChecking] = useState(true);
+  const [needsSetup, setNeedsSetup] = useState(false);
+
+  useEffect(() => {
+    setupApi.getStatus()
+      .then((status) => {
+        setNeedsSetup(status.needsSetup);
+      })
+      .catch((err) => {
+        console.warn("[App] セットアップ状態チェック失敗:", err);
+        // チェック失敗時はセットアップ不要として続行
+        setNeedsSetup(false);
+      })
+      .finally(() => setSetupChecking(false));
+  }, []);
+
+  if (setupChecking) {
+    return (
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: "100vh" }}>
+        <span style={{ color: "var(--text-muted)" }}>読み込み中...</span>
+      </div>
+    );
+  }
+
+  if (needsSetup) {
+    return <InfisicalSetupPage onComplete={() => setNeedsSetup(false)} />;
+  }
+
   return (
     <BrowserRouter>
       <AuthProvider>

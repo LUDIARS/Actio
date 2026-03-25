@@ -1232,3 +1232,55 @@ export const m6Voting = {
     });
   },
 };
+
+// ─── Setup (初回セットアップ: 認証不要) ────────────────────────
+
+export const setupApi = {
+  getStatus() {
+    return request<{
+      needsSetup: boolean;
+      infisicalConfigured: boolean;
+      setupSkipped: boolean;
+    }>("/api/setup/status");
+  },
+  testConnection(body: {
+    siteUrl?: string;
+    projectId: string;
+    environment?: string;
+    authMethod: "universal" | "token";
+    clientId?: string;
+    clientSecret?: string;
+    token?: string;
+  }) {
+    return request<{ success: boolean; message: string; secretCount?: number }>(
+      "/api/setup/test-connection",
+      { method: "POST", body: JSON.stringify(body) }
+    );
+  },
+  saveInfisical(body: {
+    siteUrl?: string;
+    projectId: string;
+    environment?: string;
+    authMethod: "universal" | "token";
+    clientId?: string;
+    clientSecret?: string;
+    token?: string;
+  }) {
+    return request<{ success: boolean; message: string; infisicalEnabled: boolean }>(
+      "/api/setup/infisical",
+      { method: "POST", body: JSON.stringify(body) }
+    );
+  },
+  skip() {
+    return request<{ success: boolean; message: string }>("/api/setup/skip", {
+      method: "POST",
+    });
+  },
+  envCheck() {
+    return request<{
+      hasEnvFile: boolean;
+      hasInfisicalConfig: boolean;
+      envVars: Record<string, boolean>;
+    }>("/api/setup/env-check");
+  },
+};

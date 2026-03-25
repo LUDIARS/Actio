@@ -224,6 +224,18 @@ class SecretManager {
       this.refreshTimer = null;
     }
   }
+
+  /**
+   * ランタイム再初期化: process.env を再読み込みして Infisical クライアントを再生成。
+   * GUI セットアップ後に呼ばれる。
+   */
+  async reinit(): Promise<void> {
+    this.destroy();
+    this.client = null;
+    this.cache.clear();
+    this.initialized = false;
+    await this.init();
+  }
 }
 
 // ─── Singleton & Auto-init ──────────────────────────────────
