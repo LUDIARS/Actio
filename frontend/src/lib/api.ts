@@ -735,6 +735,11 @@ export const m5 = {
       method: "POST",
     });
   },
+  deleteNotification(id: string) {
+    return request<MessageResponse>(`/api/m5/notifications/${id}`, {
+      method: "DELETE",
+    });
+  },
 };
 
 // ─── Settings (アプリ設定) ──────────────────────────────────────

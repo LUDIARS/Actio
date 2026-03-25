@@ -1152,6 +1152,22 @@ export const notificationRepo = {
       .returning();
     return row;
   },
+
+  async findById(id: string): Promise<Notification | undefined> {
+    const [row] = await db
+      .select()
+      .from(schema.notifications)
+      .where(eq(schema.notifications.id, id));
+    return row;
+  },
+
+  async deleteById(id: string): Promise<boolean> {
+    const result = await db
+      .delete(schema.notifications)
+      .where(eq(schema.notifications.id, id))
+      .returning();
+    return result.length > 0;
+  },
 };
 
 // ─── App Settings Repository ──────────────────────────────────

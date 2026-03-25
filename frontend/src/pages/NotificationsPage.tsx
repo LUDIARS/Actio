@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { m5 } from "../lib/api";
 import type { Webhook, NotificationHistoryItem } from "../lib/api-types";
 import { HelpButton } from "../components/HelpOverlay";
+import { useAuth } from "../contexts/AuthContext";
 
 type Notification = NotificationHistoryItem;
 
@@ -16,6 +17,7 @@ const AVAILABLE_EVENTS = [
 ];
 
 export function NotificationsPage() {
+  const { user } = useAuth();
   const [tab, setTab] = useState<"notifications" | "webhooks" | "settings">(
     "notifications"
   );
@@ -125,6 +127,23 @@ export function NotificationsPage() {
       console.error("[NotificationsPage] handleMarkRead失敗:", e);
       showMsg(`Error: ${e.message}`);
     }
+  };
+
+  const handleDeleteNotification = async (id: string) => {
+    try {
+      await m5.deleteNotification(id);
+      setNotifications((prev) => prev.filter((n) => n.id !== id));
+      showMsg("通知を削除しました");
+    } catch (e: unknown) {
+      const err = e as Error;
+      console.error("[NotificationsPage] handleDeleteNotification失敗:", err);
+      showMsg(`Error: ${err.message}`);
+    }
+  };
+
+  const canDelete = (n: Notification) => {
+    if (!user) return false;
+    return n.userId === user.id || user.role === "admin";
   };
 
   const toggleEvent = (event: string) => {
@@ -290,17 +309,31 @@ export function NotificationsPage() {
                   >
                     {n.body}
                   </p>
-                  {!n.isRead && (
-                    <button
-                      style={{
-                        fontSize: "0.7rem",
-                        padding: "0.15rem 0.5rem",
-                      }}
-                      onClick={() => handleMarkRead(n.id)}
-                    >
-                      既読にする
-                    </button>
-                  )}
+                  <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
+                    {!n.isRead && (
+                      <button
+                        style={{
+                          fontSize: "0.7rem",
+                          padding: "0.15rem 0.5rem",
+                        }}
+                        onClick={() => handleMarkRead(n.id)}
+                      >
+                        既読にする
+                      </button>
+                    )}
+                    {canDelete(n) && (
+                      <button
+                        className="danger"
+                        style={{
+                          fontSize: "0.7rem",
+                          padding: "0.15rem 0.5rem",
+                        }}
+                        onClick={() => handleDeleteNotification(n.id)}
+                      >
+                        削除
+                      </button>
+                    )}
+                  </div>
                 </div>
               ))}
             </div>
