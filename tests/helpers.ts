@@ -64,32 +64,10 @@ export function initTestDatabase() {
       UNIQUE(day, period, room_id, term_id)
     );
 
-    CREATE TABLE IF NOT EXISTS unified_slots (
-      id TEXT PRIMARY KEY,
-      user_id TEXT NOT NULL,
-      day INTEGER NOT NULL,
-      period INTEGER NOT NULL,
-      status TEXT NOT NULL DEFAULT 'free',
-      major_label TEXT,
-      is_private INTEGER NOT NULL DEFAULT 0,
-      source_module TEXT NOT NULL,
-      cached_at INTEGER NOT NULL,
-      UNIQUE(user_id, day, period, source_module)
-    );
-
-    CREATE TABLE IF NOT EXISTS member_profiles (
-      user_id TEXT PRIMARY KEY,
-      name TEXT NOT NULL,
-      major TEXT NOT NULL,
-      attendance_days TEXT NOT NULL DEFAULT '[]',
-      created_at INTEGER NOT NULL
-    );
-
     CREATE TABLE IF NOT EXISTS "groups" (
       id TEXT PRIMARY KEY,
       name TEXT NOT NULL,
       description TEXT,
-      members TEXT NOT NULL DEFAULT '[]',
       created_by TEXT NOT NULL,
       created_at INTEGER NOT NULL
     );
@@ -443,7 +421,7 @@ export function insertTestGroup(data: { id: string; name: string; createdBy: str
   const now = Date.now();
   sqlite
     .prepare(
-      `INSERT INTO "groups" (id, name, members, created_by, created_at) VALUES (?, ?, '[]', ?, ?)`
+      `INSERT INTO "groups" (id, name, created_by, created_at) VALUES (?, ?, ?, ?)`
     )
     .run(data.id, data.name, data.createdBy, now);
   sqlite.close();
