@@ -653,6 +653,39 @@ export interface HolidayListResponse {
   holidays: Holiday[];
 }
 
+// ─── Reminders ─────────────────────────────────────────────
+
+export interface ReminderItem {
+  id: string;
+  userId: string;
+  title: string;
+  description: string | null;
+  remindAt: string;
+  repeatRule: string;
+  status: string;
+  source: string;
+  originalText: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ReminderListResponse {
+  reminders: ReminderItem[];
+}
+
+export interface ReminderResponse {
+  reminder: ReminderItem;
+}
+
+export interface ReminderParseResponse {
+  reminder: ReminderItem;
+  parsed: {
+    title: string;
+    remindAt: string;
+    confidence: number;
+  };
+}
+
 // ─── Activity Logs ──────────────────────────────────────────
 
 export interface ActivityLog {

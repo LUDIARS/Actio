@@ -11,6 +11,8 @@ import { smartScheduler } from "../modules/smart-scheduler/routes.js";
 import { schoolModule } from "../modules/school/index.js";
 import { m1 } from "../modules/schedule/routes.js";
 import { holidayRoutes } from "../modules/holiday/routes.js";
+import { reminderRoutes } from "../modules/reminder/routes.js";
+import { alexaRoutes } from "../modules/reminder/extensions/alexa/routes.js";
 import { integrations } from "../modules/integrations/index.js";
 import { dbViewer } from "./admin/db-viewer.js";
 import { settingsRoutes } from "../modules/settings/routes.js";
@@ -78,6 +80,10 @@ export function createApp() {
 
   // ─── Module: Holidays (休日管理) ──────────────────────────────
   app.route("/api/holidays", holidayRoutes);
+
+  // ─── Core: Reminders (リマインダー) ──────────────────────────
+  app.route("/api/reminders", reminderRoutes);
+  app.route("/api/reminders/alexa", alexaRoutes);
 
   // ─── Module: Integrations (外部サービス連携) ──────────────────
   app.route("/api/integrations", integrations);
@@ -161,6 +167,7 @@ export function createApp() {
         calendar: "カレンダー & 手動予定 - /api/calendar",
         myplans: "マイプラン - /api/myplans",
         smartScheduler: "自動配置スケジューラ - /api/smart-scheduler",
+        reminders: "リマインダー - /api/reminders",
       },
       modules: {
         ...registeredModules,
