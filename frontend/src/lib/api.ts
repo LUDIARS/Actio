@@ -15,6 +15,7 @@ import type {
   M3Group, M3AvailabilityResponse, M3SuggestionsResponse,
   ScheduleResponse, GenerateResponse, SwapResponse,
   HolidayListResponse, ActivityLogsResponse,
+  ReminderListResponse, ReminderResponse, ReminderParseResponse,
 } from "./api-types";
 
 // ─── Token Management ──────────────────────────────────────
@@ -1057,6 +1058,45 @@ export const holidayApi = {
   checkDate(date: string, groupId?: string) {
     const query = groupId ? `?groupId=${groupId}` : "";
     return request<{ date: string; isHoliday: boolean; isWeekend: boolean; isNationalHoliday: boolean }>(`/api/holidays/check/${date}${query}`);
+  },
+};
+
+// ─── Reminders (リマインダー) ──────────────────────────────────
+
+export const reminderApi = {
+  /** リマインダー一覧取得 */
+  list(status?: string) {
+    const query = status ? `?status=${status}` : "";
+    return request<ReminderListResponse>(`/api/reminders${query}`);
+  },
+  /** 構造化データで作成 */
+  create(body: { title: string; description?: string; remindAt: string; repeatRule?: string }) {
+    return request<ReminderResponse>("/api/reminders", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  },
+  /** 自由テキストで作成 */
+  parseAndCreate(text: string) {
+    return request<ReminderParseResponse>("/api/reminders/parse", {
+      method: "POST",
+      body: JSON.stringify({ text, source: "web" }),
+    });
+  },
+  /** 更新 */
+  update(id: string, body: { title?: string; description?: string; remindAt?: string; repeatRule?: string; status?: string }) {
+    return request<ReminderResponse>(`/api/reminders/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(body),
+    });
+  },
+  /** 削除 */
+  remove(id: string) {
+    return request<{ deleted: string }>(`/api/reminders/${id}`, { method: "DELETE" });
+  },
+  /** 完了マーク */
+  markDone(id: string) {
+    return request<ReminderResponse>(`/api/reminders/${id}/done`, { method: "PATCH" });
   },
 };
 
