@@ -1170,6 +1170,90 @@ export const notificationRepo = {
   },
 };
 
+// ─── Notification Template Repository ────────────────────────
+
+export type NotificationTemplate = typeof schema.notificationTemplates.$inferSelect;
+export type NewNotificationTemplate = typeof schema.notificationTemplates.$inferInsert;
+
+export const notificationTemplateRepo = {
+  async findAll(): Promise<NotificationTemplate[]> {
+    return db.select().from(schema.notificationTemplates);
+  },
+
+  async findById(id: string): Promise<NotificationTemplate | undefined> {
+    const [row] = await db
+      .select()
+      .from(schema.notificationTemplates)
+      .where(eq(schema.notificationTemplates.id, id));
+    return row;
+  },
+
+  async findByEvent(event: string): Promise<NotificationTemplate[]> {
+    return db
+      .select()
+      .from(schema.notificationTemplates)
+      .where(eq(schema.notificationTemplates.event, event));
+  },
+
+  async findByEventAndPlatform(event: string, platform: string): Promise<NotificationTemplate | undefined> {
+    // Try exact match first, then "all" platform, then "*" event
+    const [exact] = await db
+      .select()
+      .from(schema.notificationTemplates)
+      .where(
+        and(
+          eq(schema.notificationTemplates.event, event),
+          eq(schema.notificationTemplates.platform, platform)
+        )
+      );
+    if (exact) return exact;
+
+    const [allPlatform] = await db
+      .select()
+      .from(schema.notificationTemplates)
+      .where(
+        and(
+          eq(schema.notificationTemplates.event, event),
+          eq(schema.notificationTemplates.platform, "all")
+        )
+      );
+    if (allPlatform) return allPlatform;
+
+    const [wildcard] = await db
+      .select()
+      .from(schema.notificationTemplates)
+      .where(
+        and(
+          eq(schema.notificationTemplates.event, "*"),
+          eq(schema.notificationTemplates.platform, platform)
+        )
+      );
+    return wildcard;
+  },
+
+  async create(data: NewNotificationTemplate): Promise<NotificationTemplate> {
+    const [row] = await db.insert(schema.notificationTemplates).values(data).returning();
+    return row;
+  },
+
+  async update(id: string, data: Partial<Omit<NewNotificationTemplate, "id">>): Promise<NotificationTemplate | undefined> {
+    const [row] = await db
+      .update(schema.notificationTemplates)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(schema.notificationTemplates.id, id))
+      .returning();
+    return row;
+  },
+
+  async deleteById(id: string): Promise<boolean> {
+    const result = await db
+      .delete(schema.notificationTemplates)
+      .where(eq(schema.notificationTemplates.id, id))
+      .returning();
+    return result.length > 0;
+  },
+};
+
 // ─── App Settings Repository ──────────────────────────────────
 
 export type AppSetting = typeof schema.appSettings.$inferSelect;
