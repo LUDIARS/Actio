@@ -173,6 +173,48 @@ export const apiDocumentation = {
           path: "/webhooks",
           description: "Webhook一覧を取得",
         },
+        {
+          method: "GET",
+          path: "/reminders",
+          description: "リマインダー一覧を取得 (?status=pending でフィルタ可)",
+        },
+        {
+          method: "POST",
+          path: "/reminders",
+          description: "リマインダーを作成",
+          body: {
+            title: "string (必須)",
+            description: "string (任意)",
+            remindAt: "string (必須, ISO 8601)",
+            repeatRule: "string (任意, none | daily | weekly | monthly | yearly)",
+          },
+          statusCode: 201,
+        },
+        {
+          method: "PUT",
+          path: "/reminders/:id",
+          description: "リマインダーを更新",
+          params: { id: "リマインダーID" },
+          body: {
+            title: "string",
+            description: "string",
+            remindAt: "string (ISO 8601)",
+            repeatRule: "string",
+            status: "string (pending | done | cancelled)",
+          },
+        },
+        {
+          method: "DELETE",
+          path: "/reminders/:id",
+          description: "リマインダーを削除",
+          params: { id: "リマインダーID" },
+        },
+        {
+          method: "PATCH",
+          path: "/reminders/:id/done",
+          description: "リマインダーを完了にする",
+          params: { id: "リマインダーID" },
+        },
       ],
     },
 

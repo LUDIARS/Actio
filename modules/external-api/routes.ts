@@ -17,7 +17,9 @@ import {
   notificationPreferenceRepo,
   notificationRepo,
   webhookEndpointRepo,
+  reminderRepo,
 } from "../../src/db/repository.js";
+import { randomUUID } from "crypto";
 import { apiDocumentation } from "./docs.js";
 
 const externalApi = new Hono();
@@ -307,6 +309,132 @@ remindersApi.get("/webhooks", async (c) => {
       createdAt: w.createdAt,
     })),
   });
+});
+
+// ─── GET /reminders - リマインダー一覧 ──────────────────────────
+
+remindersApi.get("/reminders", async (c) => {
+  const userId = getUserId(c);
+  if (!userId) return c.json({ error: "Authentication required" }, 401);
+
+  const status = c.req.query("status");
+  let items;
+  if (status === "pending") {
+    items = await reminderRepo.findPending(userId);
+  } else {
+    items = await reminderRepo.findByUserId(userId);
+  }
+  return c.json({ reminders: items });
+});
+
+// ─── POST /reminders - リマインダー作成 ─────────────────────────
+
+remindersApi.post("/reminders", async (c) => {
+  const userId = getUserId(c);
+  if (!userId) return c.json({ error: "Authentication required" }, 401);
+
+  const body = await c.req.json<{
+    title: string;
+    description?: string;
+    remindAt: string;
+    repeatRule?: string;
+  }>();
+
+  if (!body.title || !body.remindAt) {
+    return c.json({ error: "title and remindAt are required" }, 400);
+  }
+
+  const remindDate = new Date(body.remindAt);
+  if (isNaN(remindDate.getTime())) {
+    return c.json({ error: "remindAt is not a valid date" }, 400);
+  }
+
+  const validRules = ["none", "daily", "weekly", "monthly", "yearly"];
+  const repeatRule = body.repeatRule || "none";
+  if (!validRules.includes(repeatRule)) {
+    return c.json({ error: `repeatRule must be one of: ${validRules.join(", ")}` }, 400);
+  }
+
+  const reminder = await reminderRepo.create({
+    id: randomUUID(),
+    userId,
+    title: body.title,
+    description: body.description || null,
+    remindAt: remindDate.toISOString(),
+    repeatRule,
+    status: "pending",
+    source: "api",
+  });
+
+  return c.json({ reminder }, 201);
+});
+
+// ─── PUT /reminders/:id - リマインダー更新 ──────────────────────
+
+remindersApi.put("/reminders/:id", async (c) => {
+  const userId = getUserId(c);
+  if (!userId) return c.json({ error: "Authentication required" }, 401);
+
+  const id = c.req.param("id");
+  const existing = await reminderRepo.findById(id);
+  if (!existing) return c.json({ error: "Reminder not found" }, 404);
+  if (existing.userId !== userId) return c.json({ error: "Forbidden" }, 403);
+
+  const body = await c.req.json<{
+    title?: string;
+    description?: string;
+    remindAt?: string;
+    repeatRule?: string;
+    status?: string;
+  }>();
+
+  const updates: Record<string, unknown> = {};
+  if (body.title !== undefined) updates.title = body.title;
+  if (body.description !== undefined) updates.description = body.description;
+  if (body.remindAt !== undefined) {
+    const d = new Date(body.remindAt);
+    if (isNaN(d.getTime())) return c.json({ error: "remindAt is not valid" }, 400);
+    updates.remindAt = d.toISOString();
+  }
+  if (body.repeatRule !== undefined) updates.repeatRule = body.repeatRule;
+  if (body.status !== undefined) {
+    const valid = ["pending", "done", "cancelled"];
+    if (!valid.includes(body.status)) return c.json({ error: `status must be: ${valid.join(", ")}` }, 400);
+    updates.status = body.status;
+  }
+
+  const updated = await reminderRepo.update(id, updates);
+  return c.json({ reminder: updated });
+});
+
+// ─── DELETE /reminders/:id - リマインダー削除 ───────────────────
+
+remindersApi.delete("/reminders/:id", async (c) => {
+  const userId = getUserId(c);
+  if (!userId) return c.json({ error: "Authentication required" }, 401);
+
+  const id = c.req.param("id");
+  const existing = await reminderRepo.findById(id);
+  if (!existing) return c.json({ error: "Reminder not found" }, 404);
+  if (existing.userId !== userId) return c.json({ error: "Forbidden" }, 403);
+
+  await reminderRepo.deleteById(id);
+  return c.json({ deleted: id });
+});
+
+// ─── PATCH /reminders/:id/done - リマインダー完了 ───────────────
+
+remindersApi.patch("/reminders/:id/done", async (c) => {
+  const userId = getUserId(c);
+  if (!userId) return c.json({ error: "Authentication required" }, 401);
+
+  const id = c.req.param("id");
+  const existing = await reminderRepo.findById(id);
+  if (!existing) return c.json({ error: "Reminder not found" }, 404);
+  if (existing.userId !== userId) return c.json({ error: "Forbidden" }, 403);
+
+  const updated = await reminderRepo.update(id, { status: "done" });
+  return c.json({ reminder: updated });
 });
 
 // ═══════════════════════════════════════════════════════════════

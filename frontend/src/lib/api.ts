@@ -9,12 +9,15 @@ import type {
   Reservation, ReservationListResponse, RoomScheduleResponse,
   WebhookListResponse, WebhookCreateResponse, WebhookTestResponse, WebhookRotateResponse, WebhookLogsResponse,
   NotificationPreferencesResponse, NotificationHistoryResponse,
+  NotificationTemplateListResponse, NotificationTemplateResponse, TemplatePreviewResponse, TestSendResponse,
+  NotificationPlatform, SendMethod,
   MyPlanListResponse, MyPlanResponse,
   SchedulingTaskListResponse, SchedulingTaskResponse, SolveResponse, ConfirmResponse, SchedulingResultsResponse, SchedulerAvailabilityResponse,
   VotingEventCreateResponse, VotingEventListResponse, VotingEventDetailResponse, VotingSubmitResponse, VotingAutoReplyResponse, VotingUpdateResponse,
   M3Group, M3AvailabilityResponse, M3SuggestionsResponse,
   ScheduleResponse, GenerateResponse, SwapResponse,
   HolidayListResponse, ActivityLogsResponse,
+  ReminderListResponse, ReminderResponse, ReminderParseResponse,
 } from "./api-types";
 
 // ─── Token Management ──────────────────────────────────────
@@ -698,7 +701,14 @@ export const m5 = {
   listWebhooks() {
     return request<WebhookListResponse>("/api/m5/webhooks");
   },
-  createWebhook(body: { url: string; events: string[] }) {
+  createWebhook(body: {
+    url: string;
+    events: string[];
+    platform?: NotificationPlatform;
+    sendMethod?: SendMethod;
+    botToken?: string;
+    channelId?: string;
+  }) {
     return request<WebhookCreateResponse>("/api/m5/webhooks", {
       method: "POST",
       body: JSON.stringify(body),
@@ -738,6 +748,60 @@ export const m5 = {
   deleteNotification(id: string) {
     return request<MessageResponse>(`/api/m5/notifications/${id}`, {
       method: "DELETE",
+    });
+  },
+  // Template CRUD
+  listTemplates() {
+    return request<NotificationTemplateListResponse>("/api/m5/templates");
+  },
+  createTemplate(body: {
+    event: string;
+    platform?: string;
+    title: string;
+    body: string;
+    useCodeBlock?: boolean;
+    codeBlockLang?: string;
+  }) {
+    return request<NotificationTemplateResponse>("/api/m5/templates", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  },
+  updateTemplate(id: string, body: {
+    event?: string;
+    platform?: string;
+    title?: string;
+    body?: string;
+    useCodeBlock?: boolean;
+    codeBlockLang?: string;
+  }) {
+    return request<NotificationTemplateResponse>(`/api/m5/templates/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(body),
+    });
+  },
+  deleteTemplate(id: string) {
+    return request<MessageResponse>(`/api/m5/templates/${id}`, { method: "DELETE" });
+  },
+  previewTemplate(body: {
+    event: string;
+    platform?: string;
+    sampleData?: Record<string, unknown>;
+  }) {
+    return request<TemplatePreviewResponse>("/api/m5/templates/preview", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  },
+  // Test send
+  testSend(body: {
+    endpointId: string;
+    event?: string;
+    sampleData?: Record<string, unknown>;
+  }) {
+    return request<TestSendResponse>("/api/m5/test-send", {
+      method: "POST",
+      body: JSON.stringify(body),
     });
   },
 };
@@ -1095,6 +1159,45 @@ export const externalApiClient = {
   },
   getDocs() {
     return request<Record<string, unknown>>("/api/external/docs");
+  },
+};
+
+// ─── Reminders (リマインダー) ──────────────────────────────────
+
+export const reminderApi = {
+  /** リマインダー一覧取得 */
+  list(status?: string) {
+    const query = status ? `?status=${status}` : "";
+    return request<ReminderListResponse>(`/api/reminders${query}`);
+  },
+  /** 構造化データで作成 */
+  create(body: { title: string; description?: string; remindAt: string; repeatRule?: string }) {
+    return request<ReminderResponse>("/api/reminders", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  },
+  /** 自由テキストで作成 */
+  parseAndCreate(text: string) {
+    return request<ReminderParseResponse>("/api/reminders/parse", {
+      method: "POST",
+      body: JSON.stringify({ text, source: "web" }),
+    });
+  },
+  /** 更新 */
+  update(id: string, body: { title?: string; description?: string; remindAt?: string; repeatRule?: string; status?: string }) {
+    return request<ReminderResponse>(`/api/reminders/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(body),
+    });
+  },
+  /** 削除 */
+  remove(id: string) {
+    return request<{ deleted: string }>(`/api/reminders/${id}`, { method: "DELETE" });
+  },
+  /** 完了マーク */
+  markDone(id: string) {
+    return request<ReminderResponse>(`/api/reminders/${id}/done`, { method: "PATCH" });
   },
 };
 

@@ -399,4 +399,24 @@ sqlite.exec(`
   CREATE INDEX IF NOT EXISTS idx_api_client_client_id ON api_clients(client_id);
 `);
 
+// Reminders table
+sqlite.exec(`
+  CREATE TABLE IF NOT EXISTS reminders (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL REFERENCES users(id),
+    title TEXT NOT NULL,
+    description TEXT,
+    remind_at TEXT NOT NULL,
+    repeat_rule TEXT NOT NULL DEFAULT 'none',
+    status TEXT NOT NULL DEFAULT 'pending',
+    source TEXT NOT NULL DEFAULT 'web',
+    original_text TEXT,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS idx_reminder_user ON reminders(user_id);
+  CREATE INDEX IF NOT EXISTS idx_reminder_status ON reminders(status);
+  CREATE INDEX IF NOT EXISTS idx_reminder_remind_at ON reminders(remind_at);
+`);
+
 console.log("Database tables initialized successfully.");

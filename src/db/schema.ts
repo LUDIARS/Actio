@@ -395,11 +395,46 @@ export const webhookEndpoints = sqliteTable("webhook_endpoints", {
   /** JSON array of event names */
   events: text("events", { mode: "json" }).$type<string[]>().notNull().default([]),
   secret: text("secret").notNull(),
+  /** Platform: generic / slack / discord / line */
+  platform: text("platform").notNull().default("generic"),
+  /** Send method: webhook / bot */
+  sendMethod: text("send_method").notNull().default("webhook"),
+  /** Bot token (for bot send method) */
+  botToken: text("bot_token"),
+  /** Channel/Room ID (for bot send method) */
+  channelId: text("channel_id"),
   isActive: integer("is_active", { mode: "boolean" }).notNull().default(true),
   createdBy: text("created_by").notNull(),
   failCount: integer("fail_count").notNull().default(0),
   lastDeliveredAt: integer("last_delivered_at", { mode: "timestamp" }),
   createdAt: integer("created_at", { mode: "timestamp" })
+    .$defaultFn(() => new Date())
+    .notNull(),
+});
+
+// ─── M5: Notification Templates ─────────────────────────────
+
+export const notificationTemplates = sqliteTable("notification_templates", {
+  id: text("id").primaryKey(),
+  /** Event name (e.g. "reservation.created") or "*" for default */
+  event: text("event").notNull(),
+  /** Platform: generic / slack / discord / line / all */
+  platform: text("platform").notNull().default("all"),
+  /** Template title (supports {variable} substitution) */
+  title: text("title").notNull(),
+  /** Template body (supports {variable} substitution and code blocks) */
+  body: text("body").notNull(),
+  /** Whether to use code block formatting */
+  useCodeBlock: integer("use_code_block", { mode: "boolean" }).notNull().default(false),
+  /** Code block language (for syntax highlighting) */
+  codeBlockLang: text("code_block_lang"),
+  /** Is system default (non-deletable) */
+  isDefault: integer("is_default", { mode: "boolean" }).notNull().default(false),
+  createdBy: text("created_by").notNull(),
+  createdAt: integer("created_at", { mode: "timestamp" })
+    .$defaultFn(() => new Date())
+    .notNull(),
+  updatedAt: integer("updated_at", { mode: "timestamp" })
     .$defaultFn(() => new Date())
     .notNull(),
 });
@@ -678,6 +713,44 @@ export const apiClients = sqliteTable(
   (table) => [
     index("idx_api_client_user").on(table.userId),
     index("idx_api_client_client_id").on(table.clientId),
+  ]
+);
+
+// ─── Reminders (リマインダー) ────────────────────────────────
+// ユーザーごとのリマインダー。WebUI / API / Alexa 等から登録可能。
+
+export const reminders = sqliteTable(
+  "reminders",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .references(() => users.id)
+      .notNull(),
+    /** リマインダータイトル */
+    title: text("title").notNull(),
+    /** 詳細説明 */
+    description: text("description"),
+    /** 通知日時 (ISO 8601) */
+    remindAt: text("remind_at").notNull(),
+    /** 繰り返しルール: none / daily / weekly / monthly / yearly */
+    repeatRule: text("repeat_rule").notNull().default("none"),
+    /** ステータス: pending / done / cancelled */
+    status: text("status").notNull().default("pending"),
+    /** 登録元: web / api / alexa */
+    source: text("source").notNull().default("web"),
+    /** 自由テキスト入力時の元テキスト */
+    originalText: text("original_text"),
+    createdAt: integer("created_at", { mode: "timestamp" })
+      .$defaultFn(() => new Date())
+      .notNull(),
+    updatedAt: integer("updated_at", { mode: "timestamp" })
+      .$defaultFn(() => new Date())
+      .notNull(),
+  },
+  (table) => [
+    index("idx_reminder_user").on(table.userId),
+    index("idx_reminder_status").on(table.status),
+    index("idx_reminder_remind_at").on(table.remindAt),
   ]
 );
 

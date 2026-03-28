@@ -18,6 +18,7 @@ import { UserManagementPage } from "./pages/UserManagementPage";
 import { DbViewerPage } from "./pages/DbViewerPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { ActivityLogsPage } from "./pages/ActivityLogsPage";
+import { ReminderPage } from "./pages/ReminderPage";
 import { HelpPage } from "./pages/HelpPage";
 import { IntegrationsPage } from "./pages/IntegrationsPage";
 import { SecretsPage } from "./pages/SecretsPage";
@@ -69,6 +70,7 @@ function AppRoutes() {
         <Route path="/notifications" element={<NotificationsPage />} />
         <Route path="/voting" element={<VotingPage />} />
         <Route path="/calendar" element={<CalendarPage />} />
+        <Route path="/reminders" element={<ReminderPage />} />
         <Route path="/admin/users" element={<UserManagementPage />} />
         <Route path="/admin/settings" element={<SettingsPage />} />
         <Route path="/admin/activity-logs" element={<ActivityLogsPage />} />

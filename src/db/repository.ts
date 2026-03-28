@@ -1170,6 +1170,90 @@ export const notificationRepo = {
   },
 };
 
+// ─── Notification Template Repository ────────────────────────
+
+export type NotificationTemplate = typeof schema.notificationTemplates.$inferSelect;
+export type NewNotificationTemplate = typeof schema.notificationTemplates.$inferInsert;
+
+export const notificationTemplateRepo = {
+  async findAll(): Promise<NotificationTemplate[]> {
+    return db.select().from(schema.notificationTemplates);
+  },
+
+  async findById(id: string): Promise<NotificationTemplate | undefined> {
+    const [row] = await db
+      .select()
+      .from(schema.notificationTemplates)
+      .where(eq(schema.notificationTemplates.id, id));
+    return row;
+  },
+
+  async findByEvent(event: string): Promise<NotificationTemplate[]> {
+    return db
+      .select()
+      .from(schema.notificationTemplates)
+      .where(eq(schema.notificationTemplates.event, event));
+  },
+
+  async findByEventAndPlatform(event: string, platform: string): Promise<NotificationTemplate | undefined> {
+    // Try exact match first, then "all" platform, then "*" event
+    const [exact] = await db
+      .select()
+      .from(schema.notificationTemplates)
+      .where(
+        and(
+          eq(schema.notificationTemplates.event, event),
+          eq(schema.notificationTemplates.platform, platform)
+        )
+      );
+    if (exact) return exact;
+
+    const [allPlatform] = await db
+      .select()
+      .from(schema.notificationTemplates)
+      .where(
+        and(
+          eq(schema.notificationTemplates.event, event),
+          eq(schema.notificationTemplates.platform, "all")
+        )
+      );
+    if (allPlatform) return allPlatform;
+
+    const [wildcard] = await db
+      .select()
+      .from(schema.notificationTemplates)
+      .where(
+        and(
+          eq(schema.notificationTemplates.event, "*"),
+          eq(schema.notificationTemplates.platform, platform)
+        )
+      );
+    return wildcard;
+  },
+
+  async create(data: NewNotificationTemplate): Promise<NotificationTemplate> {
+    const [row] = await db.insert(schema.notificationTemplates).values(data).returning();
+    return row;
+  },
+
+  async update(id: string, data: Partial<Omit<NewNotificationTemplate, "id">>): Promise<NotificationTemplate | undefined> {
+    const [row] = await db
+      .update(schema.notificationTemplates)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(schema.notificationTemplates.id, id))
+      .returning();
+    return row;
+  },
+
+  async deleteById(id: string): Promise<boolean> {
+    const result = await db
+      .delete(schema.notificationTemplates)
+      .where(eq(schema.notificationTemplates.id, id))
+      .returning();
+    return result.length > 0;
+  },
+};
+
 // ─── App Settings Repository ──────────────────────────────────
 
 export type AppSetting = typeof schema.appSettings.$inferSelect;
@@ -1484,6 +1568,64 @@ export const apiClientRepo = {
       .update(schema.apiClients)
       .set({ lastUsedAt: new Date() })
       .where(eq(schema.apiClients.id, id));
+  },
+};
+
+// ─── Reminder Repository ────────────────────────────────────
+
+export type Reminder = typeof schema.reminders.$inferSelect;
+export type NewReminder = typeof schema.reminders.$inferInsert;
+
+export const reminderRepo = {
+  async findByUserId(userId: string): Promise<Reminder[]> {
+    return db
+      .select()
+      .from(schema.reminders)
+      .where(eq(schema.reminders.userId, userId))
+      .orderBy(desc(schema.reminders.remindAt));
+  },
+
+  async findById(id: string): Promise<Reminder | undefined> {
+    const [row] = await db
+      .select()
+      .from(schema.reminders)
+      .where(eq(schema.reminders.id, id));
+    return row;
+  },
+
+  async findPending(userId: string): Promise<Reminder[]> {
+    return db
+      .select()
+      .from(schema.reminders)
+      .where(
+        and(
+          eq(schema.reminders.userId, userId),
+          eq(schema.reminders.status, "pending")
+        )
+      )
+      .orderBy(schema.reminders.remindAt);
+  },
+
+  async create(data: NewReminder): Promise<Reminder> {
+    const [row] = await db.insert(schema.reminders).values(data).returning();
+    return row;
+  },
+
+  async update(id: string, data: Partial<Omit<NewReminder, "id">>): Promise<Reminder | undefined> {
+    const [row] = await db
+      .update(schema.reminders)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(schema.reminders.id, id))
+      .returning();
+    return row;
+  },
+
+  async deleteById(id: string): Promise<boolean> {
+    const result = await db
+      .delete(schema.reminders)
+      .where(eq(schema.reminders.id, id))
+      .returning();
+    return result.length > 0;
   },
 };
 
