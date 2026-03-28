@@ -646,6 +646,44 @@ export const syncLogs = sqliteTable(
   ]
 );
 
+// ─── Reminders (リマインダー) ────────────────────────────────
+// ユーザーごとのリマインダー。WebUI / API / Alexa 等から登録可能。
+
+export const reminders = sqliteTable(
+  "reminders",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .references(() => users.id)
+      .notNull(),
+    /** リマインダータイトル */
+    title: text("title").notNull(),
+    /** 詳細説明 */
+    description: text("description"),
+    /** 通知日時 (ISO 8601) */
+    remindAt: text("remind_at").notNull(),
+    /** 繰り返しルール: none / daily / weekly / monthly / yearly */
+    repeatRule: text("repeat_rule").notNull().default("none"),
+    /** ステータス: pending / done / cancelled */
+    status: text("status").notNull().default("pending"),
+    /** 登録元: web / api / alexa */
+    source: text("source").notNull().default("web"),
+    /** 自由テキスト入力時の元テキスト */
+    originalText: text("original_text"),
+    createdAt: integer("created_at", { mode: "timestamp" })
+      .$defaultFn(() => new Date())
+      .notNull(),
+    updatedAt: integer("updated_at", { mode: "timestamp" })
+      .$defaultFn(() => new Date())
+      .notNull(),
+  },
+  (table) => [
+    index("idx_reminder_user").on(table.userId),
+    index("idx_reminder_status").on(table.status),
+    index("idx_reminder_remind_at").on(table.remindAt),
+  ]
+);
+
 // ─── Group Events (グループ個別予定) ──────────────────────────
 // グループ単位の特定日のイベント（学校行事、試験、休校日など）
 // groupSchedules は曜日ベースの繰り返し予定だが、こちらは日付ベースの個別予定
