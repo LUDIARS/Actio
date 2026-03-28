@@ -106,6 +106,33 @@ export const NOTIFICATION_CHANNELS = [
 ] as const;
 export type NotificationChannel = (typeof NOTIFICATION_CHANNELS)[number];
 
+/** Notification platforms */
+export const NOTIFICATION_PLATFORMS = [
+  "generic",
+  "slack",
+  "discord",
+  "line",
+] as const;
+export type NotificationPlatform = (typeof NOTIFICATION_PLATFORMS)[number];
+
+/** Platform display labels */
+export const PLATFORM_LABELS: Record<NotificationPlatform, string> = {
+  generic: "汎用Webhook",
+  slack: "Slack",
+  discord: "Discord",
+  line: "LINE",
+};
+
+/** Platform send methods */
+export const SEND_METHODS = ["webhook", "bot"] as const;
+export type SendMethod = (typeof SEND_METHODS)[number];
+
+/** Send method display labels */
+export const SEND_METHOD_LABELS: Record<SendMethod, string> = {
+  webhook: "Webhook",
+  bot: "Bot",
+};
+
 /** Webhook retry delays in ms */
 export const WEBHOOK_RETRY_DELAYS = [
   10_000, // 10s

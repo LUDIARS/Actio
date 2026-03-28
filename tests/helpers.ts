@@ -193,11 +193,29 @@ export function initTestDatabase() {
       url TEXT NOT NULL,
       events TEXT NOT NULL DEFAULT '[]',
       secret TEXT NOT NULL,
+      platform TEXT NOT NULL DEFAULT 'generic',
+      send_method TEXT NOT NULL DEFAULT 'webhook',
+      bot_token TEXT,
+      channel_id TEXT,
       is_active INTEGER NOT NULL DEFAULT 1,
       created_by TEXT NOT NULL,
       fail_count INTEGER NOT NULL DEFAULT 0,
       last_delivered_at INTEGER,
       created_at INTEGER NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS notification_templates (
+      id TEXT PRIMARY KEY,
+      event TEXT NOT NULL,
+      platform TEXT NOT NULL DEFAULT 'all',
+      title TEXT NOT NULL,
+      body TEXT NOT NULL,
+      use_code_block INTEGER NOT NULL DEFAULT 0,
+      code_block_lang TEXT,
+      is_default INTEGER NOT NULL DEFAULT 0,
+      created_by TEXT NOT NULL,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
     );
 
     CREATE TABLE IF NOT EXISTS webhook_delivery_logs (

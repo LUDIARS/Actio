@@ -1,6 +1,12 @@
 import { useState, useEffect, useCallback } from "react";
 import { m5 } from "../lib/api";
-import type { Webhook, NotificationHistoryItem } from "../lib/api-types";
+import type {
+  Webhook,
+  NotificationHistoryItem,
+  NotificationPlatform,
+  SendMethod,
+  NotificationTemplateItem,
+} from "../lib/api-types";
 import { HelpButton } from "../components/HelpOverlay";
 import { useAuth } from "../contexts/AuthContext";
 
@@ -16,23 +22,66 @@ const AVAILABLE_EVENTS = [
   "sync.conflict",
 ];
 
+const PLATFORMS: { value: NotificationPlatform; label: string }[] = [
+  { value: "generic", label: "汎用Webhook" },
+  { value: "slack", label: "Slack" },
+  { value: "discord", label: "Discord" },
+  { value: "line", label: "LINE" },
+];
+
+const SEND_METHODS: { value: SendMethod; label: string }[] = [
+  { value: "webhook", label: "Webhook" },
+  { value: "bot", label: "Bot" },
+];
+
+const PLATFORM_COLORS: Record<NotificationPlatform, string> = {
+  generic: "blue",
+  slack: "purple",
+  discord: "purple",
+  line: "green",
+};
+
 export function NotificationsPage() {
   const { user } = useAuth();
-  const [tab, setTab] = useState<"notifications" | "webhooks" | "settings">(
-    "notifications"
-  );
+  const [tab, setTab] = useState<
+    "notifications" | "webhooks" | "templates" | "settings"
+  >("notifications");
   const [webhooks, setWebhooks] = useState<Webhook[]>([]);
   const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [templates, setTemplates] = useState<NotificationTemplateItem[]>([]);
   const [message, setMessage] = useState("");
 
   // Webhook form
   const [webhookUrl, setWebhookUrl] = useState("");
   const [webhookEvents, setWebhookEvents] = useState<string[]>([]);
+  const [webhookPlatform, setWebhookPlatform] =
+    useState<NotificationPlatform>("generic");
+  const [webhookSendMethod, setWebhookSendMethod] =
+    useState<SendMethod>("webhook");
+  const [webhookBotToken, setWebhookBotToken] = useState("");
+  const [webhookChannelId, setWebhookChannelId] = useState("");
   const [showWebhookForm, setShowWebhookForm] = useState(false);
   const [newSecret, setNewSecret] = useState("");
 
-  // Settings form - loaded preferences are applied to the form defaults
-  const [, setPrefs] = useState<any>(null);
+  // Template form
+  const [showTemplateForm, setShowTemplateForm] = useState(false);
+  const [tplEvent, setTplEvent] = useState("");
+  const [tplPlatform, setTplPlatform] = useState("all");
+  const [tplTitle, setTplTitle] = useState("");
+  const [tplBody, setTplBody] = useState("");
+  const [tplUseCodeBlock, setTplUseCodeBlock] = useState(false);
+  const [tplCodeBlockLang, setTplCodeBlockLang] = useState("");
+  const [editingTemplateId, setEditingTemplateId] = useState<string | null>(
+    null
+  );
+
+  // Test send
+  const [testEndpointId, setTestEndpointId] = useState("");
+  const [testEvent, setTestEvent] = useState("webhook.test");
+  const [showTestSend, setShowTestSend] = useState(false);
+
+  // Settings form
+  const [, setPrefs] = useState<unknown>(null);
 
   const showMsg = (msg: string) => {
     setMessage(msg);
@@ -47,13 +96,17 @@ export function NotificationsPage() {
       } else if (tab === "notifications") {
         const result = await m5.getHistory();
         setNotifications(result.notifications || []);
+      } else if (tab === "templates") {
+        const result = await m5.listTemplates();
+        setTemplates(result.templates || []);
       } else {
         const result = await m5.getPreferences();
         setPrefs(result);
       }
-    } catch (e: any) {
-      console.error("[NotificationsPage] loadData失敗:", e);
-      showMsg(`Error: ${e.message}`);
+    } catch (e: unknown) {
+      const err = e as Error;
+      console.error("[NotificationsPage] loadData失敗:", err);
+      showMsg(`Error: ${err.message}`);
     }
   }, [tab]);
 
@@ -63,32 +116,42 @@ export function NotificationsPage() {
   }, [loadData]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
+  // ─── Webhook Handlers ────────────────────────────────────────
   const handleCreateWebhook = async () => {
     try {
       const result = await m5.createWebhook({
         url: webhookUrl,
         events: webhookEvents,
+        platform: webhookPlatform,
+        sendMethod: webhookSendMethod,
+        botToken: webhookSendMethod === "bot" ? webhookBotToken : undefined,
+        channelId:
+          webhookSendMethod === "bot" ? webhookChannelId : undefined,
       });
       setNewSecret(result.secret);
       setShowWebhookForm(false);
       setWebhookUrl("");
       setWebhookEvents([]);
-      showMsg("Webhook created. Save the secret!");
+      setWebhookPlatform("generic");
+      setWebhookSendMethod("webhook");
+      setWebhookBotToken("");
+      setWebhookChannelId("");
+      showMsg("エンドポイントを登録しました。Secretを保存してください！");
       loadData();
-    } catch (e: any) {
-      console.error("[NotificationsPage] handleCreateWebhook失敗:", e);
-      showMsg(`Error: ${e.message}`);
+    } catch (e: unknown) {
+      const err = e as Error;
+      showMsg(`Error: ${err.message}`);
     }
   };
 
   const handleDeleteWebhook = async (id: string) => {
     try {
       await m5.deleteWebhook(id);
-      showMsg("Webhook deleted");
+      showMsg("エンドポイントを削除しました");
       loadData();
-    } catch (e: any) {
-      console.error("[NotificationsPage] handleDeleteWebhook失敗:", e);
-      showMsg(`Error: ${e.message}`);
+    } catch (e: unknown) {
+      const err = e as Error;
+      showMsg(`Error: ${err.message}`);
     }
   };
 
@@ -97,12 +160,12 @@ export function NotificationsPage() {
       const result = await m5.testWebhook(id);
       showMsg(
         result.delivered
-          ? `Test delivered (${result.latencyMs}ms)`
-          : `Test failed: ${result.statusCode}`
+          ? `テスト送信成功 (${result.latencyMs}ms, ${result.platform || "generic"})`
+          : `テスト送信失敗: ${result.statusCode}`
       );
-    } catch (e: any) {
-      console.error("[NotificationsPage] handleTestWebhook失敗:", e);
-      showMsg(`Error: ${e.message}`);
+    } catch (e: unknown) {
+      const err = e as Error;
+      showMsg(`Error: ${err.message}`);
     }
   };
 
@@ -110,22 +173,23 @@ export function NotificationsPage() {
     try {
       const result = await m5.rotateSecret(id);
       setNewSecret(result.secret);
-      showMsg("Secret rotated");
-    } catch (e: any) {
-      console.error("[NotificationsPage] handleRotateSecret失敗:", e);
-      showMsg(`Error: ${e.message}`);
+      showMsg("Secretをローテーションしました");
+    } catch (e: unknown) {
+      const err = e as Error;
+      showMsg(`Error: ${err.message}`);
     }
   };
 
+  // ─── Notification Handlers ───────────────────────────────────
   const handleMarkRead = async (id: string) => {
     try {
       await m5.markRead(id);
       setNotifications((prev) =>
         prev.map((n) => (n.id === id ? { ...n, isRead: true } : n))
       );
-    } catch (e: any) {
-      console.error("[NotificationsPage] handleMarkRead失敗:", e);
-      showMsg(`Error: ${e.message}`);
+    } catch (e: unknown) {
+      const err = e as Error;
+      showMsg(`Error: ${err.message}`);
     }
   };
 
@@ -136,7 +200,6 @@ export function NotificationsPage() {
       showMsg("通知を削除しました");
     } catch (e: unknown) {
       const err = e as Error;
-      console.error("[NotificationsPage] handleDeleteNotification失敗:", err);
       showMsg(`Error: ${err.message}`);
     }
   };
@@ -144,6 +207,89 @@ export function NotificationsPage() {
   const canDelete = (n: Notification) => {
     if (!user) return false;
     return n.userId === user.id || user.role === "admin";
+  };
+
+  // ─── Template Handlers ───────────────────────────────────────
+  const resetTemplateForm = () => {
+    setTplEvent("");
+    setTplPlatform("all");
+    setTplTitle("");
+    setTplBody("");
+    setTplUseCodeBlock(false);
+    setTplCodeBlockLang("");
+    setEditingTemplateId(null);
+  };
+
+  const handleCreateTemplate = async () => {
+    try {
+      if (editingTemplateId) {
+        await m5.updateTemplate(editingTemplateId, {
+          event: tplEvent,
+          platform: tplPlatform,
+          title: tplTitle,
+          body: tplBody,
+          useCodeBlock: tplUseCodeBlock,
+          codeBlockLang: tplCodeBlockLang || undefined,
+        });
+        showMsg("テンプレートを更新しました");
+      } else {
+        await m5.createTemplate({
+          event: tplEvent,
+          platform: tplPlatform,
+          title: tplTitle,
+          body: tplBody,
+          useCodeBlock: tplUseCodeBlock,
+          codeBlockLang: tplCodeBlockLang || undefined,
+        });
+        showMsg("テンプレートを作成しました");
+      }
+      setShowTemplateForm(false);
+      resetTemplateForm();
+      loadData();
+    } catch (e: unknown) {
+      const err = e as Error;
+      showMsg(`Error: ${err.message}`);
+    }
+  };
+
+  const handleEditTemplate = (tpl: NotificationTemplateItem) => {
+    setEditingTemplateId(tpl.id);
+    setTplEvent(tpl.event);
+    setTplPlatform(tpl.platform);
+    setTplTitle(tpl.title);
+    setTplBody(tpl.body);
+    setTplUseCodeBlock(tpl.useCodeBlock);
+    setTplCodeBlockLang(tpl.codeBlockLang || "");
+    setShowTemplateForm(true);
+  };
+
+  const handleDeleteTemplate = async (id: string) => {
+    try {
+      await m5.deleteTemplate(id);
+      showMsg("テンプレートを削除しました");
+      loadData();
+    } catch (e: unknown) {
+      const err = e as Error;
+      showMsg(`Error: ${err.message}`);
+    }
+  };
+
+  // ─── Test Send Handler ───────────────────────────────────────
+  const handleTestSend = async () => {
+    try {
+      const result = await m5.testSend({
+        endpointId: testEndpointId,
+        event: testEvent,
+      });
+      showMsg(
+        result.delivered
+          ? `テスト送信成功 (${result.latencyMs}ms, ${result.platform}/${result.sendMethod})`
+          : `テスト送信失敗: ${result.statusCode}`
+      );
+    } catch (e: unknown) {
+      const err = e as Error;
+      showMsg(`Error: ${err.message}`);
+    }
   };
 
   const toggleEvent = (event: string) => {
@@ -158,10 +304,10 @@ export function NotificationsPage() {
     <div>
       <div className="page-header">
         <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-          <h1>M5 Webhook & 通知</h1>
+          <h1>通知 & Webhook管理</h1>
           <HelpButton />
         </div>
-        <p>通知履歴、Webhook管理、通知設定</p>
+        <p>通知履歴、エンドポイント管理、テンプレート設定、テスト送信</p>
       </div>
 
       {message && (
@@ -188,7 +334,8 @@ export function NotificationsPage() {
           }}
         >
           <div style={{ fontSize: "0.8rem", marginBottom: "0.25rem" }}>
-            <strong>Webhook Secret</strong> (save this — it won't be shown again):
+            <strong>Webhook Secret</strong>{" "}
+            (保存してください — 再表示されません):
           </div>
           <code
             style={{
@@ -205,7 +352,7 @@ export function NotificationsPage() {
             style={{ marginLeft: "0.5rem", fontSize: "0.7rem" }}
             onClick={() => {
               navigator.clipboard.writeText(newSecret);
-              showMsg("Copied");
+              showMsg("コピーしました");
             }}
           >
             Copy
@@ -214,7 +361,7 @@ export function NotificationsPage() {
             style={{ marginLeft: "0.25rem", fontSize: "0.7rem" }}
             onClick={() => setNewSecret("")}
           >
-            Dismiss
+            閉じる
           </button>
         </div>
       )}
@@ -231,7 +378,8 @@ export function NotificationsPage() {
         {(
           [
             { key: "notifications", label: "通知履歴" },
-            { key: "webhooks", label: "Webhook管理" },
+            { key: "webhooks", label: "エンドポイント" },
+            { key: "templates", label: "テンプレート" },
             { key: "settings", label: "通知設定" },
           ] as const
         ).map((t) => (
@@ -288,7 +436,13 @@ export function NotificationsPage() {
                     <span style={{ fontWeight: 600, fontSize: "0.85rem" }}>
                       {n.title}
                     </span>
-                    <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
+                    <div
+                      style={{
+                        display: "flex",
+                        gap: "0.5rem",
+                        alignItems: "center",
+                      }}
+                    >
                       <span className="badge purple">{n.event}</span>
                       <span
                         style={{
@@ -309,7 +463,13 @@ export function NotificationsPage() {
                   >
                     {n.body}
                   </p>
-                  <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
+                  <div
+                    style={{
+                      display: "flex",
+                      gap: "0.5rem",
+                      alignItems: "center",
+                    }}
+                  >
                     {!n.isRead && (
                       <button
                         style={{
@@ -341,28 +501,173 @@ export function NotificationsPage() {
         </div>
       )}
 
-      {/* Webhooks Tab */}
+      {/* Webhooks/Endpoints Tab */}
       {tab === "webhooks" && (
         <div>
-          <div className="toolbar">
+          <div className="toolbar" style={{ gap: "0.5rem" }}>
             <button
               className="primary"
-              onClick={() => setShowWebhookForm(!showWebhookForm)}
+              onClick={() => {
+                setShowWebhookForm(!showWebhookForm);
+                setShowTestSend(false);
+              }}
             >
-              {showWebhookForm ? "閉じる" : "Webhook登録"}
+              {showWebhookForm ? "閉じる" : "エンドポイント登録"}
+            </button>
+            <button
+              onClick={() => {
+                setShowTestSend(!showTestSend);
+                setShowWebhookForm(false);
+              }}
+            >
+              {showTestSend ? "閉じる" : "テスト送信"}
             </button>
           </div>
 
+          {/* Test Send Form */}
+          {showTestSend && (
+            <div className="card" style={{ marginBottom: "1rem" }}>
+              <h3
+                style={{
+                  fontSize: "0.85rem",
+                  marginBottom: "0.5rem",
+                }}
+              >
+                テスト送信
+              </h3>
+              <div className="form-group">
+                <label>送信先エンドポイント</label>
+                <select
+                  value={testEndpointId}
+                  onChange={(e) => setTestEndpointId(e.target.value)}
+                >
+                  <option value="">選択してください</option>
+                  {webhooks.map((w) => (
+                    <option key={w.id} value={w.id}>
+                      [{w.platform}] {w.url}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="form-group">
+                <label>イベント種別</label>
+                <select
+                  value={testEvent}
+                  onChange={(e) => setTestEvent(e.target.value)}
+                >
+                  <option value="webhook.test">webhook.test</option>
+                  {AVAILABLE_EVENTS.map((ev) => (
+                    <option key={ev} value={ev}>
+                      {ev}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <button
+                className="primary"
+                onClick={handleTestSend}
+                disabled={!testEndpointId}
+              >
+                テスト送信
+              </button>
+            </div>
+          )}
+
+          {/* Webhook Create Form */}
           {showWebhookForm && (
             <div className="card" style={{ marginBottom: "1rem" }}>
-              <div className="form-group">
-                <label>URL</label>
-                <input
-                  value={webhookUrl}
-                  onChange={(e) => setWebhookUrl(e.target.value)}
-                  placeholder="https://example.com/webhook"
-                />
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "1fr 1fr",
+                  gap: "0.5rem",
+                }}
+              >
+                <div className="form-group">
+                  <label>プラットフォーム</label>
+                  <select
+                    value={webhookPlatform}
+                    onChange={(e) =>
+                      setWebhookPlatform(
+                        e.target.value as NotificationPlatform
+                      )
+                    }
+                  >
+                    {PLATFORMS.map((p) => (
+                      <option key={p.value} value={p.value}>
+                        {p.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label>送信方法</label>
+                  <select
+                    value={webhookSendMethod}
+                    onChange={(e) =>
+                      setWebhookSendMethod(e.target.value as SendMethod)
+                    }
+                  >
+                    {SEND_METHODS.map((m) => (
+                      <option key={m.value} value={m.value}>
+                        {m.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </div>
+
+              {webhookSendMethod === "webhook" && (
+                <div className="form-group">
+                  <label>Webhook URL</label>
+                  <input
+                    value={webhookUrl}
+                    onChange={(e) => setWebhookUrl(e.target.value)}
+                    placeholder={
+                      webhookPlatform === "slack"
+                        ? "https://hooks.slack.com/services/..."
+                        : webhookPlatform === "discord"
+                          ? "https://discord.com/api/webhooks/..."
+                          : webhookPlatform === "line"
+                            ? "https://notify-api.line.me/api/notify"
+                            : "https://example.com/webhook"
+                    }
+                  />
+                </div>
+              )}
+
+              {webhookSendMethod === "bot" && (
+                <>
+                  <div className="form-group">
+                    <label>Bot Token</label>
+                    <input
+                      type="password"
+                      value={webhookBotToken}
+                      onChange={(e) => setWebhookBotToken(e.target.value)}
+                      placeholder={
+                        webhookPlatform === "slack"
+                          ? "xoxb-..."
+                          : webhookPlatform === "discord"
+                            ? "Bot Token"
+                            : "Channel Access Token"
+                      }
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label>
+                      {webhookPlatform === "line"
+                        ? "送信先ID (ユーザー/グループ)"
+                        : "チャンネルID"}
+                    </label>
+                    <input
+                      value={webhookChannelId}
+                      onChange={(e) => setWebhookChannelId(e.target.value)}
+                      placeholder="Channel ID"
+                    />
+                  </div>
+                </>
+              )}
+
               <div className="form-group">
                 <label>購読イベント</label>
                 <div
@@ -400,7 +705,11 @@ export function NotificationsPage() {
               <button
                 className="primary"
                 onClick={handleCreateWebhook}
-                disabled={!webhookUrl}
+                disabled={
+                  webhookSendMethod === "webhook"
+                    ? !webhookUrl
+                    : !webhookBotToken || !webhookChannelId
+                }
               >
                 登録
               </button>
@@ -409,13 +718,15 @@ export function NotificationsPage() {
 
           {webhooks.length === 0 ? (
             <div className="empty-state">
-              <p>登録済みWebhookがありません</p>
+              <p>登録済みエンドポイントがありません</p>
             </div>
           ) : (
             <table className="table">
               <thead>
                 <tr>
-                  <th>URL</th>
+                  <th>Platform</th>
+                  <th>URL / Channel</th>
+                  <th>Method</th>
                   <th>Events</th>
                   <th>Status</th>
                   <th>Failures</th>
@@ -426,15 +737,34 @@ export function NotificationsPage() {
               <tbody>
                 {webhooks.map((w) => (
                   <tr key={w.id}>
+                    <td>
+                      <span
+                        className={`badge ${PLATFORM_COLORS[w.platform] || "blue"}`}
+                      >
+                        {
+                          PLATFORMS.find((p) => p.value === w.platform)
+                            ?.label || w.platform
+                        }
+                      </span>
+                    </td>
                     <td
                       style={{
                         fontSize: "0.8rem",
-                        maxWidth: 200,
+                        maxWidth: 180,
                         overflow: "hidden",
                         textOverflow: "ellipsis",
                       }}
                     >
-                      {w.url}
+                      {w.sendMethod === "bot"
+                        ? `Ch: ${w.channelId || "—"}`
+                        : w.url}
+                    </td>
+                    <td>
+                      <span
+                        className={`badge ${w.sendMethod === "bot" ? "orange" : "blue"}`}
+                      >
+                        {w.sendMethod}
+                      </span>
                     </td>
                     <td>
                       <div
@@ -467,7 +797,12 @@ export function NotificationsPage() {
                       </span>
                     </td>
                     <td>{w.failCount}</td>
-                    <td style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>
+                    <td
+                      style={{
+                        fontSize: "0.75rem",
+                        color: "var(--text-muted)",
+                      }}
+                    >
                       {w.lastDeliveredAt
                         ? new Date(w.lastDeliveredAt).toLocaleString("ja-JP")
                         : "—"}
@@ -502,6 +837,247 @@ export function NotificationsPage() {
                         >
                           Delete
                         </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      )}
+
+      {/* Templates Tab */}
+      {tab === "templates" && (
+        <div>
+          <div className="toolbar">
+            <button
+              className="primary"
+              onClick={() => {
+                if (showTemplateForm) {
+                  resetTemplateForm();
+                }
+                setShowTemplateForm(!showTemplateForm);
+              }}
+            >
+              {showTemplateForm ? "閉じる" : "テンプレート作成"}
+            </button>
+          </div>
+
+          {showTemplateForm && (
+            <div className="card" style={{ marginBottom: "1rem" }}>
+              <h3
+                style={{
+                  fontSize: "0.85rem",
+                  marginBottom: "0.5rem",
+                }}
+              >
+                {editingTemplateId
+                  ? "テンプレート編集"
+                  : "テンプレート作成"}
+              </h3>
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "1fr 1fr",
+                  gap: "0.5rem",
+                }}
+              >
+                <div className="form-group">
+                  <label>対象イベント</label>
+                  <select
+                    value={tplEvent}
+                    onChange={(e) => setTplEvent(e.target.value)}
+                  >
+                    <option value="">選択してください</option>
+                    <option value="*">* (全イベント)</option>
+                    {AVAILABLE_EVENTS.map((ev) => (
+                      <option key={ev} value={ev}>
+                        {ev}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label>対象プラットフォーム</label>
+                  <select
+                    value={tplPlatform}
+                    onChange={(e) => setTplPlatform(e.target.value)}
+                  >
+                    <option value="all">全プラットフォーム</option>
+                    {PLATFORMS.map((p) => (
+                      <option key={p.value} value={p.value}>
+                        {p.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="form-group">
+                <label>
+                  タイトル{" "}
+                  <span
+                    style={{
+                      fontSize: "0.7rem",
+                      color: "var(--text-muted)",
+                    }}
+                  >
+                    ({"{title}"}, {"{day}"}, {"{period}"} 等の変数使用可)
+                  </span>
+                </label>
+                <input
+                  value={tplTitle}
+                  onChange={(e) => setTplTitle(e.target.value)}
+                  placeholder="予約「{title}」が作成されました"
+                />
+              </div>
+
+              <div className="form-group">
+                <label>
+                  本文{" "}
+                  <span
+                    style={{
+                      fontSize: "0.7rem",
+                      color: "var(--text-muted)",
+                    }}
+                  >
+                    ({"{variable}"} で変数展開)
+                  </span>
+                </label>
+                <textarea
+                  value={tplBody}
+                  onChange={(e) => setTplBody(e.target.value)}
+                  rows={4}
+                  placeholder="{day} {period}限 - {room}"
+                  style={{ width: "100%", fontFamily: "monospace" }}
+                />
+              </div>
+
+              <div
+                style={{
+                  display: "flex",
+                  gap: "1rem",
+                  alignItems: "center",
+                  marginBottom: "0.5rem",
+                }}
+              >
+                <label
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "0.25rem",
+                    fontSize: "0.85rem",
+                    cursor: "pointer",
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={tplUseCodeBlock}
+                    onChange={(e) => setTplUseCodeBlock(e.target.checked)}
+                    style={{ width: "auto" }}
+                  />
+                  コードブロックを使用
+                </label>
+                {tplUseCodeBlock && (
+                  <div className="form-group" style={{ marginBottom: 0 }}>
+                    <input
+                      value={tplCodeBlockLang}
+                      onChange={(e) => setTplCodeBlockLang(e.target.value)}
+                      placeholder="言語 (例: json, text)"
+                      style={{ width: 150, fontSize: "0.8rem" }}
+                    />
+                  </div>
+                )}
+              </div>
+
+              <button
+                className="primary"
+                onClick={handleCreateTemplate}
+                disabled={!tplEvent || !tplTitle || !tplBody}
+              >
+                {editingTemplateId ? "更新" : "作成"}
+              </button>
+              {editingTemplateId && (
+                <button
+                  style={{ marginLeft: "0.5rem" }}
+                  onClick={() => {
+                    resetTemplateForm();
+                    setShowTemplateForm(false);
+                  }}
+                >
+                  キャンセル
+                </button>
+              )}
+            </div>
+          )}
+
+          {templates.length === 0 ? (
+            <div className="empty-state">
+              <p>
+                カスタムテンプレートがありません。デフォルトのテンプレートが使用されます。
+              </p>
+            </div>
+          ) : (
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>イベント</th>
+                  <th>プラットフォーム</th>
+                  <th>タイトル</th>
+                  <th>コードブロック</th>
+                  <th />
+                </tr>
+              </thead>
+              <tbody>
+                {templates.map((tpl) => (
+                  <tr key={tpl.id}>
+                    <td>
+                      <span className="badge purple">{tpl.event}</span>
+                    </td>
+                    <td>
+                      <span className="badge blue">{tpl.platform}</span>
+                    </td>
+                    <td style={{ fontSize: "0.8rem" }}>{tpl.title}</td>
+                    <td>
+                      {tpl.useCodeBlock ? (
+                        <span className="badge green">
+                          {tpl.codeBlockLang || "plain"}
+                        </span>
+                      ) : (
+                        <span
+                          style={{
+                            fontSize: "0.75rem",
+                            color: "var(--text-muted)",
+                          }}
+                        >
+                          —
+                        </span>
+                      )}
+                    </td>
+                    <td>
+                      <div style={{ display: "flex", gap: "0.25rem" }}>
+                        <button
+                          style={{
+                            fontSize: "0.7rem",
+                            padding: "0.15rem 0.4rem",
+                          }}
+                          onClick={() => handleEditTemplate(tpl)}
+                        >
+                          編集
+                        </button>
+                        {!tpl.isDefault && (
+                          <button
+                            className="danger"
+                            style={{
+                              fontSize: "0.7rem",
+                              padding: "0.15rem 0.4rem",
+                            }}
+                            onClick={() => handleDeleteTemplate(tpl.id)}
+                          >
+                            削除
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>

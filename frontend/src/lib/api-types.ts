@@ -306,11 +306,17 @@ export interface RoomScheduleResponse {
 
 // ─── Webhooks (M5) ──────────────────────────────────────────
 
+export type NotificationPlatform = "generic" | "slack" | "discord" | "line";
+export type SendMethod = "webhook" | "bot";
+
 export interface Webhook {
   id: string;
   url: string;
   events: string[];
   secret?: string;
+  platform: NotificationPlatform;
+  sendMethod: SendMethod;
+  channelId: string | null;
   isActive: boolean;
   failCount: number;
   lastDeliveredAt: string | null;
@@ -329,12 +335,58 @@ export interface WebhookTestResponse {
   delivered: boolean;
   statusCode: number;
   latencyMs: number;
+  platform?: string;
 }
 
 export interface WebhookRotateResponse {
   id: string;
   secret: string;
   message: string;
+}
+
+export interface NotificationTemplateItem {
+  id: string;
+  event: string;
+  platform: string;
+  title: string;
+  body: string;
+  useCodeBlock: boolean;
+  codeBlockLang: string | null;
+  isDefault: boolean;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface NotificationTemplateListResponse {
+  templates: NotificationTemplateItem[];
+}
+
+export interface NotificationTemplateResponse {
+  template: NotificationTemplateItem;
+}
+
+export interface TemplatePreviewResponse {
+  rendered: {
+    title: string;
+    body: string;
+    useCodeBlock: boolean;
+    codeBlockLang: string | null;
+  };
+}
+
+export interface TestSendResponse {
+  delivered: boolean;
+  statusCode: number | null;
+  latencyMs: number;
+  platform: string;
+  sendMethod: string;
+  rendered: {
+    title: string;
+    body: string;
+    useCodeBlock: boolean;
+    codeBlockLang: string | null;
+  };
 }
 
 export interface WebhookLog {
