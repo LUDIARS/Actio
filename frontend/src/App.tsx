@@ -22,6 +22,7 @@ import { HelpPage } from "./pages/HelpPage";
 import { IntegrationsPage } from "./pages/IntegrationsPage";
 import { SecretsPage } from "./pages/SecretsPage";
 import { InfisicalSetupPage } from "./pages/InfisicalSetupPage";
+import { ApiKeysPage } from "./pages/ApiKeysPage";
 import { setupApi } from "./lib/api";
 import "./global.css";
 
@@ -74,6 +75,7 @@ function AppRoutes() {
         <Route path="/admin/db" element={<DbViewerPage />} />
         <Route path="/admin/secrets" element={<SecretsPage />} />
         <Route path="/integrations" element={<IntegrationsPage />} />
+        <Route path="/api-keys" element={<ApiKeysPage />} />
         <Route path="/help" element={<HelpPage />} />
       </Route>
     </Routes>
