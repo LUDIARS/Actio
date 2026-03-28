@@ -2,6 +2,8 @@ import type {
   SlotStatus,
   ReservationStatus,
   NotificationChannel,
+  NotificationPlatform,
+  SendMethod,
 } from "./constants.js";
 
 // ─── Auth Types ─────────────────────────────────────────────
@@ -145,10 +147,28 @@ export interface WebhookEndpoint {
   url: string;
   events: string[];
   secret: string;
+  platform: NotificationPlatform;
+  sendMethod: SendMethod;
+  botToken: string | null;
+  channelId: string | null;
   isActive: boolean;
   createdBy: string;
   failCount: number;
   lastDeliveredAt: Date | null;
+}
+
+export interface NotificationTemplate {
+  id: string;
+  event: string;
+  platform: string;
+  title: string;
+  body: string;
+  useCodeBlock: boolean;
+  codeBlockLang: string | null;
+  isDefault: boolean;
+  createdBy: string;
+  createdAt: Date;
+  updatedAt: Date;
 }
 
 export interface WebhookPayload {

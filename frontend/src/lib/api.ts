@@ -9,6 +9,8 @@ import type {
   Reservation, ReservationListResponse, RoomScheduleResponse,
   WebhookListResponse, WebhookCreateResponse, WebhookTestResponse, WebhookRotateResponse, WebhookLogsResponse,
   NotificationPreferencesResponse, NotificationHistoryResponse,
+  NotificationTemplateListResponse, NotificationTemplateResponse, TemplatePreviewResponse, TestSendResponse,
+  NotificationPlatform, SendMethod,
   MyPlanListResponse, MyPlanResponse,
   SchedulingTaskListResponse, SchedulingTaskResponse, SolveResponse, ConfirmResponse, SchedulingResultsResponse, SchedulerAvailabilityResponse,
   VotingEventCreateResponse, VotingEventListResponse, VotingEventDetailResponse, VotingSubmitResponse, VotingAutoReplyResponse, VotingUpdateResponse,
@@ -698,7 +700,14 @@ export const m5 = {
   listWebhooks() {
     return request<WebhookListResponse>("/api/m5/webhooks");
   },
-  createWebhook(body: { url: string; events: string[] }) {
+  createWebhook(body: {
+    url: string;
+    events: string[];
+    platform?: NotificationPlatform;
+    sendMethod?: SendMethod;
+    botToken?: string;
+    channelId?: string;
+  }) {
     return request<WebhookCreateResponse>("/api/m5/webhooks", {
       method: "POST",
       body: JSON.stringify(body),
@@ -738,6 +747,60 @@ export const m5 = {
   deleteNotification(id: string) {
     return request<MessageResponse>(`/api/m5/notifications/${id}`, {
       method: "DELETE",
+    });
+  },
+  // Template CRUD
+  listTemplates() {
+    return request<NotificationTemplateListResponse>("/api/m5/templates");
+  },
+  createTemplate(body: {
+    event: string;
+    platform?: string;
+    title: string;
+    body: string;
+    useCodeBlock?: boolean;
+    codeBlockLang?: string;
+  }) {
+    return request<NotificationTemplateResponse>("/api/m5/templates", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  },
+  updateTemplate(id: string, body: {
+    event?: string;
+    platform?: string;
+    title?: string;
+    body?: string;
+    useCodeBlock?: boolean;
+    codeBlockLang?: string;
+  }) {
+    return request<NotificationTemplateResponse>(`/api/m5/templates/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(body),
+    });
+  },
+  deleteTemplate(id: string) {
+    return request<MessageResponse>(`/api/m5/templates/${id}`, { method: "DELETE" });
+  },
+  previewTemplate(body: {
+    event: string;
+    platform?: string;
+    sampleData?: Record<string, unknown>;
+  }) {
+    return request<TemplatePreviewResponse>("/api/m5/templates/preview", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  },
+  // Test send
+  testSend(body: {
+    endpointId: string;
+    event?: string;
+    sampleData?: Record<string, unknown>;
+  }) {
+    return request<TestSendResponse>("/api/m5/test-send", {
+      method: "POST",
+      body: JSON.stringify(body),
     });
   },
 };
