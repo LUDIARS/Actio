@@ -9,7 +9,7 @@ import type {
   Reservation, ReservationListResponse, RoomScheduleResponse,
   WebhookListResponse, WebhookCreateResponse, WebhookTestResponse, WebhookRotateResponse, WebhookLogsResponse,
   NotificationPreferencesResponse, NotificationHistoryResponse,
-  NotificationTemplateListResponse, NotificationTemplateResponse, TemplatePreviewResponse, TestSendResponse,
+  NotificationTemplateListResponse, NotificationTemplateResponse, TemplatePreviewResponse, TestSendResponse, MorningReminderResponse,
   NotificationPlatform, SendMethod,
   MyPlanListResponse, MyPlanResponse,
   SchedulingTaskListResponse, SchedulingTaskResponse, SolveResponse, ConfirmResponse, SchedulingResultsResponse, SchedulerAvailabilityResponse,
@@ -802,6 +802,12 @@ export const m5 = {
     return request<TestSendResponse>("/api/m5/test-send", {
       method: "POST",
       body: JSON.stringify(body),
+    });
+  },
+  // Morning reminder
+  triggerMorningReminder() {
+    return request<MorningReminderResponse>("/api/m5/morning-reminder", {
+      method: "POST",
     });
   },
 };

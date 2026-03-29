@@ -6,6 +6,7 @@ import {
   notificationTemplateRepo,
   webhookEndpointRepo,
   userRepo,
+  reminderRepo,
 } from "../../src/db/repository.js";
 import { webhookRoutes } from "./channels/webhook/routes.js";
 import { dispatchToPlatform } from "./channels/platform-dispatcher.js";
@@ -167,6 +168,44 @@ notification.delete("/notifications/:id", async (c) => {
   logActivity(userId, user?.name || "Unknown", "通知削除", `通知「${notif.title}」を削除しました`);
 
   return c.json({ message: "Notification deleted" });
+});
+
+// ─── POST /morning-reminder — 朝の未完了タスク通知を発行 ─────
+notification.post("/morning-reminder", async (c) => {
+  const userId = getUserId(c);
+  if (!userId) {
+    return c.json({ error: "X-User-Id header required" }, 400);
+  }
+
+  const pending = await reminderRepo.findPending(userId);
+  if (pending.length === 0) {
+    return c.json({ message: "未完了のリマインダーはありません", sent: false });
+  }
+
+  // Build summary of pending reminders
+  const summaryLines = pending.map(
+    (r: { title: string; remindAt: string }) =>
+      `- ${r.title}（${new Date(r.remindAt).toLocaleDateString("ja-JP")}）`
+  );
+  const summaryText = summaryLines.join("\n");
+
+  const { emitEvent } = await import("./core/handler.js");
+  await emitEvent("reminder.morning", {
+    userId,
+    count: pending.length,
+    summary: summaryText,
+    items: pending.map((r: { id: string; title: string; remindAt: string }) => ({
+      id: r.id,
+      title: r.title,
+      remindAt: r.remindAt,
+    })),
+  });
+
+  return c.json({
+    message: `${pending.length}件の未完了リマインダーを通知しました`,
+    sent: true,
+    count: pending.length,
+  });
 });
 
 // ─── Template CRUD Routes ───────────────────────────────────
