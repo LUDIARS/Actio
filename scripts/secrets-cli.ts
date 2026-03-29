@@ -3,13 +3,17 @@
  * Secrets CLI — Infisical シークレット管理 CLI
  *
  * Usage:
- *   npx tsx scripts/secrets-cli.ts setup          # 対話形式で Infisical を設定
- *   npx tsx scripts/secrets-cli.ts test            # 接続テスト
- *   npx tsx scripts/secrets-cli.ts get <KEY>       # キー指定でシークレット取得
- *   npx tsx scripts/secrets-cli.ts list            # シークレット一覧
- *   npx tsx scripts/secrets-cli.ts set <KEY> <VAL> # シークレット作成/更新
+ *   npm run secrets -- setup              対話形式で Infisical を設定
+ *   npm run secrets -- test               接続テスト
+ *   npm run secrets -- get <KEY>          シークレット取得
+ *   npm run secrets -- list               シークレット一覧
+ *   npm run secrets -- set <KEY> <VALUE>  シークレット作成/更新
+ *   npm run secrets -- env                Infisical から .env を生成 (Docker 用)
+ *   npm run secrets -- env --stdout       .env 内容を標準出力
  *
- * 設定ファイル: .env.secrets (Infisical bootstrap credentials)
+ * 設定ファイル:
+ *   .env.secrets  — Infisical bootstrap credentials (CLI が管理)
+ *   .env          — Docker 用環境変数 (env コマンドで生成)
  */
 
 import * as fs from "node:fs";
@@ -20,8 +24,30 @@ import * as readline from "node:readline";
 
 const PROJECT_ROOT = path.resolve(import.meta.dirname, "..");
 const SECRETS_ENV_PATH = path.join(PROJECT_ROOT, ".env.secrets");
+const DOTENV_PATH = path.join(PROJECT_ROOT, ".env");
 const DEFAULT_SITE_URL = "https://app.infisical.com";
 const DEFAULT_ENVIRONMENT = "dev";
+
+/**
+ * Docker 起動に必要なインフラキー。
+ * Infisical にこれらのキーがあれば .env に出力する。
+ * Infisical に無い場合はデフォルト値を使用。
+ */
+const INFRA_KEYS: Record<string, string> = {
+  // Ports
+  FRONTEND_PORT: "8080",
+  BACKEND_PORT: "3000",
+  DB_PORT: "5432",
+  REDIS_PORT: "6379",
+  // Database
+  DB_DIALECT: "postgres",
+  POSTGRES_USER: "schedula",
+  POSTGRES_PASSWORD: "schedula",
+  POSTGRES_DB: "schedula",
+  DATABASE_URL: "postgresql://schedula:schedula@db:5432/schedula",
+  // Redis
+  REDIS_URL: "redis://redis:6379",
+};
 
 // ─── Types ─────────────────────────────────────────────────
 
@@ -77,7 +103,6 @@ function createPrompt(): {
 
     askSecret(question: string): Promise<string> {
       return new Promise((resolve) => {
-        // Disable echo for secret input
         process.stdout.write(`${question}: `);
         const stdin = process.stdin;
         const wasRaw = stdin.isRaw;
@@ -97,10 +122,8 @@ function createPrompt(): {
             process.stdout.write("\n");
             resolve(secret);
           } else if (c === "\u0003") {
-            // Ctrl+C
             process.exit(1);
           } else if (c === "\u007f" || c === "\b") {
-            // Backspace
             if (secret.length > 0) {
               secret = secret.slice(0, -1);
               process.stdout.write("\b \b");
@@ -124,7 +147,6 @@ function createPrompt(): {
 // ─── .env.secrets File I/O ─────────────────────────────────
 
 function loadBootstrap(): InfisicalBootstrap | null {
-  // 1. .env.secrets ファイルから読み込み
   if (fs.existsSync(SECRETS_ENV_PATH)) {
     const content = fs.readFileSync(SECRETS_ENV_PATH, "utf-8");
     const vars = parseEnvFile(content);
@@ -139,7 +161,6 @@ function loadBootstrap(): InfisicalBootstrap | null {
     }
   }
 
-  // 2. 環境変数からフォールバック
   if (
     process.env.INFISICAL_PROJECT_ID &&
     process.env.INFISICAL_CLIENT_ID &&
@@ -182,7 +203,6 @@ function parseEnvFile(content: string): Record<string, string> {
     if (eqIndex === -1) continue;
     const key = trimmed.slice(0, eqIndex).trim();
     let value = trimmed.slice(eqIndex + 1).trim();
-    // Remove surrounding quotes
     if (
       (value.startsWith('"') && value.endsWith('"')) ||
       (value.startsWith("'") && value.endsWith("'"))
@@ -254,14 +274,13 @@ async function getSecretByKey(
   return found ? found.secretValue : null;
 }
 
-async function setSecret(
+async function upsertSecret(
   config: InfisicalBootstrap,
   token: string,
   key: string,
   value: string,
   secretPath = "/"
 ): Promise<void> {
-  // Try update first, then create
   const updateRes = await fetch(
     `${config.siteUrl}/api/v3/secrets/raw/${encodeURIComponent(key)}`,
     {
@@ -304,6 +323,81 @@ async function setSecret(
     const errText = await createRes.text();
     throw new Error(`Failed to set secret: ${createRes.status} ${errText}`);
   }
+}
+
+// ─── .env Generator ────────────────────────────────────────
+
+function requireBootstrap(): InfisicalBootstrap {
+  const config = loadBootstrap();
+  if (!config) {
+    console.error("Error: Infisical が未設定です。先に setup を実行してください。");
+    console.error("  npm run secrets -- setup");
+    process.exit(1);
+  }
+  return config;
+}
+
+/**
+ * Infisical から取得したシークレットをもとに Docker 用 .env を生成する。
+ *
+ * 分類:
+ *   - インフラキー (INFRA_KEYS) → .env に出力 (Docker が直接使用)
+ *   - Infisical bootstrap   → .env に出力 (バックエンドが SecretManager で使用)
+ *   - それ以外              → .env には書かない (バックエンドがランタイムで取得)
+ */
+function buildDotenv(
+  secrets: RawSecret[],
+  bootstrap: InfisicalBootstrap,
+): string {
+  const secretMap = new Map<string, string>();
+  for (const s of secrets) {
+    secretMap.set(s.secretKey, s.secretValue);
+  }
+
+  const lines: string[] = [
+    "# ═══════════════════════════════════════════════════════════════",
+    "# Schedula — Docker 環境変数 (自動生成)",
+    `# Generated: ${new Date().toISOString()}`,
+    "# Source: Infisical (${bootstrap.environment})",
+    "#",
+    "# このファイルは secrets-cli env で再生成できます。",
+    "# 手動編集しても次回の env 実行で上書きされます。",
+    "# ═══════════════════════════════════════════════════════════════",
+    "",
+    "# ─── Infrastructure (Docker Compose 用) ──────────────────────",
+  ];
+
+  // Infra keys: Infisical にあればその値、なければデフォルト
+  for (const [key, defaultValue] of Object.entries(INFRA_KEYS)) {
+    const value = secretMap.get(key) ?? defaultValue;
+    lines.push(`${key}=${value}`);
+  }
+
+  lines.push("");
+  lines.push("# ─── Infisical Bootstrap (バックエンド用) ────────────────────");
+  lines.push(`SECRETS_PROVIDER=infisical`);
+  lines.push(`INFISICAL_SITE_URL=${bootstrap.siteUrl}`);
+  lines.push(`INFISICAL_PROJECT_ID=${bootstrap.projectId}`);
+  lines.push(`INFISICAL_ENVIRONMENT=${bootstrap.environment}`);
+  lines.push(`INFISICAL_CLIENT_ID=${bootstrap.clientId}`);
+  lines.push(`INFISICAL_CLIENT_SECRET=${bootstrap.clientSecret}`);
+  lines.push("");
+
+  // ランタイムで取得されるキーを一覧として記載 (参考用コメント)
+  const runtimeKeys = secrets
+    .map((s) => s.secretKey)
+    .filter((k) => !(k in INFRA_KEYS));
+
+  if (runtimeKeys.length > 0) {
+    lines.push("# ─── Runtime Secrets (バックエンドが Infisical から自動取得) ──");
+    lines.push(`# 以下の ${runtimeKeys.length} 件はサービス内で SecretManager 経由で取得:`);
+    for (const key of runtimeKeys) {
+      lines.push(`#   ${key}`);
+    }
+    lines.push("");
+  }
+
+  return lines.join("\n");
 }
 
 // ─── Commands ──────────────────────────────────────────────
@@ -369,9 +463,10 @@ async function cmdSetup(): Promise<void> {
 
     // 接続テスト
     console.log("\n接続テスト中...");
+    let secrets: RawSecret[] = [];
     try {
       const token = await authenticate(config);
-      const secrets = await fetchSecrets(config, token);
+      secrets = await fetchSecrets(config, token);
       console.log(`✓ 接続成功 — ${secrets.length} 件のシークレットを確認`);
     } catch (err) {
       console.error(
@@ -387,22 +482,28 @@ async function cmdSetup(): Promise<void> {
     // 保存
     saveBootstrap(config);
     console.log(`\n設定を保存しました: ${SECRETS_ENV_PATH}`);
+
+    // .env 自動生成を提案
+    if (secrets.length > 0) {
+      const genEnv = await prompt.ask("Docker 用 .env を生成しますか? (Y/n)", "Y");
+      if (genEnv.toLowerCase() !== "n") {
+        const dotenvContent = buildDotenv(secrets, config);
+        fs.writeFileSync(DOTENV_PATH, dotenvContent, "utf-8");
+        console.log(`✓ ${DOTENV_PATH} を生成しました。`);
+      }
+    }
+
     console.log("\n次のステップ:");
-    console.log("  npx tsx scripts/secrets-cli.ts test   # 接続確認");
-    console.log("  npx tsx scripts/secrets-cli.ts list   # シークレット一覧");
-    console.log("  npx tsx scripts/secrets-cli.ts get JWT_SECRET");
+    console.log("  npm run secrets -- env    # .env 再生成");
+    console.log("  npm run secrets -- list   # シークレット一覧");
+    console.log("  npm run setup            # Docker 起動");
   } finally {
     prompt.close();
   }
 }
 
 async function cmdTest(): Promise<void> {
-  const config = loadBootstrap();
-  if (!config) {
-    console.error("Error: Infisical が未設定です。先に setup を実行してください。");
-    console.error("  npx tsx scripts/secrets-cli.ts setup");
-    process.exit(1);
-  }
+  const config = requireBootstrap();
 
   console.log("接続テスト中...");
   console.log(`  Site URL:    ${config.siteUrl}`);
@@ -415,6 +516,16 @@ async function cmdTest(): Promise<void> {
 
     const secrets = await fetchSecrets(config, token);
     console.log(`✓ シークレット取得成功 — ${secrets.length} 件`);
+
+    // インフラキーの有無をチェック
+    const secretKeys = new Set(secrets.map((s) => s.secretKey));
+    const missingInfra = Object.keys(INFRA_KEYS).filter((k) => !secretKeys.has(k));
+    if (missingInfra.length > 0) {
+      console.log(`\n  ℹ Infisical に未登録のインフラキー (デフォルト値を使用):`);
+      for (const key of missingInfra) {
+        console.log(`    ${key} = ${INFRA_KEYS[key]}`);
+      }
+    }
   } catch (err) {
     console.error(
       `✗ 失敗: ${err instanceof Error ? err.message : err}`
@@ -424,11 +535,7 @@ async function cmdTest(): Promise<void> {
 }
 
 async function cmdGet(key: string): Promise<void> {
-  const config = loadBootstrap();
-  if (!config) {
-    console.error("Error: Infisical が未設定です。先に setup を実行してください。");
-    process.exit(1);
-  }
+  const config = requireBootstrap();
 
   try {
     const token = await authenticate(config);
@@ -439,7 +546,6 @@ async function cmdGet(key: string): Promise<void> {
       process.exit(1);
     }
 
-    // stdout に値のみ出力 (パイプ利用可能)
     process.stdout.write(value);
     if (process.stdout.isTTY) {
       process.stdout.write("\n");
@@ -451,11 +557,7 @@ async function cmdGet(key: string): Promise<void> {
 }
 
 async function cmdList(): Promise<void> {
-  const config = loadBootstrap();
-  if (!config) {
-    console.error("Error: Infisical が未設定です。先に setup を実行してください。");
-    process.exit(1);
-  }
+  const config = requireBootstrap();
 
   try {
     const token = await authenticate(config);
@@ -474,10 +576,15 @@ async function cmdList(): Promise<void> {
         s.secretValue.length > 4
           ? s.secretValue.slice(0, 2) + "***" + s.secretValue.slice(-2)
           : "***";
+      const tag = s.secretKey in INFRA_KEYS ? "  [infra]" : "";
       console.log(
-        `  ${s.secretKey.padEnd(maxKeyLen)}  ${maskedValue}  (v${s.version})`
+        `  ${s.secretKey.padEnd(maxKeyLen)}  ${maskedValue}  (v${s.version})${tag}`
       );
     }
+
+    console.log();
+    console.log("  [infra] = Docker .env に出力されるインフラキー");
+    console.log("  それ以外 = バックエンドが SecretManager 経由でランタイム取得");
   } catch (err) {
     console.error(`Error: ${err instanceof Error ? err.message : err}`);
     process.exit(1);
@@ -485,16 +592,44 @@ async function cmdList(): Promise<void> {
 }
 
 async function cmdSet(key: string, value: string): Promise<void> {
-  const config = loadBootstrap();
-  if (!config) {
-    console.error("Error: Infisical が未設定です。先に setup を実行してください。");
-    process.exit(1);
-  }
+  const config = requireBootstrap();
 
   try {
     const token = await authenticate(config);
-    await setSecret(config, token, key, value);
+    await upsertSecret(config, token, key, value);
     console.log(`✓ シークレット "${key}" を設定しました。`);
+
+    if (key in INFRA_KEYS) {
+      console.log(`  ℹ インフラキーが更新されました。.env を再生成してください:`);
+      console.log(`    npm run secrets -- env`);
+    }
+  } catch (err) {
+    console.error(`Error: ${err instanceof Error ? err.message : err}`);
+    process.exit(1);
+  }
+}
+
+async function cmdEnv(toStdout: boolean): Promise<void> {
+  const config = requireBootstrap();
+
+  try {
+    const token = await authenticate(config);
+    const secrets = await fetchSecrets(config, token);
+
+    const dotenvContent = buildDotenv(secrets, config);
+
+    if (toStdout) {
+      process.stdout.write(dotenvContent);
+    } else {
+      fs.writeFileSync(DOTENV_PATH, dotenvContent, "utf-8");
+      console.log(`✓ ${DOTENV_PATH} を生成しました。`);
+
+      // Summary
+      const infraCount = secrets.filter((s) => s.secretKey in INFRA_KEYS).length;
+      const runtimeCount = secrets.length - infraCount;
+      console.log(`  インフラキー: ${infraCount} 件 (Infisical) + ${Object.keys(INFRA_KEYS).length - infraCount} 件 (デフォルト)`);
+      console.log(`  ランタイム:   ${runtimeCount} 件 (SecretManager が自動取得)`);
+    }
   } catch (err) {
     console.error(`Error: ${err instanceof Error ? err.message : err}`);
     process.exit(1);
@@ -507,14 +642,23 @@ function printUsage(): void {
   console.log("Schedula Secrets CLI — Infisical シークレット管理");
   console.log();
   console.log("Usage:");
-  console.log("  npm run secrets setup              対話形式で Infisical を設定");
-  console.log("  npm run secrets test               接続テスト");
-  console.log("  npm run secrets get <KEY>           シークレット取得");
-  console.log("  npm run secrets list                シークレット一覧");
-  console.log("  npm run secrets set <KEY> <VALUE>   シークレット作成/更新");
+  console.log("  npm run secrets -- setup              対話形式で Infisical を設定");
+  console.log("  npm run secrets -- test               接続テスト");
+  console.log("  npm run secrets -- get <KEY>          シークレット取得");
+  console.log("  npm run secrets -- list               シークレット一覧");
+  console.log("  npm run secrets -- set <KEY> <VALUE>  シークレット作成/更新");
+  console.log("  npm run secrets -- env                Infisical → .env 生成");
+  console.log("  npm run secrets -- env --stdout       .env 内容を標準出力");
   console.log();
   console.log("設定ファイル:");
-  console.log(`  ${SECRETS_ENV_PATH}`);
+  console.log(`  ${SECRETS_ENV_PATH}  — Infisical 認証情報`);
+  console.log(`  ${DOTENV_PATH}            — Docker 用環境変数 (生成)`);
+  console.log();
+  console.log("フロー:");
+  console.log("  1. setup → Infisical 認証情報を .env.secrets に保存");
+  console.log("  2. env   → Infisical から取得 → Docker 用 .env を生成");
+  console.log("  3. docker compose up → .env を読んで起動");
+  console.log("  4. バックエンド内で SecretManager が残りのシークレットを取得");
 }
 
 const [command, ...args] = process.argv.slice(2);
@@ -529,7 +673,7 @@ switch (command) {
   case "get":
     if (!args[0]) {
       console.error("Error: キーを指定してください。");
-      console.error("  npm run secrets get <KEY>");
+      console.error("  npm run secrets -- get <KEY>");
       process.exit(1);
     }
     await cmdGet(args[0]);
@@ -540,10 +684,13 @@ switch (command) {
   case "set":
     if (!args[0] || !args[1]) {
       console.error("Error: キーと値を指定してください。");
-      console.error("  npm run secrets set <KEY> <VALUE>");
+      console.error("  npm run secrets -- set <KEY> <VALUE>");
       process.exit(1);
     }
     await cmdSet(args[0], args[1]);
+    break;
+  case "env":
+    await cmdEnv(args.includes("--stdout"));
     break;
   default:
     printUsage();

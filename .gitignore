@@ -3,7 +3,6 @@ dist/
 .env
 .env.local
 .env.secrets
-config/infra.env
 *.log
 data/
 logs/

@@ -2,28 +2,29 @@
 # ═══════════════════════════════════════════════════════════════
 # Schedula — Docker 起動前セットアップスクリプト
 #
+# フロー:
+#   1. secrets-cli setup  → Infisical 認証情報を .env.secrets に保存
+#   2. secrets-cli env    → Infisical → Docker 用 .env を生成
+#   3. docker compose up  → .env を読んで起動
+#
 # Usage:
-#   ./scripts/setup.sh          # 対話セットアップ → docker compose up
+#   ./scripts/setup.sh          # セットアップ → docker compose up
 #   ./scripts/setup.sh --no-up  # セットアップのみ (Docker 起動しない)
 #   ./scripts/setup.sh --dev    # 開発モードで docker compose up
+#   ./scripts/setup.sh --env    # .env 再生成のみ (setup スキップ)
 # ═══════════════════════════════════════════════════════════════
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
-INFRA_ENV="$PROJECT_ROOT/config/infra.env"
-INFRA_ENV_EXAMPLE="$PROJECT_ROOT/config/infra.env.example"
 SECRETS_ENV="$PROJECT_ROOT/.env.secrets"
+DOTENV="$PROJECT_ROOT/.env"
 
 # Colors (disabled if not a TTY)
 if [ -t 1 ]; then
-  BOLD="\033[1m"
-  GREEN="\033[32m"
-  YELLOW="\033[33m"
-  CYAN="\033[36m"
-  RED="\033[31m"
-  RESET="\033[0m"
+  BOLD="\033[1m" GREEN="\033[32m" YELLOW="\033[33m"
+  CYAN="\033[36m" RED="\033[31m" RESET="\033[0m"
 else
   BOLD="" GREEN="" YELLOW="" CYAN="" RED="" RESET=""
 fi
@@ -38,150 +39,36 @@ header() {
   echo ""
 }
 
-step() {
-  echo -e "${BOLD}${GREEN}▸ $1${RESET}"
-}
-
-warn() {
-  echo -e "${YELLOW}  ⚠ $1${RESET}"
-}
-
-info() {
-  echo -e "  ${CYAN}$1${RESET}"
-}
-
-err() {
-  echo -e "${RED}  ✗ $1${RESET}"
-}
-
-ask() {
-  local prompt="$1"
-  local default="${2:-}"
-  local result
-
-  if [ -n "$default" ]; then
-    read -rp "  $prompt [$default]: " result
-    echo "${result:-$default}"
-  else
-    read -rp "  $prompt: " result
-    echo "$result"
-  fi
-}
+step() { echo -e "${BOLD}${GREEN}▸ $1${RESET}"; }
+warn() { echo -e "${YELLOW}  ⚠ $1${RESET}"; }
+info() { echo -e "  ${CYAN}$1${RESET}"; }
+err()  { echo -e "${RED}  ✗ $1${RESET}"; }
 
 ask_yn() {
-  local prompt="$1"
-  local default="${2:-y}"
-  local result
-
+  local prompt="$1" default="${2:-y}" result
   if [ "$default" = "y" ]; then
-    read -rp "  $prompt [Y/n]: " result
-    result="${result:-y}"
+    read -rp "  $prompt [Y/n]: " result; result="${result:-y}"
   else
-    read -rp "  $prompt [y/N]: " result
-    result="${result:-n}"
+    read -rp "  $prompt [y/N]: " result; result="${result:-n}"
   fi
-
   [[ "$result" =~ ^[Yy] ]]
 }
 
-# ─── Step 1: Infrastructure Config ──────────────────────────
-
-setup_infra() {
-  step "Step 1/2: インフラ設定 (config/infra.env)"
-  echo ""
-
-  if [ -f "$INFRA_ENV" ]; then
-    info "既存の config/infra.env が見つかりました。"
-    echo ""
-    # Show current values
-    grep -v '^\s*#' "$INFRA_ENV" | grep -v '^\s*$' | while IFS='=' read -r key value; do
-      info "  $key = $value"
-    done
-    echo ""
-
-    if ! ask_yn "設定を変更しますか?" "n"; then
-      info "スキップしました。"
-      return
-    fi
-  else
-    info "config/infra.env が見つかりません。テンプレートから作成します。"
-    echo ""
+require_npx() {
+  if ! command -v npx &>/dev/null; then
+    err "npx が見つかりません。Node.js をインストールしてください。"
+    exit 1
   fi
-
-  # Load defaults from existing file or example
-  local source_file="$INFRA_ENV"
-  if [ ! -f "$source_file" ]; then
-    source_file="$INFRA_ENV_EXAMPLE"
-  fi
-
-  # Read current/default values
-  local cur_frontend_port cur_backend_port cur_db_port cur_redis_port
-  local cur_db_dialect cur_pg_user cur_pg_pass cur_pg_db
-
-  cur_frontend_port=$(grep -E '^FRONTEND_PORT=' "$source_file" 2>/dev/null | cut -d= -f2 || echo "8080")
-  cur_backend_port=$(grep -E '^BACKEND_PORT=' "$source_file" 2>/dev/null | cut -d= -f2 || echo "3000")
-  cur_db_port=$(grep -E '^DB_PORT=' "$source_file" 2>/dev/null | cut -d= -f2 || echo "5432")
-  cur_redis_port=$(grep -E '^REDIS_PORT=' "$source_file" 2>/dev/null | cut -d= -f2 || echo "6379")
-  cur_db_dialect=$(grep -E '^DB_DIALECT=' "$source_file" 2>/dev/null | cut -d= -f2 || echo "postgres")
-  cur_pg_user=$(grep -E '^POSTGRES_USER=' "$source_file" 2>/dev/null | cut -d= -f2 || echo "schedula")
-  cur_pg_pass=$(grep -E '^POSTGRES_PASSWORD=' "$source_file" 2>/dev/null | cut -d= -f2 || echo "schedula")
-  cur_pg_db=$(grep -E '^POSTGRES_DB=' "$source_file" 2>/dev/null | cut -d= -f2 || echo "schedula")
-
-  echo -e "  ${BOLD}ポート設定:${RESET}"
-  local frontend_port backend_port db_port redis_port
-  frontend_port=$(ask "Frontend ポート" "$cur_frontend_port")
-  backend_port=$(ask "Backend ポート" "$cur_backend_port")
-  db_port=$(ask "PostgreSQL ポート" "$cur_db_port")
-  redis_port=$(ask "Redis ポート" "$cur_redis_port")
-
-  echo ""
-  echo -e "  ${BOLD}データベース設定:${RESET}"
-  local db_dialect pg_user pg_pass pg_db
-  db_dialect=$(ask "DB方言 (postgres/sqlite/mysql)" "$cur_db_dialect")
-  pg_user=$(ask "PostgreSQL ユーザー" "$cur_pg_user")
-  pg_pass=$(ask "PostgreSQL パスワード" "$cur_pg_pass")
-  pg_db=$(ask "PostgreSQL データベース名" "$cur_pg_db")
-
-  # Build DATABASE_URL
-  local database_url="postgresql://${pg_user}:${pg_pass}@db:5432/${pg_db}"
-
-  # Write config
-  mkdir -p "$(dirname "$INFRA_ENV")"
-  cat > "$INFRA_ENV" << ENVEOF
-# ─── Infrastructure Configuration ─────────────────────────────
-# setup.sh で自動生成。手動編集可。
-# ──────────────────────────────────────────────────────────────
-
-# ─── Port Configuration ──────────────────────────────────────
-FRONTEND_PORT=${frontend_port}
-BACKEND_PORT=${backend_port}
-DB_PORT=${db_port}
-REDIS_PORT=${redis_port}
-
-# ─── Database ────────────────────────────────────────────────
-DB_DIALECT=${db_dialect}
-POSTGRES_USER=${pg_user}
-POSTGRES_PASSWORD=${pg_pass}
-POSTGRES_DB=${pg_db}
-
-# ─── Internal Service URLs (Docker network) ──────────────────
-DATABASE_URL=${database_url}
-REDIS_URL=redis://redis:${redis_port}
-ENVEOF
-
-  echo ""
-  info "config/infra.env を保存しました。"
 }
 
-# ─── Step 2: Secrets (Infisical) ────────────────────────────
+# ─── Step 1: Infisical Setup ───────────────────────────────
 
-setup_secrets() {
-  step "Step 2/2: シークレット管理 (Infisical)"
+setup_infisical() {
+  step "Step 1/2: Infisical 認証設定"
   echo ""
 
   if [ -f "$SECRETS_ENV" ]; then
     info "既存の .env.secrets が見つかりました。"
-    # Show masked client ID
     local existing_id
     existing_id=$(grep -E '^INFISICAL_CLIENT_ID=' "$SECRETS_ENV" 2>/dev/null | cut -d= -f2 || echo "")
     if [ -n "$existing_id" ]; then
@@ -190,35 +77,40 @@ setup_secrets() {
     echo ""
 
     if ! ask_yn "Infisical の設定を変更しますか?" "n"; then
-      info "スキップしました。"
-      return
+      info "既存の設定を使用します。"
+      return 0
     fi
   fi
 
-  if ! ask_yn "Infisical でシークレットを管理しますか?" "y"; then
-    warn "スキップしました。環境変数フォールバックモードで動作します。"
-    warn ".env ファイルに JWT_SECRET 等を直接設定してください。"
-    return
-  fi
-
-  # Check if tsx is available
-  if ! command -v npx &>/dev/null; then
-    err "npx が見つかりません。Node.js をインストールしてください。"
-    return 1
-  fi
-
+  require_npx
   echo ""
-  info "secrets-cli を起動します..."
-  echo ""
-
-  # Delegate to the TypeScript CLI for interactive setup
   (cd "$PROJECT_ROOT" && npx tsx scripts/secrets-cli.ts setup)
+}
+
+# ─── Step 2: Generate .env ─────────────────────────────────
+
+generate_dotenv() {
+  step "Step 2/2: .env 生成 (Infisical → Docker 用)"
+  echo ""
+
+  if [ ! -f "$SECRETS_ENV" ]; then
+    err ".env.secrets が見つかりません。先に Infisical のセットアップを実行してください。"
+    exit 1
+  fi
+
+  require_npx
+  (cd "$PROJECT_ROOT" && npx tsx scripts/secrets-cli.ts env)
 }
 
 # ─── Step 3: Docker Compose Up ──────────────────────────────
 
 docker_up() {
   local mode="${1:-}"
+
+  if [ ! -f "$DOTENV" ]; then
+    err ".env が見つかりません。先に env を実行してください。"
+    exit 1
+  fi
 
   step "Docker Compose を起動します..."
   echo ""
@@ -237,8 +129,8 @@ docker_up() {
 
   # Show access URLs
   local frontend_port backend_port
-  frontend_port=$(grep -E '^FRONTEND_PORT=' "$INFRA_ENV" 2>/dev/null | cut -d= -f2 || echo "8080")
-  backend_port=$(grep -E '^BACKEND_PORT=' "$INFRA_ENV" 2>/dev/null | cut -d= -f2 || echo "3000")
+  frontend_port=$(grep -E '^FRONTEND_PORT=' "$DOTENV" 2>/dev/null | cut -d= -f2 || echo "8080")
+  backend_port=$(grep -E '^BACKEND_PORT=' "$DOTENV" 2>/dev/null | cut -d= -f2 || echo "3000")
 
   echo ""
   echo -e "  ${BOLD}アクセス URL:${RESET}"
@@ -253,20 +145,22 @@ docker_up() {
 # ─── Main ───────────────────────────────────────────────────
 
 main() {
-  local no_up=false
-  local dev_mode=false
+  local no_up=false dev_mode=false env_only=false
 
   for arg in "$@"; do
     case "$arg" in
-      --no-up)  no_up=true ;;
-      --dev)    dev_mode=true ;;
+      --no-up)   no_up=true ;;
+      --dev)     dev_mode=true ;;
+      --env)     env_only=true ;;
       --help|-h)
         echo "Usage: ./scripts/setup.sh [OPTIONS]"
         echo ""
         echo "Options:"
-        echo "  --no-up    セットアップのみ (Docker 起動しない)"
-        echo "  --dev      開発モードで起動"
-        echo "  --help     このヘルプを表示"
+        echo "  (default)    Infisical 設定 → .env 生成 → Docker 起動"
+        echo "  --no-up      セットアップのみ (Docker 起動しない)"
+        echo "  --dev        開発モードで起動"
+        echo "  --env        .env 再生成のみ (Infisical 設定スキップ)"
+        echo "  --help       このヘルプを表示"
         exit 0
         ;;
     esac
@@ -274,26 +168,25 @@ main() {
 
   header
 
-  # Step 1: Infrastructure
-  setup_infra
-
-  echo ""
-
-  # Step 2: Secrets
-  setup_secrets
-
-  echo ""
-
-  # Step 3: Docker
-  if [ "$no_up" = true ]; then
-    step "セットアップ完了"
-    info "Docker を起動するには: docker compose up -d"
+  if [ "$env_only" = true ]; then
+    # .env 再生成のみ
+    generate_dotenv
   else
-    if [ "$dev_mode" = true ]; then
-      docker_up "dev"
-    else
-      docker_up
-    fi
+    # Full setup
+    setup_infisical
+    echo ""
+    generate_dotenv
+  fi
+
+  echo ""
+
+  if [ "$no_up" = true ] || [ "$env_only" = true ]; then
+    step "完了"
+    info "Docker を起動するには: docker compose up -d"
+  elif [ "$dev_mode" = true ]; then
+    docker_up "dev"
+  else
+    docker_up
   fi
 }
 
