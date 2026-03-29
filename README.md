@@ -56,53 +56,95 @@
 
 ### 前提条件
 
-- Node.js v18+
+- Node.js v20+
 - npm v9+
+- Docker / Docker Compose
 
-### インストール
+### クイックスタート (Docker)
+
+```bash
+# 1. リポジトリをクローン
+git clone <repository-url>
+cd Schedula
+
+# 2. 依存関係のインストール
+npm install
+
+# 3. セットアップ → Docker 起動 (対話形式)
+npm run setup
+```
+
+`npm run setup` は以下を順に実行します:
+
+1. **Infisical 認証設定** — Client ID / Secret / Project ID を対話入力 → `.env.secrets` に保存
+2. **`.env` 生成** — Infisical から全設定を取得し Docker 用 `.env` を自動生成
+3. **`docker compose up`** — 生成された `.env` でコンテナ起動
+
+### 環境変数管理
+
+環境変数は [Infisical](https://infisical.com/) で一元管理します。
+
+```
+┌─────────────────────────────────────────────────────────┐
+│  env-cli setup   → Infisical 認証 (.env.secrets)        │
+│  env-cli env     → Infisical → .env 生成                │
+│  docker compose  → .env を読んで起動                     │
+│  バックエンド     → SecretManager がランタイムで取得      │
+└─────────────────────────────────────────────────────────┘
+```
+
+| 層 | 管理方法 | 例 |
+|---|---|---|
+| **インフラ設定** | Infisical → `.env` に出力 → Docker が使用 | ポート, DB接続先, Redis URL |
+| **シークレット** | バックエンドが Infisical API でランタイム取得 | JWT_SECRET, Google OAuth |
+
+#### secrets CLI
+
+```bash
+npm run secrets -- setup              # Infisical 認証設定
+npm run secrets -- env                # .env 再生成
+npm run secrets -- list               # シークレット一覧
+npm run secrets -- get <KEY>          # 値取得
+npm run secrets -- set <KEY> <VALUE>  # 値設定
+npm run secrets -- test               # 接続テスト
+```
+
+#### Infisical を使わない場合
+
+`.env.example` をコピーして手動設定:
+
+```bash
+cp .env.example .env
+# .env を編集して値を設定
+docker compose up -d
+```
+
+### ローカル開発 (Docker なし)
 
 ```bash
 # バックエンド
 npm install
+npm run dev          # http://localhost:3000
 
 # フロントエンド
-cd frontend && npm install && cd ..
+cd frontend && npm install
+npm run dev          # http://localhost:5173
 ```
 
-### 環境変数
-
-`.env` ファイルをプロジェクトルートに作成します。
+`.env` に以下を設定:
 
 ```bash
-PORT=3000
-
-# データベース (sqlite / postgres / mysql)
 DB_DIALECT=sqlite
 DATABASE_PATH=data/schedula.db
-
-# JWT
-JWT_SECRET=your-secret-key-change-in-production
-
-# Google OAuth (任意)
-GOOGLE_CLIENT_ID=
-GOOGLE_CLIENT_SECRET=
-GOOGLE_REDIRECT_URI=http://localhost:3000/api/auth/google/callback
+JWT_SECRET=dev-secret
 ```
 
-### データベース初期化
+### Docker 開発モード (ホットリロード)
 
 ```bash
-npm run db:init
-```
-
-### 起動
-
-```bash
-# バックエンド (http://localhost:3000)
-npm run dev
-
-# フロントエンド (http://localhost:5173)
-cd frontend && npm run dev
+npm run setup -- --dev
+# または
+./scripts/setup.sh --dev
 ```
 
 ## モジュール開発
@@ -131,9 +173,12 @@ export const myModule: SchulaModule = {
 
 | コマンド | 説明 |
 |---|---|
+| `npm run setup` | 対話セットアップ → Docker 起動 |
+| `npm run secrets -- <cmd>` | Infisical シークレット管理 CLI |
 | `npm run dev` | 開発サーバー (ホットリロード) |
 | `npm run build` | TypeScript コンパイル |
 | `npm start` | 本番サーバー |
+| `npm test` | テスト実行 |
 | `npm run db:init` | DB 初期化 |
 | `npm run db:generate` | マイグレーション生成 |
 | `npm run db:migrate` | マイグレーション実行 |

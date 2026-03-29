@@ -16,6 +16,8 @@
     "redis:import": "tsx scripts/redis-import.ts",
     "db:export": "tsx scripts/db-export.ts",
     "db:import": "tsx scripts/db-import.ts",
+    "secrets": "tsx packages/env-cli/src/cli.ts",
+    "setup": "bash scripts/setup.sh",
     "test": "vitest run",
     "test:watch": "vitest"
   },

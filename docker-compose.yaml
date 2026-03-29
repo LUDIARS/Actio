@@ -1,3 +1,15 @@
+## ─── Docker Compose ────────────────────────────────────────
+##
+## .env は secrets-cli env (または setup.sh) で自動生成される。
+## Infisical からインフラ設定 + bootstrap credentials を取得し、
+## バックエンド内で SecretManager が残りのシークレットをランタイム取得する。
+##
+## Usage:
+##   ./scripts/setup.sh           # 初回: Infisical 設定 → .env 生成 → 起動
+##   ./scripts/setup.sh --env     # .env 再生成のみ
+##   docker compose up -d         # .env 生成済みなら直接起動可
+## ─────────────────────────────────────────────────────────────
+
 services:
   # ─── Redis (セッション永続化) ───────────────────────────────
   redis:
@@ -19,15 +31,15 @@ services:
     image: postgres:16-alpine
     restart: unless-stopped
     environment:
-      POSTGRES_USER: schedula
-      POSTGRES_PASSWORD: schedula
-      POSTGRES_DB: schedula
+      POSTGRES_USER: ${POSTGRES_USER:-schedula}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-schedula}
+      POSTGRES_DB: ${POSTGRES_DB:-schedula}
     ports:
       - "${DB_PORT:-5432}:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U schedula"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-schedula}"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -41,15 +53,19 @@ services:
     ports:
       - "${BACKEND_PORT:-3000}:3000"
     environment:
+      # ─ Infra (from .env) ─
       PORT: "3000"
-      DB_DIALECT: postgres
-      DATABASE_URL: postgresql://schedula:schedula@db:5432/schedula
-      JWT_SECRET: ${JWT_SECRET:-change-me-in-production}
-      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
-      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
-      GOOGLE_REDIRECT_URI: ${GOOGLE_REDIRECT_URI:-}
+      DB_DIALECT: ${DB_DIALECT:-postgres}
+      DATABASE_URL: ${DATABASE_URL:-postgresql://schedula:schedula@db:5432/schedula}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379}
       FRONTEND_URL: ${FRONTEND_URL:-}
-      REDIS_URL: redis://redis:6379
+      # ─ Infisical bootstrap (バックエンドが SecretManager で残りを取得) ─
+      SECRETS_PROVIDER: ${SECRETS_PROVIDER:-}
+      INFISICAL_SITE_URL: ${INFISICAL_SITE_URL:-}
+      INFISICAL_PROJECT_ID: ${INFISICAL_PROJECT_ID:-}
+      INFISICAL_ENVIRONMENT: ${INFISICAL_ENVIRONMENT:-}
+      INFISICAL_CLIENT_ID: ${INFISICAL_CLIENT_ID:-}
+      INFISICAL_CLIENT_SECRET: ${INFISICAL_CLIENT_SECRET:-}
     depends_on:
       db:
         condition: service_healthy
