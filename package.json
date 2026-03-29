@@ -17,6 +17,8 @@
     "db:export": "tsx scripts/db-export.ts",
     "db:import": "tsx scripts/db-import.ts",
     "secrets": "tsx scripts/secrets-cli.ts",
+    "setup": "bash scripts/setup.sh",
+    "setup:no-up": "bash scripts/setup.sh --no-up",
     "test": "vitest run",
     "test:watch": "vitest"
   },
