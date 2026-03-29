@@ -1,17 +1,5 @@
-import type { Context } from "hono";
-
 /**
- * ミドルウェアが設定したユーザーIDを取得（JWT認証優先、ヘッダーフォールバック）
- *
- * userContext() ミドルウェアが JWT から抽出した userId を優先し、
- * フォールバックとして X-User-Id ヘッダーを参照する。
+ * ユーザーID/ロール取得ヘルパー — @schedula/auth パッケージに委譲
  */
-export function getUserId(c: Context): string | null {
-  const ctxId = c.get("userId" as never) as string | undefined;
-  if (ctxId && ctxId !== "anonymous") return ctxId;
-  return c.req.header("X-User-Id") || null;
-}
 
-export function getUserRole(c: Context): string {
-  return (c.get("userRole" as never) as string) || "general";
-}
+export { getUserId, getUserRole } from "../../packages/auth/src/index.js";
