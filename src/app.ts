@@ -15,6 +15,7 @@ import { reminderRoutes } from "../modules/reminder/routes.js";
 import { alexaRoutes } from "../modules/reminder/extensions/alexa/routes.js";
 import { integrations } from "../modules/integrations/index.js";
 import { dbViewer } from "./admin/db-viewer.js";
+import { externalApi } from "../modules/external-api/routes.js";
 import { settingsRoutes } from "../modules/settings/routes.js";
 import { secretsRoutes } from "../modules/secrets/routes.js";
 import { initNotificationHandler } from "../modules/notification/core/handler.js";
@@ -87,6 +88,9 @@ export function createApp() {
 
   // ─── Module: Integrations (外部サービス連携) ──────────────────
   app.route("/api/integrations", integrations);
+
+  // ─── Module: External API (外部API連携) ─────────────────────
+  app.route("/api/external", externalApi);
 
   // ─── School Module (学校カリキュラム管理 + 施設予約: M1) ─────
   const modules: SchulaModule[] = [schoolModule];
@@ -174,6 +178,7 @@ export function createApp() {
         webhooks: "Webhook・リマインド通知 - /api/webhooks",
         voting: "日程調整Voting - /api/voting",
         integrations: "外部サービス連携 (Google Calendar同期・Notion) - /api/integrations",
+        externalApi: "外部API連携 (カレンダー・リマインダー・予定設定) - /api/external",
       },
       reservationPlugins: getReservationPlugins().map((p) => ({
         id: p.id,

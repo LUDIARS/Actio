@@ -681,6 +681,41 @@ export const syncLogs = sqliteTable(
   ]
 );
 
+// ─── API Clients (外部API連携用クレデンシャル) ─────────────────
+// 各ユーザがAPIクライアントを発行し、外部からAPI操作が可能
+
+export const apiClients = sqliteTable(
+  "api_clients",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .references(() => users.id)
+      .notNull(),
+    /** クライアントID (公開値、再発行可能) */
+    clientId: text("client_id").notNull().unique(),
+    /** クライアントシークレット (bcryptハッシュで保存) */
+    clientSecretHash: text("client_secret_hash").notNull(),
+    /** 表示名 (ユーザが管理しやすいように) */
+    name: text("name").notNull(),
+    /** 許可スコープ JSON array ["calendar", "reminders", "schedules"] */
+    scopes: text("scopes", { mode: "json" }).$type<string[]>().notNull().default(["calendar", "reminders", "schedules"]),
+    /** 有効/無効 */
+    isActive: integer("is_active", { mode: "boolean" }).notNull().default(true),
+    /** 最終使用日時 */
+    lastUsedAt: integer("last_used_at", { mode: "timestamp" }),
+    createdAt: integer("created_at", { mode: "timestamp" })
+      .$defaultFn(() => new Date())
+      .notNull(),
+    updatedAt: integer("updated_at", { mode: "timestamp" })
+      .$defaultFn(() => new Date())
+      .notNull(),
+  },
+  (table) => [
+    index("idx_api_client_user").on(table.userId),
+    index("idx_api_client_client_id").on(table.clientId),
+  ]
+);
+
 // ─── Reminders (リマインダー) ────────────────────────────────
 // ユーザーごとのリマインダー。WebUI / API / Alexa 等から登録可能。
 

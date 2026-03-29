@@ -381,6 +381,24 @@ sqlite.exec(`
   CREATE INDEX IF NOT EXISTS idx_vote_user ON votes(user_id);
 `);
 
+// API Clients table
+sqlite.exec(`
+  CREATE TABLE IF NOT EXISTS api_clients (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL REFERENCES users(id),
+    client_id TEXT NOT NULL UNIQUE,
+    client_secret_hash TEXT NOT NULL,
+    name TEXT NOT NULL,
+    scopes TEXT NOT NULL DEFAULT '["calendar","reminders","schedules"]',
+    is_active INTEGER NOT NULL DEFAULT 1,
+    last_used_at INTEGER,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS idx_api_client_user ON api_clients(user_id);
+  CREATE INDEX IF NOT EXISTS idx_api_client_client_id ON api_clients(client_id);
+`);
+
 // Reminders table
 sqlite.exec(`
   CREATE TABLE IF NOT EXISTS reminders (

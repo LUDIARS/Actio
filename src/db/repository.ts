@@ -1506,6 +1506,71 @@ export const groupEventRepo = {
   },
 };
 
+// ─── API Client Repository ──────────────────────────────────
+
+export type ApiClient = typeof schema.apiClients.$inferSelect;
+export type NewApiClient = typeof schema.apiClients.$inferInsert;
+
+export const apiClientRepo = {
+  async findByUserId(userId: string): Promise<ApiClient[]> {
+    return db
+      .select()
+      .from(schema.apiClients)
+      .where(eq(schema.apiClients.userId, userId));
+  },
+
+  async findByClientId(clientId: string): Promise<ApiClient | undefined> {
+    const [row] = await db
+      .select()
+      .from(schema.apiClients)
+      .where(eq(schema.apiClients.clientId, clientId));
+    return row;
+  },
+
+  async findById(id: string): Promise<ApiClient | undefined> {
+    const [row] = await db
+      .select()
+      .from(schema.apiClients)
+      .where(eq(schema.apiClients.id, id));
+    return row;
+  },
+
+  async findByIdAndUserId(id: string, userId: string): Promise<ApiClient | undefined> {
+    const [row] = await db
+      .select()
+      .from(schema.apiClients)
+      .where(
+        and(
+          eq(schema.apiClients.id, id),
+          eq(schema.apiClients.userId, userId)
+        )
+      );
+    return row;
+  },
+
+  async create(data: NewApiClient): Promise<void> {
+    await db.insert(schema.apiClients).values(data);
+  },
+
+  async update(id: string, data: Partial<Omit<NewApiClient, "id">>): Promise<void> {
+    await db
+      .update(schema.apiClients)
+      .set(data)
+      .where(eq(schema.apiClients.id, id));
+  },
+
+  async deleteById(id: string): Promise<void> {
+    await db.delete(schema.apiClients).where(eq(schema.apiClients.id, id));
+  },
+
+  async updateLastUsed(id: string): Promise<void> {
+    await db
+      .update(schema.apiClients)
+      .set({ lastUsedAt: new Date() })
+      .where(eq(schema.apiClients.id, id));
+  },
+};
+
 // ─── Reminder Repository ────────────────────────────────────
 
 export type Reminder = typeof schema.reminders.$inferSelect;

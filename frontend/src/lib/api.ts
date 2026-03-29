@@ -1124,6 +1124,44 @@ export const holidayApi = {
   },
 };
 
+// ─── External API (APIクライアント管理) ──────────────────────
+
+import type {
+  ApiClientListResponse, ApiClientCreateResponse,
+  ApiClientRegenerateResponse, ApiClientUpdateResponse,
+} from "./api-types";
+
+export const externalApiClient = {
+  list() {
+    return request<ApiClientListResponse>("/api/external/clients");
+  },
+  create(body: { name: string; scopes?: string[] }) {
+    return request<ApiClientCreateResponse>("/api/external/clients", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  },
+  regenerate(id: string) {
+    return request<ApiClientRegenerateResponse>(`/api/external/clients/${id}/regenerate`, {
+      method: "POST",
+    });
+  },
+  update(id: string, body: { name?: string; scopes?: string[]; isActive?: boolean }) {
+    return request<ApiClientUpdateResponse>(`/api/external/clients/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(body),
+    });
+  },
+  remove(id: string) {
+    return request<MessageResponse>(`/api/external/clients/${id}`, {
+      method: "DELETE",
+    });
+  },
+  getDocs() {
+    return request<Record<string, unknown>>("/api/external/docs");
+  },
+};
+
 // ─── Reminders (リマインダー) ──────────────────────────────────
 
 export const reminderApi = {

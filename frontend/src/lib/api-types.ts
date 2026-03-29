@@ -705,6 +705,40 @@ export interface HolidayListResponse {
   holidays: Holiday[];
 }
 
+// ─── API Clients (外部API連携) ─────────────────────────────
+
+export interface ApiClientInfo {
+  id: string;
+  clientId: string;
+  name: string;
+  scopes: string[];
+  isActive: boolean;
+  lastUsedAt: string | null;
+  createdAt: string;
+}
+
+export interface ApiClientCreated extends ApiClientInfo {
+  clientSecret: string;
+}
+
+export interface ApiClientListResponse {
+  clients: ApiClientInfo[];
+}
+
+export interface ApiClientCreateResponse {
+  client: ApiClientCreated;
+  warning: string;
+}
+
+export interface ApiClientRegenerateResponse {
+  client: ApiClientCreated;
+  warning: string;
+}
+
+export interface ApiClientUpdateResponse {
+  client: ApiClientInfo | null;
+}
+
 // ─── Reminders ─────────────────────────────────────────────
 
 export interface ReminderItem {
