@@ -93,7 +93,7 @@ function Setup-Infisical {
     Write-Host ""
 
     Push-Location $ProjectRoot
-    try { npx tsx scripts/secrets-cli.ts setup }
+    try { npx tsx packages/env-cli/src/cli.ts setup }
     finally { Pop-Location }
 }
 
@@ -111,7 +111,7 @@ function Generate-DotEnv {
     Assert-Npx
 
     Push-Location $ProjectRoot
-    try { npx tsx scripts/secrets-cli.ts env }
+    try { npx tsx packages/env-cli/src/cli.ts env }
     finally { Pop-Location }
 }
 

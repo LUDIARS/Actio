@@ -84,7 +84,7 @@ setup_infisical() {
 
   require_npx
   echo ""
-  (cd "$PROJECT_ROOT" && npx tsx scripts/secrets-cli.ts setup)
+  (cd "$PROJECT_ROOT" && npx tsx packages/env-cli/src/cli.ts setup)
 }
 
 # ─── Step 2: Generate .env ─────────────────────────────────
@@ -99,7 +99,7 @@ generate_dotenv() {
   fi
 
   require_npx
-  (cd "$PROJECT_ROOT" && npx tsx scripts/secrets-cli.ts env)
+  (cd "$PROJECT_ROOT" && npx tsx packages/env-cli/src/cli.ts env)
 }
 
 # ─── Step 3: Docker Compose Up ──────────────────────────────
