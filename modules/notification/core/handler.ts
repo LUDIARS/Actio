@@ -115,6 +115,9 @@ function getTargetUsers(
       // In production, query users by major
       return [];
 
+    case EVENT_NAMES.REMINDER_MORNING:
+      return data.userId ? [data.userId as string] : [];
+
     default:
       return [];
   }

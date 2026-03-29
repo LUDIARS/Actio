@@ -95,7 +95,56 @@ export const EVENT_NAMES = {
   RESERVATION_CANCELLED: "reservation.cancelled",
   RESERVATION_REMINDER: "reservation.reminder",
   SYNC_CONFLICT: "sync.conflict",
+  REMINDER_MORNING: "reminder.morning",
 } as const;
+
+/** Event module definition for UI grouping */
+export interface EventModuleDefinition {
+  module: string;
+  label: string;
+  events: { name: string; label: string }[];
+}
+
+/** Event modules — Japanese labels, grouped by module */
+export const EVENT_MODULES: EventModuleDefinition[] = [
+  {
+    module: "schedule",
+    label: "スケジュール",
+    events: [
+      { name: "schedule.confirmed", label: "時間割確定" },
+      { name: "schedule.changed", label: "授業予定変更" },
+    ],
+  },
+  {
+    module: "reservation",
+    label: "予約",
+    events: [
+      { name: "reservation.created", label: "予約作成" },
+      { name: "reservation.updated", label: "予約変更" },
+      { name: "reservation.cancelled", label: "予約キャンセル" },
+      { name: "reservation.reminder", label: "予約リマインド" },
+    ],
+  },
+  {
+    module: "calendar",
+    label: "カレンダー",
+    events: [
+      { name: "sync.conflict", label: "予定競合" },
+    ],
+  },
+  {
+    module: "reminder",
+    label: "リマインダー",
+    events: [
+      { name: "reminder.morning", label: "朝の未完了タスク通知" },
+    ],
+  },
+];
+
+/** Flat map: event name → Japanese label */
+export const EVENT_LABELS: Record<string, string> = Object.fromEntries(
+  EVENT_MODULES.flatMap((m) => m.events.map((e) => [e.name, e.label]))
+);
 
 /** Notification channels */
 export const NOTIFICATION_CHANNELS = [

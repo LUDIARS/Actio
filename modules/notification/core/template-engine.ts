@@ -34,6 +34,10 @@ const BUILTIN_TEMPLATES: Record<string, { title: string; body: string }> = {
     title: "予定が競合しています",
     body: "{day} {period}限: {conflictDetails}",
   },
+  "reminder.morning": {
+    title: "【朝の通知】未完了のリマインダーが{count}件あります",
+    body: "{summary}",
+  },
 };
 
 /**

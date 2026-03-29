@@ -389,6 +389,12 @@ export interface TestSendResponse {
   };
 }
 
+export interface MorningReminderResponse {
+  message: string;
+  sent: boolean;
+  count?: number;
+}
+
 export interface WebhookLog {
   id: string;
   webhookId: string;

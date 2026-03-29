@@ -12,15 +12,53 @@ import { useAuth } from "../contexts/AuthContext";
 
 type Notification = NotificationHistoryItem;
 
-const AVAILABLE_EVENTS = [
-  "schedule.confirmed",
-  "schedule.changed",
-  "reservation.created",
-  "reservation.updated",
-  "reservation.cancelled",
-  "reservation.reminder",
-  "sync.conflict",
+/** Event modules — Japanese labels, grouped by module */
+const EVENT_MODULES = [
+  {
+    module: "schedule",
+    label: "スケジュール",
+    events: [
+      { name: "schedule.confirmed", label: "時間割確定" },
+      { name: "schedule.changed", label: "授業予定変更" },
+    ],
+  },
+  {
+    module: "reservation",
+    label: "予約",
+    events: [
+      { name: "reservation.created", label: "予約作成" },
+      { name: "reservation.updated", label: "予約変更" },
+      { name: "reservation.cancelled", label: "予約キャンセル" },
+      { name: "reservation.reminder", label: "予約リマインド" },
+    ],
+  },
+  {
+    module: "calendar",
+    label: "カレンダー",
+    events: [
+      { name: "sync.conflict", label: "予定競合" },
+    ],
+  },
+  {
+    module: "reminder",
+    label: "リマインダー",
+    events: [
+      { name: "reminder.morning", label: "朝の未完了タスク通知" },
+    ],
+  },
 ];
+
+const ALL_EVENTS = EVENT_MODULES.flatMap((m) => m.events);
+
+/** Flat map: event name → Japanese label */
+const EVENT_LABEL_MAP: Record<string, string> = Object.fromEntries(
+  ALL_EVENTS.map((e: { name: string; label: string }) => [e.name, e.label])
+);
+
+/** Get Japanese label for an event name, with fallback */
+function getEventLabel(eventName: string): string {
+  return EVENT_LABEL_MAP[eventName] || eventName;
+}
 
 const PLATFORMS: { value: NotificationPlatform; label: string }[] = [
   { value: "generic", label: "汎用Webhook" },
@@ -407,6 +445,22 @@ export function NotificationsPage() {
       {/* Notifications Tab */}
       {tab === "notifications" && (
         <div>
+          <div className="toolbar" style={{ marginBottom: "0.75rem" }}>
+            <button
+              onClick={async () => {
+                try {
+                  const result = await m5.triggerMorningReminder();
+                  showMsg(result.message);
+                  if (result.sent) loadData();
+                } catch (e: unknown) {
+                  const err = e as Error;
+                  showMsg(`Error: ${err.message}`);
+                }
+              }}
+            >
+              朝の未完了タスク通知をテスト
+            </button>
+          </div>
           {notifications.length === 0 ? (
             <div className="empty-state">
               <p>通知履歴がありません</p>
@@ -443,7 +497,7 @@ export function NotificationsPage() {
                         alignItems: "center",
                       }}
                     >
-                      <span className="badge purple">{n.event}</span>
+                      <span className="badge purple">{getEventLabel(n.event)}</span>
                       <span
                         style={{
                           fontSize: "0.7rem",
@@ -556,10 +610,14 @@ export function NotificationsPage() {
                   onChange={(e) => setTestEvent(e.target.value)}
                 >
                   <option value="webhook.test">webhook.test</option>
-                  {AVAILABLE_EVENTS.map((ev) => (
-                    <option key={ev} value={ev}>
-                      {ev}
-                    </option>
+                  {EVENT_MODULES.map((mod) => (
+                    <optgroup key={mod.module} label={mod.label}>
+                      {mod.events.map((ev) => (
+                        <option key={ev.name} value={ev.name}>
+                          {ev.label}
+                        </option>
+                      ))}
+                    </optgroup>
                   ))}
                 </select>
               </div>
@@ -670,35 +728,38 @@ export function NotificationsPage() {
 
               <div className="form-group">
                 <label>購読イベント</label>
-                <div
-                  style={{
-                    display: "flex",
-                    gap: "0.5rem",
-                    flexWrap: "wrap",
-                  }}
-                >
-                  {AVAILABLE_EVENTS.map((event) => (
-                    <label
-                      key={event}
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: "0.25rem",
-                        fontSize: "0.8rem",
-                        cursor: "pointer",
-                        color: webhookEvents.includes(event)
-                          ? "var(--text)"
-                          : "var(--text-muted)",
-                      }}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={webhookEvents.includes(event)}
-                        onChange={() => toggleEvent(event)}
-                        style={{ width: "auto" }}
-                      />
-                      {event}
-                    </label>
+                <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+                  {EVENT_MODULES.map((mod) => (
+                    <div key={mod.module}>
+                      <div style={{ fontSize: "0.75rem", fontWeight: 600, color: "var(--text-muted)", marginBottom: "0.25rem" }}>
+                        {mod.label}
+                      </div>
+                      <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", paddingLeft: "0.5rem" }}>
+                        {mod.events.map((ev) => (
+                          <label
+                            key={ev.name}
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: "0.25rem",
+                              fontSize: "0.8rem",
+                              cursor: "pointer",
+                              color: webhookEvents.includes(ev.name)
+                                ? "var(--text)"
+                                : "var(--text-muted)",
+                            }}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={webhookEvents.includes(ev.name)}
+                              onChange={() => toggleEvent(ev.name)}
+                              style={{ width: "auto" }}
+                            />
+                            {ev.label}
+                          </label>
+                        ))}
+                      </div>
+                    </div>
                   ))}
                 </div>
               </div>
@@ -784,7 +845,7 @@ export function NotificationsPage() {
                               borderRadius: 3,
                             }}
                           >
-                            {e}
+                            {getEventLabel(e)}
                           </span>
                         ))}
                       </div>
@@ -891,10 +952,14 @@ export function NotificationsPage() {
                   >
                     <option value="">選択してください</option>
                     <option value="*">* (全イベント)</option>
-                    {AVAILABLE_EVENTS.map((ev) => (
-                      <option key={ev} value={ev}>
-                        {ev}
-                      </option>
+                    {EVENT_MODULES.map((mod) => (
+                      <optgroup key={mod.module} label={mod.label}>
+                        {mod.events.map((ev) => (
+                          <option key={ev.name} value={ev.name}>
+                            {ev.label}
+                          </option>
+                        ))}
+                      </optgroup>
                     ))}
                   </select>
                 </div>
@@ -1033,7 +1098,7 @@ export function NotificationsPage() {
                 {templates.map((tpl) => (
                   <tr key={tpl.id}>
                     <td>
-                      <span className="badge purple">{tpl.event}</span>
+                      <span className="badge purple">{getEventLabel(tpl.event)}</span>
                     </td>
                     <td>
                       <span className="badge blue">{tpl.platform}</span>
@@ -1129,31 +1194,34 @@ export function NotificationsPage() {
 
               <div className="form-group">
                 <label>購読イベント</label>
-                <div
-                  style={{
-                    display: "flex",
-                    gap: "0.5rem",
-                    flexWrap: "wrap",
-                  }}
-                >
-                  {AVAILABLE_EVENTS.map((event) => (
-                    <label
-                      key={event}
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: "0.25rem",
-                        fontSize: "0.75rem",
-                        cursor: "pointer",
-                      }}
-                    >
-                      <input
-                        type="checkbox"
-                        defaultChecked
-                        style={{ width: "auto" }}
-                      />
-                      {event}
-                    </label>
+                <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+                  {EVENT_MODULES.map((mod) => (
+                    <div key={mod.module}>
+                      <div style={{ fontSize: "0.7rem", fontWeight: 600, color: "var(--text-muted)", marginBottom: "0.15rem" }}>
+                        {mod.label}
+                      </div>
+                      <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", paddingLeft: "0.5rem" }}>
+                        {mod.events.map((ev) => (
+                          <label
+                            key={ev.name}
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: "0.25rem",
+                              fontSize: "0.75rem",
+                              cursor: "pointer",
+                            }}
+                          >
+                            <input
+                              type="checkbox"
+                              defaultChecked
+                              style={{ width: "auto" }}
+                            />
+                            {ev.label}
+                          </label>
+                        ))}
+                      </div>
+                    </div>
                   ))}
                 </div>
               </div>
