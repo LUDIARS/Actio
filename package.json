@@ -20,7 +20,8 @@
     "setup": "bash scripts/setup.sh",
     "test": "vitest run",
     "test:watch": "vitest",
-    "id:scan": "tsx packages/id-service/src/migration/cli.ts"
+    "id:scan": "tsx services/id-service/src/migration/cli.ts",
+    "id:service": "tsx services/id-service/src/server.ts"
   },
   "repository": {
     "type": "git",

@@ -1,0 +1,15 @@
+{
+  "name": "@schedula/id-service",
+  "version": "0.2.0",
+  "description": "Standalone Identity Service — KVS-backed auth, YAML-defined user data, plugin profiles",
+  "type": "module",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "start": "node dist/server.js",
+    "build": "tsc",
+    "scan": "tsx src/migration/cli.ts"
+  },
+  "license": "MIT"
+}
