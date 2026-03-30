@@ -1,0 +1,23 @@
+# Schedula — サービス固有ユーザーデータ
+#
+# Id Service のコアユーザーに紐づく Schedula 固有フィールド。
+# KVS キー: profile:{serviceId}:{userId}
+#
+# このファイルは npm run id:scan で自動生成可能。
+
+version: "1"
+
+service:
+  id: schedula
+  name: Schedula
+  description: 汎用スケジューリング & 予約プラットフォーム
+
+fields:
+  major:
+    type: string
+    description: 学科・専攻
+    listVisible: true
+
+  calendarAccessId:
+    type: string
+    description: Google Calendar 連携用 ID

@@ -1,0 +1,112 @@
+# Id Service — コアユーザーデータフォーマット
+#
+# 全サービス共通のユーザー ID / 認証情報。
+# KVS キー: user:{id}
+# インデックス: user:email:{email} → id, user:google:{googleId} → id
+
+version: "1"
+
+namespace: core
+
+fields:
+  id:
+    type: string
+    required: true
+    primary: true
+    description: ユーザー一意識別子 (UUID)
+
+  name:
+    type: string
+    required: true
+    description: 表示名
+
+  email:
+    type: string
+    required: true
+    unique: true
+    index: "user:email:{value}"
+    description: メールアドレス (ログインID)
+
+  role:
+    type: string
+    required: true
+    default: "general"
+    enum: [admin, group_leader, general]
+    description: ユーザーロール
+
+  passwordHash:
+    type: string
+    sensitive: true
+    description: bcrypt ハッシュ化パスワード
+
+  # ─── Google OAuth ──────────────────────────────
+
+  googleId:
+    type: string
+    unique: true
+    index: "user:google:{value}"
+    description: Google OAuth subject ID
+
+  googleAccessToken:
+    type: string
+    sensitive: true
+    description: Google API アクセストークン
+
+  googleRefreshToken:
+    type: string
+    sensitive: true
+    description: Google API リフレッシュトークン
+
+  googleTokenExpiresAt:
+    type: number
+    description: アクセストークン有効期限 (Unix ms)
+
+  googleScopes:
+    type: json
+    description: 付与された OAuth スコープ一覧
+
+  # ─── Tracking ──────────────────────────────────
+
+  lastLoginAt:
+    type: timestamp
+    description: 最終ログイン日時
+
+  createdAt:
+    type: timestamp
+    required: true
+    description: アカウント作成日時
+
+  updatedAt:
+    type: timestamp
+    required: true
+    description: 最終更新日時
+
+# ─── セッション ──────────────────────────────────
+# KVS キー: session:{id}
+# インデックス: refresh:{refreshToken} → sessionId
+
+sessions:
+  fields:
+    id:
+      type: string
+      required: true
+      primary: true
+
+    userId:
+      type: string
+      required: true
+      ref: core.id
+
+    refreshToken:
+      type: string
+      required: true
+      unique: true
+      index: "refresh:{value}"
+
+    expiresAt:
+      type: timestamp
+      required: true
+
+    createdAt:
+      type: timestamp
+      required: true
