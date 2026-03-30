@@ -1,15 +1,12 @@
 /**
  * JWT Secret 解決ヘルパー
- *
- * secretManager → デフォルト値 (開発用) の順で解決。
- * 本番環境では JWT_SECRET の設定が必須。
  */
 
-import type { AuthSecretManager } from "./types.js";
+import type { IdSecretManager } from "./types.js";
 
 const DEV_SECRET = "schedula-dev-secret-change-in-production";
 
-export function resolveJwtSecret(secretManager: AuthSecretManager): string {
+export function resolveJwtSecret(secretManager: IdSecretManager): string {
   const nodeEnv = secretManager.getOrDefault("NODE_ENV", "development");
   const secret = secretManager.get("JWT_SECRET");
   if (secret) return secret;

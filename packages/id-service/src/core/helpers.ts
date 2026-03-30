@@ -4,9 +4,6 @@
 
 import type { Context } from "hono";
 
-/**
- * ミドルウェアが設定したユーザーIDを取得（JWT認証優先、ヘッダーフォールバック）
- */
 export function getUserId(c: Context): string | null {
   const ctxId = c.get("userId" as never) as string | undefined;
   if (ctxId && ctxId !== "anonymous") return ctxId;

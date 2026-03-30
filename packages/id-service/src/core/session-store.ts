@@ -1,12 +1,9 @@
 /**
  * セッションストア — Redis優先、DBフォールバック
- *
- * Redis が利用可能なら高速なインメモリストアを使用し、
- * Redis が使えない場合は既存のDBセッションテーブルを使用。
  */
 
 import { v4 as uuidv4 } from "uuid";
-import type { AuthSessionRepo, GetRedis } from "./types.js";
+import type { IdSessionRepo, GetRedis } from "./types.js";
 
 export interface SessionData {
   id: string;
@@ -19,9 +16,6 @@ export interface SessionData {
 const SESSION_PREFIX = "session:";
 const REFRESH_INDEX_PREFIX = "refresh:";
 
-/**
- * セッション有効期限（秒）を動的に計算
- */
 function computeTtlSeconds(expiresAt: Date): number {
   const diffMs = expiresAt.getTime() - Date.now();
   return Math.max(Math.floor(diffMs / 1000), 60);
@@ -36,7 +30,7 @@ export interface SessionStore {
 }
 
 export function createSessionStore(
-  sessionRepo: AuthSessionRepo,
+  sessionRepo: IdSessionRepo,
   getRedis: GetRedis,
 ): SessionStore {
   return {
@@ -49,9 +43,7 @@ export function createSessionStore(
       if (redis) {
         try {
           const data = JSON.stringify({
-            id: sessionId,
-            userId,
-            refreshToken,
+            id: sessionId, userId, refreshToken,
             expiresAt: expiresAt.toISOString(),
             createdAt: now.toISOString(),
           });
@@ -60,7 +52,6 @@ export function createSessionStore(
             .set(`${SESSION_PREFIX}${sessionId}`, data, "EX", computeTtlSeconds(expiresAt))
             .set(`${REFRESH_INDEX_PREFIX}${refreshToken}`, sessionId, "EX", computeTtlSeconds(expiresAt))
             .exec();
-          console.log(`[session:redis] セッション作成 sessionId: ${sessionId}`);
         } catch (err) {
           console.error("[session:redis] 作成失敗、DBフォールバック:", err);
           await sessionRepo.create({ id: sessionId, userId, refreshToken, expiresAt, createdAt: now });
@@ -68,7 +59,6 @@ export function createSessionStore(
       } else {
         await sessionRepo.create({ id: sessionId, userId, refreshToken, expiresAt, createdAt: now });
       }
-
       return session;
     },
 
@@ -78,29 +68,19 @@ export function createSessionStore(
         try {
           const sessionId = await redis.get(`${REFRESH_INDEX_PREFIX}${refreshToken}`);
           if (!sessionId) return null;
-
           const data = await redis.get(`${SESSION_PREFIX}${sessionId}`);
           if (!data) return null;
-
           const parsed = JSON.parse(data);
-          return {
-            ...parsed,
-            expiresAt: new Date(parsed.expiresAt),
-            createdAt: new Date(parsed.createdAt),
-          };
+          return { ...parsed, expiresAt: new Date(parsed.expiresAt), createdAt: new Date(parsed.createdAt) };
         } catch (err) {
           console.error("[session:redis] 検索失敗、DBフォールバック:", err);
         }
       }
-
       const dbSession = await sessionRepo.findByRefreshToken(refreshToken);
       if (!dbSession) return null;
       return {
-        id: dbSession.id,
-        userId: dbSession.userId,
-        refreshToken: dbSession.refreshToken,
-        expiresAt: new Date(dbSession.expiresAt),
-        createdAt: new Date(dbSession.createdAt),
+        id: dbSession.id, userId: dbSession.userId, refreshToken: dbSession.refreshToken,
+        expiresAt: new Date(dbSession.expiresAt), createdAt: new Date(dbSession.createdAt),
       };
     },
 
@@ -113,21 +93,18 @@ export function createSessionStore(
             const parsed = JSON.parse(data);
             parsed.refreshToken = newRefreshToken;
             parsed.expiresAt = expiresAt.toISOString();
-
             await redis
               .multi()
               .set(`${SESSION_PREFIX}${sessionId}`, JSON.stringify(parsed), "EX", computeTtlSeconds(expiresAt))
               .del(`${REFRESH_INDEX_PREFIX}${oldRefreshToken}`)
               .set(`${REFRESH_INDEX_PREFIX}${newRefreshToken}`, sessionId, "EX", computeTtlSeconds(expiresAt))
               .exec();
-            console.log(`[session:redis] トークンローテーション sessionId: ${sessionId}`);
             return;
           }
         } catch (err) {
           console.error("[session:redis] ローテーション失敗、DBフォールバック:", err);
         }
       }
-
       await sessionRepo.updateRefreshToken(sessionId, newRefreshToken);
     },
 
@@ -137,19 +114,16 @@ export function createSessionStore(
         try {
           const sessionId = await redis.get(`${REFRESH_INDEX_PREFIX}${refreshToken}`);
           if (sessionId) {
-            await redis
-              .multi()
+            await redis.multi()
               .del(`${SESSION_PREFIX}${sessionId}`)
               .del(`${REFRESH_INDEX_PREFIX}${refreshToken}`)
               .exec();
-            console.log(`[session:redis] セッション削除 sessionId: ${sessionId}`);
             return;
           }
         } catch (err) {
           console.error("[session:redis] 削除失敗、DBフォールバック:", err);
         }
       }
-
       await sessionRepo.deleteByRefreshToken(refreshToken);
     },
 
@@ -160,19 +134,16 @@ export function createSessionStore(
           const data = await redis.get(`${SESSION_PREFIX}${sessionId}`);
           if (data) {
             const parsed = JSON.parse(data);
-            await redis
-              .multi()
+            await redis.multi()
               .del(`${SESSION_PREFIX}${sessionId}`)
               .del(`${REFRESH_INDEX_PREFIX}${parsed.refreshToken}`)
               .exec();
-            console.log(`[session:redis] セッション削除(ID) sessionId: ${sessionId}`);
             return;
           }
         } catch (err) {
           console.error("[session:redis] 削除(ID)失敗、DBフォールバック:", err);
         }
       }
-
       await sessionRepo.deleteById(sessionId);
     },
   };

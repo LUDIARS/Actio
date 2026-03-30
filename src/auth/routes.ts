@@ -1,8 +1,8 @@
 /**
- * 認証ルート — @schedula/auth パッケージに委譲
+ * 認証ルート — @schedula/id-service に委譲
  */
 
-import { createAuthRoutes } from "../../packages/auth/src/index.js";
+import { createAuthRoutes, pluginRegistry } from "../../packages/id-service/src/index.js";
 import { JWT_SECRET } from "../config/jwt.js";
 import { secretManager } from "../config/secrets.js";
 import { getRedis } from "../db/redis.js";
@@ -15,6 +15,10 @@ import {
   groupRepo,
 } from "../db/repository.js";
 import { logActivity } from "../activity-logger.js";
+import { registerSchedulaPlugin } from "../plugins/schedula.js";
+
+// Schedula プラグインを登録
+registerSchedulaPlugin(pluginRegistry);
 
 export const auth = createAuthRoutes({
   jwtSecret: JWT_SECRET,
@@ -27,4 +31,5 @@ export const auth = createAuthRoutes({
   groupMemberRepo,
   groupRepo,
   logActivity,
+  pluginRegistry,
 });

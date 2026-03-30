@@ -1,12 +1,12 @@
 /**
- * セッションストア — @schedula/auth パッケージに委譲
+ * セッションストア — @schedula/id-service に委譲
  */
 
-import { createSessionStore } from "../../packages/auth/src/index.js";
+import { createSessionStore } from "../../packages/id-service/src/index.js";
 import { sessionRepo } from "../db/repository.js";
 import { getRedis } from "../db/redis.js";
 
-export type { SessionData } from "../../packages/auth/src/index.js";
+export type { SessionData } from "../../packages/id-service/src/index.js";
 
 const store = createSessionStore(sessionRepo, getRedis);
 

@@ -1,40 +1,56 @@
 /**
- * @schedula/auth — 認証パッケージ
+ * @schedula/auth — @schedula/id-service への互換レイヤー
  *
- * JWT認証、セッション管理、Google OAuth、ミドルウェアを
- * 再利用可能なパッケージとして提供する。
+ * 全エクスポートを id-service パッケージに委譲する。
  */
 
-// Types
-export type {
-  AuthUser,
-  AuthUserRepo,
-  AuthUserListRepo,
-  AuthUserBasic,
-  AuthSession,
-  AuthSessionRepo,
-  AuthGroupMemberRepo,
-  AuthGroupRepo,
-  AuthAppSettingsRepo,
-  AuthSecretManager,
-  GetRedis,
-  LogActivity,
-  AuthConfig,
-  UserRole,
-} from "./types.js";
+export {
+  // Types (backward compat aliases)
+  type AuthUser,
+  type AuthUserRepo,
+  type AuthUserListRepo,
+  type AuthUserBasic,
+  type AuthSession,
+  type AuthSessionRepo,
+  type AuthGroupMemberRepo,
+  type AuthGroupRepo,
+  type AuthAppSettingsRepo,
+  type AuthSecretManager,
+  type AuthConfig,
 
-// JWT
-export { resolveJwtSecret } from "./jwt.js";
+  // Core types
+  type CoreUser,
+  type IdUserRepo,
+  type IdUserListRepo,
+  type IdUserBasic,
+  type IdSession,
+  type IdSessionRepo,
+  type IdGroupMemberRepo,
+  type IdGroupRepo,
+  type IdAppSettingsRepo,
+  type IdSecretManager,
+  type IdServiceConfig,
+  type GetRedis,
+  type LogActivity,
+  type UserRole,
 
-// Session Store
-export { createSessionStore } from "./session-store.js";
-export type { SessionData, SessionStore } from "./session-store.js";
+  // Session
+  type SessionData,
+  type SessionStore,
 
-// Middleware
-export { requireRole, createUserContext } from "./middleware.js";
+  // Plugin
+  type ProfilePlugin,
+  type ProfileFieldDef,
+  type ProfileRepo,
+  PluginRegistry,
+  pluginRegistry,
 
-// Helpers
-export { getUserId, getUserRole } from "./helpers.js";
-
-// Routes
-export { createAuthRoutes } from "./routes.js";
+  // Functions
+  resolveJwtSecret,
+  createSessionStore,
+  requireRole,
+  createUserContext,
+  getUserId,
+  getUserRole,
+  createAuthRoutes,
+} from "../../id-service/src/index.js";

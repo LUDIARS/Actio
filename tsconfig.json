@@ -15,6 +15,6 @@
       "@/*": ["./src/*"]
     }
   },
-  "include": ["src/**/*", "modules/**/*", "packages/auth/src/**/*"],
+  "include": ["src/**/*", "modules/**/*", "packages/auth/src/**/*", "packages/id-service/src/**/*"],
   "exclude": ["node_modules", "dist", "frontend"]
 }
