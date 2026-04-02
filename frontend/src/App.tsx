@@ -30,7 +30,11 @@ import { PMDashboardPage } from "./pages/PMDashboardPage";
 import { PMProjectPage } from "./pages/PMProjectPage";
 import { PMAnalyticsPage } from "./pages/PMAnalyticsPage";
 import { setupApi } from "./lib/api";
+import { registerAllModules } from "./lib/modules";
 import "./global.css";
+
+// 全モジュールをレジストリに登録
+registerAllModules();
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();

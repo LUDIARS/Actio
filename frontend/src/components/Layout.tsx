@@ -1,6 +1,8 @@
 import { useState, useCallback, useEffect } from "react";
 import { NavLink, Outlet, useLocation } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
+import { moduleRegistry } from "../lib/module-registry";
+import type { MenuGroup, MenuItem } from "../lib/module-registry";
 
 const ROLE_LABELS: Record<string, string> = {
   admin: "管理者",
@@ -8,38 +10,8 @@ const ROLE_LABELS: Record<string, string> = {
   general: "一般",
 };
 
-interface NavItem {
-  to: string;
-  label: string;
-  adminOnly?: boolean;
-  removable?: boolean;
-}
-
-const NAV_ITEMS: NavItem[] = [
-  { to: "/", label: "Dashboard" },
-  { to: "/profile", label: "プロフィール" },
-  { to: "/schema-management", label: "M1 スキーマ管理", adminOnly: true, removable: true },
-  { to: "/data-management", label: "M1 データ管理", adminOnly: true, removable: true },
-  { to: "/my-plan", label: "マイプラン", removable: true },
-  { to: "/groups", label: "グループ", removable: true },
-  { to: "/calendar", label: "カレンダー", removable: true },
-  { to: "/reminders", label: "リマインダー", removable: true },
-  { to: "/reservations", label: "予約管理", removable: true },
-  { to: "/notifications", label: "M5 通知", removable: true },
-  { to: "/voting", label: "M6 日程調整", removable: true },
-  { to: "/pm", label: "M2 PM", removable: true },
-  { to: "/machina", label: "M3 MACHINA", removable: true },
-  { to: "/integrations", label: "外部連携", removable: true },
-  { to: "/api-keys", label: "API連携", removable: true },
-  { to: "/admin/users", label: "ユーザー管理" },
-  { to: "/admin/settings", label: "設定", adminOnly: true },
-  { to: "/admin/activity-logs", label: "操作ログ", adminOnly: true },
-  { to: "/admin/db", label: "DB Viewer", adminOnly: true },
-  { to: "/admin/secrets", label: "シークレット", adminOnly: true },
-  { to: "/help", label: "ヘルプ" },
-];
-
 const HIDDEN_MODULES_KEY = "schedula_hidden_modules";
+const COLLAPSED_GROUPS_KEY = "schedula_collapsed_groups";
 
 function getHiddenModules(): string[] {
   try {
@@ -54,11 +26,176 @@ function setHiddenModules(hidden: string[]) {
   localStorage.setItem(HIDDEN_MODULES_KEY, JSON.stringify(hidden));
 }
 
+function getCollapsedGroups(): string[] {
+  try {
+    const raw = localStorage.getItem(COLLAPSED_GROUPS_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
+function setCollapsedGroupsStorage(collapsed: string[]) {
+  localStorage.setItem(COLLAPSED_GROUPS_KEY, JSON.stringify(collapsed));
+}
+
+/** ロールがメニュー項目/グループの要件を満たすか */
+function meetsRole(userRole: string | undefined, adminOnly?: boolean): boolean {
+  if (!adminOnly) return true;
+  return userRole === "admin";
+}
+
+/** メニュー項目を描画 */
+function NavItemRow({
+  item,
+  editMode,
+  hiddenModules,
+  onToggle,
+}: {
+  item: MenuItem;
+  editMode: boolean;
+  hiddenModules: string[];
+  onToggle: (to: string) => void;
+}) {
+  const isHidden = hiddenModules.includes(item.to);
+
+  return (
+    <div style={{ display: "flex", alignItems: "center" }}>
+      {editMode && item.removable && (
+        <button
+          onClick={() => onToggle(item.to)}
+          style={{
+            background: "transparent",
+            border: "none",
+            cursor: "pointer",
+            padding: "0.3rem 0.25rem 0.3rem 0.5rem",
+            fontSize: "0.75rem",
+            color: isHidden ? "var(--green)" : "var(--red)",
+            flexShrink: 0,
+          }}
+          title={isHidden ? "表示する" : "非表示にする"}
+        >
+          {isHidden ? "+" : "−"}
+        </button>
+      )}
+      <NavLink
+        to={item.to}
+        end={item.to === "/"}
+        style={({ isActive }) => ({
+          padding: "0.4rem 1rem",
+          paddingLeft: "1.5rem",
+          fontSize: "0.8rem",
+          color: isHidden
+            ? "var(--text-muted)"
+            : isActive
+              ? "var(--text)"
+              : "var(--text-muted)",
+          background:
+            isActive && !isHidden
+              ? "var(--bg-surface-2)"
+              : "transparent",
+          borderLeft:
+            isActive && !isHidden
+              ? "2px solid var(--accent)"
+              : "2px solid transparent",
+          textDecoration: isHidden ? "line-through" : "none",
+          opacity: isHidden ? 0.5 : 1,
+          transition: "all 0.15s",
+          flex: 1,
+          display: "block",
+        })}
+        onClick={(e) => {
+          if (editMode && isHidden) {
+            e.preventDefault();
+          }
+        }}
+      >
+        {item.label}
+      </NavLink>
+    </div>
+  );
+}
+
+/** メニューグループ (折りたたみ可能) */
+function NavGroupSection({
+  group,
+  editMode,
+  hiddenModules,
+  collapsed,
+  onToggle,
+  onCollapseToggle,
+}: {
+  group: MenuGroup;
+  editMode: boolean;
+  hiddenModules: string[];
+  collapsed: boolean;
+  onToggle: (to: string) => void;
+  onCollapseToggle: (groupId: string) => void;
+}) {
+  // 表示可能なアイテムがあるか確認
+  const visibleItems = editMode
+    ? group.items
+    : group.items.filter((item) => !hiddenModules.includes(item.to));
+
+  if (!editMode && visibleItems.length === 0) return null;
+
+  return (
+    <div style={{ marginTop: "0.25rem" }}>
+      <button
+        onClick={() => onCollapseToggle(group.id)}
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: "0.35rem",
+          width: "100%",
+          padding: "0.35rem 0.75rem",
+          background: "transparent",
+          border: "none",
+          cursor: "pointer",
+          fontSize: "0.7rem",
+          fontWeight: 600,
+          color: "var(--text-muted)",
+          textTransform: "uppercase",
+          letterSpacing: "0.05em",
+          textAlign: "left",
+        }}
+        title={collapsed ? "展開" : "折りたたむ"}
+      >
+        <span
+          style={{
+            display: "inline-block",
+            transition: "transform 0.15s",
+            transform: collapsed ? "rotate(-90deg)" : "rotate(0deg)",
+            fontSize: "0.6rem",
+          }}
+        >
+          ▼
+        </span>
+        {group.label}
+      </button>
+      {!collapsed && (
+        <div>
+          {(editMode ? group.items : visibleItems).map((item) => (
+            <NavItemRow
+              key={item.to}
+              item={item}
+              editMode={editMode}
+              hiddenModules={hiddenModules}
+              onToggle={onToggle}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function Layout() {
   const { user, logout } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [editMode, setEditMode] = useState(false);
   const [hiddenModules, setHiddenModulesState] = useState<string[]>(getHiddenModules);
+  const [collapsedGroups, setCollapsedGroupsState] = useState<string[]>(getCollapsedGroups);
   const location = useLocation();
 
   // Close sidebar on route change
@@ -76,19 +213,46 @@ export function Layout() {
     setSidebarOpen(false);
   }, []);
 
-  const toggleModule = (to: string) => {
+  const toggleModule = useCallback((to: string) => {
     setHiddenModulesState((prev) => {
       const next = prev.includes(to) ? prev.filter((m) => m !== to) : [...prev, to];
       setHiddenModules(next);
       return next;
     });
-  };
+  }, []);
 
-  const visibleItems = NAV_ITEMS.filter((item) => {
-    if (item.adminOnly && user?.role !== "admin") return false;
-    if (!editMode && hiddenModules.includes(item.to)) return false;
-    return true;
-  });
+  const toggleCollapse = useCallback((groupId: string) => {
+    setCollapsedGroupsState((prev) => {
+      const next = prev.includes(groupId)
+        ? prev.filter((g) => g !== groupId)
+        : [...prev, groupId];
+      setCollapsedGroupsStorage(next);
+      return next;
+    });
+  }, []);
+
+  // レジストリからメニュー構造を取得
+  const menuGroups = moduleRegistry.getMenuGroups();
+  const topLevelItems = moduleRegistry.getTopLevelMenuItems();
+
+  // ロールフィルタリング
+  const filteredGroups = menuGroups.filter((g) => meetsRole(user?.role, g.adminOnly));
+  const filteredGroupsWithItems = filteredGroups.map((g) => ({
+    ...g,
+    items: g.items.filter((item) => meetsRole(user?.role, item.adminOnly)),
+  }));
+
+  // トップレベル項目をロールフィルタ
+  const filteredTopItems = topLevelItems.filter((item) => meetsRole(user?.role, item.adminOnly));
+
+  // トップレベルの表示フィルタ (非表示モジュール)
+  const visibleTopItems = editMode
+    ? filteredTopItems
+    : filteredTopItems.filter((item) => !hiddenModules.includes(item.to));
+
+  // ヘルプ等の末尾に表示するアイテムを分離 (order >= 900)
+  const mainTopItems = visibleTopItems.filter((item) => (item.order ?? 0) < 900);
+  const bottomTopItems = visibleTopItems.filter((item) => (item.order ?? 0) >= 900);
 
   return (
     <div className="layout-root">
@@ -142,54 +306,51 @@ export function Layout() {
             Scheduling Platform
           </span>
         </div>
-        <nav style={{ display: "flex", flexDirection: "column", gap: 2, flex: 1 }}>
-          {visibleItems.map((item) => (
-            <div key={item.to} style={{ display: "flex", alignItems: "center" }}>
-              {editMode && item.removable && (
-                <button
-                  onClick={() => toggleModule(item.to)}
-                  style={{
-                    background: "transparent",
-                    border: "none",
-                    cursor: "pointer",
-                    padding: "0.3rem 0.25rem 0.3rem 0.5rem",
-                    fontSize: "0.75rem",
-                    color: hiddenModules.includes(item.to) ? "var(--green)" : "var(--red)",
-                    flexShrink: 0,
-                  }}
-                  title={hiddenModules.includes(item.to) ? "表示する" : "非表示にする"}
-                >
-                  {hiddenModules.includes(item.to) ? "+" : "−"}
-                </button>
-              )}
-              <NavLink
-                to={item.to}
-                end={item.to === "/"}
-                style={({ isActive }) => ({
-                  padding: "0.5rem 1rem",
-                  fontSize: "0.85rem",
-                  color: hiddenModules.includes(item.to)
-                    ? "var(--text-muted)"
-                    : isActive ? "var(--text)" : "var(--text-muted)",
-                  background: isActive && !hiddenModules.includes(item.to) ? "var(--bg-surface-2)" : "transparent",
-                  borderLeft: isActive && !hiddenModules.includes(item.to)
-                    ? "2px solid var(--accent)"
-                    : "2px solid transparent",
-                  textDecoration: hiddenModules.includes(item.to) ? "line-through" : "none",
-                  opacity: hiddenModules.includes(item.to) ? 0.5 : 1,
-                  transition: "all 0.15s",
-                  flex: 1,
-                })}
-                onClick={(e) => {
-                  if (editMode && hiddenModules.includes(item.to)) {
-                    e.preventDefault();
-                  }
-                }}
-              >
-                {item.label}
-              </NavLink>
-            </div>
+        <nav style={{ display: "flex", flexDirection: "column", gap: 0, flex: 1, overflowY: "auto" }}>
+          {/* トップレベルアイテム (Dashboard, Profile) */}
+          {mainTopItems.map((item) => (
+            <NavItemRow
+              key={item.to}
+              item={{ ...item, removable: item.removable }}
+              editMode={editMode}
+              hiddenModules={hiddenModules}
+              onToggle={toggleModule}
+            />
           ))}
+
+          {/* セパレータ */}
+          {mainTopItems.length > 0 && filteredGroupsWithItems.length > 0 && (
+            <div style={{ borderTop: "1px solid var(--border)", margin: "0.25rem 0.75rem" }} />
+          )}
+
+          {/* グループ化されたメニュー */}
+          {filteredGroupsWithItems.map((group) => (
+            <NavGroupSection
+              key={group.id}
+              group={group}
+              editMode={editMode}
+              hiddenModules={hiddenModules}
+              collapsed={collapsedGroups.includes(group.id)}
+              onToggle={toggleModule}
+              onCollapseToggle={toggleCollapse}
+            />
+          ))}
+
+          {/* 末尾アイテム (ヘルプ) */}
+          {bottomTopItems.length > 0 && (
+            <>
+              <div style={{ borderTop: "1px solid var(--border)", margin: "0.25rem 0.75rem" }} />
+              {bottomTopItems.map((item) => (
+                <NavItemRow
+                  key={item.to}
+                  item={item}
+                  editMode={editMode}
+                  hiddenModules={hiddenModules}
+                  onToggle={toggleModule}
+                />
+              ))}
+            </>
+          )}
         </nav>
 
         {/* User info & logout */}
