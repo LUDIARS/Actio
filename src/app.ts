@@ -102,7 +102,7 @@ export function createApp() {
   // ─── Module: External API (外部API連携) ─────────────────────
   app.route("/api/external", externalApi);
 
-  // ─── School Module (学校カリキュラム管理 + 施設予約: M1) ─────
+  // ─── CALICULA (学校カリキュラム管理 + 施設予約: M1) & PM (M2) ─
   const modules: SchulaModule[] = [schoolModule, pmModule];
   for (const mod of modules) {
     app.route(mod.basePath, mod.routes);
