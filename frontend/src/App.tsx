@@ -25,6 +25,7 @@ import { SecretsPage } from "./pages/SecretsPage";
 import { InfisicalSetupPage } from "./pages/InfisicalSetupPage";
 import { ApiKeysPage } from "./pages/ApiKeysPage";
 import { ProfilePage } from "./pages/ProfilePage";
+import { MachinaPage } from "./pages/MachinaPage";
 import { PMDashboardPage } from "./pages/PMDashboardPage";
 import { PMProjectPage } from "./pages/PMProjectPage";
 import { PMAnalyticsPage } from "./pages/PMAnalyticsPage";
@@ -73,6 +74,7 @@ function AppRoutes() {
         <Route path="/reservations/new" element={<FacilityBookingPage />} />
         <Route path="/notifications" element={<NotificationsPage />} />
         <Route path="/voting" element={<VotingPage />} />
+        <Route path="/machina" element={<MachinaPage />} />
         <Route path="/calendar" element={<CalendarPage />} />
         <Route path="/reminders" element={<ReminderPage />} />
         <Route path="/profile" element={<ProfilePage />} />

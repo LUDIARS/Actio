@@ -28,6 +28,8 @@ import { registerReservationPlugin } from "./reservation-plugins.js";
 import { secretManager } from "./config/secrets.js";
 import { setupRoutes } from "../modules/setup/routes.js";
 import { profileRoutes } from "../modules/profile/routes.js";
+import { machinaRoutes } from "../modules/machina/routes.js";
+import { initMachinaRelay } from "../modules/pm/machina-adapter.js";
 
 export function createApp() {
   const app = new Hono();
@@ -83,6 +85,9 @@ export function createApp() {
 
   // ─── Module: Voting (日程調整) ──────────────────────────────
   app.route("/api/voting", m6);
+
+  // ─── Module: MACHINA (タスク自動生成: M3) ────────────────────
+  app.route("/api/machina", machinaRoutes);
 
   // ─── Module: Holidays (休日管理) ──────────────────────────────
   app.route("/api/holidays", holidayRoutes);
@@ -181,6 +186,7 @@ export function createApp() {
       },
       modules: {
         ...registeredModules,
+        machina: "M3 MACHINA タスク自動生成 - /api/machina",
         webhooks: "Webhook・リマインド通知 - /api/webhooks",
         voting: "日程調整Voting - /api/voting",
         integrations: "外部サービス連携 (Google Calendar同期・Notion) - /api/integrations",
@@ -221,6 +227,9 @@ export function createApp() {
 
   // ─── Initialize Notification Handler ────────────────────────
   initNotificationHandler();
+
+  // ─── Initialize MACHINA → PM Relay ─────────────────────────
+  initMachinaRelay();
 
   return app;
 }
