@@ -64,6 +64,8 @@ m1.get("/departments", async (c) => {
 - `schedulingTaskRepo` / `schedulingResultRepo` — スマートスケジューラ関連
 - `holidayRepo` — 休日・休業期間管理
 - `groupEventRepo` — グループ個別予定 (日付ベース)
+- `pmProjectRepo` / `pmTaskRepo` / `pmTaskSnapshotRepo` / `pmMilestoneRepo` — PM プロジェクト管理関連
+- `pmTaskValidationRepo` / `pmConflictRepo` / `pmAnalyticsCacheRepo` — PM 検証・コンフリクト・分析関連
 
 ## TypeScript コーディングルール
 
@@ -142,6 +144,18 @@ const roomMap = new Map(rooms.map((r: any) => [r.id, r.name]));
 - スケジュール配置時の休日考慮ユーティリティ
 - グループの個別予定 (日付ベースの行事・休日・審査会期間) — `GET/POST/PUT/DELETE /api/groups/:id/events`
 
+### M2: PM (プロジェクト管理) モジュール
+
+`modules/pm/` — GitHub/Notion タスク同期・分析 (`/api/pm`)
+
+- プロジェクト作成 (GitHub Issues / Notion Database 接続)
+- 双方向タスク同期 (Pull: 外部→Schedula, Push: Schedula→外部)
+- 差分検知 & コンフリクト解決 (フィールドマージ / 外部優先)
+- タスク内容検証 (充実度スコア・改善提案)
+- リマインダー (納期警告・超過通知)
+- クリティカルパス分析・タスク分解推奨
+- ゴンペルツ曲線 (バグ収束予測)
+
 ### その他モジュール
 
 - **通知** (`modules/notification/`) — M5 (`/api/webhooks`)
@@ -177,6 +191,7 @@ const roomMap = new Map(rooms.map((r: any) => [r.id, r.name]));
 | `modules/notification/` | `frontend/src/pages/NotificationsPage.tsx` | `api.ts` の `m5` |
 | `modules/voting/` | `frontend/src/pages/VotingPage.tsx` | `api.ts` の `m6Voting` |
 | `modules/holiday/` | `frontend/src/pages/GroupsPage.tsx` (個別予定), `SmartSchedulerPage.tsx` (休日オプション) | `api.ts` の `holidayApi`, `groupApi` |
+| `modules/pm/` | `frontend/src/pages/PMDashboardPage.tsx`, `PMProjectPage.tsx`, `PMAnalyticsPage.tsx` | `api.ts` の `pmApi` |
 | `src/auth/` | `frontend/src/pages/LoginPage.tsx`, `UserManagementPage.tsx` | `api.ts` の `auth` |
 
 ## プロジェクト構造

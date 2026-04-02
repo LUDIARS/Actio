@@ -19,6 +19,9 @@ import type {
   HolidayListResponse, ActivityLogsResponse,
   ReminderListResponse, ReminderResponse, ReminderParseResponse,
   ProfileResponse, ProfileUpdateResponse, ProjectRolesResponse, ProjectRolesUpdateResponse, GroupProjectRolesResponse,
+  PMProject, PMTask, PMTaskSnapshot, PMConflict, PMValidationResult, PMSyncResult,
+  PMProgressReport, PMCriticalPathResult, PMDecompositionRecommendation, PMGompertzReport, PMFullReport,
+  PMReminderSettings, PMReminderTestResult,
 } from "./api-types";
 
 // ─── Token Management ──────────────────────────────────────
@@ -1480,5 +1483,92 @@ export const setupApi = {
       hasSsmConfig: boolean;
       envVars: Record<string, boolean>;
     }>("/api/setup/env-check");
+  },
+};
+
+// ─── PM (Project Management) ──────────────────────────────
+
+export const pmApi = {
+  // Projects
+  listProjects() {
+    return request<{ projects: PMProject[] }>("/api/pm/projects");
+  },
+  getProject(id: string) {
+    return request<PMProject>(`/api/pm/projects/${id}`);
+  },
+  createProject(data: { name: string; source: string; sourceConfig: Record<string, string>; syncIntervalMinutes?: number }) {
+    return request<PMProject>("/api/pm/projects", { method: "POST", body: JSON.stringify(data) });
+  },
+  updateProject(id: string, data: { name?: string; sourceConfig?: Record<string, string>; syncIntervalMinutes?: number }) {
+    return request<PMProject>(`/api/pm/projects/${id}`, { method: "PUT", body: JSON.stringify(data) });
+  },
+  deleteProject(id: string) {
+    return request<{ deleted: string }>(`/api/pm/projects/${id}`, { method: "DELETE" });
+  },
+
+  // Sync
+  triggerSync(projectId: string) {
+    return request<PMSyncResult>(`/api/pm/projects/${projectId}/sync`, { method: "POST" });
+  },
+  getSyncStatus(projectId: string) {
+    return request<{ projectId: string; lastSyncedAt: string | null; status: string }>(`/api/pm/projects/${projectId}/sync/status`);
+  },
+
+  // Tasks
+  listTasks(projectId: string) {
+    return request<{ tasks: PMTask[] }>(`/api/pm/projects/${projectId}/tasks`);
+  },
+  getTask(taskId: string) {
+    return request<PMTask>(`/api/pm/tasks/${taskId}`);
+  },
+  updateTask(taskId: string, data: Partial<Pick<PMTask, "title" | "description" | "status" | "priority" | "assignees" | "labels" | "dueDate" | "estimatedHours" | "blockedBy">>) {
+    return request<PMTask>(`/api/pm/tasks/${taskId}`, { method: "PUT", body: JSON.stringify(data) });
+  },
+  getTaskHistory(taskId: string) {
+    return request<{ history: PMTaskSnapshot[] }>(`/api/pm/tasks/${taskId}/history`);
+  },
+
+  // Validation
+  validateTask(taskId: string) {
+    return request<PMValidationResult>(`/api/pm/tasks/${taskId}/validate`, { method: "POST" });
+  },
+  getValidation(taskId: string) {
+    return request<PMValidationResult>(`/api/pm/tasks/${taskId}/validation`);
+  },
+
+  // Conflicts
+  listConflicts(projectId: string) {
+    return request<{ conflicts: PMConflict[] }>(`/api/pm/projects/${projectId}/conflicts`);
+  },
+  resolveConflict(conflictId: string, data: { resolution: string; resolvedData?: Record<string, unknown> }) {
+    return request<{ message: string }>(`/api/pm/conflicts/${conflictId}/resolve`, { method: "POST", body: JSON.stringify(data) });
+  },
+
+  // Reminders
+  getReminders(projectId: string) {
+    return request<PMReminderSettings>(`/api/pm/projects/${projectId}/reminders`);
+  },
+  updateReminders(projectId: string, data: PMReminderSettings) {
+    return request<PMReminderSettings>(`/api/pm/projects/${projectId}/reminders`, { method: "PUT", body: JSON.stringify(data) });
+  },
+  testReminders(projectId: string) {
+    return request<PMReminderTestResult>(`/api/pm/projects/${projectId}/reminders/test`, { method: "POST" });
+  },
+
+  // Analytics
+  getProgress(projectId: string) {
+    return request<PMProgressReport>(`/api/pm/projects/${projectId}/analytics/progress`);
+  },
+  getCriticalPath(projectId: string) {
+    return request<PMCriticalPathResult>(`/api/pm/projects/${projectId}/analytics/critical-path`);
+  },
+  getDecomposition(projectId: string) {
+    return request<{ recommendations: PMDecompositionRecommendation[] }>(`/api/pm/projects/${projectId}/analytics/decomposition`);
+  },
+  getGompertz(projectId: string) {
+    return request<PMGompertzReport>(`/api/pm/projects/${projectId}/analytics/gompertz`);
+  },
+  getFullReport(projectId: string) {
+    return request<PMFullReport>(`/api/pm/projects/${projectId}/analytics/report`);
   },
 };

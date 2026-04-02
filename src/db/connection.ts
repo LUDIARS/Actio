@@ -28,6 +28,9 @@ let db: any;
 let schema: any;
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 let curriculumSchema: any;
+// PM スキーマ (全方言で pm-schema.ts を共有)
+import * as pmSchemaImport from "./pm-schema.js";
+const pmSchema = pmSchemaImport;
 
 switch (dialect) {
   case "postgres": {
@@ -65,4 +68,4 @@ switch (dialect) {
 
 console.log("[db:connection] データベース初期化完了");
 
-export { db, schema, curriculumSchema, dialect };
+export { db, schema, curriculumSchema, pmSchema, dialect };

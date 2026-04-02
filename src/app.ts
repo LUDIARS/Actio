@@ -9,6 +9,7 @@ import { calendar } from "../modules/calendar/routes.js";
 import { myPlanRoutes } from "../modules/myplan/routes.js";
 import { smartScheduler } from "../modules/smart-scheduler/routes.js";
 import { schoolModule } from "../modules/school/index.js";
+import { pmModule } from "../modules/pm/index.js";
 import { m1 } from "../modules/schedule/routes.js";
 import { holidayRoutes } from "../modules/holiday/routes.js";
 import { reminderRoutes } from "../modules/reminder/routes.js";
@@ -97,7 +98,7 @@ export function createApp() {
   app.route("/api/external", externalApi);
 
   // ─── School Module (学校カリキュラム管理 + 施設予約: M1) ─────
-  const modules: SchulaModule[] = [schoolModule];
+  const modules: SchulaModule[] = [schoolModule, pmModule];
   for (const mod of modules) {
     app.route(mod.basePath, mod.routes);
   }

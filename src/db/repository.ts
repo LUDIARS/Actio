@@ -6,7 +6,7 @@
  */
 
 import { eq, and, count, inArray, desc, like, gte, lte, or, isNull } from "drizzle-orm";
-import { db, schema, curriculumSchema } from "./connection.js";
+import { db, schema, curriculumSchema, pmSchema } from "./connection.js";
 
 // ─── Types ──────────────────────────────────────────────────
 
@@ -1796,5 +1796,294 @@ export const userProjectRoleRepo = {
           eq(schema.userProjectRoles.groupId, groupId),
         )
       );
+  },
+};
+
+// ─── PM: Project Repository ──────────────────────────────
+
+export type PMProject = typeof pmSchema.pmProjects.$inferSelect;
+export type NewPMProject = typeof pmSchema.pmProjects.$inferInsert;
+
+export const pmProjectRepo = {
+  async findAll(): Promise<PMProject[]> {
+    return db.select().from(pmSchema.pmProjects);
+  },
+
+  async findById(id: string): Promise<PMProject | undefined> {
+    const [project] = await db
+      .select()
+      .from(pmSchema.pmProjects)
+      .where(eq(pmSchema.pmProjects.id, id));
+    return project;
+  },
+
+  async findByOwner(ownerId: string): Promise<PMProject[]> {
+    return db
+      .select()
+      .from(pmSchema.pmProjects)
+      .where(eq(pmSchema.pmProjects.ownerId, ownerId));
+  },
+
+  async create(data: NewPMProject): Promise<void> {
+    await db.insert(pmSchema.pmProjects).values(data);
+  },
+
+  async update(id: string, data: Partial<Omit<NewPMProject, "id">>): Promise<void> {
+    await db
+      .update(pmSchema.pmProjects)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(pmSchema.pmProjects.id, id));
+  },
+
+  async deleteById(id: string): Promise<void> {
+    await db.delete(pmSchema.pmProjects).where(eq(pmSchema.pmProjects.id, id));
+  },
+};
+
+// ─── PM: Task Repository ─────────────────────────────────
+
+export type PMTask = typeof pmSchema.pmTasks.$inferSelect;
+export type NewPMTask = typeof pmSchema.pmTasks.$inferInsert;
+
+export const pmTaskRepo = {
+  async findByProject(projectId: string): Promise<PMTask[]> {
+    return db
+      .select()
+      .from(pmSchema.pmTasks)
+      .where(eq(pmSchema.pmTasks.projectId, projectId));
+  },
+
+  async findById(id: string): Promise<PMTask | undefined> {
+    const [task] = await db
+      .select()
+      .from(pmSchema.pmTasks)
+      .where(eq(pmSchema.pmTasks.id, id));
+    return task;
+  },
+
+  async findByExternalId(projectId: string, externalId: string): Promise<PMTask | undefined> {
+    const [task] = await db
+      .select()
+      .from(pmSchema.pmTasks)
+      .where(
+        and(
+          eq(pmSchema.pmTasks.projectId, projectId),
+          eq(pmSchema.pmTasks.externalId, externalId)
+        )
+      );
+    return task;
+  },
+
+  async findDirty(projectId: string): Promise<PMTask[]> {
+    return db
+      .select()
+      .from(pmSchema.pmTasks)
+      .where(
+        and(
+          eq(pmSchema.pmTasks.projectId, projectId),
+          eq(pmSchema.pmTasks.dirtyFlag, 1)
+        )
+      );
+  },
+
+  async findByDueDateRange(from: string, to: string): Promise<PMTask[]> {
+    return db
+      .select()
+      .from(pmSchema.pmTasks)
+      .where(
+        and(
+          gte(pmSchema.pmTasks.dueDate, from),
+          lte(pmSchema.pmTasks.dueDate, to)
+        )
+      );
+  },
+
+  async findOverdue(today: string): Promise<PMTask[]> {
+    return db
+      .select()
+      .from(pmSchema.pmTasks)
+      .where(
+        and(
+          lte(pmSchema.pmTasks.dueDate, today),
+          or(
+            eq(pmSchema.pmTasks.status, "open"),
+            eq(pmSchema.pmTasks.status, "in_progress"),
+            eq(pmSchema.pmTasks.status, "review")
+          )
+        )
+      );
+  },
+
+  async create(data: NewPMTask): Promise<void> {
+    await db.insert(pmSchema.pmTasks).values(data);
+  },
+
+  async update(id: string, data: Partial<Omit<NewPMTask, "id">>): Promise<void> {
+    await db
+      .update(pmSchema.pmTasks)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(pmSchema.pmTasks.id, id));
+  },
+
+  async deleteByProject(projectId: string): Promise<void> {
+    await db.delete(pmSchema.pmTasks).where(eq(pmSchema.pmTasks.projectId, projectId));
+  },
+};
+
+// ─── PM: Task Snapshot Repository ────────────────────────
+
+export type PMTaskSnapshot = typeof pmSchema.pmTaskSnapshots.$inferSelect;
+export type NewPMTaskSnapshot = typeof pmSchema.pmTaskSnapshots.$inferInsert;
+
+export const pmTaskSnapshotRepo = {
+  async findByTask(taskId: string): Promise<PMTaskSnapshot[]> {
+    return db
+      .select()
+      .from(pmSchema.pmTaskSnapshots)
+      .where(eq(pmSchema.pmTaskSnapshots.taskId, taskId))
+      .orderBy(desc(pmSchema.pmTaskSnapshots.detectedAt));
+  },
+
+  async create(data: NewPMTaskSnapshot): Promise<void> {
+    await db.insert(pmSchema.pmTaskSnapshots).values(data);
+  },
+};
+
+// ─── PM: Milestone Repository ────────────────────────────
+
+export type PMMilestone = typeof pmSchema.pmMilestones.$inferSelect;
+export type NewPMMilestone = typeof pmSchema.pmMilestones.$inferInsert;
+
+export const pmMilestoneRepo = {
+  async findByProject(projectId: string): Promise<PMMilestone[]> {
+    return db
+      .select()
+      .from(pmSchema.pmMilestones)
+      .where(eq(pmSchema.pmMilestones.projectId, projectId));
+  },
+
+  async findByExternalId(projectId: string, externalId: string): Promise<PMMilestone | undefined> {
+    const [m] = await db
+      .select()
+      .from(pmSchema.pmMilestones)
+      .where(
+        and(
+          eq(pmSchema.pmMilestones.projectId, projectId),
+          eq(pmSchema.pmMilestones.externalId, externalId)
+        )
+      );
+    return m;
+  },
+
+  async create(data: NewPMMilestone): Promise<void> {
+    await db.insert(pmSchema.pmMilestones).values(data);
+  },
+
+  async update(id: string, data: Partial<Omit<NewPMMilestone, "id">>): Promise<void> {
+    await db
+      .update(pmSchema.pmMilestones)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(pmSchema.pmMilestones.id, id));
+  },
+
+  async deleteByProject(projectId: string): Promise<void> {
+    await db.delete(pmSchema.pmMilestones).where(eq(pmSchema.pmMilestones.projectId, projectId));
+  },
+};
+
+// ─── PM: Task Validation Repository ──────────────────────
+
+export type PMTaskValidation = typeof pmSchema.pmTaskValidations.$inferSelect;
+export type NewPMTaskValidation = typeof pmSchema.pmTaskValidations.$inferInsert;
+
+export const pmTaskValidationRepo = {
+  async findLatestByTask(taskId: string): Promise<PMTaskValidation | undefined> {
+    const [v] = await db
+      .select()
+      .from(pmSchema.pmTaskValidations)
+      .where(eq(pmSchema.pmTaskValidations.taskId, taskId))
+      .orderBy(desc(pmSchema.pmTaskValidations.validatedAt))
+      .limit(1);
+    return v;
+  },
+
+  async create(data: NewPMTaskValidation): Promise<void> {
+    await db.insert(pmSchema.pmTaskValidations).values(data);
+  },
+};
+
+// ─── PM: Conflict Repository ─────────────────────────────
+
+export type PMConflict = typeof pmSchema.pmConflicts.$inferSelect;
+export type NewPMConflict = typeof pmSchema.pmConflicts.$inferInsert;
+
+export const pmConflictRepo = {
+  async findByProject(projectId: string, status?: string): Promise<PMConflict[]> {
+    if (status) {
+      return db
+        .select()
+        .from(pmSchema.pmConflicts)
+        .where(
+          and(
+            eq(pmSchema.pmConflicts.projectId, projectId),
+            eq(pmSchema.pmConflicts.status, status)
+          )
+        );
+    }
+    return db
+      .select()
+      .from(pmSchema.pmConflicts)
+      .where(eq(pmSchema.pmConflicts.projectId, projectId));
+  },
+
+  async findById(id: string): Promise<PMConflict | undefined> {
+    const [c] = await db
+      .select()
+      .from(pmSchema.pmConflicts)
+      .where(eq(pmSchema.pmConflicts.id, id));
+    return c;
+  },
+
+  async create(data: NewPMConflict): Promise<void> {
+    await db.insert(pmSchema.pmConflicts).values(data);
+  },
+
+  async update(id: string, data: Partial<Omit<NewPMConflict, "id">>): Promise<void> {
+    await db
+      .update(pmSchema.pmConflicts)
+      .set(data)
+      .where(eq(pmSchema.pmConflicts.id, id));
+  },
+};
+
+// ─── PM: Analytics Cache Repository ──────────────────────
+
+export type PMAnalyticsCache = typeof pmSchema.pmAnalyticsCache.$inferSelect;
+export type NewPMAnalyticsCache = typeof pmSchema.pmAnalyticsCache.$inferInsert;
+
+export const pmAnalyticsCacheRepo = {
+  async findLatest(projectId: string, reportType: string): Promise<PMAnalyticsCache | undefined> {
+    const now = new Date().toISOString();
+    const [cache] = await db
+      .select()
+      .from(pmSchema.pmAnalyticsCache)
+      .where(
+        and(
+          eq(pmSchema.pmAnalyticsCache.projectId, projectId),
+          eq(pmSchema.pmAnalyticsCache.reportType, reportType),
+          gte(pmSchema.pmAnalyticsCache.expiresAt, now)
+        )
+      )
+      .orderBy(desc(pmSchema.pmAnalyticsCache.generatedAt))
+      .limit(1);
+    return cache;
+  },
+
+  async create(data: NewPMAnalyticsCache): Promise<void> {
+    await db.insert(pmSchema.pmAnalyticsCache).values(data);
+  },
+
+  async deleteByProject(projectId: string): Promise<void> {
+    await db.delete(pmSchema.pmAnalyticsCache).where(eq(pmSchema.pmAnalyticsCache.projectId, projectId));
   },
 };
