@@ -7,6 +7,68 @@
  * ModuleDefinition と組み合わせて使用し、ページの見た目を統一的に管理する。
  */
 
+// ─── Menu Hierarchy ──────────────────────────────────────
+
+/** メニュー項目の表示タイプ */
+export type MenuItemVariant =
+  | "link"       // 通常のページ遷移リンク (デフォルト)
+  | "action"     // クリックでアクションを実行 (モーダル表示等)
+  | "external"   // 外部リンク (新しいタブで開く)
+  | "divider";   // 区切り線
+
+/** バッジの表示スタイル */
+export interface MenuBadge {
+  /** バッジ種別 */
+  type: "count" | "dot" | "text";
+  /** テキストバッジの場合のラベル (例: "NEW", "β") */
+  label?: string;
+  /** バッジの色 */
+  color?: "default" | "accent" | "warning" | "danger" | "success";
+}
+
+/** メニュー項目のUI表現 */
+export interface MenuItemFormat {
+  /** 対応する MenuItem.to (パスで紐付け) */
+  path: string;
+  /** 表示タイプ */
+  variant?: MenuItemVariant;
+  /** バッジ表示 (通知数、NEW マーク等) */
+  badge?: MenuBadge;
+  /** ツールチップテキスト */
+  tooltip?: string;
+  /** 無効状態 (グレーアウト表示) */
+  disabled?: boolean;
+  /** 無効時の説明テキスト */
+  disabledReason?: string;
+}
+
+/** メニューグループのUI表現 */
+export interface MenuGroupFormat {
+  /** 対応する MenuGroup.id */
+  groupId: string;
+  /** グループの表示スタイル */
+  style?: MenuGroupStyle;
+  /** グループ内の項目UI定義 */
+  items?: MenuItemFormat[];
+  /** セクション区切り — items 内の挿入位置 (項目パスの後に区切りを入れる) */
+  dividerAfter?: string[];
+}
+
+/** メニューグループの表示スタイル */
+export type MenuGroupStyle =
+  | "default"    // 通常の折りたたみグループ
+  | "flat"       // 折りたたみなし (常に展開)
+  | "compact"    // アイコンのみ表示 (ホバーでラベル)
+  | "highlighted"; // 強調表示 (背景色付き)
+
+/** モジュール全体のメニュー階層UI定義 */
+export interface MenuHierarchyFormat {
+  /** トップレベル項目のUI定義 (グループに属さないもの) */
+  topLevel?: MenuItemFormat[];
+  /** グループのUI定義 */
+  groups?: MenuGroupFormat[];
+}
+
 // ─── Page Size ────────────────────────────────────────────
 
 /** ページ幅の挙動 */
@@ -160,6 +222,8 @@ export interface PageUIFormat {
 export interface ModuleUIFormat {
   /** 対応する ModuleDefinition.id */
   moduleId: string;
+  /** メニュー階層のUI表現 */
+  menu?: MenuHierarchyFormat;
   /** モジュール内の各ページのUIフォーマット */
   pages: PageUIFormat[];
 }
