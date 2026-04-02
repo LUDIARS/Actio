@@ -1,10 +1,10 @@
 /**
- * School Module — 学校カリキュラム管理モジュール
+ * CALICULA (M1) — 学校カリキュラム管理モジュール
  *
  * Schedula のオプショナルモジュールとして、学校・教育機関向けの
  * 授業スケジュール管理機能を提供します。
  *
- * M1: 学校カリキュラム管理 (学科・講師・カリキュラム CRUD + マイグレーション)
+ * CALICULA: 学校カリキュラム管理 (学科・講師・カリキュラム CRUD + マイグレーション)
  *   - 旧 M2 (データ統合) と旧 M3 (オートスケジューラ) を M1 に統合済み
  *   - カリキュラム配置データをスケジューラのプラン形式に自動変換
  *   - 学科をグループとして自動登録するマイグレーション
@@ -41,12 +41,12 @@ schoolRouter.get("/timetable", (c) => {
 registerFacilityBookingPlugin();
 
 export const schoolModule: SchulaModule = {
-  name: "school",
-  description: "学校カリキュラム管理 — 学科・講師・カリキュラム・マイグレーション・施設予約",
+  name: "calicula",
+  description: "CALICULA — 学校カリキュラム管理・学科・講師・マイグレーション・施設予約",
   routes: schoolRouter,
   basePath: "/api/school",
   submodules: [
-    { id: "m1", name: "学校カリキュラム管理", path: "/m1" },
+    { id: "m1", name: "カリキュラム管理", path: "/m1" },
     { id: "facility-booking", name: "施設予約", path: "/facility-booking" },
   ],
 };

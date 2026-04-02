@@ -280,6 +280,7 @@ export interface GroupDetailResponse {
     id: string;
     name: string;
     description: string | null;
+    enabledModules: string[];
     members: GroupMember[];
     schedules: GroupScheduleEntry[];
     events: GroupEvent[];

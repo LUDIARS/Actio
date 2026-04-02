@@ -68,6 +68,7 @@ export function initTestDatabase() {
       id TEXT PRIMARY KEY,
       name TEXT NOT NULL,
       description TEXT,
+      enabled_modules TEXT,
       created_by TEXT NOT NULL,
       created_at INTEGER NOT NULL
     );

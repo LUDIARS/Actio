@@ -36,6 +36,7 @@ interface GroupDetail {
   id: string;
   name: string;
   description: string | null;
+  enabledModules: string[];
   members: GroupMember[];
   schedules: Array<{
     id: string;
@@ -65,6 +66,39 @@ const ROLE_BADGE_CLASS: Record<string, string> = {
   owner: "blue",
   leader: "orange",
   member: "green",
+};
+
+interface ModuleInfo {
+  id: string;
+  name: string;
+  codename: string | null;
+  description: string;
+  category: "education" | "project" | "communication" | "utility";
+}
+
+const AVAILABLE_MODULES: ModuleInfo[] = [
+  { id: "calicula", name: "CALICULA", codename: "M1", description: "学校カリキュラム管理", category: "education" },
+  { id: "pm", name: "PM", codename: "M2", description: "プロジェクト管理 (GitHub/Notion)", category: "project" },
+  { id: "machina", name: "MACHINA", codename: "M3", description: "タスク自動生成 (Slack/Discord)", category: "project" },
+  { id: "notification", name: "通知・Webhook", codename: null, description: "Slack/Discord/LINE 通知", category: "communication" },
+  { id: "voting", name: "日程調整Voting", codename: null, description: "投票で日程を決定", category: "communication" },
+  { id: "holiday", name: "休日管理", codename: null, description: "祝日・休業期間管理", category: "utility" },
+  { id: "facility-booking", name: "施設予約", codename: null, description: "教室・会議室の予約", category: "education" },
+  { id: "integrations", name: "外部サービス連携", codename: null, description: "Google Calendar/Notion 同期", category: "utility" },
+];
+
+const CATEGORY_LABELS: Record<string, string> = {
+  education: "教育",
+  project: "プロジェクト",
+  communication: "コミュニケーション",
+  utility: "ユーティリティ",
+};
+
+const CATEGORY_COLORS: Record<string, string> = {
+  education: "blue",
+  project: "orange",
+  communication: "green",
+  utility: "purple",
 };
 
 export function GroupsPage() {
@@ -98,6 +132,10 @@ export function GroupsPage() {
   const [allUsers, setAllUsers] = useState<SearchUser[]>([]);
   const [inviteFilter, setInviteFilter] = useState("");
   const [inviting, setInviting] = useState(false);
+
+  // モジュール設定
+  const [showModules, setShowModules] = useState(false);
+  const [moduleSaving, setModuleSaving] = useState(false);
 
   // 現在のユーザのグループ内ロール
   const myGroupRole =
@@ -195,6 +233,22 @@ export function GroupsPage() {
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : String(err));
     }
+  };
+
+  const handleToggleModule = async (moduleId: string) => {
+    if (!selectedGroup) return;
+    setModuleSaving(true);
+    try {
+      const current = selectedGroup.enabledModules || [];
+      const updated = current.includes(moduleId)
+        ? current.filter((m: string) => m !== moduleId)
+        : [...current, moduleId];
+      await groupApi.updateModules(selectedGroup.id, updated);
+      setSelectedGroup({ ...selectedGroup, enabledModules: updated });
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : String(err));
+    }
+    setModuleSaving(false);
   };
 
   const handleAddSchedule = async (e: React.FormEvent) => {
@@ -568,6 +622,96 @@ export function GroupsPage() {
                     </button>
                   </div>
                 ))}
+              </div>
+            )}
+          </div>
+
+          {/* モジュール設定 */}
+          <div className="card">
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.75rem", flexWrap: "wrap", gap: "0.5rem" }}>
+              <h3 style={{ fontSize: "0.9rem", fontWeight: 600 }}>
+                使用モジュール
+              </h3>
+              <button
+                style={{ fontSize: "0.75rem", padding: "0.2rem 0.5rem" }}
+                onClick={() => setShowModules(!showModules)}
+              >
+                {showModules ? "閉じる" : "設定"}
+              </button>
+            </div>
+
+            {/* 有効モジュールのサマリー */}
+            {!showModules && (
+              <div style={{ display: "flex", flexWrap: "wrap", gap: "0.3rem" }}>
+                {(selectedGroup.enabledModules || []).length === 0 ? (
+                  <span style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>モジュール未設定</span>
+                ) : (
+                  (selectedGroup.enabledModules || []).map((mId: string) => {
+                    const mod = AVAILABLE_MODULES.find((m) => m.id === mId);
+                    return mod ? (
+                      <span key={mId} className={`badge ${CATEGORY_COLORS[mod.category] || "green"}`} style={{ fontSize: "0.65rem" }}>
+                        {mod.codename ? `${mod.codename}: ` : ""}{mod.name}
+                      </span>
+                    ) : null;
+                  })
+                )}
+              </div>
+            )}
+
+            {/* モジュール選択パネル */}
+            {showModules && (
+              <div style={{ display: "flex", flexDirection: "column", gap: "0.4rem" }}>
+                {(["education", "project", "communication", "utility"] as const).map((cat) => {
+                  const mods = AVAILABLE_MODULES.filter((m) => m.category === cat);
+                  if (mods.length === 0) return null;
+                  return (
+                    <div key={cat}>
+                      <div style={{ fontSize: "0.7rem", fontWeight: 600, color: "var(--text-muted)", marginBottom: "0.25rem", textTransform: "uppercase" }}>
+                        {CATEGORY_LABELS[cat]}
+                      </div>
+                      {mods.map((mod) => {
+                        const enabled = (selectedGroup.enabledModules || []).includes(mod.id);
+                        return (
+                          <label
+                            key={mod.id}
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: "0.5rem",
+                              padding: "0.4rem 0.6rem",
+                              background: enabled ? "var(--bg-surface-2)" : "transparent",
+                              borderRadius: "var(--radius-sm)",
+                              fontSize: "0.8rem",
+                              cursor: canManage ? "pointer" : "default",
+                              opacity: moduleSaving ? 0.6 : 1,
+                            }}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={enabled}
+                              onChange={() => handleToggleModule(mod.id)}
+                              disabled={!canManage || moduleSaving}
+                              style={{ margin: 0 }}
+                            />
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <span style={{ fontWeight: 500 }}>
+                                {mod.codename ? `${mod.codename}: ` : ""}{mod.name}
+                              </span>
+                              <span style={{ fontSize: "0.7rem", color: "var(--text-muted)", marginLeft: "0.5rem" }}>
+                                {mod.description}
+                              </span>
+                            </div>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  );
+                })}
+                {!canManage && (
+                  <div style={{ fontSize: "0.75rem", color: "var(--text-muted)", fontStyle: "italic" }}>
+                    モジュールの変更はオーナーまたはリーダーのみ可能です
+                  </div>
+                )}
               </div>
             )}
           </div>
