@@ -18,6 +18,7 @@
     "db:import": "tsx scripts/db-import.ts",
     "secrets": "tsx packages/env-cli/src/cli.ts",
     "setup": "bash scripts/setup.sh",
+    "ci-check": "bash scripts/ci-check.sh",
     "test": "vitest run",
     "test:watch": "vitest",
     "id:scan": "tsx services/id-service/src/migration/cli.ts",
