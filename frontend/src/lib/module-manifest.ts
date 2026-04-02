@@ -1,80 +1,17 @@
 /**
- * Module Manifest — モジュール設計書の統括定義
+ * Module Manifest — モジュール設計書の統括型定義
  *
- * UI表現・ドメインモデル・DBスキーマ・APIコントラクトの4種の
- * フォーマット定義を束ね、モジュール間の依存関係を管理する。
+ * Markdown テンプレート (docs/module-manifest.template.md) 内の
+ * YAML フロントマター / コードブロックをパースした結果の TypeScript 型。
  *
- * 各モジュールは1つの ModuleManifest を持ち、
- * 設計レベルでの全体像を宣言的に表現する。
+ * 設計書は Markdown で人が読み書きし、構造化データ部分は YAML で記述、
+ * この型定義でバリデーション・型安全なアクセスを提供する。
  */
 
 import type { ModuleUIFormat } from "./ui-format";
 import type { ModuleDomainFormat } from "./domain-format";
 import type { ModuleSchemaFormat } from "./schema-format";
-
-// ─── API Contract ─────────────────────────────────────────
-
-/** HTTP メソッド */
-export type HttpMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
-
-/** APIパラメータの送信場所 */
-export type ParamLocation = "path" | "query" | "body" | "header";
-
-/** APIパラメータ定義 */
-export interface ApiParamDefinition {
-  /** パラメータ名 */
-  name: string;
-  /** 送信場所 */
-  in: ParamLocation;
-  /** 型 (例: "string", "number", "boolean", "object") */
-  type: string;
-  /** 必須か */
-  required?: boolean;
-  /** 説明 */
-  description?: string;
-}
-
-/** レスポンス定義 */
-export interface ApiResponseDefinition {
-  /** HTTPステータスコード */
-  status: number;
-  /** レスポンスの型 (エンティティ名や自由記述) */
-  type?: string;
-  /** 配列レスポンスか */
-  array?: boolean;
-  /** 説明 */
-  description?: string;
-}
-
-/** APIエンドポイント定義 */
-export interface ApiEndpointDefinition {
-  /** HTTPメソッド */
-  method: HttpMethod;
-  /** パス (例: "/api/pm/projects/:projectId/tasks") */
-  path: string;
-  /** 説明 */
-  description?: string;
-  /** パラメータ */
-  params?: ApiParamDefinition[];
-  /** レスポンス定義 */
-  responses?: ApiResponseDefinition[];
-  /** 認証必須か (デフォルト: true) */
-  authRequired?: boolean;
-  /** 必要な権限ロール */
-  requiredRole?: "admin" | "group_leader";
-  /** 対応するドメイン操作名 (domain-format の OperationDefinition.name) */
-  domainOperation?: string;
-}
-
-/** モジュールのAPIコントラクト定義 */
-export interface ModuleApiFormat {
-  /** 対応するモジュールID */
-  moduleId: string;
-  /** ベースパス (例: "/api/pm") */
-  basePath: string;
-  /** エンドポイント一覧 */
-  endpoints: ApiEndpointDefinition[];
-}
+import type { ModuleApiFormat } from "./api-format";
 
 // ─── Dependencies ─────────────────────────────────────────
 
@@ -123,7 +60,7 @@ export interface ModuleManifest {
   /** バージョン (設計書のバージョン管理用) */
   version?: string;
 
-  // ── 4種のフォーマット定義 ──
+  // ── 5種のフォーマット定義 ──
 
   /** UI表現フォーマット (メニュー階層 + ページレイアウト) */
   ui?: ModuleUIFormat;
