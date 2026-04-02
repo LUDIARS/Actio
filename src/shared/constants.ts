@@ -96,6 +96,11 @@ export const EVENT_NAMES = {
   RESERVATION_REMINDER: "reservation.reminder",
   SYNC_CONFLICT: "sync.conflict",
   REMINDER_MORNING: "reminder.morning",
+  MACHINA_TASK_CREATED: "machina.task.created",
+  MACHINA_TASK_UPDATED: "machina.task.updated",
+  MACHINA_TASK_COMPLETED: "machina.task.completed",
+  MACHINA_TASK_ASSIGNED: "machina.task.assigned",
+  MACHINA_TASK_RELAYED: "machina.task.relayed",
 } as const;
 
 /** Event module definition for UI grouping */
@@ -137,6 +142,17 @@ export const EVENT_MODULES: EventModuleDefinition[] = [
     label: "リマインダー",
     events: [
       { name: "reminder.morning", label: "朝の未完了タスク通知" },
+    ],
+  },
+  {
+    module: "machina",
+    label: "M3 MACHINA",
+    events: [
+      { name: "machina.task.created", label: "タスク自動生成" },
+      { name: "machina.task.updated", label: "タスク自動更新" },
+      { name: "machina.task.completed", label: "タスク自動完了" },
+      { name: "machina.task.assigned", label: "アサイン自動変更" },
+      { name: "machina.task.relayed", label: "PM (M2) リレー" },
     ],
   },
 ];

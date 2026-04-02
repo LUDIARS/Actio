@@ -64,6 +64,7 @@ m1.get("/departments", async (c) => {
 - `schedulingTaskRepo` / `schedulingResultRepo` — スマートスケジューラ関連
 - `holidayRepo` — 休日・休業期間管理
 - `groupEventRepo` — グループ個別予定 (日付ベース)
+- `machinaChannelMonitorRepo` / `machinaTaskRepo` / `machinaTaskLogRepo` — M3 MACHINA タスク自動生成
 
 ## TypeScript コーディングルール
 
@@ -142,6 +143,17 @@ const roomMap = new Map(rooms.map((r: any) => [r.id, r.name]));
 - スケジュール配置時の休日考慮ユーティリティ
 - グループの個別予定 (日付ベースの行事・休日・審査会期間) — `GET/POST/PUT/DELETE /api/groups/:id/events`
 
+### M3: MACHINA タスク自動生成モジュール
+
+`modules/machina/` — Slack/Discord チャンネル監視 & タスク自動生成 (`/api/machina`)
+
+- チャンネル監視設定 (グループ別に複数チャンネル)
+- ルールベーステキスト解析 (将来: Claude Haiku AI 解析)
+- 自動タスク生成 (タイトル・優先度・アサイン・納期を自動設定)
+- 完了キーワード検出による自動ステータス更新
+- M2「PM」リレーインターフェース (アダプタパターン)
+- Webhook 受信: `POST /api/machina/webhook/slack`, `POST /api/machina/webhook/discord`
+
 ### その他モジュール
 
 - **通知** (`modules/notification/`) — M5 (`/api/webhooks`)
@@ -177,6 +189,7 @@ const roomMap = new Map(rooms.map((r: any) => [r.id, r.name]));
 | `modules/notification/` | `frontend/src/pages/NotificationsPage.tsx` | `api.ts` の `m5` |
 | `modules/voting/` | `frontend/src/pages/VotingPage.tsx` | `api.ts` の `m6Voting` |
 | `modules/holiday/` | `frontend/src/pages/GroupsPage.tsx` (個別予定), `SmartSchedulerPage.tsx` (休日オプション) | `api.ts` の `holidayApi`, `groupApi` |
+| `modules/machina/` | `frontend/src/pages/MachinaPage.tsx` | `api.ts` の `machinaApi` |
 | `src/auth/` | `frontend/src/pages/LoginPage.tsx`, `UserManagementPage.tsx` | `api.ts` の `auth` |
 
 ## プロジェクト構造

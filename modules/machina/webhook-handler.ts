@@ -15,6 +15,7 @@ import {
   userRepo,
 } from "../../src/db/repository.js";
 import { relayTaskToPm } from "./pm-relay.js";
+import { emitEvent } from "../notification/core/handler.js";
 import type { MachinaTask } from "../../src/db/repository.js";
 
 /** Slack Event APIのメッセージ形式 */
@@ -175,6 +176,18 @@ async function processMessage(
     createdAt: now,
   });
 
+  // 通知イベント発火
+  await emitEvent("machina.task.created", {
+    taskId,
+    groupId,
+    title: analysis.title,
+    priority: analysis.priority,
+    assigneeId,
+    source: "auto",
+    platform: msg.platform,
+    confidence: Math.round(analysis.confidence * 100),
+  });
+
   // PM リレー
   const relayResult = await relayTaskToPm(taskData);
   if (relayResult) {
@@ -205,30 +218,45 @@ async function handleTaskCompletion(
   msg: NormalizedMessage,
   groupId: string
 ): Promise<void> {
-  // 進行中のタスクから、メッセージ作者にアサインされたものを検索
-  const tasks = await machinaTaskRepo.findByGroupIdAndStatus(
+  // 進行中・未着手のタスクから、メッセージ作者にアサインされたものを検索
+  const inProgressTasks = await machinaTaskRepo.findByGroupIdAndStatus(
     groupId,
     "in_progress"
   );
+  const pendingTasks = await machinaTaskRepo.findByGroupIdAndStatus(
+    groupId,
+    "pending"
+  );
+  const activeTasks = [...inProgressTasks, ...pendingTasks];
 
   // メンションされたユーザーまたは作者のタスクを完了にする
   const resolvedAuthor = await resolveAssignee(msg.authorName, groupId);
-  const targetTasks = tasks.filter(
+  const targetTasks = activeTasks.filter(
     (t) => t.assigneeId === resolvedAuthor || t.assigneeId === msg.authorId
   );
 
   for (const task of targetTasks) {
+    const prevStatus = task.status;
     await machinaTaskRepo.update(task.id, { status: "done" });
     await machinaTaskLogRepo.create({
       id: randomUUID(),
       taskId: task.id,
       action: "status_changed",
-      previousValue: JSON.stringify({ status: "in_progress" }),
+      previousValue: JSON.stringify({ status: prevStatus }),
       newValue: JSON.stringify({ status: "done" }),
       reason: `完了キーワード検出: "${msg.text.slice(0, 100)}"`,
       triggerMessageId: msg.messageId,
       performedBy: "system",
       createdAt: new Date(),
+    });
+
+    // 通知イベント発火
+    await emitEvent("machina.task.completed", {
+      taskId: task.id,
+      groupId,
+      title: task.title,
+      assigneeId: task.assigneeId,
+      triggerText: msg.text.slice(0, 200),
     });
   }
 }
