@@ -72,7 +72,7 @@ export async function fetchGitHubIssues(config: GitHubSourceConfig): Promise<Ext
 
     // PR は除外 (pull_request プロパティがないものだけ)
     const issuesOnly = data.filter(
-      (d) => !(d as Record<string, unknown>).pull_request
+      (d) => !(d as unknown as Record<string, unknown>).pull_request
     );
     issues.push(...issuesOnly);
     page++;

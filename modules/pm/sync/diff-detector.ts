@@ -93,10 +93,10 @@ export function detectChanges(
   let changeType: TaskDiff["changeType"] = "updated";
   const statusChange = changes.find((c) => c.field === "status");
   if (statusChange) {
-    const newStatus = statusChange.after as PMTaskStatus;
-    const oldStatus = statusChange.before as PMTaskStatus;
+    const newStatus = String(statusChange.after);
+    const oldStatus = String(statusChange.before);
     if (newStatus === "closed") changeType = "closed";
-    else if (oldStatus === "closed" && newStatus !== "closed") changeType = "reopened";
+    else if (oldStatus === "closed") changeType = "reopened";
   }
 
   return {
