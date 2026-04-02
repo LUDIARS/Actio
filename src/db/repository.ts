@@ -786,6 +786,26 @@ export const groupRepo = {
       .set(data)
       .where(eq(schema.groups.id, id));
   },
+
+  /** Get enabled modules for a group (parsed from JSON text) */
+  getEnabledModules(group: { enabledModules: string | null }): string[] {
+    if (!group.enabledModules) return [];
+    try {
+      const parsed: unknown = JSON.parse(group.enabledModules);
+      if (Array.isArray(parsed)) return parsed.filter((m): m is string => typeof m === "string");
+      return [];
+    } catch {
+      return [];
+    }
+  },
+
+  /** Update enabled modules for a group */
+  async updateEnabledModules(id: string, modules: string[]) {
+    await db
+      .update(schema.groups)
+      .set({ enabledModules: JSON.stringify(modules) })
+      .where(eq(schema.groups.id, id));
+  },
 };
 
 // ─── Group Schedule Repository ──────────────────────────────

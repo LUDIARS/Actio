@@ -96,6 +96,7 @@ export const groups = sqliteTable("groups", {
   id: text("id").primaryKey(),
   name: text("name").notNull(),
   description: text("description"),
+  enabledModules: text("enabled_modules"),
   createdBy: text("created_by").notNull(),
   createdAt: integer("created_at", { mode: "timestamp" })
     .$defaultFn(() => new Date())

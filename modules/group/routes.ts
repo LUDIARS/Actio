@@ -142,11 +142,14 @@ groupRoutes.get("/:id", async (c) => {
       );
     }
 
+    const enabledModules = groupRepo.getEnabledModules(group);
+
     return c.json({
       group: {
         id: group.id,
         name: group.name,
         description: group.description,
+        enabledModules,
         members,
         schedules,
         events,
@@ -625,6 +628,62 @@ groupRoutes.delete("/:id/events/:eventId", async (c) => {
 
   await groupEventRepo.deleteById(eventId);
   return c.json({ deleted: eventId });
+});
+
+// ─── GET /:id/modules - グループの有効モジュール取得 ──────────
+
+groupRoutes.get("/:id/modules", async (c) => {
+  const userId = getUserId(c);
+  if (!userId) return c.json({ error: "Authentication required" }, 401);
+
+  const groupId = c.req.param("id");
+  const membership = await groupMemberRepo.findByGroupAndUser(groupId, userId);
+  if (!membership) return c.json({ error: "Not a member" }, 403);
+
+  const group = await groupRepo.findById(groupId);
+  if (!group) return c.json({ error: "Group not found" }, 404);
+
+  const enabledModules = groupRepo.getEnabledModules(group);
+  return c.json({ enabledModules });
+});
+
+// ─── PUT /:id/modules - グループの有効モジュール更新 ──────────
+
+groupRoutes.put("/:id/modules", async (c) => {
+  const userId = getUserId(c);
+  if (!userId) return c.json({ error: "Authentication required" }, 401);
+  const systemRole = getUserRole(c);
+
+  const groupId = c.req.param("id");
+  const membership = await groupMemberRepo.findByGroupAndUser(groupId, userId);
+  if (!canManageGroup(systemRole, membership?.role)) {
+    return c.json({ error: "Permission denied" }, 403);
+  }
+
+  const body = await c.req.json<{ enabledModules: string[] }>();
+  if (!Array.isArray(body.enabledModules)) {
+    return c.json({ error: "enabledModules must be an array" }, 400);
+  }
+
+  // Validate module IDs
+  const { SCHEDULA_MODULES } = await import("../../src/shared/constants.js");
+  const validIds = new Set<string>(SCHEDULA_MODULES);
+  const invalid = body.enabledModules.filter((m: string) => !validIds.has(m));
+  if (invalid.length > 0) {
+    return c.json({ error: `Invalid module IDs: ${invalid.join(", ")}` }, 400);
+  }
+
+  await groupRepo.updateEnabledModules(groupId, body.enabledModules);
+
+  const user = await userRepo.findById(userId);
+  logActivity(
+    userId,
+    user?.name || "Unknown",
+    "モジュール設定変更",
+    `グループ ${groupId} の使用モジュールを更新: ${body.enabledModules.join(", ")}`
+  );
+
+  return c.json({ enabledModules: body.enabledModules });
 });
 
 export { groupRoutes };

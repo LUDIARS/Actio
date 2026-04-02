@@ -322,6 +322,117 @@ export const MACHINA_URGENCY_KEYWORDS = [
   "ブロッカー", "blocker", "critical", "障害",
 ] as const;
 
+// ─── Schedula Module Definitions ─────────────────────────────
+
+/** Selectable module IDs (グループごとに有効/無効を切り替え可能) */
+export const SCHEDULA_MODULES = [
+  "calicula",
+  "pm",
+  "machina",
+  "notification",
+  "voting",
+  "holiday",
+  "facility-booking",
+  "integrations",
+] as const;
+export type SchulaModuleId = (typeof SCHEDULA_MODULES)[number];
+
+/** Module metadata for UI display */
+export interface SchulaModuleInfo {
+  id: SchulaModuleId;
+  name: string;
+  codename: string | null;
+  description: string;
+  icon: string;
+  category: "education" | "project" | "communication" | "utility";
+}
+
+/** All selectable modules with metadata */
+export const SCHEDULA_MODULE_INFO: SchulaModuleInfo[] = [
+  {
+    id: "calicula",
+    name: "CALICULA",
+    codename: "M1",
+    description: "学校カリキュラム管理 — 学科・講師・カリキュラムの CRUD、スケジュール配置",
+    icon: "GraduationCap",
+    category: "education",
+  },
+  {
+    id: "pm",
+    name: "PM",
+    codename: "M2",
+    description: "プロジェクト管理 — GitHub/Notion タスク同期・分析・リマインダー",
+    icon: "KanbanSquare",
+    category: "project",
+  },
+  {
+    id: "machina",
+    name: "MACHINA",
+    codename: "M3",
+    description: "タスク自動生成 — Slack/Discord チャンネル監視 & AI タスク生成",
+    icon: "Bot",
+    category: "project",
+  },
+  {
+    id: "notification",
+    name: "通知・Webhook",
+    codename: null,
+    description: "Slack/Discord/LINE/Webhook 通知配信",
+    icon: "Bell",
+    category: "communication",
+  },
+  {
+    id: "voting",
+    name: "日程調整Voting",
+    codename: null,
+    description: "投票による日程調整 (○△×)",
+    icon: "CalendarCheck",
+    category: "communication",
+  },
+  {
+    id: "holiday",
+    name: "休日管理",
+    codename: null,
+    description: "日本の祝日自動取得・グループ固有の休日・審査会期間管理",
+    icon: "CalendarOff",
+    category: "utility",
+  },
+  {
+    id: "facility-booking",
+    name: "施設予約",
+    codename: null,
+    description: "教室・会議室の予約管理 (CALICULA サブモジュール)",
+    icon: "Building2",
+    category: "education",
+  },
+  {
+    id: "integrations",
+    name: "外部サービス連携",
+    codename: null,
+    description: "Google Calendar 同期・Notion 連携",
+    icon: "Plug",
+    category: "utility",
+  },
+];
+
+/** Core modules (always enabled, not selectable) */
+export const CORE_MODULES = [
+  "auth",
+  "groups",
+  "calendar",
+  "myplan",
+  "smart-scheduler",
+  "reminders",
+  "profile",
+] as const;
+
+/** Default enabled modules for new groups */
+export const DEFAULT_ENABLED_MODULES: SchulaModuleId[] = [
+  "holiday",
+  "voting",
+  "notification",
+];
+
 /** M3: MACHINA task log actions */
 export const MACHINA_LOG_ACTIONS = [
   "created",

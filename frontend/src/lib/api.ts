@@ -1026,6 +1026,16 @@ export const groupApi = {
   searchUsers() {
     return request<{ users: Array<{ id: string; name: string; email: string }> }>("/api/groups/users/search");
   },
+  // モジュール設定
+  getModules(groupId: string) {
+    return request<{ enabledModules: string[] }>(`/api/groups/${groupId}/modules`);
+  },
+  updateModules(groupId: string, enabledModules: string[]) {
+    return request<{ enabledModules: string[] }>(`/api/groups/${groupId}/modules`, {
+      method: "PUT",
+      body: JSON.stringify({ enabledModules }),
+    });
+  },
 };
 
 // ─── MyPlan ──────────────────────────────────────────────────

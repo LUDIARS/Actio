@@ -62,6 +62,7 @@ sqlite.exec(`
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
     description TEXT,
+    enabled_modules TEXT,
     created_by TEXT NOT NULL,
     created_at INTEGER NOT NULL
   );
@@ -315,6 +316,7 @@ try { sqlite.exec(`CREATE INDEX IF NOT EXISTS idx_group_schedule_label ON group_
 try { sqlite.exec(`ALTER TABLE curricula ADD COLUMN valid_from TEXT`); } catch { /* column already exists */ }
 try { sqlite.exec(`ALTER TABLE curricula ADD COLUMN valid_until TEXT`); } catch { /* column already exists */ }
 try { sqlite.exec(`ALTER TABLE users ADD COLUMN last_login_at INTEGER`); } catch { /* column already exists */ }
+try { sqlite.exec(`ALTER TABLE "groups" ADD COLUMN enabled_modules TEXT`); } catch { /* column already exists */ }
 
 // M1: Terms table
 sqlite.exec(`
