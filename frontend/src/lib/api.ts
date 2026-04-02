@@ -18,6 +18,7 @@ import type {
   ScheduleResponse, GenerateResponse, SwapResponse,
   HolidayListResponse, ActivityLogsResponse,
   ReminderListResponse, ReminderResponse, ReminderParseResponse,
+  ProfileResponse, ProfileUpdateResponse, ProjectRolesResponse, ProjectRolesUpdateResponse, GroupProjectRolesResponse,
 } from "./api-types";
 
 // ─── Token Management ──────────────────────────────────────
@@ -826,6 +827,35 @@ export const settingsApi = {
   },
   getExportUrl() {
     return `${API_BASE}/api/settings/export`;
+  },
+};
+
+// ─── Profile (プロフィール & プロジェクトロール) ──────────────────
+
+export const profileApi = {
+  getMyProfile() {
+    return request<ProfileResponse>("/api/profile/me");
+  },
+  updateMyProfile(data: { bio?: string; displayName?: string | null; avatarUrl?: string | null }) {
+    return request<ProfileUpdateResponse>("/api/profile/me", {
+      method: "PUT",
+      body: JSON.stringify(data),
+    });
+  },
+  getUserProfile(userId: string) {
+    return request<ProfileResponse>(`/api/profile/users/${userId}`);
+  },
+  getMyRoles() {
+    return request<ProjectRolesResponse>("/api/profile/me/roles");
+  },
+  updateMyRoles(groupId: string, roles: string[]) {
+    return request<ProjectRolesUpdateResponse>(`/api/profile/me/roles/${groupId}`, {
+      method: "PUT",
+      body: JSON.stringify({ roles }),
+    });
+  },
+  getGroupRoles(groupId: string) {
+    return request<GroupProjectRolesResponse>(`/api/profile/groups/${groupId}/roles`);
   },
 };
 
