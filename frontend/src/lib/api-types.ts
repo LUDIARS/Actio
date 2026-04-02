@@ -822,6 +822,96 @@ export interface ReminderParseResponse {
   };
 }
 
+// ─── M3 MACHINA ────────────────────────────────────────────
+
+export interface MachinaTaskItem {
+  id: string;
+  groupId: string;
+  title: string;
+  description: string | null;
+  status: string;
+  priority: string;
+  assigneeId: string | null;
+  assigneeName: string | null;
+  dueDate: string | null;
+  source: string;
+  sourcePlatform: string | null;
+  sourceMessageId: string | null;
+  sourceChannelId: string | null;
+  sourceText: string | null;
+  confidence: number;
+  isCriticalPath: boolean;
+  relayedToPm: boolean;
+  pmTaskId: string | null;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface MachinaTaskListResponse {
+  tasks: MachinaTaskItem[];
+}
+
+export interface MachinaTaskDetailResponse {
+  task: MachinaTaskItem;
+  logs: MachinaTaskLogItem[];
+}
+
+export interface MachinaTaskLogItem {
+  id: string;
+  taskId: string;
+  action: string;
+  previousValue: string | null;
+  newValue: string | null;
+  reason: string | null;
+  triggerMessageId: string | null;
+  performedBy: string;
+  createdAt: string;
+}
+
+export interface MachinaTaskLogListResponse {
+  logs: MachinaTaskLogItem[];
+}
+
+export interface MachinaChannelMonitorItem {
+  id: string;
+  groupId: string;
+  platform: string;
+  channelId: string;
+  channelName: string;
+  webhookEndpointId: string | null;
+  isActive: boolean;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface MachinaMonitorListResponse {
+  monitors: MachinaChannelMonitorItem[];
+}
+
+export interface MachinaAnalysisResponse {
+  analysis: {
+    shouldCreateTask: boolean;
+    shouldUpdateExisting: boolean;
+    title: string;
+    description: string | null;
+    priority: string;
+    assigneeHint: string | null;
+    dueDateHint: string | null;
+    confidence: number;
+    reasoning: string;
+    isCompletion: boolean;
+  };
+}
+
+export interface MachinaStatusResponse {
+  module: string;
+  description: string;
+  pmRelayConnected: boolean;
+  features: string[];
+}
+
 // ─── Activity Logs ──────────────────────────────────────────
 
 export interface ActivityLog {

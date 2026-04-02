@@ -807,6 +807,129 @@ export const userProjectRoles = sqliteTable(
   ]
 );
 
+// ─── M3 MACHINA: Channel Monitors (チャンネル監視設定) ────────
+// グループごとにSlack/Discordのどのチャンネルを監視するかを設定
+
+export const machinaChannelMonitors = sqliteTable(
+  "machina_channel_monitors",
+  {
+    id: text("id").primaryKey(),
+    groupId: text("group_id")
+      .references(() => groups.id)
+      .notNull(),
+    /** プラットフォーム: slack / discord */
+    platform: text("platform").notNull(),
+    /** チャンネルID (Slack/Discord の channel ID) */
+    channelId: text("channel_id").notNull(),
+    /** チャンネル名 (表示用) */
+    channelName: text("channel_name").notNull(),
+    /** Webhook URL or Bot Token で受信する設定ID (webhookEndpoints.id) */
+    webhookEndpointId: text("webhook_endpoint_id"),
+    /** 有効/無効 */
+    isActive: integer("is_active", { mode: "boolean" }).notNull().default(true),
+    createdBy: text("created_by").notNull(),
+    createdAt: integer("created_at", { mode: "timestamp" })
+      .$defaultFn(() => new Date())
+      .notNull(),
+    updatedAt: integer("updated_at", { mode: "timestamp" })
+      .$defaultFn(() => new Date())
+      .notNull(),
+  },
+  (table) => [
+    index("idx_machina_monitor_group").on(table.groupId),
+    unique("unique_machina_monitor_channel").on(table.groupId, table.platform, table.channelId),
+  ]
+);
+
+// ─── M3 MACHINA: Tasks (自動生成タスク) ──────────────────────
+// Slack/Discordのログから自動生成されたタスク
+
+export const machinaTasks = sqliteTable(
+  "machina_tasks",
+  {
+    id: text("id").primaryKey(),
+    groupId: text("group_id")
+      .references(() => groups.id)
+      .notNull(),
+    /** タスクタイトル */
+    title: text("title").notNull(),
+    /** タスク詳細 */
+    description: text("description"),
+    /** ステータス: pending / in_progress / done / cancelled */
+    status: text("status").notNull().default("pending"),
+    /** 優先度: low / medium / high / critical */
+    priority: text("priority").notNull().default("medium"),
+    /** アサインされたユーザーID */
+    assigneeId: text("assignee_id"),
+    /** 納期 (ISO 8601) */
+    dueDate: text("due_date"),
+    /** 生成元: auto (自動検出) / command (コマンド) / manual (手動) */
+    source: text("source").notNull().default("auto"),
+    /** 生成元のプラットフォーム: slack / discord / manual */
+    sourcePlatform: text("source_platform"),
+    /** 生成元のメッセージID (Slack/Discord) */
+    sourceMessageId: text("source_message_id"),
+    /** 生成元のチャンネルID */
+    sourceChannelId: text("source_channel_id"),
+    /** 生成元のメッセージテキスト (解析に使用した原文) */
+    sourceText: text("source_text"),
+    /** AI解析の信頼度 (0.0〜1.0) */
+    confidence: integer("confidence").notNull().default(0),
+    /** クリティカルパス上かどうか */
+    isCriticalPath: integer("is_critical_path", { mode: "boolean" }).notNull().default(false),
+    /** PM (M2) へのリレー済みか */
+    relayedToPm: integer("relayed_to_pm", { mode: "boolean" }).notNull().default(false),
+    /** PM側のタスクID (M2へリレーした場合) */
+    pmTaskId: text("pm_task_id"),
+    /** タスクを作成したユーザーID (コマンド/手動の場合) */
+    createdBy: text("created_by").notNull(),
+    createdAt: integer("created_at", { mode: "timestamp" })
+      .$defaultFn(() => new Date())
+      .notNull(),
+    updatedAt: integer("updated_at", { mode: "timestamp" })
+      .$defaultFn(() => new Date())
+      .notNull(),
+  },
+  (table) => [
+    index("idx_machina_task_group").on(table.groupId),
+    index("idx_machina_task_status").on(table.status),
+    index("idx_machina_task_assignee").on(table.assigneeId),
+    index("idx_machina_task_due").on(table.dueDate),
+    index("idx_machina_task_priority").on(table.priority),
+  ]
+);
+
+// ─── M3 MACHINA: Task Activity Log (タスク変更履歴) ──────────
+// タスクの自動更新・アサイン変更・ステータス変更の履歴
+
+export const machinaTaskLogs = sqliteTable(
+  "machina_task_logs",
+  {
+    id: text("id").primaryKey(),
+    taskId: text("task_id")
+      .references(() => machinaTasks.id)
+      .notNull(),
+    /** アクション: created / updated / assigned / status_changed / priority_changed / relayed */
+    action: text("action").notNull(),
+    /** 変更前の値 (JSON) */
+    previousValue: text("previous_value"),
+    /** 変更後の値 (JSON) */
+    newValue: text("new_value"),
+    /** 変更理由 (AI判定の根拠など) */
+    reason: text("reason"),
+    /** トリガー元メッセージID */
+    triggerMessageId: text("trigger_message_id"),
+    /** 実行者: system (自動) / userId */
+    performedBy: text("performed_by").notNull(),
+    createdAt: integer("created_at", { mode: "timestamp" })
+      .$defaultFn(() => new Date())
+      .notNull(),
+  },
+  (table) => [
+    index("idx_machina_log_task").on(table.taskId),
+  ]
+);
+
 // ─── Group Events (グループ個別予定) ──────────────────────────
 // グループ単位の特定日のイベント（学校行事、試験、休校日など）
 // groupSchedules は曜日ベースの繰り返し予定だが、こちらは日付ベースの個別予定

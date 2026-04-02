@@ -273,6 +273,87 @@ export interface VotingSummary {
   respondents: Record<string, string>;
 }
 
+// ─── M3 MACHINA: Task Auto-Generation Types ────────────────
+
+import type {
+  MachinaTaskStatus,
+  MachinaTaskPriority,
+  MachinaTaskSource,
+  MachinaMonitorPlatform,
+  MachinaLogAction,
+} from "./constants.js";
+
+/** M3: チャンネル監視設定 */
+export interface MachinaChannelMonitor {
+  id: string;
+  groupId: string;
+  platform: MachinaMonitorPlatform;
+  channelId: string;
+  channelName: string;
+  webhookEndpointId: string | null;
+  isActive: boolean;
+  createdBy: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+/** M3: 自動生成タスク */
+export interface MachinaTask {
+  id: string;
+  groupId: string;
+  title: string;
+  description: string | null;
+  status: MachinaTaskStatus;
+  priority: MachinaTaskPriority;
+  assigneeId: string | null;
+  dueDate: string | null;
+  source: MachinaTaskSource;
+  sourcePlatform: string | null;
+  sourceMessageId: string | null;
+  sourceChannelId: string | null;
+  sourceText: string | null;
+  confidence: number;
+  isCriticalPath: boolean;
+  relayedToPm: boolean;
+  pmTaskId: string | null;
+  createdBy: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+/** M3: タスク変更ログ */
+export interface MachinaTaskLog {
+  id: string;
+  taskId: string;
+  action: MachinaLogAction;
+  previousValue: string | null;
+  newValue: string | null;
+  reason: string | null;
+  triggerMessageId: string | null;
+  performedBy: string;
+  createdAt: Date;
+}
+
+/** M3: メッセージ解析結果 */
+export interface MachinaAnalysisResult {
+  shouldCreateTask: boolean;
+  title: string;
+  description: string | null;
+  priority: MachinaTaskPriority;
+  assigneeHint: string | null;
+  dueDateHint: string | null;
+  confidence: number;
+  reasoning: string;
+}
+
+/** M3: PM (M2) リレーインターフェース */
+export interface MachinaPmRelay {
+  /** PMモジュールにタスクを送信 */
+  createTask(task: MachinaTask): Promise<{ pmTaskId: string }>;
+  /** PMモジュールのタスクを更新 */
+  updateTask(pmTaskId: string, updates: Partial<MachinaTask>): Promise<void>;
+}
+
 // ─── Reservation Plugin System ──────────────────────────────
 
 /** 予約プラグインが出力する共通カレンダー予定スキーマ */

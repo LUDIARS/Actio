@@ -110,6 +110,12 @@ export const EVENT_NAMES = {
   PM_SYNC_FORCE_EXTERNAL: "pm.sync.force_external",
   PM_WRITEBACK_SUCCESS: "pm.writeback.success",
   PM_WRITEBACK_FAILED: "pm.writeback.failed",
+  // MACHINA モジュール
+  MACHINA_TASK_CREATED: "machina.task.created",
+  MACHINA_TASK_UPDATED: "machina.task.updated",
+  MACHINA_TASK_COMPLETED: "machina.task.completed",
+  MACHINA_TASK_ASSIGNED: "machina.task.assigned",
+  MACHINA_TASK_RELAYED: "machina.task.relayed",
 } as const;
 
 /** Event module definition for UI grouping */
@@ -170,6 +176,17 @@ export const EVENT_MODULES: EventModuleDefinition[] = [
       { name: "pm.sync.force_external", label: "外部優先上書き" },
       { name: "pm.writeback.success", label: "外部書き戻し成功" },
       { name: "pm.writeback.failed", label: "外部書き戻し失敗" },
+    ],
+  },
+  {
+    module: "machina",
+    label: "M3 MACHINA",
+    events: [
+      { name: "machina.task.created", label: "タスク自動生成" },
+      { name: "machina.task.updated", label: "タスク自動更新" },
+      { name: "machina.task.completed", label: "タスク自動完了" },
+      { name: "machina.task.assigned", label: "アサイン自動変更" },
+      { name: "machina.task.relayed", label: "PM (M2) リレー" },
     ],
   },
 ];
@@ -241,3 +258,77 @@ export const VOTE_ANSWER_LABELS: Record<VoteAnswer, string> = {
   maybe: "△",
   ng: "×",
 };
+
+// ─── M3 MACHINA: Task Auto-Generation ─────────────────────────
+
+/** M3: MACHINA task statuses */
+export const MACHINA_TASK_STATUSES = [
+  "pending",
+  "in_progress",
+  "done",
+  "cancelled",
+] as const;
+export type MachinaTaskStatus = (typeof MACHINA_TASK_STATUSES)[number];
+
+/** M3: MACHINA task status labels */
+export const MACHINA_TASK_STATUS_LABELS: Record<MachinaTaskStatus, string> = {
+  pending: "未着手",
+  in_progress: "進行中",
+  done: "完了",
+  cancelled: "キャンセル",
+};
+
+/** M3: MACHINA task priorities */
+export const MACHINA_TASK_PRIORITIES = [
+  "low",
+  "medium",
+  "high",
+  "critical",
+] as const;
+export type MachinaTaskPriority = (typeof MACHINA_TASK_PRIORITIES)[number];
+
+/** M3: MACHINA task priority labels */
+export const MACHINA_TASK_PRIORITY_LABELS: Record<MachinaTaskPriority, string> = {
+  low: "低",
+  medium: "中",
+  high: "高",
+  critical: "緊急",
+};
+
+/** M3: MACHINA task sources */
+export const MACHINA_TASK_SOURCES = [
+  "auto",
+  "command",
+  "manual",
+] as const;
+export type MachinaTaskSource = (typeof MACHINA_TASK_SOURCES)[number];
+
+/** M3: MACHINA monitor platforms */
+export const MACHINA_MONITOR_PLATFORMS = [
+  "slack",
+  "discord",
+] as const;
+export type MachinaMonitorPlatform = (typeof MACHINA_MONITOR_PLATFORMS)[number];
+
+/** M3: Keywords that indicate task completion / assignment changes */
+export const MACHINA_COMPLETION_KEYWORDS = [
+  "完了", "done", "修正した", "push", "マージ", "merge", "デプロイ", "deploy",
+  "クローズ", "close", "finished", "対応済み", "resolved",
+] as const;
+
+/** M3: Keywords that indicate high urgency */
+export const MACHINA_URGENCY_KEYWORDS = [
+  "急ぎ", "至急", "ASAP", "urgent", "緊急", "今日中", "すぐ",
+  "ブロッカー", "blocker", "critical", "障害",
+] as const;
+
+/** M3: MACHINA task log actions */
+export const MACHINA_LOG_ACTIONS = [
+  "created",
+  "updated",
+  "assigned",
+  "status_changed",
+  "priority_changed",
+  "relayed",
+] as const;
+export type MachinaLogAction = (typeof MACHINA_LOG_ACTIONS)[number];
