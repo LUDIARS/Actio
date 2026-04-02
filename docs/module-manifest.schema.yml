@@ -1,0 +1,595 @@
+# Module Manifest YAML Schema
+#
+# Markdown テンプレート内の各 yaml コードブロックの構造を定義する。
+# JSON Schema (YAML表現) としてバリデーションツールに読み込み可能。
+
+$schema: "http://json-schema.org/draft-07/schema#"
+title: ModuleManifest
+description: モジュール設計書の構造化データスキーマ
+type: object
+required: [moduleId, name]
+
+properties:
+
+  # ── メタ情報 ──────────────────────────────────────────────
+
+  moduleId:
+    type: string
+    description: モジュールID (ModuleDefinition.id と一致)
+    pattern: "^[a-z][a-z0-9-]*$"
+
+  name:
+    type: string
+    description: モジュール名
+
+  description:
+    type: string
+
+  version:
+    type: string
+    pattern: "^\\d+\\.\\d+\\.\\d+$"
+
+  # ── 依存関係 ──────────────────────────────────────────────
+
+  dependencies:
+    type: array
+    items:
+      type: object
+      required: [moduleId, type, reason]
+      properties:
+        moduleId:
+          type: string
+        type:
+          type: string
+          enum: [required, optional, event]
+        reason:
+          type: string
+        usesEntities:
+          type: array
+          items: { type: string }
+        subscribesTo:
+          type: array
+          items: { type: string }
+        usesEndpoints:
+          type: array
+          items: { type: string }
+
+  exports:
+    type: array
+    items:
+      type: object
+      required: [name, type]
+      properties:
+        name:
+          type: string
+        type:
+          type: string
+          enum: [entity, event, operation, plugin]
+        description:
+          type: string
+
+  # ── 1. UI 表現 ────────────────────────────────────────────
+
+  menu:
+    $ref: "#/definitions/MenuHierarchyFormat"
+
+  pages:
+    type: array
+    items:
+      $ref: "#/definitions/PageUIFormat"
+
+  # ── 2. ドメインモデル ─────────────────────────────────────
+
+  entities:
+    type: array
+    items:
+      $ref: "#/definitions/EntityDefinition"
+
+  valueObjects:
+    type: array
+    items:
+      $ref: "#/definitions/ValueObjectDefinition"
+
+  aggregates:
+    type: array
+    items:
+      $ref: "#/definitions/AggregateDefinition"
+
+  relationships:
+    type: array
+    items:
+      $ref: "#/definitions/RelationshipDefinition"
+
+  stateMachines:
+    type: array
+    items:
+      $ref: "#/definitions/StateMachineDefinition"
+
+  events:
+    type: array
+    items:
+      $ref: "#/definitions/DomainEventDefinition"
+
+  operations:
+    type: array
+    items:
+      $ref: "#/definitions/OperationDefinition"
+
+  # ── 3. DB スキーマ ────────────────────────────────────────
+
+  schemaFile:
+    type: string
+
+  tables:
+    type: array
+    items:
+      $ref: "#/definitions/TableDefinition"
+
+  migrationHints:
+    type: array
+    items:
+      $ref: "#/definitions/MigrationHint"
+
+  # ── 4. API コントラクト ───────────────────────────────────
+
+  basePath:
+    type: string
+    pattern: "^/api/"
+
+  endpoints:
+    type: array
+    items:
+      $ref: "#/definitions/ApiEndpointDefinition"
+
+# ════════════════════════════════════════════════════════════
+# definitions — 再利用可能なサブスキーマ
+# ════════════════════════════════════════════════════════════
+
+definitions:
+
+  # ── UI: Menu ─────────────────────────────────────────────
+
+  MenuHierarchyFormat:
+    type: object
+    properties:
+      topLevel:
+        type: array
+        items: { $ref: "#/definitions/MenuItemFormat" }
+      groups:
+        type: array
+        items: { $ref: "#/definitions/MenuGroupFormat" }
+
+  MenuGroupFormat:
+    type: object
+    required: [groupId]
+    properties:
+      groupId:
+        type: string
+      style:
+        type: string
+        enum: [default, flat, compact, highlighted]
+      items:
+        type: array
+        items: { $ref: "#/definitions/MenuItemFormat" }
+      dividerAfter:
+        type: array
+        items: { type: string }
+
+  MenuItemFormat:
+    type: object
+    required: [path]
+    properties:
+      path:
+        type: string
+      variant:
+        type: string
+        enum: [link, action, external, divider]
+      badge:
+        type: object
+        properties:
+          type:
+            type: string
+            enum: [count, dot, text]
+          label:
+            type: string
+          color:
+            type: string
+            enum: [default, accent, warning, danger, success]
+      tooltip:
+        type: string
+      disabled:
+        type: boolean
+      disabledReason:
+        type: string
+
+  # ── UI: Page ─────────────────────────────────────────────
+
+  PageUIFormat:
+    type: object
+    required: [path, size, layout]
+    properties:
+      path:
+        type: string
+      size:
+        $ref: "#/definitions/PageSize"
+      layout:
+        $ref: "#/definitions/LayoutDefinition"
+      density:
+        type: string
+        enum: [compact, normal, comfortable]
+      responsive:
+        type: array
+        items:
+          type: object
+          required: [breakpoint]
+          properties:
+            breakpoint:
+              type: string
+              enum: [mobile, tablet, desktop]
+            layout:
+              $ref: "#/definitions/LayoutDefinition"
+            hiddenBlocks:
+              type: array
+              items: { type: string }
+            density:
+              type: string
+              enum: [compact, normal, comfortable]
+
+  PageSize:
+    type: object
+    required: [width, height]
+    properties:
+      width:
+        type: string
+        enum: [fluid, constrained, fixed]
+      maxWidth:
+        type: integer
+      minWidth:
+        type: integer
+      height:
+        type: string
+        enum: [auto, viewport, fixed]
+      fixedHeight:
+        type: integer
+      resizable:
+        type: boolean
+
+  LayoutDefinition:
+    type: object
+    required: [type, blocks]
+    properties:
+      type:
+        type: string
+        enum: [single-column, two-column, grid, tabs, split]
+      tabs:
+        type: array
+        items:
+          type: object
+          required: [id, label, blocks]
+          properties:
+            id: { type: string }
+            label: { type: string }
+            blocks:
+              type: array
+              items: { $ref: "#/definitions/LayoutBlock" }
+      splitDirection:
+        type: string
+        enum: [horizontal, vertical]
+      ratio:
+        type: array
+        items: { type: integer }
+        minItems: 2
+        maxItems: 2
+      columns:
+        oneOf:
+          - type: integer
+          - type: string
+            enum: [auto-fill]
+      blocks:
+        type: array
+        items: { $ref: "#/definitions/LayoutBlock" }
+
+  LayoutBlock:
+    type: object
+    required: [id, contentType]
+    properties:
+      id:
+        type: string
+      title:
+        type: string
+      contentType:
+        type: string
+        enum: [table, form, card-grid, calendar, timetable, chart, stat, list, detail, empty-state, custom]
+      size:
+        type: string
+        enum: [small, medium, large, full]
+      colSpan:
+        type: integer
+      rowSpan:
+        type: integer
+      area:
+        type: string
+        enum: [main, side, header, footer]
+      resizable:
+        type: boolean
+      collapsible:
+        type: boolean
+      defaultCollapsed:
+        type: boolean
+
+  # ── Domain ───────────────────────────────────────────────
+
+  FieldDefinition:
+    type: object
+    required: [name, type]
+    properties:
+      name: { type: string }
+      type:
+        type: string
+        enum: [string, number, boolean, date, datetime, uuid, enum, json, array]
+      itemType: { type: string }
+      nullable: { type: boolean }
+      hasDefault: { type: boolean }
+      description: { type: string }
+      validation:
+        type: array
+        items:
+          type: object
+          required: [type]
+          properties:
+            type:
+              type: string
+              enum: [required, min, max, pattern, enum, unique, custom]
+            param:
+              oneOf:
+                - type: string
+                - type: number
+            severity:
+              type: string
+              enum: [error, warning]
+            message: { type: string }
+
+  EntityDefinition:
+    type: object
+    required: [name, fields]
+    properties:
+      name: { type: string }
+      description: { type: string }
+      identityField: { type: string }
+      identityStrategy:
+        type: string
+        enum: [uuid, auto-increment, natural, composite]
+      fields:
+        type: array
+        items: { $ref: "#/definitions/FieldDefinition" }
+      invariants:
+        type: array
+        items:
+          type: object
+          required: [id, description, severity]
+          properties:
+            id: { type: string }
+            description: { type: string }
+            fields:
+              type: array
+              items: { type: string }
+            severity:
+              type: string
+              enum: [error, warning]
+
+  ValueObjectDefinition:
+    type: object
+    required: [name, fields]
+    properties:
+      name: { type: string }
+      description: { type: string }
+      fields:
+        type: array
+        items: { $ref: "#/definitions/FieldDefinition" }
+
+  AggregateDefinition:
+    type: object
+    required: [root]
+    properties:
+      root: { type: string }
+      children:
+        type: array
+        items: { type: string }
+      description: { type: string }
+
+  RelationshipDefinition:
+    type: object
+    required: [name, from, to, cardinality]
+    properties:
+      name: { type: string }
+      from: { type: string }
+      to: { type: string }
+      cardinality:
+        type: string
+        enum: ["1:1", "1:N", "N:1", "M:N"]
+      junctionEntity: { type: string }
+      foreignKey: { type: string }
+      onDelete:
+        type: string
+        enum: [cascade, set-null, restrict, no-action]
+      required: { type: boolean }
+      description: { type: string }
+
+  StateMachineDefinition:
+    type: object
+    required: [entity, field, states, initial, transitions]
+    properties:
+      entity: { type: string }
+      field: { type: string }
+      states:
+        type: array
+        items: { type: string }
+      initial: { type: string }
+      terminal:
+        type: array
+        items: { type: string }
+      transitions:
+        type: array
+        items:
+          type: object
+          required: [from, to, trigger]
+          properties:
+            from: { type: string }
+            to: { type: string }
+            trigger: { type: string }
+            guard: { type: string }
+
+  DomainEventDefinition:
+    type: object
+    required: [name, source, payload]
+    properties:
+      name: { type: string }
+      description: { type: string }
+      source: { type: string }
+      payload:
+        type: array
+        items: { $ref: "#/definitions/FieldDefinition" }
+
+  OperationDefinition:
+    type: object
+    required: [name, type]
+    properties:
+      name: { type: string }
+      type:
+        type: string
+        enum: [command, query]
+      description: { type: string }
+      input:
+        type: array
+        items: { $ref: "#/definitions/FieldDefinition" }
+      output: { type: string }
+      outputArray: { type: boolean }
+      requiredRole:
+        type: string
+        enum: [admin, group_leader]
+      emitsEvents:
+        type: array
+        items: { type: string }
+
+  # ── Schema ──────────────────────────────────────────────
+
+  TableDefinition:
+    type: object
+    required: [name, columns]
+    properties:
+      name: { type: string }
+      description: { type: string }
+      domainEntity: { type: string }
+      isJunction: { type: boolean }
+      columns:
+        type: array
+        items:
+          type: object
+          required: [name, type]
+          properties:
+            name: { type: string }
+            type:
+              type: string
+              enum: [text, integer, real, boolean, timestamp, date, json, blob]
+            primaryKey: { type: boolean }
+            notNull: { type: boolean }
+            unique: { type: boolean }
+            defaultDescription: { type: string }
+            jsonShape:
+              type: string
+              enum: [array, object, array-of-objects, unknown]
+            jsonElementType: { type: string }
+            description: { type: string }
+      foreignKeys:
+        type: array
+        items:
+          type: object
+          required: [column, referencesTable, referencesColumn]
+          properties:
+            column: { type: string }
+            referencesTable: { type: string }
+            referencesColumn: { type: string }
+            onDelete:
+              type: string
+              enum: [cascade, set null, restrict, no action]
+            onUpdate:
+              type: string
+              enum: [cascade, set null, restrict, no action]
+      indexes:
+        type: array
+        items:
+          type: object
+          required: [name, columns]
+          properties:
+            name: { type: string }
+            columns:
+              type: array
+              items: { type: string }
+            unique: { type: boolean }
+            description: { type: string }
+      compositeConstraints:
+        type: array
+        items:
+          type: object
+          required: [name, type, columns]
+          properties:
+            name: { type: string }
+            type:
+              type: string
+              enum: [unique, primary-key, check]
+            columns:
+              type: array
+              items: { type: string }
+            checkExpression: { type: string }
+
+  MigrationHint:
+    type: object
+    required: [table, type, description]
+    properties:
+      table: { type: string }
+      type:
+        type: string
+        enum: [add-table, add-column, modify-column, drop-column, add-index, add-fk]
+      description: { type: string }
+      breaking: { type: boolean }
+      requiresDataMigration: { type: boolean }
+
+  # ── API ─────────────────────────────────────────────────
+
+  ApiEndpointDefinition:
+    type: object
+    required: [method, path]
+    properties:
+      method:
+        type: string
+        enum: [GET, POST, PUT, PATCH, DELETE]
+      path: { type: string }
+      description: { type: string }
+      authRequired: { type: boolean }
+      requiredRole:
+        type: string
+        enum: [admin, group_leader]
+      domainOperation: { type: string }
+      params:
+        type: array
+        items:
+          type: object
+          required: [name, in, type]
+          properties:
+            name: { type: string }
+            in:
+              type: string
+              enum: [path, query, body, header]
+            type: { type: string }
+            required: { type: boolean }
+            description: { type: string }
+      responses:
+        type: array
+        items:
+          type: object
+          required: [status]
+          properties:
+            status: { type: integer }
+            type: { type: string }
+            array: { type: boolean }
+            description: { type: string }
