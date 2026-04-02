@@ -24,6 +24,7 @@ import { IntegrationsPage } from "./pages/IntegrationsPage";
 import { SecretsPage } from "./pages/SecretsPage";
 import { InfisicalSetupPage } from "./pages/InfisicalSetupPage";
 import { ApiKeysPage } from "./pages/ApiKeysPage";
+import { ProfilePage } from "./pages/ProfilePage";
 import { setupApi } from "./lib/api";
 import "./global.css";
 
@@ -71,6 +72,7 @@ function AppRoutes() {
         <Route path="/voting" element={<VotingPage />} />
         <Route path="/calendar" element={<CalendarPage />} />
         <Route path="/reminders" element={<ReminderPage />} />
+        <Route path="/profile" element={<ProfilePage />} />
         <Route path="/admin/users" element={<UserManagementPage />} />
         <Route path="/admin/settings" element={<SettingsPage />} />
         <Route path="/admin/activity-logs" element={<ActivityLogsPage />} />

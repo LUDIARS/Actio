@@ -56,6 +56,50 @@ export interface UserRoleUpdateResponse {
   message: string;
 }
 
+// ─── Profile ───────────────────────────────────────────────
+
+export interface UserProfileData {
+  userId: string;
+  name?: string;
+  email?: string;
+  displayName: string | null;
+  bio: string;
+  avatarUrl: string | null;
+}
+
+export interface ProjectRole {
+  id: string;
+  groupId: string;
+  roleName: string;
+}
+
+export interface ProjectRoleWithUser extends ProjectRole {
+  userId: string;
+}
+
+export interface ProfileResponse {
+  profile: UserProfileData;
+  projectRoles: ProjectRole[];
+}
+
+export interface ProfileUpdateResponse {
+  message: string;
+  profile: Omit<UserProfileData, "name" | "email">;
+}
+
+export interface ProjectRolesResponse {
+  roles: ProjectRole[];
+}
+
+export interface ProjectRolesUpdateResponse {
+  message: string;
+  roles: ProjectRole[];
+}
+
+export interface GroupProjectRolesResponse {
+  roles: ProjectRoleWithUser[];
+}
+
 // ─── Calendar ───────────────────────────────────────────────
 
 export interface GoogleCalendarEvent {

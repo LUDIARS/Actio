@@ -754,6 +754,59 @@ export const reminders = sqliteTable(
   ]
 );
 
+// ─── User Profiles (ユーザープロフィール) ───────────────────────
+// 自己紹介・プロフィール情報を保存
+
+export const userProfiles = sqliteTable("user_profiles", {
+  id: text("id").primaryKey(),
+  userId: text("user_id")
+    .references(() => users.id)
+    .notNull()
+    .unique(),
+  /** 自己紹介・Bio */
+  bio: text("bio").notNull().default(""),
+  /** 表示名 (usersのnameと別に設定可能) */
+  displayName: text("display_name"),
+  /** アバターURL */
+  avatarUrl: text("avatar_url"),
+  createdAt: integer("created_at", { mode: "timestamp" })
+    .$defaultFn(() => new Date())
+    .notNull(),
+  updatedAt: integer("updated_at", { mode: "timestamp" })
+    .$defaultFn(() => new Date())
+    .notNull(),
+});
+
+// ─── User Project Roles (プロジェクト別ロール) ──────────────────
+// ユーザーがグループ（プロジェクト）ごとに担当する仕事上のロール
+// groupMembers.role (owner/leader/member) とは別に、業務上の役割を自由入力
+
+export const userProjectRoles = sqliteTable(
+  "user_project_roles",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .references(() => users.id)
+      .notNull(),
+    groupId: text("group_id")
+      .references(() => groups.id)
+      .notNull(),
+    /** 仕事上のロール (例: "デザイナー", "PM", "エンジニア") */
+    roleName: text("role_name").notNull(),
+    createdAt: integer("created_at", { mode: "timestamp" })
+      .$defaultFn(() => new Date())
+      .notNull(),
+    updatedAt: integer("updated_at", { mode: "timestamp" })
+      .$defaultFn(() => new Date())
+      .notNull(),
+  },
+  (table) => [
+    unique("unique_user_project_role").on(table.userId, table.groupId, table.roleName),
+    index("idx_user_project_role_user").on(table.userId),
+    index("idx_user_project_role_group").on(table.groupId),
+  ]
+);
+
 // ─── Group Events (グループ個別予定) ──────────────────────────
 // グループ単位の特定日のイベント（学校行事、試験、休校日など）
 // groupSchedules は曜日ベースの繰り返し予定だが、こちらは日付ベースの個別予定

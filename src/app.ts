@@ -26,6 +26,7 @@ import { getReservationPlugins } from "./reservation-plugins.js";
 import { registerReservationPlugin } from "./reservation-plugins.js";
 import { secretManager } from "./config/secrets.js";
 import { setupRoutes } from "../modules/setup/routes.js";
+import { profileRoutes } from "../modules/profile/routes.js";
 
 export function createApp() {
   const app = new Hono();
@@ -60,6 +61,9 @@ export function createApp() {
 
   // ─── Auth Routes (認証) — コア ──────────────────────────────
   app.route("/api/auth", auth);
+
+  // ─── Core: Profile (プロフィール & プロジェクトロール) ────────
+  app.route("/api/profile", profileRoutes);
 
   // ─── Core: Groups (グループ管理) ────────────────────────────
   app.route("/api/groups", groupRoutes);
@@ -167,6 +171,7 @@ export function createApp() {
       version: "1.0.0",
       core: {
         auth: "認証 - /api/auth",
+        profile: "プロフィール & プロジェクトロール - /api/profile",
         groups: "グループ管理 - /api/groups",
         calendar: "カレンダー & 手動予定 - /api/calendar",
         myplans: "マイプラン - /api/myplans",

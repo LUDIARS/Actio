@@ -14,6 +14,10 @@ export type User = typeof schema.users.$inferSelect;
 export type NewUser = typeof schema.users.$inferInsert;
 export type Session = typeof schema.sessions.$inferSelect;
 export type NewSession = typeof schema.sessions.$inferInsert;
+export type UserProfileRecord = typeof schema.userProfiles.$inferSelect;
+export type NewUserProfile = typeof schema.userProfiles.$inferInsert;
+export type UserProjectRoleRecord = typeof schema.userProjectRoles.$inferSelect;
+export type NewUserProjectRole = typeof schema.userProjectRoles.$inferInsert;
 
 // ─── User Repository ───────────────────────────────────────
 
@@ -1712,5 +1716,85 @@ export const syncLogRepo = {
 
   async create(data: NewSyncLog): Promise<void> {
     await db.insert(schema.syncLogs).values(data);
+  },
+};
+
+// ─── User Profile Repository ──────────────────────────────────
+
+export const userProfileRepo = {
+  async findByUserId(userId: string): Promise<UserProfileRecord | undefined> {
+    const [profile] = await db
+      .select()
+      .from(schema.userProfiles)
+      .where(eq(schema.userProfiles.userId, userId));
+    return profile;
+  },
+
+  async upsert(data: NewUserProfile): Promise<void> {
+    const existing = await this.findByUserId(data.userId);
+    if (existing) {
+      await db
+        .update(schema.userProfiles)
+        .set({
+          bio: data.bio,
+          displayName: data.displayName,
+          avatarUrl: data.avatarUrl,
+          updatedAt: new Date(),
+        })
+        .where(eq(schema.userProfiles.userId, data.userId));
+    } else {
+      await db.insert(schema.userProfiles).values(data);
+    }
+  },
+};
+
+// ─── User Project Role Repository ─────────────────────────────
+
+export const userProjectRoleRepo = {
+  async findByUserId(userId: string): Promise<UserProjectRoleRecord[]> {
+    return db
+      .select()
+      .from(schema.userProjectRoles)
+      .where(eq(schema.userProjectRoles.userId, userId));
+  },
+
+  async findByGroupId(groupId: string): Promise<UserProjectRoleRecord[]> {
+    return db
+      .select()
+      .from(schema.userProjectRoles)
+      .where(eq(schema.userProjectRoles.groupId, groupId));
+  },
+
+  async findByUserAndGroup(userId: string, groupId: string): Promise<UserProjectRoleRecord[]> {
+    return db
+      .select()
+      .from(schema.userProjectRoles)
+      .where(
+        and(
+          eq(schema.userProjectRoles.userId, userId),
+          eq(schema.userProjectRoles.groupId, groupId),
+        )
+      );
+  },
+
+  async create(data: NewUserProjectRole): Promise<void> {
+    await db.insert(schema.userProjectRoles).values(data);
+  },
+
+  async deleteById(id: string): Promise<void> {
+    await db
+      .delete(schema.userProjectRoles)
+      .where(eq(schema.userProjectRoles.id, id));
+  },
+
+  async deleteByUserAndGroup(userId: string, groupId: string): Promise<void> {
+    await db
+      .delete(schema.userProjectRoles)
+      .where(
+        and(
+          eq(schema.userProjectRoles.userId, userId),
+          eq(schema.userProjectRoles.groupId, groupId),
+        )
+      );
   },
 };
