@@ -19,6 +19,8 @@ import type {
   HolidayListResponse, ActivityLogsResponse,
   ReminderListResponse, ReminderResponse, ReminderParseResponse,
   ProfileResponse, ProfileUpdateResponse, ProjectRolesResponse, ProjectRolesUpdateResponse, GroupProjectRolesResponse,
+  MachinaTaskListResponse, MachinaTaskDetailResponse, MachinaTaskLogListResponse,
+  MachinaMonitorListResponse, MachinaAnalysisResponse, MachinaStatusResponse,
 } from "./api-types";
 
 // ─── Token Management ──────────────────────────────────────
@@ -1480,5 +1482,101 @@ export const setupApi = {
       hasSsmConfig: boolean;
       envVars: Record<string, boolean>;
     }>("/api/setup/env-check");
+  },
+};
+
+// ─── M3 MACHINA (タスク自動生成) ─────────────────────────────
+
+export const machinaApi = {
+  // Tasks
+  getTasks(groupId: string, status?: string) {
+    const params = status ? `?status=${status}` : "";
+    return request<MachinaTaskListResponse>(`/api/machina/groups/${groupId}/tasks${params}`);
+  },
+  getTask(groupId: string, taskId: string) {
+    return request<MachinaTaskDetailResponse>(`/api/machina/groups/${groupId}/tasks/${taskId}`);
+  },
+  createTask(groupId: string, data: {
+    title: string;
+    description?: string;
+    priority?: string;
+    assigneeId?: string;
+    dueDate?: string;
+  }) {
+    return request<{ id: string; message: string }>(`/api/machina/groups/${groupId}/tasks`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  },
+  updateTask(groupId: string, taskId: string, data: {
+    title?: string;
+    description?: string;
+    status?: string;
+    priority?: string;
+    assigneeId?: string | null;
+    dueDate?: string | null;
+    isCriticalPath?: boolean;
+  }) {
+    return request<{ message: string }>(`/api/machina/groups/${groupId}/tasks/${taskId}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    });
+  },
+  deleteTask(groupId: string, taskId: string) {
+    return request<{ deleted: string }>(`/api/machina/groups/${groupId}/tasks/${taskId}`, {
+      method: "DELETE",
+    });
+  },
+  getTaskLogs(groupId: string, taskId: string) {
+    return request<MachinaTaskLogListResponse>(`/api/machina/groups/${groupId}/tasks/${taskId}/logs`);
+  },
+  relayTask(groupId: string, taskId: string) {
+    return request<{ message: string; pmTaskId?: string }>(`/api/machina/groups/${groupId}/tasks/${taskId}/relay`, {
+      method: "POST",
+    });
+  },
+
+  // Channel Monitors
+  getMonitors(groupId: string) {
+    return request<MachinaMonitorListResponse>(`/api/machina/groups/${groupId}/monitors`);
+  },
+  createMonitor(groupId: string, data: {
+    platform: string;
+    channelId: string;
+    channelName: string;
+    webhookEndpointId?: string;
+  }) {
+    return request<{ id: string; message: string }>(`/api/machina/groups/${groupId}/monitors`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  },
+  updateMonitor(groupId: string, monitorId: string, data: {
+    channelName?: string;
+    isActive?: boolean;
+    webhookEndpointId?: string | null;
+  }) {
+    return request<{ message: string }>(`/api/machina/groups/${groupId}/monitors/${monitorId}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    });
+  },
+  deleteMonitor(groupId: string, monitorId: string) {
+    return request<{ deleted: string }>(`/api/machina/groups/${groupId}/monitors/${monitorId}`, {
+      method: "DELETE",
+    });
+  },
+
+  // Analysis
+  analyzeText(text: string, platform?: string) {
+    return request<MachinaAnalysisResponse>("/api/machina/analyze", {
+      method: "POST",
+      body: JSON.stringify({ text, platform }),
+    });
+  },
+
+  // Status
+  getStatus() {
+    return request<MachinaStatusResponse>("/api/machina/status");
   },
 };

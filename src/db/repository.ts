@@ -1798,3 +1798,152 @@ export const userProjectRoleRepo = {
       );
   },
 };
+
+// ─── M3 MACHINA: Channel Monitor Repository ──────────────────
+
+export type MachinaChannelMonitor = typeof schema.machinaChannelMonitors.$inferSelect;
+export type NewMachinaChannelMonitor = typeof schema.machinaChannelMonitors.$inferInsert;
+
+export const machinaChannelMonitorRepo = {
+  async findByGroupId(groupId: string): Promise<MachinaChannelMonitor[]> {
+    return db
+      .select()
+      .from(schema.machinaChannelMonitors)
+      .where(eq(schema.machinaChannelMonitors.groupId, groupId));
+  },
+
+  async findActiveByGroupId(groupId: string): Promise<MachinaChannelMonitor[]> {
+    return db
+      .select()
+      .from(schema.machinaChannelMonitors)
+      .where(
+        and(
+          eq(schema.machinaChannelMonitors.groupId, groupId),
+          eq(schema.machinaChannelMonitors.isActive, true),
+        )
+      );
+  },
+
+  async findById(id: string): Promise<MachinaChannelMonitor | undefined> {
+    const [row] = await db
+      .select()
+      .from(schema.machinaChannelMonitors)
+      .where(eq(schema.machinaChannelMonitors.id, id));
+    return row;
+  },
+
+  async create(data: NewMachinaChannelMonitor): Promise<void> {
+    await db.insert(schema.machinaChannelMonitors).values(data);
+  },
+
+  async update(
+    id: string,
+    data: Partial<Omit<NewMachinaChannelMonitor, "id">>
+  ): Promise<void> {
+    await db
+      .update(schema.machinaChannelMonitors)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(schema.machinaChannelMonitors.id, id));
+  },
+
+  async deleteById(id: string): Promise<void> {
+    await db
+      .delete(schema.machinaChannelMonitors)
+      .where(eq(schema.machinaChannelMonitors.id, id));
+  },
+};
+
+// ─── M3 MACHINA: Task Repository ─────────────────────────────
+
+export type MachinaTask = typeof schema.machinaTasks.$inferSelect;
+export type NewMachinaTask = typeof schema.machinaTasks.$inferInsert;
+
+export const machinaTaskRepo = {
+  async findByGroupId(groupId: string): Promise<MachinaTask[]> {
+    return db
+      .select()
+      .from(schema.machinaTasks)
+      .where(eq(schema.machinaTasks.groupId, groupId))
+      .orderBy(desc(schema.machinaTasks.createdAt));
+  },
+
+  async findByGroupIdAndStatus(groupId: string, status: string): Promise<MachinaTask[]> {
+    return db
+      .select()
+      .from(schema.machinaTasks)
+      .where(
+        and(
+          eq(schema.machinaTasks.groupId, groupId),
+          eq(schema.machinaTasks.status, status),
+        )
+      )
+      .orderBy(desc(schema.machinaTasks.createdAt));
+  },
+
+  async findById(id: string): Promise<MachinaTask | undefined> {
+    const [row] = await db
+      .select()
+      .from(schema.machinaTasks)
+      .where(eq(schema.machinaTasks.id, id));
+    return row;
+  },
+
+  async findByAssignee(assigneeId: string): Promise<MachinaTask[]> {
+    return db
+      .select()
+      .from(schema.machinaTasks)
+      .where(eq(schema.machinaTasks.assigneeId, assigneeId))
+      .orderBy(desc(schema.machinaTasks.createdAt));
+  },
+
+  async findNotRelayed(groupId: string): Promise<MachinaTask[]> {
+    return db
+      .select()
+      .from(schema.machinaTasks)
+      .where(
+        and(
+          eq(schema.machinaTasks.groupId, groupId),
+          eq(schema.machinaTasks.relayedToPm, false),
+        )
+      );
+  },
+
+  async create(data: NewMachinaTask): Promise<void> {
+    await db.insert(schema.machinaTasks).values(data);
+  },
+
+  async update(
+    id: string,
+    data: Partial<Omit<NewMachinaTask, "id">>
+  ): Promise<void> {
+    await db
+      .update(schema.machinaTasks)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(schema.machinaTasks.id, id));
+  },
+
+  async deleteById(id: string): Promise<void> {
+    await db
+      .delete(schema.machinaTasks)
+      .where(eq(schema.machinaTasks.id, id));
+  },
+};
+
+// ─── M3 MACHINA: Task Log Repository ─────────────────────────
+
+export type MachinaTaskLog = typeof schema.machinaTaskLogs.$inferSelect;
+export type NewMachinaTaskLog = typeof schema.machinaTaskLogs.$inferInsert;
+
+export const machinaTaskLogRepo = {
+  async findByTaskId(taskId: string): Promise<MachinaTaskLog[]> {
+    return db
+      .select()
+      .from(schema.machinaTaskLogs)
+      .where(eq(schema.machinaTaskLogs.taskId, taskId))
+      .orderBy(desc(schema.machinaTaskLogs.createdAt));
+  },
+
+  async create(data: NewMachinaTaskLog): Promise<void> {
+    await db.insert(schema.machinaTaskLogs).values(data);
+  },
+};
