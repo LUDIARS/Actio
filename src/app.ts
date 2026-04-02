@@ -9,6 +9,7 @@ import { calendar } from "../modules/calendar/routes.js";
 import { myPlanRoutes } from "../modules/myplan/routes.js";
 import { smartScheduler } from "../modules/smart-scheduler/routes.js";
 import { schoolModule } from "../modules/school/index.js";
+import { pmModule } from "../modules/pm/index.js";
 import { m1 } from "../modules/schedule/routes.js";
 import { holidayRoutes } from "../modules/holiday/routes.js";
 import { reminderRoutes } from "../modules/reminder/routes.js";
@@ -28,6 +29,7 @@ import { secretManager } from "./config/secrets.js";
 import { setupRoutes } from "../modules/setup/routes.js";
 import { profileRoutes } from "../modules/profile/routes.js";
 import { machinaRoutes } from "../modules/machina/routes.js";
+import { initMachinaRelay } from "../modules/pm/machina-adapter.js";
 
 export function createApp() {
   const app = new Hono();
@@ -101,7 +103,7 @@ export function createApp() {
   app.route("/api/external", externalApi);
 
   // ─── School Module (学校カリキュラム管理 + 施設予約: M1) ─────
-  const modules: SchulaModule[] = [schoolModule];
+  const modules: SchulaModule[] = [schoolModule, pmModule];
   for (const mod of modules) {
     app.route(mod.basePath, mod.routes);
   }
@@ -225,6 +227,9 @@ export function createApp() {
 
   // ─── Initialize Notification Handler ────────────────────────
   initNotificationHandler();
+
+  // ─── Initialize MACHINA → PM Relay ─────────────────────────
+  initMachinaRelay();
 
   return app;
 }
