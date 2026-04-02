@@ -13,9 +13,11 @@ modules/pm/
 ├── index.ts                    # SchulaModule エクスポート & ルーター統合
 ├── routes.ts                   # メイン API ルート
 ├── sync/
-│   ├── github-sync.ts          # GitHub Issues 定期取得 & 差分検知
-│   ├── notion-sync.ts          # Notion Database 定期取得 & 差分検知
-│   └── diff-detector.ts        # タスク変更差分の比較ロジック
+│   ├── github-sync.ts          # GitHub Issues 双方向同期
+│   ├── notion-sync.ts          # Notion Database 双方向同期
+│   ├── diff-detector.ts        # タスク変更差分の比較ロジック
+│   ├── conflict-resolver.ts    # コンフリクト検知・解決 (Claude Code 連携)
+│   └── writeback.ts            # Schedula → 外部ソースへの書き戻し
 ├── reminder/
 │   └── deadline-checker.ts     # 納期チェック & リマインダー発火
 ├── validation/
@@ -37,31 +39,66 @@ modules/pm/
 | GitHub Issues | Issue (title, body, state, labels, assignees, milestone) | GitHub REST API v3 |
 | Notion Database | Page (properties, status, assignee, due date) | Notion API v1 |
 
-### 1.2 同期フロー
+### 1.2 同期フロー (双方向)
+
+同期は **外部 → Schedula** (Pull) と **Schedula → 外部** (Push) の双方向で動作する。
+マイルストーン・タスク情報は **連携先 DB の変更を正 (Source of Truth)** とし、コンフリクト時のみ特別処理を行う。
+
+#### Pull フロー (外部 → Schedula)
 
 ```
 [Cron / 手動トリガー]
     │
     ▼
-┌─────────────────────┐
-│  GitHub/Notion API   │  外部APIからタスク一覧を取得
-│  Fetch Tasks         │
-└──────────┬──────────┘
+┌──────────────────────┐
+│  GitHub/Notion API    │  外部APIからタスク・マイルストーン一覧を取得
+│  Fetch Tasks          │
+└──────────┬───────────┘
            ▼
-┌─────────────────────┐
-│  diff-detector.ts    │  前回スナップショットと比較
-│  Compare Snapshots   │  → 新規 / 更新 / 削除 を検出
-└──────────┬──────────┘
+┌──────────────────────┐
+│  diff-detector.ts     │  前回スナップショットと外部データを比較
+│  Compare Snapshots    │  → 新規 / 更新 / 削除 を検出
+└──────────┬───────────┘
            ▼
-┌─────────────────────┐
-│  DB Upsert           │  pm_tasks テーブルに最新状態を保存
-│  (repository.ts)     │  pm_task_snapshots に差分履歴を保存
-└──────────┬──────────┘
+┌──────────────────────┐
+│  conflict-resolver.ts │  Schedula側にも未同期の変更がある場合
+│  Conflict Check       │  → コンフリクト解決フローへ (§1.7)
+└──────────┬───────────┘
            ▼
-┌─────────────────────┐
-│  emitEvent()         │  通知モジュール経由で通知
-│  → Imperativius      │  Imperativius Webhook チャネルで配信
-└─────────────────────┘
+┌──────────────────────┐
+│  DB Upsert            │  pm_tasks テーブルに最新状態を保存
+│  (repository.ts)      │  pm_task_snapshots に差分履歴を保存
+└──────────┬───────────┘
+           ▼
+┌──────────────────────┐
+│  emitEvent()          │  通知モジュール経由で通知
+│  → Imperativius       │  Imperativius Webhook チャネルで配信
+└──────────────────────┘
+```
+
+#### Push フロー (Schedula → 外部)
+
+Schedula 上でタスクを編集した場合、変更を外部ソースに書き戻す。
+
+```
+[Schedula UI / API でタスク更新]
+    │
+    ▼
+┌──────────────────────┐
+│  DB Update            │  pm_tasks を更新
+│  + dirtyFlag = true   │  localUpdatedAt を記録
+└──────────┬───────────┘
+           ▼
+┌──────────────────────┐
+│  writeback.ts         │  dirtyFlag が立ったタスクを検出
+│  Push to External     │  GitHub API / Notion API で書き戻し
+└──────────┬───────────┘
+           ▼
+┌──────────────────────┐
+│  dirtyFlag = false    │  書き戻し成功後にフラグクリア
+│  externalUpdatedAt    │  外部側の更新タイムスタンプを記録
+│  = response.updatedAt │  (次回 Pull で自己変更をスキップ)
+└──────────────────────┘
 ```
 
 ### 1.3 差分検知対象フィールド
@@ -119,13 +156,238 @@ PUT    /api/pm/projects/:id                # プロジェクト設定変更
 DELETE /api/pm/projects/:id                # プロジェクト削除
 
 # タスク同期
-POST   /api/pm/projects/:id/sync          # 手動同期トリガー
+POST   /api/pm/projects/:id/sync          # 手動同期トリガー (双方向)
 GET    /api/pm/projects/:id/sync/status    # 同期状態確認
 
-# タスク一覧・詳細
+# タスク一覧・詳細・編集
 GET    /api/pm/projects/:id/tasks          # タスク一覧
 GET    /api/pm/tasks/:taskId               # タスク詳細
+PUT    /api/pm/tasks/:taskId               # タスク編集 (→ 外部に書き戻し)
 GET    /api/pm/tasks/:taskId/history       # タスク変更履歴
+
+# コンフリクト管理
+GET    /api/pm/projects/:id/conflicts      # 未解決コンフリクト一覧
+POST   /api/pm/conflicts/:conflictId/resolve  # コンフリクト手動解決
+POST   /api/pm/conflicts/:conflictId/auto-merge  # Claude Code マージ実行
+```
+
+### 1.7 双方向同期 & コンフリクト解決
+
+#### 正のデータソース (Source of Truth)
+
+- **外部 DB (GitHub / Notion) の変更を正とする。** Pull 時に外部データで Schedula を上書きするのが基本動作
+- マイルストーン (GitHub Milestones / Notion の期限プロパティ) も外部の値を常に優先する
+- Schedula 側でのみ保持するメタデータ (検証結果、分析キャッシュ等) は上書きしない
+
+#### コンフリクト検知条件
+
+Pull 時に以下の **両方** が成立するとコンフリクトと判定する:
+
+```
+条件: localUpdatedAt > lastSyncedAt  AND  externalUpdatedAt > lastSyncedAt
+(= 前回同期以降に Schedula 側と外部側の両方で変更があった)
+```
+
+#### コンフリクト解決戦略 (3段階)
+
+```typescript
+type ConflictResolution = "auto_external" | "claude_merge" | "manual";
+
+interface ConflictRecord {
+  id: string;
+  taskId: string;
+  localVersion: TaskSnapshot;     // Schedula 側の状態
+  externalVersion: TaskSnapshot;  // 外部側の状態
+  baseVersion: TaskSnapshot;      // 前回同期時点の状態 (3-way merge 用)
+  resolution: ConflictResolution;
+  resolvedData: TaskSnapshot | null;
+  status: "pending" | "resolved" | "failed";
+  createdAt: string;
+  resolvedAt: string | null;
+}
+```
+
+**Stage 1: 自動解決 (小さな差分)**
+
+変更フィールドが重複しない場合、フィールド単位でマージする。
+
+```
+例: 外部で title を変更 + Schedula で labels を変更
+→ 両方の変更を取り込み (フィールドレベルマージ)
+```
+
+**Stage 2: Claude Code マージ (内容コンフリクト)**
+
+同一フィールドに異なる変更がある場合、Claude Code を起動して自動マージする。
+
+```typescript
+// conflict-resolver.ts
+async function resolveWithClaudeCode(conflict: ConflictRecord): Promise<TaskSnapshot> {
+  const prompt = buildMergePrompt(conflict.baseVersion, conflict.localVersion, conflict.externalVersion);
+
+  // Claude Code SDK (claude_agent_sdk) を利用
+  const result = await claudeAgent.run({
+    prompt,
+    tools: [],  // テキストマージのみ、ツール不要
+    maxTokens: 4096,
+  });
+
+  return parseMergedTask(result.output);
+}
+
+function buildMergePrompt(
+  base: TaskSnapshot,
+  local: TaskSnapshot,
+  external: TaskSnapshot
+): string {
+  return `
+以下の3つのバージョンのタスクデータをマージしてください。
+コンフリクトがあるフィールドは、文脈を読み取り最適な統合を行ってください。
+
+## ベース (前回同期時点)
+${JSON.stringify(base, null, 2)}
+
+## ローカル (Schedula 側の変更)
+${JSON.stringify(local, null, 2)}
+
+## 外部 (GitHub/Notion 側の変更)
+${JSON.stringify(external, null, 2)}
+
+## ルール
+- 外部側の構造的変更 (ステータス、マイルストーン、担当者) を優先する
+- 本文 (description) はセマンティックマージする
+- マージ結果を JSON で返してください
+`;
+}
+```
+
+**Stage 3: 大幅な乖離 → 外部を優先**
+
+以下の場合、**新しい方 (外部データ) をそのまま採用**する:
+
+```typescript
+function shouldForceExternal(conflict: ConflictRecord): boolean {
+  const diffRatio = calculateDiffRatio(
+    conflict.baseVersion,
+    conflict.externalVersion
+  );
+
+  // 変更率が 70% を超える = 大幅に違う → 外部を正として上書き
+  if (diffRatio > 0.7) return true;
+
+  // ステータスが大きく異なる (例: local=open, external=closed)
+  if (isStatusMajorChange(conflict.localVersion, conflict.externalVersion)) return true;
+
+  return false;
+}
+```
+
+#### コンフリクト解決フロー図
+
+```
+[Pull 時に差分検出]
+    │
+    ▼
+┌─────────────────────────┐
+│  両側に変更あり?          │──── No ──→ [外部で上書き (通常Pull)]
+│  (コンフリクト判定)       │
+└──────────┬──────────────┘
+           │ Yes
+           ▼
+┌─────────────────────────┐
+│  変更率 > 70%?           │──── Yes ──→ [外部を採用 (Stage 3)]
+│  (大幅な乖離チェック)     │            Schedula側変更は snapshot に保存
+└──────────┬──────────────┘
+           │ No
+           ▼
+┌─────────────────────────┐
+│  変更フィールドが重複?    │──── No ──→ [フィールドマージ (Stage 1)]
+│  (フィールドレベル判定)   │
+└──────────┬──────────────┘
+           │ Yes
+           ▼
+┌─────────────────────────┐
+│  Claude Code マージ      │  3-way merge プロンプト生成
+│  (Stage 2)               │  → マージ結果を DB に保存
+└──────────┬──────────────┘
+           │
+           ▼
+┌─────────────────────────┐
+│  マージ結果を外部に       │  writeback.ts で GitHub/Notion に反映
+│  書き戻し (Push)          │  → 両側を統一状態にする
+└─────────────────────────┘
+```
+
+#### 書き戻し (Schedula → 外部)
+
+Schedula 上でタスクを編集すると、`pm_tasks.dirtyFlag = true` がセットされ、次回の同期サイクルまたは即時に外部に書き戻す。
+
+```typescript
+// writeback.ts
+export async function pushDirtyTasks(projectId: string): Promise<WritebackResult> {
+  const dirtyTasks = await pmTaskRepo.findDirty(projectId);
+  const project = await pmProjectRepo.findById(projectId);
+  const results: WritebackResult = { success: [], failed: [] };
+
+  for (const task of dirtyTasks) {
+    try {
+      if (project.source === "github") {
+        await updateGitHubIssue(project.sourceConfig, task);
+      } else if (project.source === "notion") {
+        await updateNotionPage(project.sourceConfig, task);
+      }
+
+      // 書き戻し成功 → フラグクリア & 外部タイムスタンプ更新
+      await pmTaskRepo.update(task.id, {
+        dirtyFlag: false,
+        externalUpdatedAt: new Date().toISOString(),
+      });
+      results.success.push(task.id);
+    } catch (err) {
+      results.failed.push({ taskId: task.id, error: String(err) });
+    }
+  }
+
+  return results;
+}
+
+// GitHub Issue 更新
+async function updateGitHubIssue(
+  config: SourceConfig,
+  task: PMTask
+): Promise<void> {
+  const { owner, repo, token } = config;
+  await fetch(
+    `https://api.github.com/repos/${owner}/${repo}/issues/${task.externalId}`,
+    {
+      method: "PATCH",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        title: task.title,
+        body: task.description,
+        state: task.status === "closed" ? "closed" : "open",
+        labels: task.labels,
+        assignees: task.assignees,
+        milestone: task.milestoneExternalId ?? undefined,
+      }),
+    }
+  );
+}
+```
+
+#### 通知イベント (コンフリクト関連)
+
+```typescript
+// EVENT_NAMES に追加
+PM_SYNC_CONFLICT:       "pm.sync.conflict"        // コンフリクト検出
+PM_SYNC_AUTO_MERGED:    "pm.sync.auto_merged"     // 自動マージ完了
+PM_SYNC_CLAUDE_MERGED:  "pm.sync.claude_merged"   // Claude Code マージ完了
+PM_SYNC_FORCE_EXTERNAL: "pm.sync.force_external"  // 外部優先で上書き
+PM_WRITEBACK_SUCCESS:   "pm.writeback.success"    // 外部への書き戻し成功
+PM_WRITEBACK_FAILED:    "pm.writeback.failed"     // 外部への書き戻し失敗
 ```
 
 ---
@@ -377,9 +639,15 @@ GET    /api/pm/projects/:id/analytics/report         # 総合レポート
 | `assignees` | TEXT (JSON) | 担当者リスト |
 | `labels` | TEXT (JSON) | ラベルリスト |
 | `dueDate` | TEXT | 納期 |
+| `milestoneExternalId` | TEXT | 外部マイルストーンID |
+| `milestoneName` | TEXT | マイルストーン名 (外部から同期) |
 | `estimatedHours` | REAL | 見積もり工数 |
 | `blockedBy` | TEXT (JSON) | 依存タスクID リスト |
 | `descriptionHash` | TEXT | 本文ハッシュ (差分検知用) |
+| `dirtyFlag` | INTEGER | `0` = 同期済み, `1` = 要書き戻し |
+| `localUpdatedAt` | TEXT | Schedula 側の最終更新日時 |
+| `externalUpdatedAt` | TEXT | 外部側の最終更新日時 |
+| `lastSyncedAt` | TEXT | 最後に正常同期した日時 |
 | `createdAt` | TEXT | 作成日時 |
 | `updatedAt` | TEXT | 更新日時 |
 
@@ -406,6 +674,37 @@ GET    /api/pm/projects/:id/analytics/report         # 総合レポート
 | `relatedCommits` | TEXT (JSON) | 関連コミット情報 |
 | `testFiles` | TEXT (JSON) | 対応テストファイル |
 | `validatedAt` | TEXT | 検証日時 |
+
+### pm_conflicts
+
+| カラム | 型 | 説明 |
+|--------|-----|------|
+| `id` | TEXT PK | UUID |
+| `taskId` | TEXT FK | 対象タスクID |
+| `projectId` | TEXT FK | プロジェクトID |
+| `localVersion` | TEXT (JSON) | Schedula 側のスナップショット |
+| `externalVersion` | TEXT (JSON) | 外部側のスナップショット |
+| `baseVersion` | TEXT (JSON) | 前回同期時点のスナップショット (3-way merge 用) |
+| `resolution` | TEXT | `"auto_field_merge"` \| `"claude_merge"` \| `"force_external"` \| `"manual"` |
+| `resolvedData` | TEXT (JSON) | マージ結果 |
+| `status` | TEXT | `"pending"` \| `"resolved"` \| `"failed"` |
+| `createdAt` | TEXT | 検出日時 |
+| `resolvedAt` | TEXT | 解決日時 |
+
+### pm_milestones
+
+| カラム | 型 | 説明 |
+|--------|-----|------|
+| `id` | TEXT PK | UUID |
+| `projectId` | TEXT FK | プロジェクトID |
+| `externalId` | TEXT | 外部マイルストーンID |
+| `title` | TEXT | マイルストーン名 |
+| `description` | TEXT | 説明 |
+| `dueDate` | TEXT | 期限 |
+| `state` | TEXT | `"open"` \| `"closed"` |
+| `externalUpdatedAt` | TEXT | 外部側の最終更新日時 |
+| `createdAt` | TEXT | 作成日時 |
+| `updatedAt` | TEXT | 更新日時 |
 
 ### pm_analytics_cache
 
@@ -496,27 +795,36 @@ const modules: SchulaModule[] = [schoolModule, pmModule];
 
 ## 実装フェーズ
 
-### Phase 1: 基盤 & タスク同期
-1. DB スキーマ追加 (`pm_projects`, `pm_tasks`, `pm_task_snapshots`)
-2. リポジトリ関数追加 (`pmProjectRepo`, `pmTaskRepo`, `pmTaskSnapshotRepo`)
-3. GitHub Issues 同期実装 (`github-sync.ts`)
+### Phase 1: 基盤 & 単方向同期 (Pull)
+1. DB スキーマ追加 (`pm_projects`, `pm_tasks`, `pm_task_snapshots`, `pm_milestones`)
+2. リポジトリ関数追加 (`pmProjectRepo`, `pmTaskRepo`, `pmTaskSnapshotRepo`, `pmMilestoneRepo`)
+3. GitHub Issues Pull 同期実装 (`github-sync.ts`)
 4. 差分検知 (`diff-detector.ts`)
 5. 通知イベント統合
 6. フロントエンド: プロジェクト一覧 & タスクボード
 
-### Phase 2: リマインダー & Notion 対応
+### Phase 2: 双方向同期 & コンフリクト解決
+1. DB スキーマ追加 (`pm_conflicts`), `pm_tasks` に同期カラム追加
+2. Schedula → 外部書き戻し (`writeback.ts`) — GitHub Issue / Notion Page 更新
+3. コンフリクト検知 (`conflict-resolver.ts`) — Stage 1: フィールドマージ
+4. Claude Code SDK 連携 — Stage 2: セマンティックマージ
+5. 大幅乖離時の外部優先ロジック — Stage 3: 強制上書き
+6. コンフリクト管理 API & フロントエンド UI
+7. 通知イベント追加 (`pm.sync.conflict`, `pm.writeback.*`)
+
+### Phase 3: リマインダー & Notion 対応
 1. 納期チェッカー (`deadline-checker.ts`)
 2. リマインダー設定 API
-3. Notion Database 同期実装 (`notion-sync.ts`)
+3. Notion Database 双方向同期実装 (`notion-sync.ts`)
 4. フロントエンド: リマインダー設定 UI
 
-### Phase 3: タスク検証
+### Phase 4: タスク検証
 1. タスク内容検証ロジック (`task-validator.ts`)
 2. コミットハッシュ特定 (GitHub API 連携)
 3. テストファイルマッチング
 4. フロントエンド: 検証結果表示
 
-### Phase 4: 分析 & レポート
+### Phase 5: 分析 & レポート
 1. クリティカルパス算出 (`critical-path.ts`)
 2. 進捗率予測
 3. ゴンペルツ曲線フィッティング (`gompertz.ts`)
