@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "jq -r '.tool_input.command' | { read -r cmd; if echo \"$cmd\" | grep -q 'git push'; then cd /home/user/Schedula && npm run build 2>&1 && npm test 2>&1 && (cd frontend && npm run lint 2>&1) && (cd frontend && npm run build 2>&1) || { echo '{\"decision\":\"block\",\"reason\":\"CI checks failed. Fix errors before pushing.\"}'; exit 0; }; fi; }",
+            "command": "jq -r '.tool_input.command' | { read -r cmd; if echo \"$cmd\" | grep -q 'git push'; then bash /home/user/Schedula/scripts/ci-check.sh 2>&1 || { echo '{\"decision\":\"block\",\"reason\":\"CI checks failed. Fix errors before pushing.\"}'; exit 0; }; fi; }",
             "timeout": 300,
             "statusMessage": "Running CI checks before push..."
           }

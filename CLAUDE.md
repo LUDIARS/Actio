@@ -6,6 +6,8 @@
 
 ### CI で実行されるチェック
 
+全チェックは `scripts/ci-check.sh` に一元管理されています。GitHub Actions (`.github/workflows/test.yml`) とローカル pre-push hook (`.claude/settings.json`) の両方がこのスクリプトを呼び出します。
+
 1. **バックエンドビルド (型チェック):** `npm run build`
 2. **バックエンドテスト:** `npm test`
 3. **フロントエンド Lint:** `cd frontend && npm run lint` (エラーが 0 であること。warning は許容)
@@ -13,10 +15,11 @@
 
 ### やること
 
-1. 変更が完了したら上記 4 つのコマンドを全て実行する
+1. 変更が完了したら `bash scripts/ci-check.sh` を実行する (上記 4 つのチェックが順番に走る)
 2. 失敗があれば修正して再実行する
 3. 全て通過してから `git push` する
 4. テストが通らない状態のコードを push してはいけない
+5. CI チェックの内容を変更する場合は `scripts/ci-check.sh` を編集する (GitHub CI とローカルの両方に反映される)
 
 ## データベースアクセス
 
