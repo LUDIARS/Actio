@@ -96,6 +96,20 @@ export const EVENT_NAMES = {
   RESERVATION_REMINDER: "reservation.reminder",
   SYNC_CONFLICT: "sync.conflict",
   REMINDER_MORNING: "reminder.morning",
+  // PM モジュール
+  PM_TASK_CREATED: "pm.task.created",
+  PM_TASK_UPDATED: "pm.task.updated",
+  PM_TASK_CLOSED: "pm.task.closed",
+  PM_TASK_REOPENED: "pm.task.reopened",
+  PM_TASK_ASSIGNED: "pm.task.assigned",
+  PM_DEADLINE_WARNING: "pm.deadline.warning",
+  PM_DEADLINE_OVERDUE: "pm.deadline.overdue",
+  PM_REPORT_READY: "pm.report.ready",
+  PM_SYNC_CONFLICT: "pm.sync.conflict",
+  PM_SYNC_AUTO_MERGED: "pm.sync.auto_merged",
+  PM_SYNC_FORCE_EXTERNAL: "pm.sync.force_external",
+  PM_WRITEBACK_SUCCESS: "pm.writeback.success",
+  PM_WRITEBACK_FAILED: "pm.writeback.failed",
 } as const;
 
 /** Event module definition for UI grouping */
@@ -137,6 +151,25 @@ export const EVENT_MODULES: EventModuleDefinition[] = [
     label: "リマインダー",
     events: [
       { name: "reminder.morning", label: "朝の未完了タスク通知" },
+    ],
+  },
+  {
+    module: "pm",
+    label: "プロジェクト管理",
+    events: [
+      { name: "pm.task.created", label: "タスク新規作成" },
+      { name: "pm.task.updated", label: "タスク更新" },
+      { name: "pm.task.closed", label: "タスク完了" },
+      { name: "pm.task.reopened", label: "タスク再オープン" },
+      { name: "pm.task.assigned", label: "担当者変更" },
+      { name: "pm.deadline.warning", label: "納期警告" },
+      { name: "pm.deadline.overdue", label: "納期超過" },
+      { name: "pm.report.ready", label: "分析レポート生成" },
+      { name: "pm.sync.conflict", label: "同期コンフリクト" },
+      { name: "pm.sync.auto_merged", label: "自動マージ完了" },
+      { name: "pm.sync.force_external", label: "外部優先上書き" },
+      { name: "pm.writeback.success", label: "外部書き戻し成功" },
+      { name: "pm.writeback.failed", label: "外部書き戻し失敗" },
     ],
   },
 ];

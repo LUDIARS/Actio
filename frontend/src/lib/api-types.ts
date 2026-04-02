@@ -835,3 +835,163 @@ export interface ActivityLog {
 export interface ActivityLogsResponse {
   logs: ActivityLog[];
 }
+
+// ─── PM (Project Management) ──────────────────────────────
+
+export interface PMProject {
+  id: string;
+  name: string;
+  source: string;
+  sourceConfig: Record<string, string>;
+  syncIntervalMinutes: number;
+  lastSyncedAt: string | null;
+  ownerId: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PMTask {
+  id: string;
+  projectId: string;
+  externalId: string;
+  externalUrl: string | null;
+  title: string;
+  description: string | null;
+  status: string;
+  priority: string;
+  assignees: string[];
+  labels: string[];
+  dueDate: string | null;
+  milestoneExternalId: string | null;
+  milestoneName: string | null;
+  estimatedHours: number | null;
+  blockedBy: string[];
+  dirtyFlag: number;
+  localUpdatedAt: string | null;
+  externalUpdatedAt: string | null;
+  lastSyncedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PMTaskSnapshot {
+  id: string;
+  taskId: string;
+  changeType: string;
+  changedFields: Record<string, { before: unknown; after: unknown }>;
+  snapshotData: Record<string, unknown>;
+  detectedAt: string;
+}
+
+export interface PMMilestone {
+  id: string;
+  projectId: string;
+  externalId: string;
+  title: string;
+  description: string | null;
+  dueDate: string | null;
+  state: string;
+}
+
+export interface PMConflict {
+  id: string;
+  taskId: string;
+  projectId: string;
+  localVersion: Record<string, unknown>;
+  externalVersion: Record<string, unknown>;
+  baseVersion: Record<string, unknown>;
+  resolution: string;
+  resolvedData: Record<string, unknown> | null;
+  status: string;
+  createdAt: string;
+  resolvedAt: string | null;
+}
+
+export interface PMValidationResult {
+  taskId: string;
+  validatedAt: string;
+  score: number;
+  issues: { type: string; message: string; severity: string }[];
+  suggestions: string[];
+}
+
+export interface PMSyncResult {
+  result: {
+    created: number;
+    updated: number;
+    closed: number;
+    unchanged: number;
+    conflicts: number;
+    errors: string[];
+  };
+  lastSyncedAt: string;
+}
+
+export interface PMProgressReport {
+  projectId: string;
+  totalTasks: number;
+  completedTasks: number;
+  completionRate: number;
+  projectedCompletionDate: string | null;
+  tasksByStatus: Record<string, number>;
+  tasksByPriority: Record<string, number>;
+}
+
+export interface PMCriticalPathNode {
+  taskId: string;
+  title: string;
+  estimatedDays: number;
+  assignee: string;
+  status: string;
+}
+
+export interface PMCriticalPathResult {
+  path: PMCriticalPathNode[];
+  totalEstimatedDays: number;
+  projectedCompletionDate: string;
+  riskLevel: string;
+}
+
+export interface PMDecompositionRecommendation {
+  taskId: string;
+  title: string;
+  reason: string;
+  estimatedHours: number | null;
+  dependencyCount: number;
+  onCriticalPath: boolean;
+}
+
+export interface PMGompertzReport {
+  projectId: string;
+  generatedAt: string;
+  totalBugsFound: number;
+  totalBugsFixed: number;
+  estimatedTotalBugs: number;
+  convergenceDate: string | null;
+  confidenceLevel: number;
+  dataPoints: { date: string; cumulativeFound: number; cumulativeFixed: number; predicted: number }[];
+}
+
+export interface PMFullReport {
+  projectId: string;
+  generatedAt: string;
+  progress: PMProgressReport;
+  criticalPath: PMCriticalPathResult;
+  decomposition: PMDecompositionRecommendation[];
+  gompertz: PMGompertzReport | null;
+}
+
+export interface PMReminderSettings {
+  deadlineWarningDays: number;
+  dailyCheckEnabled: boolean;
+  dailyCheckTime: string;
+  overdueCheckEnabled: boolean;
+}
+
+export interface PMReminderTestResult {
+  message: string;
+  warningCount: number;
+  overdueCount: number;
+  warningTasks: { id: string; title: string; dueDate: string | null }[];
+  overdueTasks: { id: string; title: string; dueDate: string | null }[];
+}
