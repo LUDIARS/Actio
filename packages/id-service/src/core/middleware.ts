@@ -41,7 +41,8 @@ export function createUserContext(jwtSecret: string, secretManager: IdSecretMana
         c.set("userId" as never, "anonymous" as never);
         c.set("userRole" as never, "general" as never);
       }
-    } else if (!isProduction) {
+    } else if (!isProduction && secretManager.getOrDefault("ALLOW_DEV_AUTH_BYPASS", "") === "true") {
+      // 開発用バイパス: 明示的に ALLOW_DEV_AUTH_BYPASS=true が設定されている場合のみ有効
       const userId = c.req.header("X-User-Id") || "anonymous";
       const role = (c.req.header("X-User-Role") as UserRole) || "general";
       c.set("userId" as never, userId as never);

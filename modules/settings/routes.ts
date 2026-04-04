@@ -12,6 +12,7 @@ import { db, dialect } from "../../src/db/connection.js";
 import { sql } from "drizzle-orm";
 import { getUserId } from "../../src/middleware/getUserId.js";
 import { logActivity } from "../../src/activity-logger.js";
+import { extractRows } from "../../src/db/utils.js";
 
 const settingsRoutes = new Hono();
 
@@ -81,20 +82,6 @@ settingsRoutes.put("/", async (c) => {
   }
 });
 
-// ─── DB execute ヘルパー (db-viewer と同様) ──────────────────
-function extractRows(result: any): any[] {
-  if (Array.isArray(result)) {
-    if (result.length === 2 && Array.isArray(result[0])) {
-      return result[0];
-    }
-    return result;
-  }
-  if (result && Array.isArray(result.rows)) {
-    return result.rows;
-  }
-  return [];
-}
-
 function quoteIdent(name: string): string {
   if (dialect === "mysql") return `\`${name}\``;
   return `"${name}"`;
@@ -109,21 +96,21 @@ settingsRoutes.get("/export", async (c) => {
       const result = await db.execute(
         sql`SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' AND name NOT LIKE '__%' ORDER BY name`
       );
-      tableNames = extractRows(result).map((r: any) => r.name);
+      tableNames = extractRows(result).map((r) => String(r.name));
     } else if (dialect === "postgres") {
       const result = await db.execute(
         sql`SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' ORDER BY table_name`
       );
-      tableNames = extractRows(result).map((r: any) => r.table_name);
+      tableNames = extractRows(result).map((r) => String(r.table_name));
     } else if (dialect === "mysql") {
       const result = await db.execute(
         sql`SELECT table_name FROM information_schema.tables WHERE table_schema = DATABASE() ORDER BY table_name`
       );
-      tableNames = extractRows(result).map((r: any) => r.table_name || r.TABLE_NAME);
+      tableNames = extractRows(result).map((r) => String(r.table_name || r.TABLE_NAME));
     }
 
     // 各テーブルのデータを取得
-    const exportData: Record<string, any[]> = {};
+    const exportData: Record<string, Record<string, unknown>[]> = {};
     for (const tableName of tableNames) {
       if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(tableName)) continue;
       const quoted = quoteIdent(tableName);

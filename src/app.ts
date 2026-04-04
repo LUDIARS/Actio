@@ -30,6 +30,7 @@ import { setupRoutes } from "../modules/setup/routes.js";
 import { profileRoutes } from "../modules/profile/routes.js";
 import { machinaRoutes } from "../modules/machina/routes.js";
 import { initMachinaRelay } from "../modules/pm/machina-adapter.js";
+import { rateLimit } from "./middleware/rate-limit.js";
 
 export function createApp() {
   const app = new Hono();
@@ -37,8 +38,23 @@ export function createApp() {
   // ─── Global Error Handler ───────────────────────────────────
   app.onError((err, c) => {
     console.error(`[server] 未処理エラー: ${c.req.method} ${c.req.path}`, err);
-    return c.json({ error: "Internal server error", message: err.message }, 500);
+    const isProduction = secretManager.get("NODE_ENV") === "production";
+    return c.json({
+      error: "Internal server error",
+      ...(isProduction ? {} : { message: err.message }),
+    }, 500);
   });
+
+  // ─── Rate Limiting (認証エンドポイント、テスト環境では無効) ───
+  const isTestEnv = secretManager.getOrDefault("NODE_ENV", "") === "test"
+    || typeof process !== "undefined" && process.env.VITEST === "true";
+  if (!isTestEnv) {
+    const authRateLimit = rateLimit({ maxRequests: 10, windowMs: 15 * 60 * 1000 });
+    app.use("/api/auth/login", authRateLimit);
+    app.use("/api/auth/register", authRateLimit);
+    app.use("/api/auth/refresh", rateLimit({ maxRequests: 30, windowMs: 15 * 60 * 1000 }));
+    app.use("/api/setup/*", rateLimit({ maxRequests: 5, windowMs: 15 * 60 * 1000 }));
+  }
 
   // ─── Global Middleware ──────────────────────────────────────
   app.use("*", cors({
@@ -52,6 +68,9 @@ export function createApp() {
     c.header("X-Content-Type-Options", "nosniff");
     c.header("X-Frame-Options", "DENY");
     c.header("X-XSS-Protection", "1; mode=block");
+    c.header("Referrer-Policy", "strict-origin-when-cross-origin");
+    c.header("X-Permitted-Cross-Domain-Policies", "none");
+    c.header("Content-Security-Policy", "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self'; font-src 'self'; object-src 'none'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'");
     if (secretManager.get("NODE_ENV") === "production") {
       c.header("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
     }
@@ -206,6 +225,7 @@ export function createApp() {
       timestamp: new Date().toISOString(),
     };
 
+    // DB ヘルスチェック
     try {
       const { db, dialect } = await import("./db/connection.js");
       health.db_dialect = dialect;
@@ -219,6 +239,22 @@ export function createApp() {
       health.status = "degraded";
       health.db_status = "disconnected";
       health.db_error = err instanceof Error ? err.message : String(err);
+    }
+
+    // Redis ヘルスチェック
+    try {
+      const { getRedis } = await import("./db/redis.js");
+      const redis = getRedis();
+      if (redis) {
+        await redis.ping();
+        health.redis_status = "connected";
+      } else {
+        health.redis_status = "not_configured";
+      }
+    } catch (err) {
+      health.status = "degraded";
+      health.redis_status = "disconnected";
+      health.redis_error = err instanceof Error ? err.message : String(err);
     }
 
     const statusCode = health.status === "ok" ? 200 : 503;

@@ -4,6 +4,9 @@
 
 import type { NotionSourceConfig, ExternalTask, PMTaskStatus, PMPriority } from "../types.js";
 
+/** Notion API リクエストのタイムアウト (30秒) */
+const NOTION_API_TIMEOUT_MS = 30_000;
+
 interface NotionPage {
   id: string;
   url: string;
@@ -67,6 +70,7 @@ export async function fetchNotionTasks(config: NotionSourceConfig): Promise<Exte
         "Content-Type": "application/json",
       },
       body: JSON.stringify(body),
+      signal: AbortSignal.timeout(NOTION_API_TIMEOUT_MS),
     });
 
     if (!res.ok) {
@@ -144,6 +148,7 @@ export async function updateNotionPage(
       "Content-Type": "application/json",
     },
     body: JSON.stringify({ properties }),
+    signal: AbortSignal.timeout(NOTION_API_TIMEOUT_MS),
   });
 
   if (!res.ok) {

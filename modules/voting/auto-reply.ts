@@ -43,7 +43,7 @@ async function isUserBusy(userId: string, day: number, period: number): Promise<
 
   // ユーザーが所属するグループのスケジュールをバッチ取得
   const memberships = await groupMemberRepo.findByUserId(userId);
-  const groupIds = memberships.map((m: any) => m.groupId);
+  const groupIds = memberships.map((m: { groupId: string }) => m.groupId);
   const allSchedules = await groupScheduleRepo.findByGroupIds(groupIds);
 
   for (const s of allSchedules) {

@@ -192,7 +192,7 @@ m4.delete("/reservations/:id", async (c) => {
 m4.get("/rooms/availability", async (c) => {
   const rooms = await roomRepo.findAll();
   const reservations = await reservationRepo.findAll();
-  const confirmedReservations = reservations.filter((r: any) => r.status === "confirmed");
+  const confirmedReservations = reservations.filter((r: { status: string }) => r.status === "confirmed");
 
   const currentTerm = `term-${new Date().getFullYear()}`;
 
@@ -214,7 +214,7 @@ m4.get("/rooms/availability", async (c) => {
   }
 
   // 各教室の空き状況を構築
-  const availability = rooms.map((room: any) => {
+  const availability = rooms.map((room: { id: string; name: string; capacity: number; type: string }) => {
     const occupied = roomOccupied.get(room.id) || new Set<string>();
     const freeSlots: Array<{ day: number; period: number }> = [];
     for (let d = 0; d < 7; d++) {
