@@ -163,7 +163,7 @@ m6.post("/events/:eventId/votes", async (c) => {
     }
   }
 
-  const saved: any[] = [];
+  const saved: Array<Record<string, unknown>> = [];
   for (const v of body.votes) {
     // upsert: 既存回答があれば更新、なければ挿入
     const existing = await voteRepo.findExisting(eventId, v.candidateId, userId);
@@ -214,7 +214,7 @@ m6.post("/events/:eventId/auto-reply", async (c) => {
 
   const candidates = await votingCandidateRepo.findByEventId(eventId);
 
-  const autoVotes: any[] = [];
+  const autoVotes: Array<{ candidateId: string; label: string; answer: string }> = [];
   const skipped: string[] = [];
 
   for (const cand of candidates) {

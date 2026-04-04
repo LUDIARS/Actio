@@ -4,6 +4,9 @@
 
 import type { GitHubSourceConfig, ExternalTask, ExternalMilestone, PMTaskStatus, PMPriority } from "../types.js";
 
+/** GitHub API リクエストのタイムアウト (30秒) */
+const GITHUB_API_TIMEOUT_MS = 30_000;
+
 interface GitHubIssue {
   number: number;
   html_url: string;
@@ -61,6 +64,7 @@ export async function fetchGitHubIssues(config: GitHubSourceConfig): Promise<Ext
         Authorization: `Bearer ${token}`,
         Accept: "application/vnd.github.v3+json",
       },
+      signal: AbortSignal.timeout(GITHUB_API_TIMEOUT_MS),
     });
 
     if (!res.ok) {
@@ -152,6 +156,7 @@ export async function updateGitHubIssue(
       Accept: "application/vnd.github.v3+json",
     },
     body: JSON.stringify(data),
+    signal: AbortSignal.timeout(GITHUB_API_TIMEOUT_MS),
   });
 
   if (!res.ok) {
