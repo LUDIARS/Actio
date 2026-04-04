@@ -3,8 +3,7 @@
  */
 
 import type { IdSecretManager } from "./types.js";
-
-const DEV_SECRET = "schedula-dev-secret-change-in-production";
+import { randomBytes } from "crypto";
 
 export function resolveJwtSecret(secretManager: IdSecretManager): string {
   const nodeEnv = secretManager.getOrDefault("NODE_ENV", "development");
@@ -16,8 +15,10 @@ export function resolveJwtSecret(secretManager: IdSecretManager): string {
     process.exit(1);
   }
 
+  // 開発環境ではランダムな秘密鍵を生成（プロセス再起動でセッション無効化）
+  const devSecret = randomBytes(32).toString("hex");
   console.warn(
-    "[WARNING] JWT_SECRET is not set. Using development default. DO NOT use in production.",
+    "[WARNING] JWT_SECRET is not set. Generated a random development secret. Sessions will not persist across restarts. Set JWT_SECRET for stable development sessions.",
   );
-  return DEV_SECRET;
+  return devSecret;
 }

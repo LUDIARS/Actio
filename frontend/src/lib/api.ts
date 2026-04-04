@@ -210,6 +210,19 @@ export const auth = {
     return "/api/auth/google";
   },
 
+  async exchange(code: string) {
+    const res = await fetch(`${API_BASE}/api/auth/exchange`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ code }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data.error || "Code exchange failed");
+    }
+    return data as { accessToken: string; refreshToken: string };
+  },
+
   async me() {
     return request<UserProfile>("/api/auth/me");
   },

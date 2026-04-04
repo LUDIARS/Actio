@@ -7,12 +7,26 @@
 
 import { Hono } from "hono";
 import { v4 as uuidv4 } from "uuid";
+import { randomBytes } from "crypto";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import type { IdServiceConfig } from "../id-service.js";
 import type { IdUserBasic } from "./types.js";
 import type { SessionStore } from "./session-store.js";
 import { createSessionStore } from "./session-store.js";
+
+// ─── OAuth 一時認可コードストア ──────────────────────────────
+// URL パラメータへのトークン直接露出を防ぐため、一時コードを発行し
+// フロントエンドが POST /auth/exchange で交換する方式
+const oauthCodeStore = new Map<string, { accessToken: string; refreshToken: string; expiresAt: number }>();
+
+// 古いコードを定期的にクリーンアップ (1分ごと)
+setInterval(() => {
+  const now = Date.now();
+  for (const [code, entry] of oauthCodeStore) {
+    if (entry.expiresAt <= now) oauthCodeStore.delete(code);
+  }
+}, 60 * 1000).unref();
 
 // ─── Helper ──────────────────────────────────────────────
 
@@ -355,9 +369,16 @@ export function createAuthRoutes(config: IdServiceConfig) {
 
       await userRepo.update(user.id, { lastLoginAt: new Date(), updatedAt: new Date() });
 
+      // 一時認可コードを生成し、URL に直接トークンを露出させない
+      const oauthCode = randomBytes(32).toString("hex");
+      oauthCodeStore.set(oauthCode, {
+        accessToken,
+        refreshToken,
+        expiresAt: Date.now() + 60 * 1000, // 60秒で期限切れ
+      });
+
       const redirectUrl = new URL(FRONTEND_URL);
-      redirectUrl.searchParams.set("accessToken", accessToken);
-      redirectUrl.searchParams.set("refreshToken", refreshToken);
+      redirectUrl.searchParams.set("code", oauthCode);
       return c.redirect(redirectUrl.toString());
     } catch (err) {
       console.error("[auth:google:callback] エラー発生:", err);
@@ -582,6 +603,38 @@ export function createAuthRoutes(config: IdServiceConfig) {
     } catch (err) {
       console.error("[auth:password] エラー:", err);
       return c.json({ error: "Invalid or expired token" }, 401);
+    }
+  });
+
+  // ─── POST /exchange — OAuth 一時コードをトークンに交換 ──
+
+  auth.post("/exchange", async (c) => {
+    try {
+      const body = await c.req.json<{ code: string }>();
+      if (!body.code) {
+        return c.json({ error: "code is required" }, 400);
+      }
+
+      const entry = oauthCodeStore.get(body.code);
+      if (!entry) {
+        return c.json({ error: "Invalid or expired code" }, 401);
+      }
+
+      if (entry.expiresAt <= Date.now()) {
+        oauthCodeStore.delete(body.code);
+        return c.json({ error: "Code expired" }, 401);
+      }
+
+      // 一度使用したコードは即座に削除 (replay attack 防止)
+      oauthCodeStore.delete(body.code);
+
+      return c.json({
+        accessToken: entry.accessToken,
+        refreshToken: entry.refreshToken,
+      });
+    } catch (err) {
+      console.error("[auth:exchange] エラー:", err);
+      return c.json({ error: "Internal server error" }, 500);
     }
   });
 
