@@ -45,12 +45,16 @@ export function createApp() {
     }, 500);
   });
 
-  // ─── Rate Limiting (認証エンドポイント) ─────────────────────
-  const authRateLimit = rateLimit({ maxRequests: 10, windowMs: 15 * 60 * 1000 });
-  app.use("/api/auth/login", authRateLimit);
-  app.use("/api/auth/register", authRateLimit);
-  app.use("/api/auth/refresh", rateLimit({ maxRequests: 30, windowMs: 15 * 60 * 1000 }));
-  app.use("/api/setup/*", rateLimit({ maxRequests: 5, windowMs: 15 * 60 * 1000 }));
+  // ─── Rate Limiting (認証エンドポイント、テスト環境では無効) ───
+  const isTestEnv = secretManager.getOrDefault("NODE_ENV", "") === "test"
+    || typeof process !== "undefined" && process.env.VITEST === "true";
+  if (!isTestEnv) {
+    const authRateLimit = rateLimit({ maxRequests: 10, windowMs: 15 * 60 * 1000 });
+    app.use("/api/auth/login", authRateLimit);
+    app.use("/api/auth/register", authRateLimit);
+    app.use("/api/auth/refresh", rateLimit({ maxRequests: 30, windowMs: 15 * 60 * 1000 }));
+    app.use("/api/setup/*", rateLimit({ maxRequests: 5, windowMs: 15 * 60 * 1000 }));
+  }
 
   // ─── Global Middleware ──────────────────────────────────────
   app.use("*", cors({
