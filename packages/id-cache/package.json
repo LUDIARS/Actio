@@ -1,5 +1,5 @@
 {
-  "name": "@schedula/id-cache",
+  "name": "@cernere/id-cache",
   "version": "0.1.0",
   "description": "Embeddable cache for Id Service — optional, services work without it",
   "type": "module",

@@ -24,9 +24,6 @@ export interface UserProfile {
   role: string;
   major: string | null;
   calendarAccessId: string | null;
-  hasGoogleAuth: boolean;
-  hasPassword: boolean;
-  googleScopes: string[];
 }
 
 export interface UserBasic {

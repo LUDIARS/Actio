@@ -2,6 +2,8 @@ import { describe, it, expect, beforeAll, beforeEach } from "vitest";
 import {
   initTestDatabase,
   clearTestDatabase,
+  insertTestUser,
+  generateTestToken,
   request,
 } from "../helpers.js";
 
@@ -17,11 +19,9 @@ beforeAll(async () => {
 
 beforeEach(async () => {
   clearTestDatabase();
-  const reg = await request(app, "POST", "/api/auth/register", {
-    body: { name: "CalUser", email: "cal@test.com", password: "password123" },
-  });
-  token = reg.json.accessToken;
-  userId = reg.json.user.id;
+  userId = "user-1";
+  insertTestUser({ id: userId, name: "CalUser", email: "cal@test.com" });
+  token = generateTestToken(userId);
 });
 
 describe("Personal Events", () => {

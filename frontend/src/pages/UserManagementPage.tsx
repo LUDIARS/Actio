@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { useAuth } from "../contexts/AuthContext";
-import { adminApi, auth } from "../lib/api";
+import { adminApi } from "../lib/api";
 
 const ROLE_LABELS: Record<string, string> = {
   admin: "管理者",
@@ -39,14 +39,6 @@ export function UserManagementPage() {
   const [updating, setUpdating] = useState<string | null>(null);
   const [filterGroup, setFilterGroup] = useState<string>("all");
   const [searchText, setSearchText] = useState("");
-  const [showPasswordForm, setShowPasswordForm] = useState(false);
-  const [currentPassword, setCurrentPassword] = useState("");
-  const [newPassword, setNewPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
-  const [passwordError, setPasswordError] = useState<string | null>(null);
-  const [passwordSuccess, setPasswordSuccess] = useState<string | null>(null);
-  const [changingPassword, setChangingPassword] = useState(false);
-
   const isAdmin = user?.role === "admin";
 
   const fetchUsers = useCallback(async () => {
@@ -85,37 +77,6 @@ export function UserManagementPage() {
     }
   };
 
-  const handleChangePassword = async () => {
-    setPasswordError(null);
-    setPasswordSuccess(null);
-
-    if (newPassword.length < 8) {
-      setPasswordError("新しいパスワードは8文字以上で入力してください");
-      return;
-    }
-    if (newPassword !== confirmPassword) {
-      setPasswordError("新しいパスワードが一致しません");
-      return;
-    }
-
-    setChangingPassword(true);
-    try {
-      await auth.changePassword({
-        currentPassword: currentPassword || undefined,
-        newPassword,
-      });
-      setPasswordSuccess("パスワードを変更しました");
-      setCurrentPassword("");
-      setNewPassword("");
-      setConfirmPassword("");
-      setShowPasswordForm(false);
-    } catch (err) {
-      setPasswordError((err as Error).message);
-    } finally {
-      setChangingPassword(false);
-    }
-  };
-
   function formatLastLogin(lastLoginAt: string | null): string {
     if (!lastLoginAt) return "未ログイン";
     const d = new Date(lastLoginAt);
@@ -149,80 +110,6 @@ export function UserManagementPage() {
           ? "全ユーザーを表示しています。ロールの変更も可能です。"
           : "同じグループに所属するユーザーを表示しています。"}
       </p>
-
-      {/* パスワード変更セクション */}
-      <div style={{ marginBottom: "1.5rem" }}>
-        <button
-          onClick={() => { setShowPasswordForm(!showPasswordForm); setPasswordError(null); setPasswordSuccess(null); }}
-          style={{
-            padding: "0.4rem 1rem",
-            fontSize: "0.85rem",
-            borderRadius: "var(--radius-sm)",
-            border: "1px solid var(--border)",
-            background: "var(--bg-surface)",
-            color: "var(--text)",
-            cursor: "pointer",
-          }}
-        >
-          {showPasswordForm ? "キャンセル" : "パスワードを変更"}
-        </button>
-        {passwordSuccess && (
-          <span style={{ marginLeft: "1rem", fontSize: "0.85rem", color: "var(--text-success, #080)" }}>
-            {passwordSuccess}
-          </span>
-        )}
-        {showPasswordForm && (
-          <div style={{ marginTop: "0.75rem", padding: "1rem", background: "var(--bg-surface)", border: "1px solid var(--border)", borderRadius: "var(--radius-sm)", maxWidth: 400 }}>
-            <div style={{ marginBottom: "0.5rem" }}>
-              <label style={{ display: "block", fontSize: "0.8rem", marginBottom: "0.25rem", color: "var(--text-muted)" }}>現在のパスワード</label>
-              <input
-                type="password"
-                value={currentPassword}
-                onChange={(e) => setCurrentPassword(e.target.value)}
-                placeholder="Google認証のみの場合は空欄でOK"
-                style={{ width: "100%", padding: "0.4rem 0.5rem", fontSize: "0.85rem", borderRadius: "var(--radius-sm)", border: "1px solid var(--border)", background: "var(--bg-surface)", color: "var(--text)", boxSizing: "border-box" }}
-              />
-            </div>
-            <div style={{ marginBottom: "0.5rem" }}>
-              <label style={{ display: "block", fontSize: "0.8rem", marginBottom: "0.25rem", color: "var(--text-muted)" }}>新しいパスワード (8文字以上)</label>
-              <input
-                type="password"
-                value={newPassword}
-                onChange={(e) => setNewPassword(e.target.value)}
-                style={{ width: "100%", padding: "0.4rem 0.5rem", fontSize: "0.85rem", borderRadius: "var(--radius-sm)", border: "1px solid var(--border)", background: "var(--bg-surface)", color: "var(--text)", boxSizing: "border-box" }}
-              />
-            </div>
-            <div style={{ marginBottom: "0.75rem" }}>
-              <label style={{ display: "block", fontSize: "0.8rem", marginBottom: "0.25rem", color: "var(--text-muted)" }}>新しいパスワード (確認)</label>
-              <input
-                type="password"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                style={{ width: "100%", padding: "0.4rem 0.5rem", fontSize: "0.85rem", borderRadius: "var(--radius-sm)", border: "1px solid var(--border)", background: "var(--bg-surface)", color: "var(--text)", boxSizing: "border-box" }}
-              />
-            </div>
-            {passwordError && (
-              <div style={{ fontSize: "0.8rem", color: "var(--text-error, #c00)", marginBottom: "0.5rem" }}>{passwordError}</div>
-            )}
-            <button
-              onClick={handleChangePassword}
-              disabled={changingPassword}
-              style={{
-                padding: "0.4rem 1rem",
-                fontSize: "0.85rem",
-                borderRadius: "var(--radius-sm)",
-                border: "none",
-                background: "var(--accent, #0066cc)",
-                color: "#fff",
-                cursor: changingPassword ? "not-allowed" : "pointer",
-                opacity: changingPassword ? 0.6 : 1,
-              }}
-            >
-              {changingPassword ? "変更中..." : "変更する"}
-            </button>
-          </div>
-        )}
-      </div>
 
       {error && (
         <div
