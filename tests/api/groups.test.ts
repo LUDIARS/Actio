@@ -2,6 +2,8 @@ import { describe, it, expect, beforeAll, beforeEach } from "vitest";
 import {
   initTestDatabase,
   clearTestDatabase,
+  insertTestUser,
+  generateTestToken,
   request,
 } from "../helpers.js";
 
@@ -17,12 +19,9 @@ beforeAll(async () => {
 
 beforeEach(async () => {
   clearTestDatabase();
-  // Register admin user
-  const reg = await request(app, "POST", "/api/auth/register", {
-    body: { name: "Admin", email: "admin@test.com", password: "password123" },
-  });
-  adminToken = reg.json.accessToken;
-  userId = reg.json.user.id;
+  userId = "user-1";
+  insertTestUser({ id: userId, name: "Admin", email: "admin@test.com" });
+  adminToken = generateTestToken(userId);
 });
 
 describe("POST /api/groups", () => {
@@ -76,9 +75,8 @@ describe("GET /api/groups/:id", () => {
 describe("POST /api/groups/:id/join", () => {
   it("should join a group", async () => {
     // Create second user
-    const reg2 = await request(app, "POST", "/api/auth/register", {
-      body: { name: "User2", email: "user2@test.com", password: "password123" },
-    });
+    insertTestUser({ id: "user-2", name: "User2", email: "user2@test.com" });
+    const user2Token = generateTestToken("user-2");
 
     // Create group
     const create = await request(app, "POST", "/api/groups", {
@@ -87,7 +85,7 @@ describe("POST /api/groups/:id/join", () => {
     });
 
     const { status } = await request(app, "POST", `/api/groups/${create.json.groupId}/join`, {
-      token: reg2.json.accessToken,
+      token: user2Token,
     });
 
     expect(status).toBe(200);
@@ -97,9 +95,8 @@ describe("POST /api/groups/:id/join", () => {
 describe("POST /api/groups/:id/leave", () => {
   it("should leave a group", async () => {
     // Create second user and join
-    const reg2 = await request(app, "POST", "/api/auth/register", {
-      body: { name: "User2", email: "user2@test.com", password: "password123" },
-    });
+    insertTestUser({ id: "user-2", name: "User2", email: "user2@test.com" });
+    const user2Token = generateTestToken("user-2");
 
     const create = await request(app, "POST", "/api/groups", {
       token: adminToken,
@@ -107,11 +104,11 @@ describe("POST /api/groups/:id/leave", () => {
     });
 
     await request(app, "POST", `/api/groups/${create.json.groupId}/join`, {
-      token: reg2.json.accessToken,
+      token: user2Token,
     });
 
     const { status } = await request(app, "POST", `/api/groups/${create.json.groupId}/leave`, {
-      token: reg2.json.accessToken,
+      token: user2Token,
     });
 
     expect(status).toBe(200);

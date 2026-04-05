@@ -19,138 +19,29 @@ beforeEach(() => {
   clearTestDatabase();
 });
 
-describe("POST /api/auth/register", () => {
-  it("should register a new user (first user becomes admin)", async () => {
-    const { status, json } = await request(app, "POST", "/api/auth/register", {
-      body: { name: "TestAdmin", email: "admin@test.com", password: "password123" },
-    });
-
-    expect(status).toBe(201);
-    expect(json.user).toBeDefined();
-    expect(json.user.name).toBe("TestAdmin");
-    expect(json.user.email).toBe("admin@test.com");
-    expect(json.user.role).toBe("admin");
-    expect(json.accessToken).toBeDefined();
-    expect(json.refreshToken).toBeDefined();
-  });
-
-  it("should register second user as general", async () => {
-    // First user (admin)
-    await request(app, "POST", "/api/auth/register", {
-      body: { name: "Admin", email: "admin@test.com", password: "password123" },
-    });
-
-    // Second user (general)
-    const { status, json } = await request(app, "POST", "/api/auth/register", {
-      body: { name: "User", email: "user@test.com", password: "password123" },
-    });
-
-    expect(status).toBe(201);
-    expect(json.user.role).toBe("general");
-  });
-
-  it("should reject missing fields", async () => {
-    const { status, json } = await request(app, "POST", "/api/auth/register", {
-      body: { name: "Test" },
-    });
-
-    expect(status).toBe(400);
-    expect(json.error).toBeDefined();
-  });
-
-  it("should reject short password", async () => {
-    const { status } = await request(app, "POST", "/api/auth/register", {
-      body: { name: "Test", email: "test@test.com", password: "short" },
-    });
-
-    expect(status).toBe(400);
-  });
-
-  it("should reject duplicate email", async () => {
-    await request(app, "POST", "/api/auth/register", {
-      body: { name: "Test", email: "dup@test.com", password: "password123" },
-    });
-
-    const { status } = await request(app, "POST", "/api/auth/register", {
-      body: { name: "Test2", email: "dup@test.com", password: "password456" },
-    });
-
-    expect(status).toBe(409);
-  });
-});
-
-describe("POST /api/auth/login", () => {
-  beforeEach(async () => {
-    await request(app, "POST", "/api/auth/register", {
-      body: { name: "LoginUser", email: "login@test.com", password: "password123" },
-    });
-  });
-
-  it("should login with valid credentials", async () => {
-    const { status, json } = await request(app, "POST", "/api/auth/login", {
-      body: { email: "login@test.com", password: "password123" },
-    });
-
-    expect(status).toBe(200);
-    expect(json.user).toBeDefined();
-    expect(json.accessToken).toBeDefined();
-    expect(json.refreshToken).toBeDefined();
-  });
-
-  it("should reject wrong password", async () => {
-    const { status } = await request(app, "POST", "/api/auth/login", {
-      body: { email: "login@test.com", password: "wrongpassword" },
-    });
-
-    expect(status).toBe(401);
-  });
-
-  it("should reject unknown email", async () => {
-    const { status } = await request(app, "POST", "/api/auth/login", {
-      body: { email: "unknown@test.com", password: "password123" },
-    });
-
-    expect(status).toBe(401);
-  });
-});
-
-describe("POST /api/auth/refresh", () => {
-  it("should refresh token", async () => {
-    const reg = await request(app, "POST", "/api/auth/register", {
-      body: { name: "RefreshUser", email: "refresh@test.com", password: "password123" },
-    });
-
-    const { status, json } = await request(app, "POST", "/api/auth/refresh", {
-      body: { refreshToken: reg.json.refreshToken },
-    });
-
-    expect(status).toBe(200);
-    expect(json.accessToken).toBeDefined();
-    expect(json.refreshToken).toBeDefined();
-  });
-
-  it("should reject invalid refresh token", async () => {
-    const { status } = await request(app, "POST", "/api/auth/refresh", {
-      body: { refreshToken: "invalid-token" },
-    });
-
-    expect(status).toBe(401);
-  });
-});
+// 認証処理 (login/register/refresh/logout) は Cernere に委譲済み。
+// ここでは Schedula 固有のエンドポイントのみテストする。
 
 describe("GET /api/auth/me", () => {
   it("should return current user", async () => {
-    const reg = await request(app, "POST", "/api/auth/register", {
-      body: { name: "MeUser", email: "me@test.com", password: "password123" },
-    });
+    insertTestUser({ id: "user-1", name: "MeUser", email: "me@test.com", role: "general" });
+    const token = generateTestToken("user-1", "general");
 
-    const { status, json } = await request(app, "GET", "/api/auth/me", {
-      token: reg.json.accessToken,
-    });
+    const { status, json } = await request(app, "GET", "/api/auth/me", { token });
 
     expect(status).toBe(200);
     expect(json.name).toBe("MeUser");
     expect(json.email).toBe("me@test.com");
+    expect(json.role).toBe("general");
+  });
+
+  it("should auto-provision user if not in local DB", async () => {
+    const token = generateTestToken("new-user-1", "general");
+
+    const { status, json } = await request(app, "GET", "/api/auth/me", { token });
+
+    expect(status).toBe(200);
+    expect(json.id).toBe("new-user-1");
   });
 
   it("should reject without token", async () => {
@@ -159,30 +50,12 @@ describe("GET /api/auth/me", () => {
   });
 });
 
-describe("POST /api/auth/logout", () => {
-  it("should logout successfully", async () => {
-    const reg = await request(app, "POST", "/api/auth/register", {
-      body: { name: "LogoutUser", email: "logout@test.com", password: "password123" },
-    });
-
-    const { status, json } = await request(app, "POST", "/api/auth/logout", {
-      body: { refreshToken: reg.json.refreshToken },
-    });
-
-    expect(status).toBe(200);
-    expect(json.message).toBe("Logged out");
-  });
-});
-
 describe("GET /api/auth/users (admin)", () => {
   it("should return user list for admin", async () => {
-    const reg = await request(app, "POST", "/api/auth/register", {
-      body: { name: "AdminUser", email: "admin@test.com", password: "password123" },
-    });
+    insertTestUser({ id: "admin-1", name: "AdminUser", email: "admin@test.com", role: "admin" });
+    const token = generateTestToken("admin-1", "admin");
 
-    const { status, json } = await request(app, "GET", "/api/auth/users", {
-      token: reg.json.accessToken,
-    });
+    const { status, json } = await request(app, "GET", "/api/auth/users", { token });
 
     expect(status).toBe(200);
     expect(json.users).toBeDefined();
@@ -190,17 +63,10 @@ describe("GET /api/auth/users (admin)", () => {
   });
 
   it("should reject non-admin", async () => {
-    await request(app, "POST", "/api/auth/register", {
-      body: { name: "Admin", email: "admin@test.com", password: "password123" },
-    });
+    insertTestUser({ id: "user-1", name: "User", email: "user@test.com", role: "general" });
+    const token = generateTestToken("user-1", "general");
 
-    const reg2 = await request(app, "POST", "/api/auth/register", {
-      body: { name: "User", email: "user@test.com", password: "password123" },
-    });
-
-    const { status } = await request(app, "GET", "/api/auth/users", {
-      token: reg2.json.accessToken,
-    });
+    const { status } = await request(app, "GET", "/api/auth/users", { token });
 
     expect(status).toBe(403);
   });
@@ -208,20 +74,42 @@ describe("GET /api/auth/users (admin)", () => {
 
 describe("PUT /api/auth/users/:id/role", () => {
   it("should change user role", async () => {
-    const admin = await request(app, "POST", "/api/auth/register", {
-      body: { name: "Admin", email: "admin@test.com", password: "password123" },
-    });
+    insertTestUser({ id: "admin-1", name: "Admin", email: "admin@test.com", role: "admin" });
+    insertTestUser({ id: "user-1", name: "User", email: "user@test.com", role: "general" });
+    const token = generateTestToken("admin-1", "admin");
 
-    const user = await request(app, "POST", "/api/auth/register", {
-      body: { name: "User", email: "user@test.com", password: "password123" },
-    });
-
-    const { status, json } = await request(app, "PUT", `/api/auth/users/${user.json.user.id}/role`, {
-      token: admin.json.accessToken,
+    const { status, json } = await request(app, "PUT", "/api/auth/users/user-1/role", {
+      token,
       body: { role: "group_leader" },
     });
 
     expect(status).toBe(200);
     expect(json.user.role).toBe("group_leader");
+  });
+
+  it("should reject invalid role", async () => {
+    insertTestUser({ id: "admin-1", name: "Admin", email: "admin@test.com", role: "admin" });
+    insertTestUser({ id: "user-1", name: "User", email: "user@test.com", role: "general" });
+    const token = generateTestToken("admin-1", "admin");
+
+    const { status } = await request(app, "PUT", "/api/auth/users/user-1/role", {
+      token,
+      body: { role: "superadmin" },
+    });
+
+    expect(status).toBe(400);
+  });
+
+  it("should reject non-admin", async () => {
+    insertTestUser({ id: "user-1", name: "User", email: "user@test.com", role: "general" });
+    insertTestUser({ id: "user-2", name: "User2", email: "user2@test.com", role: "general" });
+    const token = generateTestToken("user-1", "general");
+
+    const { status } = await request(app, "PUT", "/api/auth/users/user-2/role", {
+      token,
+      body: { role: "admin" },
+    });
+
+    expect(status).toBe(403);
   });
 });

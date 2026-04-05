@@ -75,13 +75,6 @@ async function request<T>(
     headers["Authorization"] = `Bearer ${token}`;
   }
 
-  // Fallback: legacy header auth
-  const user = getStoredUser();
-  if (user) {
-    headers["X-User-Id"] = user.id;
-    headers["X-User-Role"] = user.role;
-  }
-
   let res: Response;
   try {
     console.log(`[api] ${options.method || "GET"} ${url}`);
@@ -114,12 +107,15 @@ async function request<T>(
   return res.json();
 }
 
+/** Cernere URL (認証サーバー) */
+const CERNERE_URL = import.meta.env.VITE_CERNERE_URL ?? "http://localhost:8080";
+
 async function refreshAccessToken(): Promise<boolean> {
   const refreshToken = getRefreshToken();
   if (!refreshToken) return false;
 
   try {
-    const res = await fetch(`${API_BASE}/api/auth/refresh`, {
+    const res = await fetch(`${CERNERE_URL}/api/auth/refresh`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ refreshToken }),
@@ -137,62 +133,26 @@ async function refreshAccessToken(): Promise<boolean> {
   }
 }
 
-// ─── Auth API ──────────────────────────────────────────────
+// ─── Auth API (認証は Cernere に委譲) ─────────────────────────
 
 export const auth = {
-  async register(body: { name: string; email: string; password: string; role?: string }) {
-    console.log("[auth] 登録リクエスト:", body.email);
-    let res: Response;
-    try {
-      res = await fetch(`${API_BASE}/api/auth/register`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-    } catch (err) {
-      console.error("[auth] 登録ネットワークエラー:", err);
-      throw new Error(`ネットワークエラー: ${(err as Error).message}`);
-    }
-    const data = await res.json();
-    if (!res.ok) {
-      console.error("[auth] 登録失敗:", res.status, data);
-      throw new Error(data.error || "Registration failed");
-    }
-    console.log("[auth] 登録成功");
-    setTokens(data.accessToken, data.refreshToken);
-    setStoredUser(data.user);
-    return data;
+  /** Cernere ログインページへのリダイレクト URL */
+  getCernereLoginUrl() {
+    const redirect = encodeURIComponent(window.location.origin);
+    return `${CERNERE_URL}/login?redirect=${redirect}`;
   },
 
-  async login(body: { email: string; password: string }) {
-    console.log("[auth] ログインリクエスト:", body.email);
-    let res: Response;
-    try {
-      res = await fetch(`${API_BASE}/api/auth/login`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-    } catch (err) {
-      console.error("[auth] ログインネットワークエラー:", err);
-      throw new Error(`ネットワークエラー: ${(err as Error).message}`);
-    }
-    const data = await res.json();
-    if (!res.ok) {
-      console.error("[auth] ログイン失敗:", res.status, data);
-      throw new Error(data.error || "Login failed");
-    }
-    console.log("[auth] ログイン成功");
-    setTokens(data.accessToken, data.refreshToken);
-    setStoredUser(data.user);
-    return data;
+  /** Cernere Google OAuth へのリダイレクト URL */
+  getGoogleAuthUrl() {
+    const redirect = encodeURIComponent(window.location.origin);
+    return `${CERNERE_URL}/auth/google/login?redirect=${redirect}`;
   },
 
   async logout() {
     console.log("[auth] ログアウトリクエスト");
     const refreshToken = getRefreshToken();
     try {
-      await fetch(`${API_BASE}/api/auth/logout`, {
+      await fetch(`${CERNERE_URL}/api/auth/logout`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ refreshToken }),
@@ -204,34 +164,8 @@ export const auth = {
     clearTokens();
   },
 
-  getGoogleAuthUrl() {
-    // Always use relative URL so navigation goes through the frontend proxy (Vite/Nginx)
-    // instead of navigating directly to the backend port
-    return "/api/auth/google";
-  },
-
-  async exchange(code: string) {
-    const res = await fetch(`${API_BASE}/api/auth/exchange`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ code }),
-    });
-    const data = await res.json();
-    if (!res.ok) {
-      throw new Error(data.error || "Code exchange failed");
-    }
-    return data as { accessToken: string; refreshToken: string };
-  },
-
   async me() {
     return request<UserProfile>("/api/auth/me");
-  },
-
-  async changePassword(body: { currentPassword?: string; newPassword: string }) {
-    return request<MessageResponse>("/api/auth/password", {
-      method: "PUT",
-      body: JSON.stringify(body),
-    });
   },
 };
 

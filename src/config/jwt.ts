@@ -1,9 +1,8 @@
 /**
  * JWT Secret configuration.
- * @schedula/id-service の resolveJwtSecret を使用。
+ * Cernere と共有する JWT シークレットを SecretManager から取得。
  */
 
-import { resolveJwtSecret } from "../../packages/id-service/src/index.js";
 import { secretManager } from "./secrets.js";
 
-export const JWT_SECRET = resolveJwtSecret(secretManager);
+export const JWT_SECRET = secretManager.getOrDefault("JWT_SECRET", "schedula-dev-secret-change-in-production");
