@@ -1,32 +1,7 @@
-import { useState } from "react";
 import { useAuth } from "../contexts/AuthContext";
 
 export function LoginPage() {
-  const { login, register, googleAuthUrl } = useAuth();
-  const [mode, setMode] = useState<"login" | "register">("login");
-  const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError("");
-    setLoading(true);
-    try {
-      if (mode === "register") {
-        await register(name, email, password);
-      } else {
-        await login(email, password);
-      }
-    } catch (err: any) {
-      console.error("[LoginPage] 認証失敗:", err);
-      setError(err.message || "認証に失敗しました");
-    } finally {
-      setLoading(false);
-    }
-  };
+  const { login, googleAuthUrl } = useAuth();
 
   return (
     <div
@@ -56,100 +31,13 @@ export function LoginPage() {
           </p>
         </div>
 
-        {/* Tab switcher */}
-        <div
-          style={{
-            display: "flex",
-            borderBottom: "1px solid var(--border)",
-            marginBottom: "1.5rem",
-          }}
+        <button
+          onClick={login}
+          className="primary"
+          style={{ width: "100%", padding: "0.6rem", marginBottom: "0.75rem" }}
         >
-          {(["login", "register"] as const).map((m) => (
-            <button
-              key={m}
-              onClick={() => { setMode(m); setError(""); }}
-              style={{
-                flex: 1,
-                padding: "0.5rem",
-                background: "transparent",
-                border: "none",
-                borderBottom: mode === m ? "2px solid var(--accent)" : "2px solid transparent",
-                color: mode === m ? "var(--text)" : "var(--text-muted)",
-                fontWeight: mode === m ? 600 : 400,
-                cursor: "pointer",
-              }}
-            >
-              {m === "login" ? "ログイン" : "新規登録"}
-            </button>
-          ))}
-        </div>
-
-        {error && (
-          <div
-            style={{
-              background: "rgba(248, 81, 73, 0.1)",
-              border: "1px solid var(--red)",
-              borderRadius: "var(--radius-sm)",
-              padding: "0.5rem 0.75rem",
-              marginBottom: "1rem",
-              fontSize: "0.85rem",
-              color: "var(--red)",
-            }}
-          >
-            {error}
-          </div>
-        )}
-
-        <form onSubmit={handleSubmit}>
-          {mode === "register" && (
-            <div className="form-group">
-              <label>名前</label>
-              <input
-                type="text"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="山田 太郎"
-                required
-              />
-            </div>
-          )}
-
-          <div className="form-group">
-            <label>メールアドレス</label>
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="user@example.com"
-              required
-            />
-          </div>
-
-          <div className="form-group">
-            <label>パスワード</label>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="8文字以上"
-              minLength={8}
-              required
-            />
-          </div>
-
-          <button
-            type="submit"
-            className="primary"
-            disabled={loading}
-            style={{ width: "100%", marginTop: "0.5rem", padding: "0.6rem" }}
-          >
-            {loading
-              ? "処理中..."
-              : mode === "login"
-                ? "ログイン"
-                : "アカウント作成"}
-          </button>
-        </form>
+          ログイン / 新規登録
+        </button>
 
         <div
           style={{
@@ -203,8 +91,12 @@ export function LoginPage() {
               fill="#EA4335"
             />
           </svg>
-          Googleアカウントで続ける
+          Google アカウントで続ける
         </a>
+
+        <p style={{ textAlign: "center", color: "var(--text-muted)", fontSize: "0.75rem", marginTop: "1.5rem" }}>
+          Cernere 認証基盤を使用しています
+        </p>
       </div>
     </div>
   );
