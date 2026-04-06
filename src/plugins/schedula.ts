@@ -9,7 +9,7 @@
  *   - calendarAccessId: Google Calendar 連携用 ID
  */
 
-import type { PluginRegistry } from "../../packages/id-service/src/index.js";
+import type { PluginRegistry } from "@ludiars/cernere-id-service";
 
 export function registerSchedulaPlugin(registry: PluginRegistry): void {
   registry.register({

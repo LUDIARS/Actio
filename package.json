@@ -34,6 +34,8 @@
   "dependencies": {
     "@aws-sdk/client-ssm": "^3.1016.0",
     "@hono/node-server": "^1.19.11",
+    "@ludiars/cernere-id-cache": "^0.1.0",
+    "@ludiars/cernere-id-service": "^0.1.0",
     "bcryptjs": "^3.0.3",
     "better-sqlite3": "^12.8.0",
     "csv-parse": "^6.1.0",
