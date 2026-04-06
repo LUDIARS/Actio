@@ -10,7 +10,7 @@
 
 import { createMiddleware } from "hono/factory";
 import jwt from "jsonwebtoken";
-import { createIdCache, createIdCacheMiddleware } from "../../packages/id-cache/src/index.js";
+import { createIdCache, createIdCacheMiddleware } from "@ludiars/cernere-id-cache";
 import { secretManager } from "../config/secrets.js";
 
 // ─── 設定 ─────────────────────────────────────────────────────
