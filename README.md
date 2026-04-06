@@ -9,126 +9,86 @@
 
 - **予約システム** — 部屋・タイムスロットの予約、衝突検知、楽観的ロック
 - **Webhook & 通知** — イベント駆動の通知配信、HMAC 署名、リトライ、静寂時間
-- **認証** — JWT + Google OAuth
+- **認証** — Cernere 認証基盤 (JWT + OAuth)
 - **マルチDB対応** — SQLite / PostgreSQL / MySQL (Drizzle ORM)
 - **モジュール拡張** — ドメイン固有のスケジューリングロジックをモジュールとして追加可能
 
-## アーキテクチャ
+## 技術スタック
 
-```
-┌─────────────────────────────────────────────────┐
-│                  Schedula Core                   │
-│                                                  │
-│   認証 (Auth)   予約 (Reservations)   通知 (Webhooks)  │
-│   /api/auth     /api/reservations     /api/webhooks    │
-└────────────┬────────────────────────────────────┘
-             │  モジュール登録
-    ┌────────┴────────────────┐
-    │   School Module         │  ← オプショナル
-    │   /api/school           │
-    │                         │
-    │   M1: 授業予定組立       │
-    │   M2: データ統合         │
-    │   M3: オートスケジューラ   │
-    └─────────────────────────┘
-```
-
-### コア
-
-| 機能 | パス | 説明 |
-|---|---|---|
-| 認証 | `/api/auth` | ユーザー登録・ログイン・JWT・Google OAuth |
-| 予約 | `/api/reservations` | リソース (部屋等) の予約 CRUD・衝突検知 |
-| Webhook・通知 | `/api/webhooks` | Webhook 管理・通知配信・リマインダー |
-| ヘルスチェック | `/api/health` | サーバー稼働状態 |
-
-### School モジュール (`/api/school`)
-
-教育機関向けの授業カリキュラム自動生成モジュールです。コアの予約システムとは独立して動作し、必要に応じて有効化できます。
-
-| サブモジュール | パス | 説明 |
-|---|---|---|
-| M1: 授業予定組立 | `/api/school/m1` | CSV 取込 → CSP ソルバーによる時間割自動生成 |
-| M2: データ統合 | `/api/school/m2` | 授業・個人予定・予約の統合ビュー |
-| M3: オートスケジューラ | `/api/school/m3` | グループ空き時間検索・ミーティング提案 |
+| 分類 | 技術 |
+|------|------|
+| バックエンド | Hono + Node.js + TypeScript |
+| フロントエンド | React 19 + Vite |
+| ORM | Drizzle ORM (SQLite / PostgreSQL / MySQL) |
+| 認証 | Cernere (@ludiars/cernere-id-cache) |
+| セッション | Redis (ioredis) |
 
 ## セットアップ
 
 ### 前提条件
 
-- Node.js v20+
-- npm v9+
+- Node.js v22+
 - Docker / Docker Compose
+- [Infisical](https://infisical.com/) アカウント (シークレット管理)
 
-### クイックスタート (Docker)
+### 1. 依存インストール
 
 ```bash
-# 1. リポジトリをクローン
-git clone <repository-url>
+git clone https://github.com/LUDIARS/Schedula.git
 cd Schedula
-
-# 2. 依存関係のインストール
 npm install
+```
 
-# 3. セットアップ → Docker 起動 (対話形式)
+### 2. Infisical 設定（初回のみ）
+
+```bash
+npm run secrets -- setup
+```
+
+対話形式で Infisical の認証情報（Site URL / Project ID / Client ID / Client Secret）を入力します。
+設定は `.env.secrets` に保存されます（gitignore 済み）。
+
+### 3. デフォルト値を Infisical に登録
+
+```bash
+npm run secrets -- initialize
+```
+
+`env-cli.config.ts` で定義されたデフォルトの環境変数を Infisical に登録します。
+既に存在するキーはスキップされるため、安全に何度でも実行可能です。
+
+### 4. 開発環境の起動
+
+#### Docker 起動
+
+```bash
 npm run setup
 ```
 
-`npm run setup` は以下を順に実行します:
+Infisical からシークレットを取得し、Docker Compose で以下を起動します:
 
-1. **Infisical 認証設定** — Client ID / Secret / Project ID を対話入力 → `.env.secrets` に保存
-2. **`.env` 生成** — Infisical から全設定を取得し Docker 用 `.env` を自動生成
-3. **`docker compose up`** — 生成された `.env` でコンテナ起動
+| サービス | 説明 | ポート |
+|---------|------|--------|
+| PostgreSQL | データベース | 5432 |
+| Redis | セッション / キャッシュ | 6379 |
 
-### 環境変数管理
-
-環境変数は [Infisical](https://infisical.com/) で一元管理します。
-
-```
-┌─────────────────────────────────────────────────────────┐
-│  env-cli setup   → Infisical 認証 (.env.secrets)        │
-│  env-cli env     → Infisical → .env 生成                │
-│  docker compose  → .env を読んで起動                     │
-│  バックエンド     → SecretManager がランタイムで取得      │
-└─────────────────────────────────────────────────────────┘
-```
-
-| 層 | 管理方法 | 例 |
-|---|---|---|
-| **インフラ設定** | Infisical → `.env` に出力 → Docker が使用 | ポート, DB接続先, Redis URL |
-| **シークレット** | バックエンドが Infisical API でランタイム取得 | JWT_SECRET, Google OAuth |
-
-#### secrets CLI
+#### バックエンド + フロントエンド
 
 ```bash
-npm run secrets -- setup              # Infisical 認証設定
-npm run secrets -- env                # .env 再生成
-npm run secrets -- list               # シークレット一覧
-npm run secrets -- get <KEY>          # 値取得
-npm run secrets -- set <KEY> <VALUE>  # 値設定
-npm run secrets -- test               # 接続テスト
-```
-
-#### Infisical を使わない場合
-
-`.env.example` をコピーして手動設定:
-
-```bash
-cp .env.example .env
-# .env を編集して値を設定
-docker compose up -d
-```
-
-### ローカル開発 (Docker なし)
-
-```bash
-# バックエンド
-npm install
+# バックエンド (ホットリロード)
 npm run dev          # http://localhost:3000
 
-# フロントエンド
-cd frontend && npm install
-npm run dev          # http://localhost:5173
+# フロントエンド (別ターミナル)
+cd frontend && npm install && npm run dev   # http://localhost:5173
+```
+
+### ローカル開発 (Docker なし / SQLite)
+
+Docker を使わずに SQLite で開発する場合:
+
+```bash
+npm install
+npm run dev
 ```
 
 `.env` に以下を設定:
@@ -139,13 +99,55 @@ DATABASE_PATH=data/schedula.db
 JWT_SECRET=dev-secret
 ```
 
-### Docker 開発モード (ホットリロード)
+## 環境変数管理
+
+環境変数は [Infisical](https://infisical.com/) で一元管理します。
+
+### secrets CLI
+
+| コマンド | 説明 |
+|---------|------|
+| `npm run secrets -- setup` | 対話形式で Infisical 認証を設定 |
+| `npm run secrets -- initialize` | config のデフォルト値を Infisical に登録 (未存在のみ) |
+| `npm run secrets -- test` | Infisical 接続テスト |
+| `npm run secrets -- list` | シークレット一覧 (値はマスク表示) |
+| `npm run secrets -- get <KEY>` | 指定キーの値を取得 |
+| `npm run secrets -- set <KEY> <VALUE>` | シークレットを作成/更新 |
+| `npm run secrets -- env` | Infisical → `.env` を生成 |
+| `npm run secrets -- up` | `.env` 一時生成 → Docker 起動 → `.env` 自動削除 |
+
+### Infisical を使わない場合
+
+`.env.example` をコピーして手動設定:
 
 ```bash
-npm run setup -- --dev
-# または
-./scripts/setup.sh --dev
+cp .env.example .env
+# .env を編集して値を設定
+docker compose up -d
 ```
+
+## 認証
+
+認証は [Cernere](https://github.com/LUDIARS/Cernere) に委譲しています。
+
+- ユーザー認証 (ログイン / 登録 / OAuth) は Cernere が担当
+- Schedula バックエンドは `@ludiars/cernere-id-cache` で JWT 検証のみ行う
+- `CERNERE_URL` が未設定の場合はローカル JWT 検証にフォールバック
+
+## npm スクリプト
+
+| コマンド | 説明 |
+|---------|------|
+| `npm run dev` | 開発サーバー (ホットリロード) |
+| `npm run build` | TypeScript コンパイル |
+| `npm start` | 本番サーバー |
+| `npm test` | テスト実行 |
+| `npm run setup` | Docker 環境セットアップ |
+| `npm run secrets -- <cmd>` | Infisical シークレット管理 CLI |
+| `npm run ci-check` | CI チェック (ビルド + テスト + lint + フロントエンドビルド) |
+| `npm run db:init` | DB 初期化 |
+| `npm run db:generate` | マイグレーション生成 |
+| `npm run db:migrate` | マイグレーション実行 |
 
 ## モジュール開発
 
@@ -168,27 +170,6 @@ export const myModule: SchulaModule = {
 ```
 
 `src/index.ts` の `modules` 配列に追加するだけで有効化されます。
-
-## npm スクリプト
-
-| コマンド | 説明 |
-|---|---|
-| `npm run setup` | 対話セットアップ → Docker 起動 |
-| `npm run secrets -- <cmd>` | Infisical シークレット管理 CLI |
-| `npm run dev` | 開発サーバー (ホットリロード) |
-| `npm run build` | TypeScript コンパイル |
-| `npm start` | 本番サーバー |
-| `npm test` | テスト実行 |
-| `npm run db:init` | DB 初期化 |
-| `npm run db:generate` | マイグレーション生成 |
-| `npm run db:migrate` | マイグレーション実行 |
-
-## 技術スタック
-
-- **Backend**: Hono + Node.js + TypeScript
-- **Frontend**: React 19 + Vite
-- **ORM**: Drizzle ORM (SQLite / PostgreSQL / MySQL)
-- **Auth**: JWT + bcryptjs + Google OAuth
 
 ## ライセンス
 
