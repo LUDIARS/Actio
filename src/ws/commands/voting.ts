@@ -13,6 +13,7 @@ import {
 import { generateAutoReply } from "../../../modules/voting/auto-reply.js";
 import type { VoteAnswer } from "../../shared/constants.js";
 import { logActivity } from "../../activity-logger.js";
+import { notifyUser } from "../broadcast.js";
 
 // ── voting.create_event ──
 
@@ -113,6 +114,16 @@ registerCommand("voting", "submit_votes", async (userId, payload) => {
   const user = await userRepo.findById(userId);
   logActivity(userId, user?.name || "Unknown", "投票回答", `投票イベント(${body.eventId})に回答しました`);
 
+  // イベント作成者に投票通知
+  if (event.createdBy !== userId) {
+    notifyUser(event.createdBy, "voting.vote_submitted", {
+      eventId: body.eventId,
+      eventTitle: event.title,
+      voterName: user?.name || "Unknown",
+      voteCount: saved.length,
+    });
+  }
+
   return { votes: saved };
 });
 
@@ -207,6 +218,22 @@ registerCommand("voting", "update_event", async (userId, payload) => {
 
   const user = await userRepo.findById(userId);
   logActivity(userId, user?.name || "Unknown", "投票イベント更新", `投票イベント「${event.title}」が更新されました`);
+
+  // ステータス変更時（closed など）は投票参加者に通知
+  if (body.status) {
+    const allVotes = await voteRepo.findByEventId(body.eventId);
+    const voterIds = new Set<string>();
+    for (const v of allVotes) {
+      if (v.userId !== userId) voterIds.add(v.userId);
+    }
+    for (const voterId of voterIds) {
+      notifyUser(voterId, "voting.event_updated", {
+        eventId: body.eventId,
+        title: event.title,
+        status: body.status,
+      });
+    }
+  }
 
   return { message: "Updated", eventId: body.eventId };
 });

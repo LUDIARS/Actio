@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { DAY_LABELS } from "../lib/constants";
 import { facilityBooking, groupApi } from "../lib/api";
+import { useWsEvents } from "../hooks/useWsEvent";
 
 interface Reservation {
   id: string;
@@ -118,6 +119,15 @@ export function FacilityBookingPage() {
     fetchGroups();
     fetchRoomsAvailability();
   }, [fetchReservations, fetchGroups, fetchRoomsAvailability]);
+
+  // WS リアルタイム通知: 予約変更時に自動リフレッシュ
+  useWsEvents(
+    ["facility.reservation_created", "facility.reservation_updated", "facility.reservation_cancelled"],
+    useCallback(() => {
+      fetchReservations();
+      fetchRoomsAvailability();
+    }, [fetchReservations, fetchRoomsAvailability]),
+  );
 
   useEffect(() => {
     if (!form.groupId) {

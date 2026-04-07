@@ -15,6 +15,7 @@ import {
 import { getPeriodTime, EVENT_NAMES } from "../../shared/constants.js";
 import { logActivity } from "../../activity-logger.js";
 import { emitEvent } from "../../../modules/notification/core/handler.js";
+import { broadcastToUsers } from "../broadcast.js";
 
 // ── facility.create_reservation ──
 
@@ -115,6 +116,15 @@ registerCommand("facility", "create_reservation", async (userId, payload) => {
     createdBy: userId,
   });
 
+  broadcastToUsers(participants, "facility.reservation_created", {
+    reservationId,
+    title: body.title,
+    day: body.day,
+    period: body.period,
+    roomName,
+    createdBy: user?.name || "Unknown",
+  }, userId);
+
   return { ...reservation, roomName, calendarEventId };
 });
 
@@ -199,6 +209,15 @@ registerCommand("facility", "update_reservation", async (userId, payload) => {
     updatedBy: userId,
   });
 
+  broadcastToUsers(newParticipants, "facility.reservation_updated", {
+    reservationId: body.id,
+    title: newTitle,
+    day: newDay,
+    period: newPeriod,
+    roomName,
+    updatedBy: user?.name || "Unknown",
+  }, userId);
+
   return { ...updated, roomName };
 });
 
@@ -236,6 +255,15 @@ registerCommand("facility", "cancel_reservation", async (userId, payload) => {
     participants: current.participants,
     cancelledBy: userId,
   });
+
+  broadcastToUsers(current.participants as string[], "facility.reservation_cancelled", {
+    reservationId: body.id,
+    title: current.title,
+    day: current.day,
+    period: current.period,
+    roomName,
+    cancelledBy: userId,
+  }, userId);
 
   return { message: "Reservation cancelled", reservation: cancelled };
 });

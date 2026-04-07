@@ -12,6 +12,7 @@ import {
   userRepo,
 } from "../../db/repository.js";
 import { logActivity } from "../../activity-logger.js";
+import { broadcastToGroupMembers } from "../broadcast.js";
 
 // ── group.create ──
 
@@ -76,6 +77,12 @@ registerCommand("group", "join", async (userId, payload) => {
   const user = await userRepo.findById(userId);
   logActivity(userId, user?.name || "Unknown", "グループ参加", `グループ「${group.name}」に参加しました`);
 
+  await broadcastToGroupMembers(body.groupId, "group.member_joined", {
+    groupId: body.groupId,
+    userId,
+    userName: user?.name || "Unknown",
+  }, userId);
+
   return { message: "Joined group" };
 });
 
@@ -93,6 +100,12 @@ registerCommand("group", "leave", async (userId, payload) => {
   const group = await groupRepo.findById(body.groupId);
   const user = await userRepo.findById(userId);
   logActivity(userId, user?.name || "Unknown", "グループ脱退", `グループ「${group?.name || body.groupId}」から脱退しました`);
+
+  await broadcastToGroupMembers(body.groupId, "group.member_left", {
+    groupId: body.groupId,
+    userId,
+    userName: user?.name || "Unknown",
+  }, userId);
 
   return { message: "Left group" };
 });
@@ -135,6 +148,13 @@ registerCommand("group", "invite", async (userId, payload) => {
 
   const inviter = await userRepo.findById(userId);
   logActivity(userId, inviter?.name || "Unknown", "グループ招待", `「${targetUser.name}」をグループ「${group.name}」に招待しました`);
+
+  await broadcastToGroupMembers(body.groupId, "group.member_invited", {
+    groupId: body.groupId,
+    invitedUserId: body.targetUserId,
+    invitedUserName: targetUser.name,
+    invitedBy: inviter?.name || "Unknown",
+  }, userId);
 
   return { message: `${targetUser.name} をグループに招待しました` };
 });
@@ -228,6 +248,12 @@ registerCommand("group", "create_schedule", async (userId, payload) => {
   const user = await userRepo.findById(userId);
   logActivity(userId, user?.name || "Unknown", "グループ予定追加", `グループ予定「${body.title}」が追加されました`);
 
+  await broadcastToGroupMembers(body.groupId, "group.schedule_created", {
+    groupId: body.groupId,
+    schedule: created,
+    createdBy: user?.name || "Unknown",
+  }, userId);
+
   return { schedule: created };
 });
 
@@ -276,6 +302,12 @@ registerCommand("group", "create_event", async (userId, payload) => {
   const user = await userRepo.findById(userId);
   logActivity(userId, user?.name || "Unknown", "グループ予定追加", `グループ個別予定「${body.title}」が追加されました`);
 
+  await broadcastToGroupMembers(body.groupId, "group.event_created", {
+    groupId: body.groupId,
+    event: created,
+    createdBy: user?.name || "Unknown",
+  }, userId);
+
   return { event: created };
 });
 
@@ -320,6 +352,11 @@ registerCommand("group", "update_event", async (userId, payload) => {
   await groupEventRepo.update(body.eventId, updates);
   const updated = await groupEventRepo.findById(body.eventId);
 
+  await broadcastToGroupMembers(body.groupId, "group.event_updated", {
+    groupId: body.groupId,
+    event: updated,
+  }, userId);
+
   return { event: updated };
 });
 
@@ -344,6 +381,12 @@ registerCommand("group", "delete_event", async (userId, payload) => {
   }
 
   await groupEventRepo.deleteById(body.eventId);
+
+  await broadcastToGroupMembers(body.groupId, "group.event_deleted", {
+    groupId: body.groupId,
+    eventId: body.eventId,
+    title: existing.title,
+  }, userId);
 
   return { deleted: body.eventId };
 });

@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useAuth } from "../contexts/AuthContext";
 import { groupApi } from "../lib/api";
+import { useWsEvents } from "../hooks/useWsEvent";
 import { HelpButton } from "../components/HelpOverlay";
 import { DAY_LABELS, getPeriodLabel } from "../lib/constants";
 
@@ -179,6 +180,22 @@ export function GroupsPage() {
       setError(err instanceof Error ? err.message : String(err));
     }
   };
+
+  // WS リアルタイム通知: グループ変更時に自動リフレッシュ
+  useWsEvents(
+    [
+      "group.member_joined", "group.member_left", "group.member_invited",
+      "group.event_created", "group.event_updated", "group.event_deleted",
+      "group.schedule_created",
+    ],
+    useCallback((payload) => {
+      const gid = payload.groupId as string;
+      fetchGroups();
+      if (selectedGroupId && gid === selectedGroupId) {
+        loadGroupDetail(gid);
+      }
+    }, [fetchGroups, selectedGroupId]),
+  );
 
   const handleJoin = async () => {
     setError("");

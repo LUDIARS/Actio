@@ -910,6 +910,15 @@ export interface MachinaStatusResponse {
   features: string[];
 }
 
+// ─── WS Real-time Notifications ─────────────────────────────
+
+export interface WsNotification {
+  type: "notification";
+  event: string;
+  payload: Record<string, unknown>;
+  timestamp: string;
+}
+
 // ─── Activity Logs ──────────────────────────────────────────
 
 export interface ActivityLog {
