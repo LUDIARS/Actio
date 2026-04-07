@@ -3,6 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import { pmApi } from "../lib/api";
 import type { PMProject, PMTask, PMConflict } from "../lib/api-types";
+import { useWsEvents } from "../hooks/useWsEvent";
 
 const STATUS_LABELS: Record<string, string> = {
   open: "未着手",
@@ -57,6 +58,16 @@ export function PMProjectPage() {
   }, [projectId]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
+
+  // WS リアルタイム通知: PM 同期・タスク更新時に自動リフレッシュ
+  useWsEvents(
+    ["pm.sync_completed", "pm.task_updated"],
+    useCallback((payload) => {
+      if (payload.projectId === projectId) {
+        fetchData();
+      }
+    }, [projectId, fetchData]),
+  );
 
   const handleSync = async () => {
     if (!projectId) return;

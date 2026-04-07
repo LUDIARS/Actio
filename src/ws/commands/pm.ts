@@ -15,6 +15,7 @@ import {
 } from "../../db/repository.js";
 import type { NewPMTask } from "../../db/repository.js";
 import { logActivity } from "../../activity-logger.js";
+import { notifyUser } from "../broadcast.js";
 import { fetchGitHubIssues, fetchGitHubMilestones } from "../../../modules/pm/sync/github-sync.js";
 import { fetchNotionTasks } from "../../../modules/pm/sync/notion-sync.js";
 import { detectAllChanges, hashDescription } from "../../../modules/pm/sync/diff-detector.js";
@@ -130,6 +131,18 @@ registerCommand("pm", "sync", async (userId, payload) => {
   });
 
   logActivity(userId, "", "PM同期実行", `「${project.name}」: +${result.created} ~${result.updated}`);
+
+  // プロジェクトオーナーに同期結果を通知（操作者と異なる場合）
+  if (project.ownerId && project.ownerId !== userId) {
+    notifyUser(project.ownerId, "pm.sync_completed", {
+      projectId: project.id,
+      projectName: project.name,
+      created: result.created,
+      updated: result.updated,
+      conflicts: result.conflicts,
+    });
+  }
+
   return { result, lastSyncedAt: new Date().toISOString() };
 });
 
@@ -173,6 +186,17 @@ registerCommand("pm", "update_task", async (userId, payload) => {
   });
 
   const updated = await pmTaskRepo.findById(task.id);
+
+  // プロジェクトオーナーにタスク更新を通知
+  const project = await pmProjectRepo.findById(task.projectId);
+  if (project?.ownerId && project.ownerId !== userId) {
+    notifyUser(project.ownerId, "pm.task_updated", {
+      projectId: task.projectId,
+      taskId: task.id,
+      title: updated?.title || task.title,
+    });
+  }
+
   return updated;
 });
 

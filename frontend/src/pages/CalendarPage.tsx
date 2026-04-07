@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useAuth } from "../contexts/AuthContext";
 import { calendarApi } from "../lib/api";
 import type { PersonalEvent, Plan } from "../lib/api-types";
+import { useWsEvents } from "../hooks/useWsEvent";
 import { HelpButton } from "../components/HelpOverlay";
 import { DAY_LABELS, getPeriodLabel } from "../lib/constants";
 
@@ -87,6 +88,15 @@ export function CalendarPage() {
     loadGoogleStatus();
     loadConflicts();
   }, [loadEvents, loadPlans, loadGoogleStatus, loadConflicts]);
+
+  // WS リアルタイム通知: 施設予約がカレンダーに反映された時に自動リフレッシュ
+  useWsEvents(
+    ["facility.reservation_created", "facility.reservation_updated", "facility.reservation_cancelled"],
+    useCallback(() => {
+      loadEvents();
+      loadConflicts();
+    }, [loadEvents, loadConflicts]),
+  );
 
   const loadGoogleEvents = async () => {
     setLoading(true);

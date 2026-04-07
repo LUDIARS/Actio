@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useAuth } from "../contexts/AuthContext";
 import { m6Voting } from "../lib/api";
 import type { VotingEvent, Vote } from "../lib/api-types";
+import { useWsEvents } from "../hooks/useWsEvent";
 import { HelpButton } from "../components/HelpOverlay";
 
 // ─── Types ──────────────────────────────────────────────────
@@ -99,6 +100,18 @@ export function VotingPage() {
       showMsg(`Error: ${e.message}`);
     }
   };
+
+  // WS リアルタイム通知: 投票変更時に自動リフレッシュ
+  useWsEvents(
+    ["voting.vote_submitted", "voting.event_updated"],
+    useCallback(() => {
+      fetchEvents();
+      if (selectedEventId) {
+        fetchDetail(selectedEventId);
+      }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [fetchEvents, selectedEventId]),
+  );
 
   // ─── Create event ──────────────────────────────────────────
 
