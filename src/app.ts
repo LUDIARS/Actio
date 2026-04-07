@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { userContext, requireRole } from "./middleware/auth.js";
 import { setupWebSocket } from "./ws/handler.js";
+import "./ws/commands/index.js";
 import { auth } from "./auth/routes.js";
 import { notification } from "../modules/notification/routes.js";
 import { m6 } from "../modules/voting/routes.js";
