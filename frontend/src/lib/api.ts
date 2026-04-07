@@ -28,7 +28,7 @@ import type {
 
 // ─── Token Management ──────────────────────────────────────
 
-function getAccessToken(): string | null {
+export function getAccessToken(): string | null {
   return localStorage.getItem("accessToken");
 }
 

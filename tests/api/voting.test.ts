@@ -15,7 +15,7 @@ const USER2_ID = "user-vote-2";
 beforeAll(async () => {
   initTestDatabase();
   const mod = await import("../../src/app.js");
-  app = mod.createApp();
+  app = mod.createApp().app;
 });
 
 beforeEach(() => {

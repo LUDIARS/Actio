@@ -6,7 +6,7 @@ let app: any;
 beforeAll(async () => {
   initTestDatabase();
   const mod = await import("../../src/app.js");
-  app = mod.createApp();
+  app = mod.createApp().app;
 });
 
 describe("GET /", () => {

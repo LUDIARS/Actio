@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { userContext, requireRole } from "./middleware/auth.js";
+import { setupWebSocket } from "./ws/handler.js";
 import { auth } from "./auth/routes.js";
 import { notification } from "../modules/notification/routes.js";
 import { m6 } from "../modules/voting/routes.js";
@@ -32,6 +33,9 @@ import { rateLimit } from "./middleware/rate-limit.js";
 
 export function createApp() {
   const app = new Hono();
+
+  // ─── WebSocket Handler (/ws) ───────────────────────────────
+  const { injectWebSocket } = setupWebSocket(app);
 
   // ─── Global Error Handler ───────────────────────────────────
   app.onError((err, c) => {
@@ -255,5 +259,5 @@ export function createApp() {
   // ─── Initialize Notification Handler ────────────────────────
   initNotificationHandler();
 
-  return app;
+  return { app, injectWebSocket };
 }

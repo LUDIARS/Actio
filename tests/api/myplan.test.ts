@@ -13,7 +13,7 @@ let token: string;
 beforeAll(async () => {
   initTestDatabase();
   const mod = await import("../../src/app.js");
-  app = mod.createApp();
+  app = mod.createApp().app;
 });
 
 beforeEach(async () => {
