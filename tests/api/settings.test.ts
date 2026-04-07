@@ -15,7 +15,7 @@ const USER_ID = "user-settings-general";
 beforeAll(async () => {
   initTestDatabase();
   const mod = await import("../../src/app.js");
-  app = mod.createApp();
+  app = mod.createApp().app;
 });
 
 beforeEach(() => {
