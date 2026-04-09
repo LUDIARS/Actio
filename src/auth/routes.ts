@@ -20,7 +20,7 @@ import {
   groupRepo,
 } from "../db/repository.js";
 import { logActivity } from "../activity-logger.js";
-import { getComposite } from "./composite.js";
+import { isCompositeEnabled, getLoginUrl, exchangeAuthCode } from "./composite.js";
 
 interface IdUserBasic {
   id: string;
@@ -37,20 +37,19 @@ const auth = new Hono();
 const compositeAuthRoutes = new Hono();
 
 compositeAuthRoutes.get("/login-url", (c) => {
-  const composite = getComposite();
-  if (!composite) {
+  if (!isCompositeEnabled()) {
     return c.json({ error: "Cernere Composite is not configured" }, 503);
   }
   const origin = c.req.query("origin");
   if (!origin) {
     return c.json({ error: "origin query parameter is required" }, 400);
   }
-  return c.json({ url: composite.getLoginUrl(origin) });
+  const url = getLoginUrl(origin);
+  return c.json({ url });
 });
 
 compositeAuthRoutes.post("/exchange", async (c) => {
-  const composite = getComposite();
-  if (!composite) {
+  if (!isCompositeEnabled()) {
     return c.json({ error: "Cernere Composite is not configured" }, 503);
   }
   const body = await c.req.json<{ authCode: string }>();
@@ -58,7 +57,7 @@ compositeAuthRoutes.post("/exchange", async (c) => {
     return c.json({ error: "authCode is required" }, 400);
   }
   try {
-    const result = await composite.exchange(body.authCode);
+    const result = await exchangeAuthCode(body.authCode);
     await ensureLocalUser(result.user.id, result.user.role);
     return c.json({ serviceToken: result.serviceToken, user: result.user });
   } catch (err) {
