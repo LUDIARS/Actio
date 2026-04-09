@@ -3,6 +3,7 @@ import { logger } from "hono/logger";
 import { secretManager } from "./config/secrets.js";
 import { createApp } from "./app.js";
 import { initCernereBridge } from "./ws/cernere-bridge.js";
+import { initComposite } from "./auth/composite.js";
 
 const { app, injectWebSocket } = createApp();
 
@@ -22,6 +23,9 @@ const server = serve({ fetch: app.fetch, port }, (info) => {
 
 // ─── WebSocket ──────────────────────────────────────────────
 injectWebSocket(server);
+
+// ─── Cernere Composite (プロジェクト認証) ────────────────────
+initComposite();
 
 // ─── Cernere Service Bridge (セッション一本化) ───────────────
 initCernereBridge();

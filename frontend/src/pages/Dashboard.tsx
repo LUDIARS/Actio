@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { Link } from "react-router-dom";
-import { useAuth } from "../contexts/AuthContext";
+
 import { calendarApi, groupApi, myPlanApi } from "../lib/api";
 import type { PersonalEvent } from "../lib/api-types";
 import { HelpButton } from "../components/HelpOverlay";
@@ -71,7 +71,8 @@ function getDayOfWeek(year: number, month: number, day: number): number {
 // ─── Component ──────────────────────────────────────────────
 
 export function Dashboard() {
-  const { googleAuthUrl } = useAuth();
+  const CERNERE_URL = import.meta.env.VITE_CERNERE_URL ?? "http://localhost:8080";
+  const googleAuthUrl = `${CERNERE_URL}/auth/google/login?redirect=${encodeURIComponent(window.location.origin)}`;
   const [googleConnected, setGoogleConnected] = useState(false);
   const [googleEmail, setGoogleEmail] = useState("");
   const [events, setEvents] = useState<PersonalEvent[]>([]);

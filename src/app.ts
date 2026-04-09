@@ -3,7 +3,7 @@ import { cors } from "hono/cors";
 import { userContext, requireRole } from "./middleware/auth.js";
 import { setupWebSocket } from "./ws/handler.js";
 import "./ws/commands/index.js";
-import { auth } from "./auth/routes.js";
+import { auth, compositeAuthRoutes } from "./auth/routes.js";
 import { notification } from "../modules/notification/routes.js";
 import { m6 } from "../modules/voting/routes.js";
 import { groupRoutes } from "../modules/group/routes.js";
@@ -78,6 +78,9 @@ export function createApp() {
 
   // ─── Setup Routes (認証不要: 初回セットアップ) ──────────────
   app.route("/api/setup", setupRoutes);
+
+  // ─── Composite Auth (認証不要: ログイン前のユーザーが呼ぶ) ──
+  app.route("/api/auth", compositeAuthRoutes);
 
   app.use("/api/*", userContext());
 
