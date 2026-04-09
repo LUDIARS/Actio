@@ -1,0 +1,14 @@
+# Schedula — All-in-One スタンドアロン (PostgreSQL + Redis 込み)
+#
+# docker-compose.yaml と重ねて使う。
+# DB/Redis を内蔵し、外部インフラなしで動作する。
+#
+# Usage:
+#   docker compose -f docker-compose.yaml -f docker-compose.standalone.yaml up -d
+
+services:
+  # backend の接続先を compose 内部の DB/Redis に確定する
+  backend:
+    environment:
+      DATABASE_URL: "postgresql://${POSTGRES_USER:-schedula}:${POSTGRES_PASSWORD:-schedula}@db:5432/${POSTGRES_DB:-schedula}"
+      REDIS_URL: "redis://redis:6379"
