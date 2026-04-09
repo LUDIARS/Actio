@@ -20,6 +20,7 @@ import {
   groupRepo,
 } from "../db/repository.js";
 import { logActivity } from "../activity-logger.js";
+import { isCompositeEnabled, getLoginUrl, exchangeAuthCode } from "./composite.js";
 
 interface IdUserBasic {
   id: string;
@@ -31,6 +32,39 @@ interface IdUserBasic {
 }
 
 const auth = new Hono();
+
+// ─── 認証不要ルート (userContext の前にマウントされる) ──────────
+const compositeAuthRoutes = new Hono();
+
+compositeAuthRoutes.get("/login-url", (c) => {
+  if (!isCompositeEnabled()) {
+    return c.json({ error: "Cernere Composite is not configured" }, 503);
+  }
+  const origin = c.req.query("origin");
+  if (!origin) {
+    return c.json({ error: "origin query parameter is required" }, 400);
+  }
+  const url = getLoginUrl(origin);
+  return c.json({ url });
+});
+
+compositeAuthRoutes.post("/exchange", async (c) => {
+  if (!isCompositeEnabled()) {
+    return c.json({ error: "Cernere Composite is not configured" }, 503);
+  }
+  const body = await c.req.json<{ authCode: string }>();
+  if (!body.authCode) {
+    return c.json({ error: "authCode is required" }, 400);
+  }
+  try {
+    const result = await exchangeAuthCode(body.authCode);
+    await ensureLocalUser(result.user.id, result.user.role);
+    return c.json({ serviceToken: result.serviceToken, user: result.user });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Exchange failed";
+    return c.json({ error: message }, 401);
+  }
+});
 
 // ─── ユーザー自動プロビジョニング ──────────────────────────────
 // Cernere 認証済みリクエストが来た際、Schedula の users テーブルに
@@ -161,4 +195,4 @@ auth.put("/users/:id/role", requireRole("admin"), async (c) => {
   });
 });
 
-export { auth };
+export { auth, compositeAuthRoutes };

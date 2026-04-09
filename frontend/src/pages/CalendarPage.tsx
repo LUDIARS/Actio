@@ -1,14 +1,15 @@
 import { useState, useEffect, useCallback } from "react";
-import { useAuth } from "../contexts/AuthContext";
 import { calendarApi } from "../lib/api";
 import type { PersonalEvent, Plan } from "../lib/api-types";
+import { useWsEvents } from "../hooks/useWsEvent";
 import { HelpButton } from "../components/HelpOverlay";
 import { DAY_LABELS, getPeriodLabel } from "../lib/constants";
 
 type Tab = "events" | "plans" | "google" | "conflicts";
 
 export function CalendarPage() {
-  const { googleAuthUrl } = useAuth();
+  const CERNERE_URL = import.meta.env.VITE_CERNERE_URL ?? "http://localhost:8080";
+  const googleAuthUrl = `${CERNERE_URL}/auth/google/login?redirect=${encodeURIComponent(window.location.origin)}`;
   const [tab, setTab] = useState<Tab>("events");
   const [events, setEvents] = useState<PersonalEvent[]>([]);
   const [plans, setPlans] = useState<Plan[]>([]);
@@ -87,6 +88,15 @@ export function CalendarPage() {
     loadGoogleStatus();
     loadConflicts();
   }, [loadEvents, loadPlans, loadGoogleStatus, loadConflicts]);
+
+  // WS リアルタイム通知: 施設予約がカレンダーに反映された時に自動リフレッシュ
+  useWsEvents(
+    ["facility.reservation_created", "facility.reservation_updated", "facility.reservation_cancelled"],
+    useCallback(() => {
+      loadEvents();
+      loadConflicts();
+    }, [loadEvents, loadConflicts]),
+  );
 
   const loadGoogleEvents = async () => {
     setLoading(true);

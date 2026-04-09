@@ -28,12 +28,8 @@ import type {
 
 // ─── Token Management ──────────────────────────────────────
 
-function getAccessToken(): string | null {
+export function getAccessToken(): string | null {
   return localStorage.getItem("accessToken");
-}
-
-function getRefreshToken(): string | null {
-  return localStorage.getItem("refreshToken");
 }
 
 export function setTokens(access: string, refresh: string) {
@@ -84,19 +80,10 @@ async function request<T>(
     throw new Error(`ネットワークエラー: ${(err as Error).message}`);
   }
 
-  // If 401, try refresh
-  if (res.status === 401 && getRefreshToken()) {
-    console.log("[api] 401 - トークンリフレッシュ試行中...");
-    const refreshed = await refreshAccessToken();
-    if (refreshed) {
-      headers["Authorization"] = `Bearer ${getAccessToken()}`;
-      try {
-        res = await fetch(url, { ...options, headers });
-      } catch (err) {
-        console.error(`[api] リトライ時ネットワークエラー: ${url}`, err);
-        throw new Error(`ネットワークエラー: ${(err as Error).message}`);
-      }
-    }
+  // 401 → service_token 期限切れ、再ログインが必要
+  if (res.status === 401) {
+    console.warn("[api] 401 - service_token 期限切れ。再ログインが必要です。");
+    clearTokens();
   }
 
   if (!res.ok) {
@@ -107,60 +94,10 @@ async function request<T>(
   return res.json();
 }
 
-/** Cernere URL (認証サーバー) */
-const CERNERE_URL = import.meta.env.VITE_CERNERE_URL ?? "http://localhost:8080";
-
-async function refreshAccessToken(): Promise<boolean> {
-  const refreshToken = getRefreshToken();
-  if (!refreshToken) return false;
-
-  try {
-    const res = await fetch(`${CERNERE_URL}/api/auth/refresh`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ refreshToken }),
-    });
-    if (!res.ok) {
-      clearTokens();
-      return false;
-    }
-    const data = await res.json();
-    setTokens(data.accessToken, data.refreshToken);
-    return true;
-  } catch {
-    clearTokens();
-    return false;
-  }
-}
-
-// ─── Auth API (認証は Cernere に委譲) ─────────────────────────
+// ─── Auth API (認証は Backend 経由 Cernere Composite に委譲) ──
 
 export const auth = {
-  /** Cernere ログインページへのリダイレクト URL */
-  getCernereLoginUrl() {
-    const redirect = encodeURIComponent(window.location.origin);
-    return `${CERNERE_URL}/login?redirect=${redirect}`;
-  },
-
-  /** Cernere Google OAuth へのリダイレクト URL */
-  getGoogleAuthUrl() {
-    const redirect = encodeURIComponent(window.location.origin);
-    return `${CERNERE_URL}/auth/google/login?redirect=${redirect}`;
-  },
-
   async logout() {
-    console.log("[auth] ログアウトリクエスト");
-    const refreshToken = getRefreshToken();
-    try {
-      await fetch(`${CERNERE_URL}/api/auth/logout`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ refreshToken }),
-      });
-      console.log("[auth] ログアウト成功");
-    } catch (err) {
-      console.error("[auth] ログアウトネットワークエラー:", err);
-    }
     clearTokens();
   },
 

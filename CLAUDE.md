@@ -1,5 +1,37 @@
 # Schedula 開発ルール
 
+## 認証 (Cernere Composite)
+
+フロントエンドの認証は `@ludiars/cernere-composite` パッケージに委譲する。
+
+- **Popup モード**: `loginWithPopup()` で Cernere ログイン UI をポップアップ表示
+- **Redirect モード**: `loginWithRedirect()` で Cernere にリダイレクト → `/auth/callback` で復帰
+- 認証成功後、Cernere から受け取った auth_code を `/api/auth/exchange` でトークンに交換
+- トークンは `localStorage` に保存し、Schedula バックエンドの `/api/auth/me` でユーザー同期
+
+バックエンドの JWT 検証は `@ludiars/cernere-id-cache` が担当する。
+
+## 環境変数・シークレット管理
+
+`@ludiars/cernere-env-cli` + Infisical で管理する。
+
+| コマンド | 用途 |
+|---------|------|
+| `npm run env:setup` | Infisical 初回設定 |
+| `npm run env:gen` | .env 生成 |
+| `npm run env:initialize` | デフォルト値を Infisical に登録 |
+| `npm run env:up` | 開発環境起動 (.env 生成 + Docker up) |
+| `npm run env:up:standalone` | All-in-One 起動 (DB 内蔵) |
+
+設定ファイル: `env-cli.config.ts`
+
+## Docker Compose
+
+| ファイル | 用途 |
+|---------|------|
+| `docker-compose.yaml` | メイン (Backend + Frontend + DB + Redis) |
+| `docker-compose.standalone.yaml` | All-in-One オーバーレイ (接続先を内部 DB に固定) |
+
 ## CI テスト必須ルール
 
 **コードを変更したら、push する前に必ず CI と同じテストを全て実行し、全て通ることを確認してください。** テストが失敗する場合は、通るまで修正してから push してください。
