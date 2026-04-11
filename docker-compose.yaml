@@ -1,49 +1,16 @@
 ## ─── Docker Compose ────────────────────────────────────────
 ##
-## .env は secrets-cli env (または setup.sh) で自動生成される。
-## Infisical からインフラ設定 + bootstrap credentials を取得し、
-## バックエンド内で SecretManager が残りのシークレットをランタイム取得する。
+## アプリケーションのみ。DB / Redis は共有インフラ (../infra) を使用。
 ##
 ## Usage:
-##   ./scripts/setup.sh           # 初回: Infisical 設定 → .env 生成 → 起動
-##   ./scripts/setup.sh --env     # .env 再生成のみ
-##   docker compose up -d         # .env 生成済みなら直接起動可
+##   cd ../infra && docker compose up -d   # 共有インフラ起動
+##   npm run env:up                        # .env 生成 + アプリ起動
+##
+## 単体運用 (DB/Redis 込み):
+##   npm run env:up:standalone
 ## ─────────────────────────────────────────────────────────────
 
 services:
-  # ─── Redis (セッション永続化) ───────────────────────────────
-  redis:
-    image: redis:7-alpine
-    restart: unless-stopped
-    ports:
-      - "${REDIS_PORT:-6379}:6379"
-    volumes:
-      - redisdata:/data
-    command: ["redis-server", "--appendonly", "yes"]
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
-
-  # ─── PostgreSQL ──────────────────────────────────────────────
-  db:
-    image: postgres:16-alpine
-    restart: unless-stopped
-    environment:
-      POSTGRES_USER: ${POSTGRES_USER:-schedula}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-schedula}
-      POSTGRES_DB: ${POSTGRES_DB:-schedula}
-    ports:
-      - "${DB_PORT:-5432}:5432"
-    volumes:
-      - pgdata:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-schedula}"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
-
   # ─── Backend (Hono + Drizzle) ────────────────────────────────
   backend:
     build:
@@ -56,8 +23,8 @@ services:
       # ─ Infra (from .env) ─
       PORT: "3000"
       DB_DIALECT: ${DB_DIALECT:-postgres}
-      DATABASE_URL: ${DATABASE_URL:-postgresql://schedula:schedula@db:5432/schedula}
-      REDIS_URL: ${REDIS_URL:-redis://redis:6379}
+      DATABASE_URL: ${DATABASE_URL:-postgresql://schedula_user:schedula@host.docker.internal:5432/schedula}
+      REDIS_URL: ${REDIS_URL:-redis://host.docker.internal:6379}
       FRONTEND_URL: ${FRONTEND_URL:-}
       # ─ Infisical bootstrap (バックエンドが SecretManager で残りを取得) ─
       SECRETS_PROVIDER: ${SECRETS_PROVIDER:-}
@@ -66,11 +33,6 @@ services:
       INFISICAL_ENVIRONMENT: ${INFISICAL_ENVIRONMENT:-}
       INFISICAL_CLIENT_ID: ${INFISICAL_CLIENT_ID:-}
       INFISICAL_CLIENT_SECRET: ${INFISICAL_CLIENT_SECRET:-}
-    depends_on:
-      db:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
 
   # ─── Frontend (React + Vite → Nginx) ────────────────────────
   frontend:
@@ -82,7 +44,3 @@ services:
       - "${FRONTEND_PORT:-8080}:80"
     depends_on:
       - backend
-
-volumes:
-  pgdata:
-  redisdata:

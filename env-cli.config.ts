@@ -8,22 +8,20 @@ const config: EnvCliConfig = {
    * Infisical に同名キーがあればそちらを優先し、なければデフォルト値を使用。
    */
   infraKeys: {
-    // ─── Docker Compose (PostgreSQL) ───────────────────────
-    POSTGRES_USER: "schedula",
-    POSTGRES_PASSWORD: "schedula",
-    POSTGRES_DB: "schedula",
-    DB_PORT: "5432",
-
-    // ─── Docker Compose (Redis) ────────────────────────────
-    REDIS_PORT: "6379",
-
     // ─── Docker Compose (Ports) ────────────────────────────
     FRONTEND_PORT: "8080",
     BACKEND_PORT: "3000",
 
+    // ─── Standalone 用 (docker-compose.standalone.yaml) ────
+    POSTGRES_USER: "schedula",
+    POSTGRES_PASSWORD: "schedula",
+    POSTGRES_DB: "schedula",
+    DB_PORT: "5432",
+    REDIS_PORT: "6379",
+
     // ─── Application ───────────────────────────────────────
     DB_DIALECT: "postgres",
-    DATABASE_URL: "postgresql://schedula:schedula@localhost:5432/schedula",
+    DATABASE_URL: "postgresql://schedula_user:schedula@localhost:5432/schedula",
     REDIS_URL: "redis://127.0.0.1:6379",
     FRONTEND_URL: "http://localhost:5173",
     CERNERE_URL: "http://localhost:8080",

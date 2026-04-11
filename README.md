@@ -37,6 +37,7 @@
 git clone https://github.com/LUDIARS/Schedula.git
 cd Schedula
 npm install
+cd frontend && npm install && cd ..
 ```
 
 ### 2. Infisical 設定（初回のみ）
@@ -59,36 +60,45 @@ npm run secrets -- initialize
 
 ### 4. 開発環境の起動
 
-#### Docker 起動
+#### 共有インフラ + 開発サーバー
+
+DB / Redis は共有インフラ (`../infra`) を使用します。
 
 ```bash
-npm run setup
+# 共有インフラ起動 (PostgreSQL / Redis)
+cd ../infra && docker compose up -d
+
+# バックエンド + フロントエンドを同時起動 (ホットリロード)
+npm run dev
 ```
 
-Infisical からシークレットを取得し、Docker Compose で以下を起動します:
-
-| サービス | 説明 | ポート |
+| プロセス | 説明 | ポート |
 |---------|------|--------|
-| PostgreSQL | データベース | 5432 |
-| Redis | セッション / キャッシュ | 6379 |
+| Backend (tsx watch) | Hono API サーバー | 3000 |
+| Frontend (Vite) | React 開発サーバー | 5173 |
 
-#### バックエンド + フロントエンド
+個別に起動する場合:
 
 ```bash
-# バックエンド (ホットリロード)
-npm run dev          # http://localhost:3000
-
-# フロントエンド (別ターミナル)
-cd frontend && npm install && npm run dev   # http://localhost:5173
+npm run dev:server   # バックエンドのみ
+npm run dev:front    # フロントエンドのみ
 ```
 
-### ローカル開発 (Docker なし / SQLite)
+#### スタンドアロン (Docker)
+
+共有インフラなしで DB/Redis 込みで単体運用:
+
+```bash
+npm run env:up:standalone
+```
+
+#### ローカル開発 (Docker なし / SQLite)
 
 Docker を使わずに SQLite で開発する場合:
 
 ```bash
 npm install
-npm run dev
+npm run dev:server
 ```
 
 `.env` に以下を設定:
@@ -138,14 +148,17 @@ docker compose up -d
 
 | コマンド | 説明 |
 |---------|------|
-| `npm run dev` | 開発サーバー (ホットリロード) |
+| `npm run dev` | バックエンド + フロントエンド同時起動 (ホットリロード) |
+| `npm run dev:server` | バックエンドのみ (tsx watch) |
+| `npm run dev:front` | フロントエンドのみ (Vite) |
 | `npm run build` | TypeScript コンパイル |
 | `npm start` | 本番サーバー |
 | `npm test` | テスト実行 |
-| `npm run setup` | Docker 環境セットアップ |
+| `npm run env:up` | 共有インフラ前提でアプリ起動 (Docker) |
+| `npm run env:up:standalone` | DB/Redis 込みで単体起動 (Docker) |
 | `npm run secrets -- <cmd>` | Infisical シークレット管理 CLI |
 | `npm run ci-check` | CI チェック (ビルド + テスト + lint + フロントエンドビルド) |
-| `npm run db:init` | DB 初期化 |
+| `npm run db:push` | Drizzle スキーマ同期 |
 | `npm run db:generate` | マイグレーション生成 |
 | `npm run db:migrate` | マイグレーション実行 |
 
@@ -173,4 +186,4 @@ export const myModule: SchulaModule = {
 
 ## ライセンス
 
-ISC
+[MIT License](LICENSE) — Copyright (c) 2026 LUDIARS
