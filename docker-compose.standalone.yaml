@@ -1,14 +1,56 @@
-# Schedula — All-in-One スタンドアロン (PostgreSQL + Redis 込み)
+# Schedula — スタンドアロン (PostgreSQL + Redis 込み)
 #
 # docker-compose.yaml と重ねて使う。
-# DB/Redis を内蔵し、外部インフラなしで動作する。
+# 共有インフラなしで DB/Redis を内蔵して単体運用する。
 #
 # Usage:
 #   docker compose -f docker-compose.yaml -f docker-compose.standalone.yaml up -d
 
 services:
-  # backend の接続先を compose 内部の DB/Redis に確定する
+  # ─── Redis (セッション永続化) ───────────────────────────────
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redisdata:/data
+    command: ["redis-server", "--appendonly", "yes"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # ─── PostgreSQL ──────────────────────────────────────────────
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-schedula}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-schedula}
+      POSTGRES_DB: ${POSTGRES_DB:-schedula}
+    ports:
+      - "${DB_PORT:-5432}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-schedula}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # backend の接続先を compose 内部の DB/Redis に固定
   backend:
     environment:
       DATABASE_URL: "postgresql://${POSTGRES_USER:-schedula}:${POSTGRES_PASSWORD:-schedula}@db:5432/${POSTGRES_DB:-schedula}"
       REDIS_URL: "redis://redis:6379"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+volumes:
+  pgdata:
+  redisdata:

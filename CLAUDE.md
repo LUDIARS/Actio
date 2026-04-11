@@ -27,10 +27,17 @@
 
 ## Docker Compose
 
+DB / Redis は共有インフラ (`../infra`) を使用する。アプリ単体での運用も可能。
+
 | ファイル | 用途 |
 |---------|------|
-| `docker-compose.yaml` | メイン (Backend + Frontend + DB + Redis) |
-| `docker-compose.standalone.yaml` | All-in-One オーバーレイ (接続先を内部 DB に固定) |
+| `docker-compose.yaml` | アプリのみ (Backend + Frontend)。DB/Redis は共有インフラ前提 |
+| `docker-compose.standalone.yaml` | DB + Redis を追加するオーバーレイ (単体運用用) |
+
+| コマンド | 用途 |
+|---------|------|
+| `npm run env:up` | 共有インフラ前提でアプリのみ起動 |
+| `npm run env:up:standalone` | DB/Redis 込みで単体起動 |
 
 ## CI テスト必須ルール
 
