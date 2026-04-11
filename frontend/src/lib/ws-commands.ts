@@ -101,10 +101,10 @@ export const wsGroup = {
     wsCommand<MessageResponse>("group", "leave", { groupId }),
 
   invite: (groupId: string, userId: string) =>
-    wsCommand<MessageResponse>("group", "invite", { groupId, userId }),
+    wsCommand<MessageResponse>("group", "invite", { groupId, targetUserId: userId }),
 
   updateMemberRole: (groupId: string, memberId: string, role: string) =>
-    wsCommand<MessageResponse>("group", "update_member_role", { groupId, memberId, role }),
+    wsCommand<MessageResponse>("group", "update_member_role", { groupId, targetUserId: memberId, role }),
 
   createSchedule: (groupId: string, data: {
     title: string;
@@ -246,13 +246,13 @@ export const wsPM = {
     name?: string;
     sourceConfig?: Record<string, unknown>;
     syncIntervalMinutes?: number;
-  }) => wsCommand<{ project: PMProject }>("pm", "update_project", { projectId, ...data }),
+  }) => wsCommand<{ project: PMProject }>("pm", "update_project", { id: projectId, ...data }),
 
   deleteProject: (projectId: string) =>
-    wsCommand<{ deleted: string }>("pm", "delete_project", { projectId }),
+    wsCommand<{ deleted: string }>("pm", "delete_project", { id: projectId }),
 
   sync: (projectId: string) =>
-    wsCommand<PMSyncResult>("pm", "sync", { projectId }),
+    wsCommand<PMSyncResult>("pm", "sync", { id: projectId }),
 
   updateTask: (taskId: string, data: {
     title?: string;
@@ -280,5 +280,5 @@ export const wsAdmin = {
     wsCommand<MessageResponse>("admin", "update_settings", { settings }),
 
   updateUserRole: (userId: string, role: string) =>
-    wsCommand<UserRoleUpdateResponse>("admin", "update_user_role", { userId, role }),
+    wsCommand<UserRoleUpdateResponse>("admin", "update_user_role", { targetUserId: userId, role }),
 };
