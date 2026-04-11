@@ -337,17 +337,21 @@ class SecretManager {
   }
 }
 
-// ─── Singleton & Auto-init ──────────────────────────────────
+// ─── Singleton ─────────────────────────────────────────────
 
 export const secretManager = new SecretManager();
 
-// ESM top-level await で自動初期化
-// 接続失敗時もアプリは起動する (process.env フォールバック)
-try {
-  await secretManager.init();
-} catch (err) {
-  console.error(
-    "[secrets] 初期化中の予期しないエラー:",
-    err instanceof Error ? err.message : err
-  );
+/**
+ * アプリ起動時に呼び出す。drizzle-kit (esbuild/CJS) との互換性のため
+ * top-level await ではなく明示的に呼び出す形にしている。
+ */
+export async function initSecrets(): Promise<void> {
+  try {
+    await secretManager.init();
+  } catch (err) {
+    console.error(
+      "[secrets] 初期化中の予期しないエラー:",
+      err instanceof Error ? err.message : err
+    );
+  }
 }

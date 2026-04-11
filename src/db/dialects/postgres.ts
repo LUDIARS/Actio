@@ -805,7 +805,10 @@ export async function createConnectionWithRetry() {
     await client`CREATE INDEX IF NOT EXISTS idx_placement_curriculum ON curriculum_placements(curriculum_id)`;
     console.log("[db:postgres] terms/curriculum_placements テーブル確認完了");
   } catch (err) {
-    console.warn("[db:postgres] テーブル自動作成エラー (既存の場合は無視):", err instanceof Error ? err.message : err);
+    const msg = err instanceof Error ? err.message : String(err);
+    if (!msg.includes("already exists")) {
+      console.warn("[db:postgres] テーブル自動作成エラー:", msg);
+    }
   }
 
   // 休日テーブル
@@ -848,7 +851,10 @@ export async function createConnectionWithRetry() {
     await client`CREATE INDEX IF NOT EXISTS idx_group_event_date ON group_events(date)`;
     console.log("[db:postgres] holidays/group_events テーブル確認完了");
   } catch (err) {
-    console.warn("[db:postgres] holidays/group_events テーブル自動作成エラー:", err instanceof Error ? err.message : err);
+    const msg2 = err instanceof Error ? err.message : String(err);
+    if (!msg2.includes("already exists")) {
+      console.warn("[db:postgres] holidays/group_events テーブル自動作成エラー:", msg2);
+    }
   }
 
   // PM モジュールテーブル
@@ -966,7 +972,10 @@ export async function createConnectionWithRetry() {
     await client`CREATE INDEX IF NOT EXISTS idx_pm_cache_project_type ON pm_analytics_cache(project_id, report_type)`;
     console.log("[db:postgres] PM モジュールテーブル確認完了");
   } catch (err) {
-    console.warn("[db:postgres] PM テーブル自動作成エラー:", err instanceof Error ? err.message : err);
+    const msg3 = err instanceof Error ? err.message : String(err);
+    if (!msg3.includes("already exists")) {
+      console.warn("[db:postgres] PM テーブル自動作成エラー:", msg3);
+    }
   }
 
   // カラム追加マイグレーション (既存DBとの互換)

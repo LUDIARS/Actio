@@ -1,9 +1,12 @@
 import { serve } from "@hono/node-server";
 import { logger } from "hono/logger";
-import { secretManager } from "./config/secrets.js";
+import { secretManager, initSecrets } from "./config/secrets.js";
 import { createApp } from "./app.js";
 import { initCernereBridge } from "./ws/cernere-bridge.js";
 import { initComposite } from "./auth/composite.js";
+
+// シークレット初期化 (Infisical / env フォールバック)
+await initSecrets();
 
 const { app, injectWebSocket } = createApp();
 
@@ -11,7 +14,7 @@ const { app, injectWebSocket } = createApp();
 app.use("*", logger());
 
 // ─── Server ─────────────────────────────────────────────────
-const port = parseInt(secretManager.getOrDefault("PORT", "3000"), 10);
+const port = parseInt(process.env.BACKEND_PORT || process.env.PORT || "3000", 10);
 
 console.log(`[server] 起動中... ポート ${port}`);
 console.log(`[server] FRONTEND_URL = ${secretManager.getOrDefault("FRONTEND_URL", "http://localhost:8080")}`);

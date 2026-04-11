@@ -1,4 +1,4 @@
-export const API_BASE = import.meta.env.VITE_API_BASE ?? "http://localhost:3000";
+export const API_BASE = import.meta.env.VITE_API_BASE ?? "";
 
 export const DAY_LABELS = ["月", "火", "水", "木", "金", "土", "日"] as const;
 export const DAYS_COUNT = 7;

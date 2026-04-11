@@ -1,4 +1,4 @@
-import type { EnvCliConfig } from "@ludiars/cernere-env-cli";
+import type { EnvCliConfig } from "../Cernere/packages/env-cli/src/types.js";
 
 const config: EnvCliConfig = {
   name: "Schedula",
@@ -18,6 +18,9 @@ const config: EnvCliConfig = {
     POSTGRES_DB: "schedula",
     DB_PORT: "5432",
     REDIS_PORT: "6379",
+
+    // ─── Vite ──────────────────────────────────────────────
+    VITE_ALLOWED_HOSTS: "",
 
     // ─── Application ───────────────────────────────────────
     DB_DIALECT: "postgres",

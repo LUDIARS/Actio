@@ -21,7 +21,7 @@ services:
       - "${BACKEND_PORT:-3000}:3000"
     environment:
       # ─ Infra (from .env) ─
-      PORT: "3000"
+      BACKEND_PORT: ${BACKEND_PORT:-3000}
       DB_DIALECT: ${DB_DIALECT:-postgres}
       DATABASE_URL: ${DATABASE_URL:-postgresql://schedula_user:schedula@host.docker.internal:5432/schedula}
       REDIS_URL: ${REDIS_URL:-redis://host.docker.internal:6379}
