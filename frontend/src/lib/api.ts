@@ -415,10 +415,8 @@ export const m1 = {
     try {
       res = await fetch(url, {
         method: "POST",
-        headers: {
-          "Content-Type": "text/plain",
-          ...(getAccessToken() ? { Authorization: `Bearer ${getAccessToken()}` } : {}),
-        },
+        headers: { "Content-Type": "text/plain" },
+        credentials: "include",
         body: csvText,
       });
     } catch (err) {
@@ -439,10 +437,8 @@ export const m1 = {
     try {
       res = await fetch(url, {
         method: "POST",
-        headers: {
-          "Content-Type": "text/plain",
-          ...(getAccessToken() ? { Authorization: `Bearer ${getAccessToken()}` } : {}),
-        },
+        headers: { "Content-Type": "text/plain" },
+        credentials: "include",
         body: csvText,
       });
     } catch (err) {
@@ -463,10 +459,8 @@ export const m1 = {
     try {
       res = await fetch(url, {
         method: "POST",
-        headers: {
-          "Content-Type": "text/plain",
-          ...(getAccessToken() ? { Authorization: `Bearer ${getAccessToken()}` } : {}),
-        },
+        headers: { "Content-Type": "text/plain" },
+        credentials: "include",
         body: csvText,
       });
     } catch (err) {
