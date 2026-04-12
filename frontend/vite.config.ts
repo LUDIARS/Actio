@@ -15,7 +15,6 @@ function silenceProxyErrors(proxy: unknown) {
   p.on('error', (err: unknown) => {
     const e = err as { code?: string; message?: string }
     if (e.code === 'ECONNRESET' || e.code === 'ECONNREFUSED' || e.code === 'EPIPE') {
-      // クライアントが切断したり backend 再起動時に発生する想定内エラー
       console.warn(`[vite-proxy] ${e.code}: ${e.message ?? ''}`)
       return
     }
