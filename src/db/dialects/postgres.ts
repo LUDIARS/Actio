@@ -40,6 +40,7 @@ export const users = pgTable("users", {
   updatedAt: timestamp("updated_at")
     .$defaultFn(() => new Date())
     .notNull(),
+  lastLoginAt: timestamp("last_login_at"),
 });
 
 // ─── Sessions ────────────────────────────────────────────────
@@ -624,6 +625,37 @@ export const curriculumPlacements = pgTable(
   ]
 );
 
+// ─── User Profiles (ユーザープロフィール) ───────────────────────
+
+export const userProfiles = pgTable("user_profiles", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").references(() => users.id).notNull().unique(),
+  bio: text("bio").notNull().default(""),
+  displayName: text("display_name"),
+  avatarUrl: text("avatar_url"),
+  createdAt: timestamp("created_at").$defaultFn(() => new Date()).notNull(),
+  updatedAt: timestamp("updated_at").$defaultFn(() => new Date()).notNull(),
+});
+
+// ─── User Project Roles (プロジェクト別ロール) ──────────────────
+
+export const userProjectRoles = pgTable(
+  "user_project_roles",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id").references(() => users.id).notNull(),
+    groupId: text("group_id").references(() => groups.id).notNull(),
+    roleName: text("role_name").notNull(),
+    createdAt: timestamp("created_at").$defaultFn(() => new Date()).notNull(),
+    updatedAt: timestamp("updated_at").$defaultFn(() => new Date()).notNull(),
+  },
+  (table) => [
+    unique("unique_user_group_role").on(table.userId, table.groupId, table.roleName),
+    index("idx_user_project_roles_user").on(table.userId),
+    index("idx_user_project_roles_group").on(table.groupId),
+  ]
+);
+
 // ─── Schema Exports ──────────────────────────────────────────
 
 export const schema = {
@@ -648,6 +680,8 @@ export const schema = {
   votingCandidates,
   votes,
   appSettings,
+  userProfiles,
+  userProjectRoles,
 };
 
 export const curriculumSchema = {
@@ -691,6 +725,8 @@ const DB_SCHEMA = {
   instructorAvailableSlots,
   terms,
   curriculumPlacements,
+  userProfiles,
+  userProjectRoles,
 };
 
 /**
@@ -981,6 +1017,40 @@ export async function createConnectionWithRetry() {
   // カラム追加マイグレーション (既存DBとの互換)
   try { await client`ALTER TABLE group_schedules ADD COLUMN IF NOT EXISTS label TEXT`; } catch { /* ignore */ }
   try { await client`ALTER TABLE curricula ADD COLUMN IF NOT EXISTS term_id TEXT REFERENCES terms(id)`; } catch { /* ignore */ }
+  try { await client`ALTER TABLE users ADD COLUMN IF NOT EXISTS last_login_at TIMESTAMP`; } catch { /* ignore */ }
+
+  // ユーザープロフィール + プロジェクト別ロール
+  try {
+    await client`
+      CREATE TABLE IF NOT EXISTS user_profiles (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL UNIQUE REFERENCES users(id),
+        bio TEXT NOT NULL DEFAULT '',
+        display_name TEXT,
+        avatar_url TEXT,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `;
+    await client`
+      CREATE TABLE IF NOT EXISTS user_project_roles (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL REFERENCES users(id),
+        group_id TEXT NOT NULL REFERENCES groups(id),
+        role_name TEXT NOT NULL,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        UNIQUE(user_id, group_id, role_name)
+      )
+    `;
+    await client`CREATE INDEX IF NOT EXISTS idx_user_project_roles_user ON user_project_roles(user_id)`;
+    await client`CREATE INDEX IF NOT EXISTS idx_user_project_roles_group ON user_project_roles(group_id)`;
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (!msg.includes("already exists")) {
+      console.warn("[db:postgres] user_profiles/user_project_roles 作成エラー:", msg);
+    }
+  }
 
   console.log("[db:postgres] Drizzle ORM インスタンスを作成中...");
   const drizzleDb = drizzle(client, { schema: DB_SCHEMA });

@@ -7,24 +7,15 @@
 
 import { createNodeWebSocket } from "@hono/node-ws";
 import type { Hono } from "hono";
-import { createIdCache, type IdCacheClient } from "@ludiars/cernere-id-cache";
 import { secretManager } from "../config/secrets.js";
 import { registerSession, removeSession, updatePong } from "./session.js";
 import { dispatch } from "./dispatcher.js";
 import { getCernereAdapter } from "./cernere-bridge.js";
 
-// ── id-cache セットアップ (REST ミドルウェアと同じ認証基盤) ──
+// ── JWT 検証 (Schedula 自身が発行した service_token をローカル検証) ──
+// Cernere とは JWT_SECRET を共有しないため、id-cache は使わない。
 
-const cernereUrl = secretManager.get("CERNERE_URL");
 const jwtSecret = secretManager.get("JWT_SECRET");
-
-const idCache: IdCacheClient | null = cernereUrl
-  ? createIdCache({
-      idServiceUrl: cernereUrl,
-      jwtSecret,
-      cacheTtlSeconds: 300,
-    })
-  : null;
 
 // ── メッセージ型 ────────────────────────────────────
 
@@ -65,23 +56,21 @@ export function setupWebSocket(app: Hono) {
             return;
           }
 
-          let user;
-          if (idCache) {
-            user = await idCache.resolveUser(token);
-          } else if (jwtSecret) {
-            // フォールバック: ローカル JWT 検証のみ (dev)
+          let user: { id: string; name: string; email: string; role: string } | null = null;
+          if (jwtSecret) {
             try {
               const jwt = await import("jsonwebtoken");
               const payload = jwt.default.verify(token, jwtSecret) as {
                 sub?: string;
                 userId?: string;
                 name?: string;
+                email?: string;
                 role?: string;
               };
               user = {
                 id: payload.sub ?? payload.userId ?? "unknown",
                 name: payload.name ?? "unknown",
-                email: "",
+                email: payload.email ?? "",
                 role: payload.role ?? "general",
               };
             } catch {

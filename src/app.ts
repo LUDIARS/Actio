@@ -60,6 +60,7 @@ export function createApp() {
   app.use("*", cors({
     origin: secretManager.getOrDefault("CORS_ORIGIN",
       secretManager.getOrDefault("FRONTEND_URL", "http://localhost:8080")),
+    credentials: true,
   }));
 
   // Security headers
