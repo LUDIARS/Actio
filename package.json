@@ -58,7 +58,8 @@
     "jsonwebtoken": "^9.0.3",
     "mysql2": "^3.20.0",
     "postgres": "^3.4.8",
-    "uuid": "^13.0.0"
+    "uuid": "^13.0.0",
+    "ws": "^8.20.0"
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",
@@ -67,6 +68,7 @@
     "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^25.5.0",
     "@types/uuid": "^10.0.0",
+    "@types/ws": "^8.18.1",
     "concurrently": "^9.2.1",
     "dotenv-cli": "^11.0.0",
     "drizzle-kit": "^0.31.9",
