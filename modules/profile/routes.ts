@@ -1,8 +1,12 @@
 /**
  * ユーザープロフィール & プロジェクト別ロール API
  *
- * - GET  /api/profile/me          — 自分のプロフィール取得
- * - PUT  /api/profile/me          — 自分のプロフィール更新
+ * プロファイルデータ (displayName / bio / avatarUrl / roleTitle 等) は
+ * Cernere に委譲し、Schedula 自身は保存しない。
+ * プロジェクト別ロール (業務上の役割) は Schedula 固有なのでローカル保管。
+ *
+ * - GET  /api/profile/me          — 自分のプロフィール取得 (Cernere プロキシ)
+ * - PUT  /api/profile/me          — 自分のプロフィール更新 (Cernere プロキシ)
  * - GET  /api/profile/users/:id   — 他ユーザーのプロフィール取得
  * - GET  /api/profile/me/roles    — 自分のプロジェクト別ロール一覧
  * - PUT  /api/profile/me/roles/:groupId — 自分のプロジェクト別ロール設定
@@ -12,8 +16,9 @@
 import { Hono } from "hono";
 import { v4 as uuidv4 } from "uuid";
 import { getUserId } from "../../src/middleware/getUserId.js";
-import { userProfileRepo, userProjectRoleRepo, userRepo, groupMemberRepo } from "../../src/db/repository.js";
+import { userProjectRoleRepo, groupMemberRepo } from "../../src/db/repository.js";
 import type { UserProjectRoleRecord } from "../../src/db/repository.js";
+import { fetchCernereProfile, updateCernereProfile } from "../../src/auth/cernere-client.js";
 
 const profile = new Hono();
 
@@ -23,83 +28,84 @@ profile.get("/me", async (c) => {
   const userId = getUserId(c);
   if (!userId) return c.json({ error: "Unauthorized" }, 401);
 
-  const user = await userRepo.findById(userId);
-  if (!user) return c.json({ error: "User not found" }, 404);
+  try {
+    const cernereProfile = await fetchCernereProfile(userId);
+    const projectRoles = await userProjectRoleRepo.findByUserId(userId);
 
-  const profileData = await userProfileRepo.findByUserId(userId);
-  const projectRoles = await userProjectRoleRepo.findByUserId(userId);
-
-  return c.json({
-    profile: {
-      userId: user.id,
-      name: user.name,
-      email: user.email,
-      displayName: profileData?.displayName ?? null,
-      bio: profileData?.bio ?? "",
-      avatarUrl: profileData?.avatarUrl ?? null,
-    },
-    projectRoles: projectRoles.map((r: UserProjectRoleRecord) => ({
-      id: r.id,
-      groupId: r.groupId,
-      roleName: r.roleName,
-    })),
-  });
+    return c.json({
+      profile: {
+        userId: cernereProfile.id,
+        name: cernereProfile.login,
+        displayName: cernereProfile.displayName,
+        email: cernereProfile.email,
+        avatarUrl: cernereProfile.avatarUrl,
+        role: cernereProfile.role,
+        bio: cernereProfile.bio,
+        roleTitle: cernereProfile.roleTitle,
+        expertise: cernereProfile.expertise,
+        hobbies: cernereProfile.hobbies,
+      },
+      projectRoles: projectRoles.map((r: UserProjectRoleRecord) => ({
+        id: r.id,
+        groupId: r.groupId,
+        roleName: r.roleName,
+      })),
+    });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Failed to fetch profile";
+    return c.json({ error: message }, 502);
+  }
 });
 
-// ─── 自分のプロフィール更新 ────────────────────────────────────
+// ─── 自分のプロフィール更新 (Cernere に委譲) ─────────────────────
 
 profile.put("/me", async (c) => {
   const userId = getUserId(c);
   if (!userId) return c.json({ error: "Unauthorized" }, 401);
 
   const body = await c.req.json() as {
-    bio?: string;
-    displayName?: string | null;
+    displayName?: string;
     avatarUrl?: string | null;
+    bio?: string;
+    roleTitle?: string;
+    expertise?: string[];
+    hobbies?: string[];
   };
 
-  await userProfileRepo.upsert({
-    id: uuidv4(),
-    userId,
-    bio: body.bio ?? "",
-    displayName: body.displayName ?? null,
-    avatarUrl: body.avatarUrl ?? null,
-  });
-
-  const updated = await userProfileRepo.findByUserId(userId);
-  return c.json({
-    message: "プロフィールを更新しました",
-    profile: {
-      userId,
-      displayName: updated?.displayName ?? null,
-      bio: updated?.bio ?? "",
-      avatarUrl: updated?.avatarUrl ?? null,
-    },
-  });
+  try {
+    const updated = await updateCernereProfile(userId, body);
+    return c.json({
+      message: "プロフィールを更新しました",
+      profile: {
+        userId: updated.id,
+        displayName: updated.displayName,
+        bio: updated.bio,
+        avatarUrl: updated.avatarUrl,
+        roleTitle: updated.roleTitle,
+        expertise: updated.expertise,
+        hobbies: updated.hobbies,
+      },
+    });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Failed to update profile";
+    return c.json({ error: message }, 502);
+  }
 });
 
 // ─── 他ユーザーのプロフィール取得 ──────────────────────────────
+// 注: 現状は自分のトークンで Cernere 経由で取得するため、
+// 他ユーザーの詳細プロファイルは Cernere 側の公開ポリシーに依存する。
+// ここではプロジェクトロールのみを返す。
 
 profile.get("/users/:id", async (c) => {
   const userId = getUserId(c);
   if (!userId) return c.json({ error: "Unauthorized" }, 401);
 
   const targetId = c.req.param("id");
-  const user = await userRepo.findById(targetId);
-  if (!user) return c.json({ error: "User not found" }, 404);
-
-  const profileData = await userProfileRepo.findByUserId(targetId);
   const projectRoles = await userProjectRoleRepo.findByUserId(targetId);
 
   return c.json({
-    profile: {
-      userId: user.id,
-      name: user.name,
-      email: user.email,
-      displayName: profileData?.displayName ?? null,
-      bio: profileData?.bio ?? "",
-      avatarUrl: profileData?.avatarUrl ?? null,
-    },
+    profile: { userId: targetId },
     projectRoles: projectRoles.map((r: UserProjectRoleRecord) => ({
       id: r.id,
       groupId: r.groupId,

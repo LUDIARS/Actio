@@ -32,6 +32,11 @@ const config: EnvCliConfig = {
     // ─── JWT ───────────────────────────────────────────────
     JWT_SECRET: "schedula-dev-secret-change-in-production",
 
+    // ─── Cernere プロジェクト認証 (WS接続用) ──────────────
+    // Cernere で Schedula をプロジェクト登録した際の client_id / client_secret
+    CERNERE_PROJECT_CLIENT_ID: "",
+    CERNERE_PROJECT_CLIENT_SECRET: "",
+
     // ─── Google OAuth ──────────────────────────────────────
     GOOGLE_CLIENT_ID: "",
     GOOGLE_CLIENT_SECRET: "",

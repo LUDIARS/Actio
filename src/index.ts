@@ -2,7 +2,6 @@ import { serve } from "@hono/node-server";
 import { logger } from "hono/logger";
 import { secretManager, initSecrets } from "./config/secrets.js";
 import { createApp } from "./app.js";
-import { initCernereBridge } from "./ws/cernere-bridge.js";
 import { initComposite } from "./auth/composite.js";
 
 // シークレット初期化 (Infisical / env フォールバック)
@@ -27,10 +26,7 @@ const server = serve({ fetch: app.fetch, port }, (info) => {
 // ─── WebSocket ──────────────────────────────────────────────
 injectWebSocket(server);
 
-// ─── Cernere Composite (プロジェクト認証) ────────────────────
+// ─── Cernere Composite ──────────────────────────────────────
 initComposite();
-
-// ─── Cernere Service Bridge (セッション一本化) ───────────────
-initCernereBridge();
 
 export { app };
