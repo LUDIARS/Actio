@@ -625,6 +625,195 @@ export const curriculumPlacements = pgTable(
   ]
 );
 
+// ─── Notification Templates ────────────────────────────────
+
+export const notificationTemplates = pgTable("notification_templates", {
+  id: text("id").primaryKey(),
+  event: text("event").notNull(),
+  platform: text("platform").notNull().default("all"),
+  title: text("title").notNull(),
+  body: text("body").notNull(),
+  useCodeBlock: boolean("use_code_block").notNull().default(false),
+  codeBlockLang: text("code_block_lang"),
+  isDefault: boolean("is_default").notNull().default(false),
+  createdBy: text("created_by").notNull(),
+  createdAt: timestamp("created_at").$defaultFn(() => new Date()).notNull(),
+  updatedAt: timestamp("updated_at").$defaultFn(() => new Date()).notNull(),
+});
+
+// ─── Holidays ──────────────────────────────────────────────
+
+export const holidays = pgTable("holidays", {
+  id: text("id").primaryKey(),
+  groupId: text("group_id"),
+  name: text("name").notNull(),
+  date: text("date").notNull(),
+  endDate: text("end_date"),
+  holidayType: text("holiday_type").notNull().default("custom"),
+  recurrence: text("recurrence").notNull().default("none"),
+  source: text("source"),
+  createdBy: text("created_by").notNull(),
+  createdAt: timestamp("created_at").$defaultFn(() => new Date()).notNull(),
+}, (t) => [
+  index("idx_holiday_group").on(t.groupId),
+  index("idx_holiday_date").on(t.date),
+  index("idx_holiday_type").on(t.holidayType),
+]);
+
+// ─── Group Events ──────────────────────────────────────────
+
+export const groupEvents = pgTable("group_events", {
+  id: text("id").primaryKey(),
+  groupId: text("group_id").references(() => groups.id).notNull(),
+  title: text("title").notNull(),
+  description: text("description"),
+  date: text("date").notNull(),
+  endDate: text("end_date"),
+  allDay: boolean("all_day").notNull().default(true),
+  period: integer("period"),
+  duration: integer("duration").default(1),
+  eventType: text("event_type").notNull().default("event"),
+  createdBy: text("created_by").notNull(),
+  createdAt: timestamp("created_at").$defaultFn(() => new Date()).notNull(),
+}, (t) => [
+  index("idx_group_event_group").on(t.groupId),
+  index("idx_group_event_date").on(t.date),
+]);
+
+// ─── Integration Settings ──────────────────────────────────
+
+export const integrationSettings = pgTable("integration_settings", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").references(() => users.id).notNull(),
+  service: text("service").notNull(),
+  accessToken: text("access_token"),
+  refreshToken: text("refresh_token"),
+  tokenExpiresAt: bigint("token_expires_at", { mode: "number" }),
+  config: jsonb("config").notNull().default({}),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").$defaultFn(() => new Date()).notNull(),
+  updatedAt: timestamp("updated_at").$defaultFn(() => new Date()).notNull(),
+}, (t) => [
+  unique("unique_user_service").on(t.userId, t.service),
+  index("idx_integration_user").on(t.userId),
+]);
+
+// ─── Sync Logs ─────────────────────────────────────────────
+
+export const syncLogs = pgTable("sync_logs", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").references(() => users.id).notNull(),
+  service: text("service").notNull(),
+  action: text("action").notNull(),
+  localEventId: text("local_event_id"),
+  externalId: text("external_id"),
+  status: text("status").notNull(),
+  errorMessage: text("error_message"),
+  createdAt: timestamp("created_at").$defaultFn(() => new Date()).notNull(),
+}, (t) => [
+  index("idx_sync_log_user").on(t.userId),
+  index("idx_sync_log_service").on(t.service),
+]);
+
+// ─── API Clients ───────────────────────────────────────────
+
+export const apiClients = pgTable("api_clients", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").references(() => users.id).notNull(),
+  clientId: text("client_id").notNull().unique(),
+  clientSecretHash: text("client_secret_hash").notNull(),
+  name: text("name").notNull(),
+  scopes: jsonb("scopes").notNull().default(["calendar", "reminders", "schedules"]),
+  isActive: boolean("is_active").notNull().default(true),
+  lastUsedAt: timestamp("last_used_at"),
+  createdAt: timestamp("created_at").$defaultFn(() => new Date()).notNull(),
+  updatedAt: timestamp("updated_at").$defaultFn(() => new Date()).notNull(),
+}, (t) => [
+  index("idx_api_client_user").on(t.userId),
+  index("idx_api_client_client_id").on(t.clientId),
+]);
+
+// ─── Reminders ─────────────────────────────────────────────
+
+export const reminders = pgTable("reminders", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").references(() => users.id).notNull(),
+  title: text("title").notNull(),
+  description: text("description"),
+  remindAt: text("remind_at").notNull(),
+  repeatRule: text("repeat_rule").notNull().default("none"),
+  status: text("status").notNull().default("pending"),
+  source: text("source").notNull().default("web"),
+  originalText: text("original_text"),
+  createdAt: timestamp("created_at").$defaultFn(() => new Date()).notNull(),
+  updatedAt: timestamp("updated_at").$defaultFn(() => new Date()).notNull(),
+}, (t) => [
+  index("idx_reminder_user").on(t.userId),
+  index("idx_reminder_status").on(t.status),
+  index("idx_reminder_remind_at").on(t.remindAt),
+]);
+
+// ─── Machina (M3) ──────────────────────────────────────────
+
+export const machinaChannelMonitors = pgTable("machina_channel_monitors", {
+  id: text("id").primaryKey(),
+  groupId: text("group_id").references(() => groups.id).notNull(),
+  platform: text("platform").notNull(),
+  channelId: text("channel_id").notNull(),
+  channelName: text("channel_name").notNull(),
+  webhookEndpointId: text("webhook_endpoint_id"),
+  isActive: boolean("is_active").notNull().default(true),
+  createdBy: text("created_by").notNull(),
+  createdAt: timestamp("created_at").$defaultFn(() => new Date()).notNull(),
+  updatedAt: timestamp("updated_at").$defaultFn(() => new Date()).notNull(),
+}, (t) => [
+  index("idx_machina_monitor_group").on(t.groupId),
+  unique("unique_machina_monitor_channel").on(t.groupId, t.platform, t.channelId),
+]);
+
+export const machinaTasks = pgTable("machina_tasks", {
+  id: text("id").primaryKey(),
+  groupId: text("group_id").references(() => groups.id).notNull(),
+  title: text("title").notNull(),
+  description: text("description"),
+  status: text("status").notNull().default("pending"),
+  priority: text("priority").notNull().default("medium"),
+  assigneeId: text("assignee_id"),
+  dueDate: text("due_date"),
+  source: text("source").notNull().default("auto"),
+  sourcePlatform: text("source_platform"),
+  sourceMessageId: text("source_message_id"),
+  sourceChannelId: text("source_channel_id"),
+  sourceText: text("source_text"),
+  confidence: integer("confidence").notNull().default(0),
+  isCriticalPath: boolean("is_critical_path").notNull().default(false),
+  relayedToPm: boolean("relayed_to_pm").notNull().default(false),
+  pmTaskId: text("pm_task_id"),
+  createdBy: text("created_by").notNull(),
+  createdAt: timestamp("created_at").$defaultFn(() => new Date()).notNull(),
+  updatedAt: timestamp("updated_at").$defaultFn(() => new Date()).notNull(),
+}, (t) => [
+  index("idx_machina_task_group").on(t.groupId),
+  index("idx_machina_task_status").on(t.status),
+  index("idx_machina_task_assignee").on(t.assigneeId),
+  index("idx_machina_task_due").on(t.dueDate),
+  index("idx_machina_task_priority").on(t.priority),
+]);
+
+export const machinaTaskLogs = pgTable("machina_task_logs", {
+  id: text("id").primaryKey(),
+  taskId: text("task_id").references(() => machinaTasks.id).notNull(),
+  action: text("action").notNull(),
+  previousValue: text("previous_value"),
+  newValue: text("new_value"),
+  reason: text("reason"),
+  triggerMessageId: text("trigger_message_id"),
+  performedBy: text("performed_by").notNull(),
+  createdAt: timestamp("created_at").$defaultFn(() => new Date()).notNull(),
+}, (t) => [
+  index("idx_machina_log_task").on(t.taskId),
+]);
+
 // ─── User Project Roles (プロジェクト別ロール) ──────────────────
 // ※ユーザープロファイル (bio / displayName / avatarUrl 等) は Cernere 側で管理する
 //   ため Schedula では保存しない。ここは Schedula 固有の業務ロールのみ。
@@ -671,6 +860,16 @@ export const schema = {
   votes,
   appSettings,
   userProjectRoles,
+  notificationTemplates,
+  holidays,
+  groupEvents,
+  integrationSettings,
+  syncLogs,
+  apiClients,
+  reminders,
+  machinaChannelMonitors,
+  machinaTasks,
+  machinaTaskLogs,
 };
 
 export const curriculumSchema = {
@@ -715,6 +914,16 @@ const DB_SCHEMA = {
   terms,
   curriculumPlacements,
   userProjectRoles,
+  notificationTemplates,
+  holidays,
+  groupEvents,
+  integrationSettings,
+  syncLogs,
+  apiClients,
+  reminders,
+  machinaChannelMonitors,
+  machinaTasks,
+  machinaTaskLogs,
 };
 
 /**
@@ -1027,6 +1236,154 @@ export async function createConnectionWithRetry() {
     const msg = err instanceof Error ? err.message : String(err);
     if (!msg.includes("already exists")) {
       console.warn("[db:postgres] user_project_roles 作成エラー:", msg);
+    }
+  }
+
+  // Reminders / 通知テンプレート / 連携 / API クライアント / Machina
+  try {
+    await client`
+      CREATE TABLE IF NOT EXISTS notification_templates (
+        id TEXT PRIMARY KEY,
+        event TEXT NOT NULL,
+        platform TEXT NOT NULL DEFAULT 'all',
+        title TEXT NOT NULL,
+        body TEXT NOT NULL,
+        use_code_block BOOLEAN NOT NULL DEFAULT FALSE,
+        code_block_lang TEXT,
+        is_default BOOLEAN NOT NULL DEFAULT FALSE,
+        created_by TEXT NOT NULL,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `;
+    await client`
+      CREATE TABLE IF NOT EXISTS integration_settings (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL REFERENCES users(id),
+        service TEXT NOT NULL,
+        access_token TEXT,
+        refresh_token TEXT,
+        token_expires_at BIGINT,
+        config JSONB NOT NULL DEFAULT '{}',
+        is_active BOOLEAN NOT NULL DEFAULT TRUE,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        UNIQUE(user_id, service)
+      )
+    `;
+    await client`CREATE INDEX IF NOT EXISTS idx_integration_user ON integration_settings(user_id)`;
+    await client`
+      CREATE TABLE IF NOT EXISTS sync_logs (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL REFERENCES users(id),
+        service TEXT NOT NULL,
+        action TEXT NOT NULL,
+        local_event_id TEXT,
+        external_id TEXT,
+        status TEXT NOT NULL,
+        error_message TEXT,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `;
+    await client`CREATE INDEX IF NOT EXISTS idx_sync_log_user ON sync_logs(user_id)`;
+    await client`CREATE INDEX IF NOT EXISTS idx_sync_log_service ON sync_logs(service)`;
+    await client`
+      CREATE TABLE IF NOT EXISTS api_clients (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL REFERENCES users(id),
+        client_id TEXT NOT NULL UNIQUE,
+        client_secret_hash TEXT NOT NULL,
+        name TEXT NOT NULL,
+        scopes JSONB NOT NULL DEFAULT '["calendar","reminders","schedules"]',
+        is_active BOOLEAN NOT NULL DEFAULT TRUE,
+        last_used_at TIMESTAMP,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `;
+    await client`CREATE INDEX IF NOT EXISTS idx_api_client_user ON api_clients(user_id)`;
+    await client`CREATE INDEX IF NOT EXISTS idx_api_client_client_id ON api_clients(client_id)`;
+    await client`
+      CREATE TABLE IF NOT EXISTS reminders (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL REFERENCES users(id),
+        title TEXT NOT NULL,
+        description TEXT,
+        remind_at TEXT NOT NULL,
+        repeat_rule TEXT NOT NULL DEFAULT 'none',
+        status TEXT NOT NULL DEFAULT 'pending',
+        source TEXT NOT NULL DEFAULT 'web',
+        original_text TEXT,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `;
+    await client`CREATE INDEX IF NOT EXISTS idx_reminder_user ON reminders(user_id)`;
+    await client`CREATE INDEX IF NOT EXISTS idx_reminder_status ON reminders(status)`;
+    await client`CREATE INDEX IF NOT EXISTS idx_reminder_remind_at ON reminders(remind_at)`;
+    await client`
+      CREATE TABLE IF NOT EXISTS machina_channel_monitors (
+        id TEXT PRIMARY KEY,
+        group_id TEXT NOT NULL REFERENCES groups(id),
+        platform TEXT NOT NULL,
+        channel_id TEXT NOT NULL,
+        channel_name TEXT NOT NULL,
+        webhook_endpoint_id TEXT,
+        is_active BOOLEAN NOT NULL DEFAULT TRUE,
+        created_by TEXT NOT NULL,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        UNIQUE(group_id, platform, channel_id)
+      )
+    `;
+    await client`CREATE INDEX IF NOT EXISTS idx_machina_monitor_group ON machina_channel_monitors(group_id)`;
+    await client`
+      CREATE TABLE IF NOT EXISTS machina_tasks (
+        id TEXT PRIMARY KEY,
+        group_id TEXT NOT NULL REFERENCES groups(id),
+        title TEXT NOT NULL,
+        description TEXT,
+        status TEXT NOT NULL DEFAULT 'pending',
+        priority TEXT NOT NULL DEFAULT 'medium',
+        assignee_id TEXT,
+        due_date TEXT,
+        source TEXT NOT NULL DEFAULT 'auto',
+        source_platform TEXT,
+        source_message_id TEXT,
+        source_channel_id TEXT,
+        source_text TEXT,
+        confidence INTEGER NOT NULL DEFAULT 0,
+        is_critical_path BOOLEAN NOT NULL DEFAULT FALSE,
+        relayed_to_pm BOOLEAN NOT NULL DEFAULT FALSE,
+        pm_task_id TEXT,
+        created_by TEXT NOT NULL,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `;
+    await client`CREATE INDEX IF NOT EXISTS idx_machina_task_group ON machina_tasks(group_id)`;
+    await client`CREATE INDEX IF NOT EXISTS idx_machina_task_status ON machina_tasks(status)`;
+    await client`CREATE INDEX IF NOT EXISTS idx_machina_task_assignee ON machina_tasks(assignee_id)`;
+    await client`CREATE INDEX IF NOT EXISTS idx_machina_task_due ON machina_tasks(due_date)`;
+    await client`CREATE INDEX IF NOT EXISTS idx_machina_task_priority ON machina_tasks(priority)`;
+    await client`
+      CREATE TABLE IF NOT EXISTS machina_task_logs (
+        id TEXT PRIMARY KEY,
+        task_id TEXT NOT NULL REFERENCES machina_tasks(id),
+        action TEXT NOT NULL,
+        previous_value TEXT,
+        new_value TEXT,
+        reason TEXT,
+        trigger_message_id TEXT,
+        performed_by TEXT NOT NULL,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `;
+    await client`CREATE INDEX IF NOT EXISTS idx_machina_log_task ON machina_task_logs(task_id)`;
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (!msg.includes("already exists")) {
+      console.warn("[db:postgres] 追加テーブル自動作成エラー:", msg);
     }
   }
 
