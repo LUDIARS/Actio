@@ -1,14 +1,11 @@
 /**
- * Cernere Composite — バックエンド認証コンポジット初期化
+ * Cernere Composite — ユーザー認証フロー
  *
- * 起動時に Cernere に WebSocket 接続 (プロジェクト認証) し、
- * ユーザー認証を仲介するエンドポイントを提供する。
- *
- * CernereServiceAdapter で WS プロジェクト認証を行い、
- * auth_code exchange は HTTP で Cernere に問い合わせる。
+ * Cernere のポップアップ/リダイレクトログインで得た auth_code を
+ * Cernere の /api/auth/exchange で accessToken / user 情報に交換し、
+ * Schedula 自身の service_token を発行する。
  */
 
-import { CernereServiceAdapter } from "@ludiars/cernere-service-adapter";
 import { secretManager } from "../config/secrets.js";
 
 interface CernereUser {
@@ -23,51 +20,23 @@ interface ExchangeResult {
   user: CernereUser;
 }
 
-let adapter: CernereServiceAdapter | null = null;
 let cernereUrl = "";
-let serviceCode = "";
 let jwtSecret = "";
-let tokenExpiresIn = 900;
+const TOKEN_EXPIRES_IN_SECONDS = 900;
 
-/** Composite を初期化して Cernere に接続する (起動時に1回呼ぶ) */
+/** Composite を初期化する (起動時に1回呼ぶ) */
 export function initComposite(): void {
   cernereUrl = secretManager.getOrDefault("CERNERE_URL", "");
-  serviceCode = secretManager.getOrDefault("CERNERE_SERVICE_CODE", "");
-  const serviceSecret = secretManager.getOrDefault("CERNERE_SERVICE_SECRET", "");
   jwtSecret = secretManager.getOrDefault("JWT_SECRET", "");
 
-  if (!cernereUrl || !serviceCode || !serviceSecret || !jwtSecret) {
+  if (!cernereUrl || !jwtSecret) {
     console.warn("[composite] Cernere Composite 設定が不完全です。スキップします。");
     console.warn("[composite]   CERNERE_URL:", cernereUrl ? "設定済み" : "未設定");
-    console.warn("[composite]   CERNERE_SERVICE_CODE:", serviceCode ? "設定済み" : "未設定");
-    console.warn("[composite]   CERNERE_SERVICE_SECRET:", serviceSecret ? "設定済み" : "未設定");
+    console.warn("[composite]   JWT_SECRET:", jwtSecret ? "設定済み" : "未設定");
     return;
   }
 
-  const wsUrl = cernereUrl.replace(/^http/, "ws") + "/ws/service";
-
-  adapter = new CernereServiceAdapter(
-    {
-      cernereWsUrl: wsUrl,
-      serviceCode,
-      serviceSecret,
-      jwtSecret,
-      tokenExpiresIn,
-    },
-    {
-      onConnected: (sid: string) => {
-        console.log(`[composite] Cernere に接続完了 (serviceId: ${sid})`);
-      },
-      onDisconnected: () => {
-        console.warn("[composite] Cernere との接続が切れました。再接続を試みます...");
-      },
-      onError: (c: string, m: string) => {
-        console.error(`[composite] Cernere エラー: ${c} — ${m}`);
-      },
-    },
-  );
-
-  adapter.connect();
+  console.log("[composite] Cernere Composite 初期化完了");
 }
 
 /** Cernere Composite ログイン URL を返す */
@@ -103,7 +72,7 @@ export async function exchangeAuthCode(authCode: string): Promise<ExchangeResult
 
 /** Composite が有効か */
 export function isCompositeEnabled(): boolean {
-  return !!cernereUrl && !!adapter;
+  return !!cernereUrl && !!jwtSecret;
 }
 
 // ── service_token 発行 ──────────────────────────────────────
@@ -117,8 +86,8 @@ async function issueServiceToken(user: CernereUser): Promise<string> {
     email: user.email,
     role: user.role,
     iat: now,
-    exp: now + tokenExpiresIn,
-    iss: serviceCode,
+    exp: now + TOKEN_EXPIRES_IN_SECONDS,
+    iss: "schedula",
   };
 
   const enc = (obj: unknown) =>

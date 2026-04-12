@@ -625,19 +625,9 @@ export const curriculumPlacements = pgTable(
   ]
 );
 
-// ─── User Profiles (ユーザープロフィール) ───────────────────────
-
-export const userProfiles = pgTable("user_profiles", {
-  id: text("id").primaryKey(),
-  userId: text("user_id").references(() => users.id).notNull().unique(),
-  bio: text("bio").notNull().default(""),
-  displayName: text("display_name"),
-  avatarUrl: text("avatar_url"),
-  createdAt: timestamp("created_at").$defaultFn(() => new Date()).notNull(),
-  updatedAt: timestamp("updated_at").$defaultFn(() => new Date()).notNull(),
-});
-
 // ─── User Project Roles (プロジェクト別ロール) ──────────────────
+// ※ユーザープロファイル (bio / displayName / avatarUrl 等) は Cernere 側で管理する
+//   ため Schedula では保存しない。ここは Schedula 固有の業務ロールのみ。
 
 export const userProjectRoles = pgTable(
   "user_project_roles",
@@ -680,7 +670,6 @@ export const schema = {
   votingCandidates,
   votes,
   appSettings,
-  userProfiles,
   userProjectRoles,
 };
 
@@ -725,7 +714,6 @@ const DB_SCHEMA = {
   instructorAvailableSlots,
   terms,
   curriculumPlacements,
-  userProfiles,
   userProjectRoles,
 };
 
@@ -1019,19 +1007,9 @@ export async function createConnectionWithRetry() {
   try { await client`ALTER TABLE curricula ADD COLUMN IF NOT EXISTS term_id TEXT REFERENCES terms(id)`; } catch { /* ignore */ }
   try { await client`ALTER TABLE users ADD COLUMN IF NOT EXISTS last_login_at TIMESTAMP`; } catch { /* ignore */ }
 
-  // ユーザープロフィール + プロジェクト別ロール
+  // プロジェクト別ロール (業務ロール)
+  // ※ ユーザープロファイル (bio / displayName / avatarUrl 等) は Cernere 側で管理
   try {
-    await client`
-      CREATE TABLE IF NOT EXISTS user_profiles (
-        id TEXT PRIMARY KEY,
-        user_id TEXT NOT NULL UNIQUE REFERENCES users(id),
-        bio TEXT NOT NULL DEFAULT '',
-        display_name TEXT,
-        avatar_url TEXT,
-        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
-        updated_at TIMESTAMP NOT NULL DEFAULT NOW()
-      )
-    `;
     await client`
       CREATE TABLE IF NOT EXISTS user_project_roles (
         id TEXT PRIMARY KEY,
@@ -1048,7 +1026,7 @@ export async function createConnectionWithRetry() {
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     if (!msg.includes("already exists")) {
-      console.warn("[db:postgres] user_profiles/user_project_roles 作成エラー:", msg);
+      console.warn("[db:postgres] user_project_roles 作成エラー:", msg);
     }
   }
 
