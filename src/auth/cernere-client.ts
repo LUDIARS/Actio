@@ -85,10 +85,14 @@ class CernereProjectClient {
     this.connecting = (async () => {
       const cernereUrl = secretManager.getOrDefault("CERNERE_URL", "");
       const wsUrl = cernereUrl.replace(/^http/, "ws") + "/ws/project";
+      console.log(`[cernere-client] project token 取得中...`);
       const token = await this.fetchProjectToken();
+      console.log(`[cernere-client] project token 取得完了 (len=${token.length})`);
+      console.log(`[cernere-client] WS 接続先: ${wsUrl}`);
 
       await new Promise<void>((resolve, reject) => {
         const ws = new WebSocket(`${wsUrl}?token=${encodeURIComponent(token)}`);
+        let opened = false;
         const connectTimer = setTimeout(() => {
           ws.close();
           reject(new Error("Cernere project WS connect timeout"));
@@ -96,23 +100,42 @@ class CernereProjectClient {
 
         ws.on("open", () => {
           clearTimeout(connectTimer);
+          opened = true;
           this.ws = ws;
           console.log("[cernere-client] project WS 接続成功");
           resolve();
         });
 
+        ws.on("unexpected-response", (_req, res) => {
+          console.error(
+            `[cernere-client] project WS HTTP エラー: ${res.statusCode} ${res.statusMessage}`,
+          );
+          let body = "";
+          res.on("data", (chunk: Buffer) => { body += chunk.toString(); });
+          res.on("end", () => {
+            if (body) console.error(`[cernere-client] レスポンス: ${body}`);
+          });
+        });
+
         ws.on("message", (raw) => this.handleMessage(raw.toString()));
 
-        ws.on("close", () => {
-          console.warn("[cernere-client] project WS 切断");
+        ws.on("close", (code, reason) => {
+          console.warn(
+            `[cernere-client] project WS 切断 (code=${code}, reason="${reason?.toString() ?? ""}", opened=${opened})`,
+          );
           this.ws = null;
-          // 保留中のリクエストを失敗させる
           for (const [, p] of this.pending) {
             clearTimeout(p.timer);
             p.reject(new Error("WS closed"));
           }
           this.pending.clear();
-          this.scheduleReconnect();
+          // 接続前のcloseなら reject, 以降は再接続のみ
+          if (!opened) {
+            clearTimeout(connectTimer);
+            reject(new Error(`WS closed before open: code=${code}`));
+          } else {
+            this.scheduleReconnect();
+          }
         });
 
         ws.on("error", (err) => {
