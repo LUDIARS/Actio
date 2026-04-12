@@ -10,7 +10,6 @@ import type { Hono } from "hono";
 import { secretManager } from "../config/secrets.js";
 import { registerSession, removeSession, updatePong } from "./session.js";
 import { dispatch } from "./dispatcher.js";
-import { getCernereAdapter } from "./cernere-bridge.js";
 
 // ── JWT 検証 (Schedula 自身が発行した service_token をローカル検証) ──
 // Cernere とは JWT_SECRET を共有しないため、id-cache は使わない。
@@ -85,18 +84,6 @@ export function setupWebSocket(app: Hono) {
               message: "Authentication failed",
             }));
             ws.close(1008, "Authentication failed");
-            return;
-          }
-
-          // revoke チェック
-          const adapter = getCernereAdapter();
-          if (adapter?.isRevoked(user.id)) {
-            ws.send(JSON.stringify({
-              type: "error",
-              code: "session_revoked",
-              message: "User session revoked",
-            }));
-            ws.close(1008, "Session revoked");
             return;
           }
 
