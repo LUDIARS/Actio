@@ -11,8 +11,10 @@
  */
 
 import { Hono } from "hono";
+import { setCookie, deleteCookie } from "hono/cookie";
 import { getUserId, getUserRole } from "../middleware/getUserId.js";
 import { requireRole } from "../middleware/auth.js";
+import { secretManager } from "../config/secrets.js";
 import {
   userRepo,
   userListRepo,
@@ -21,6 +23,21 @@ import {
 } from "../db/repository.js";
 import { logActivity } from "../activity-logger.js";
 import { isCompositeEnabled, getLoginUrl, exchangeAuthCode } from "./composite.js";
+import { saveSessionUser, invalidateSessionUser } from "./session-cache.js";
+
+const TOKEN_COOKIE = "schedula_token";
+const TOKEN_COOKIE_MAX_AGE = 3600; // 1時間 (トークン有効期限に合わせる)
+
+function setTokenCookie(c: Parameters<typeof setCookie>[0], token: string) {
+  const isProd = secretManager.getOrDefault("NODE_ENV", "") === "production";
+  setCookie(c, TOKEN_COOKIE, token, {
+    httpOnly: true,
+    secure: isProd,
+    sameSite: "Lax",
+    path: "/",
+    maxAge: TOKEN_COOKIE_MAX_AGE,
+  });
+}
 
 interface IdUserBasic {
   id: string;
@@ -59,11 +76,46 @@ compositeAuthRoutes.post("/exchange", async (c) => {
   try {
     const result = await exchangeAuthCode(body.authCode);
     await ensureLocalUser(result.user.id, result.user.role);
-    return c.json({ serviceToken: result.serviceToken, user: result.user });
+    // Redis にセッションユーザー情報をキャッシュ
+    await saveSessionUser({
+      id: result.user.id,
+      name: result.user.displayName ?? "",
+      email: result.user.email ?? "",
+      role: result.user.role,
+    });
+    // HttpOnly Cookie にトークンを保存 (XSS対策)
+    setTokenCookie(c, result.serviceToken);
+    return c.json({ user: result.user });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Exchange failed";
     return c.json({ error: message }, 401);
   }
+});
+
+// ログアウト: Cookie を削除 + Redis セッション無効化
+compositeAuthRoutes.post("/logout", async (c) => {
+  const { getCookie } = await import("hono/cookie");
+  const token = getCookie(c, TOKEN_COOKIE);
+  if (token) {
+    try {
+      const jwt = await import("jsonwebtoken");
+      const payload = jwt.default.decode(token) as { sub?: string } | null;
+      if (payload?.sub) {
+        await invalidateSessionUser(payload.sub);
+      }
+    } catch { /* 無視 */ }
+  }
+  deleteCookie(c, TOKEN_COOKIE, { path: "/" });
+  return c.json({ ok: true });
+});
+
+// WS接続用の短期トークン発行 (Cookie → URL パラメータ用トークン)
+// WebSocket でクエリパラメータにトークンが必要な環境で使用
+compositeAuthRoutes.get("/ws-token", async (c) => {
+  const { getCookie } = await import("hono/cookie");
+  const token = getCookie(c, TOKEN_COOKIE);
+  if (!token) return c.json({ error: "Not authenticated" }, 401);
+  return c.json({ token });
 });
 
 // ─── ユーザー自動プロビジョニング ──────────────────────────────

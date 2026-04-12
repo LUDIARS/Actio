@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from "react";
-import { auth as authApi, getAccessToken, getStoredUser, setTokens, setStoredUser, clearTokens } from "../lib/api";
+import { auth as authApi, getStoredUser, setStoredUser, clearTokens } from "../lib/api";
 import { API_BASE } from "../lib/constants";
 import { wsClient } from "../lib/ws-client";
 
@@ -25,12 +25,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [wsConnected, setWsConnected] = useState(false);
   const [loading, setLoading] = useState(() => !!getStoredUser());
 
-  // WS 接続
+  // WS 接続 — Cookie から短期トークンを取得してWS URLに埋め込む
   const connectWs = useCallback(async () => {
-    const token = getAccessToken();
-    if (!token || wsClient.connected) return;
+    if (wsClient.connected) return;
 
     try {
+      const res = await fetch(`${API_BASE}/api/auth/ws-token`, {
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error("Failed to get WS token");
+      const { token } = await res.json() as { token: string };
       await wsClient.connect(token);
       setWsConnected(true);
     } catch (err) {
@@ -144,6 +148,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const exchangeRes = await fetch(`${API_BASE}/api/auth/exchange`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
+      credentials: "include", // HttpOnly Cookie を受け取る
       body: JSON.stringify({ authCode }),
     });
 
@@ -153,11 +158,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     const result = await exchangeRes.json() as {
-      serviceToken: string;
       user: { id: string; displayName: string; email: string; role: string };
     };
 
-    setTokens(result.serviceToken, "");
+    // service_token は HttpOnly Cookie に保存される (レスポンスボディには含まれない)
     const u = {
       id: result.user.id,
       name: result.user.displayName,

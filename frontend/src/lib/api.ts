@@ -26,21 +26,17 @@ import type {
   PMReminderSettings, PMReminderTestResult,
 } from "./api-types";
 
-// ─── Token Management ──────────────────────────────────────
+// ─── Session Management ────────────────────────────────────
+// service_token は HttpOnly Cookie (schedula_token) で管理 (XSS対策)
+// user 情報のみ localStorage に保存 (UX のため)
 
-export function getAccessToken(): string | null {
-  return localStorage.getItem("accessToken");
-}
-
-export function setTokens(access: string, refresh: string) {
-  localStorage.setItem("accessToken", access);
-  localStorage.setItem("refreshToken", refresh);
-}
-
-export function clearTokens() {
-  localStorage.removeItem("accessToken");
-  localStorage.removeItem("refreshToken");
+export function clearUserCache() {
   localStorage.removeItem("user");
+}
+
+/** @deprecated Cookie ベースに移行。互換性のため残存。 */
+export function clearTokens() {
+  clearUserCache();
 }
 
 export function getStoredUser(): { id: string; name: string; email: string; role: string } | null {
@@ -65,25 +61,23 @@ async function request<T>(
     ...((options.headers as Record<string, string>) || {}),
   };
 
-  // Add JWT if available
-  const token = getAccessToken();
-  if (token) {
-    headers["Authorization"] = `Bearer ${token}`;
-  }
-
   let res: Response;
   try {
     console.log(`[api] ${options.method || "GET"} ${url}`);
-    res = await fetch(url, { ...options, headers });
+    res = await fetch(url, {
+      ...options,
+      headers,
+      credentials: "include", // HttpOnly Cookie を送信
+    });
   } catch (err) {
     console.error(`[api] ネットワークエラー: ${options.method || "GET"} ${url}`, err);
     throw new Error(`ネットワークエラー: ${(err as Error).message}`);
   }
 
-  // 401 → service_token 期限切れ、再ログインが必要
+  // 401 → セッション切れ、localStorage の user キャッシュをクリア
   if (res.status === 401) {
-    console.warn("[api] 401 - service_token 期限切れ。再ログインが必要です。");
-    clearTokens();
+    console.warn("[api] 401 - セッション切れ。再ログインが必要です。");
+    clearUserCache();
   }
 
   if (!res.ok) {
@@ -98,7 +92,12 @@ async function request<T>(
 
 export const auth = {
   async logout() {
-    clearTokens();
+    // サーバーでCookie削除
+    await fetch(`${API_BASE}/api/auth/logout`, {
+      method: "POST",
+      credentials: "include",
+    }).catch(() => { /* 失敗してもローカル状態はクリアする */ });
+    clearUserCache();
   },
 
   async me() {
