@@ -37,6 +37,10 @@ const config: EnvCliConfig = {
     CERNERE_PROJECT_CLIENT_ID: "",
     CERNERE_PROJECT_CLIENT_SECRET: "",
 
+    // ─── Nuntius (LUDIARS 統合通知基盤) ─────────────────
+    // 通知/リマインダーの配信先。未設定時はローカル配信にフォールバック。
+    NUNTIUS_URL: "http://localhost:3100",
+
     // ─── Google OAuth ──────────────────────────────────────
     GOOGLE_CLIENT_ID: "",
     GOOGLE_CLIENT_SECRET: "",

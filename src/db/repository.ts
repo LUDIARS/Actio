@@ -1628,6 +1628,15 @@ export const reminderRepo = {
       .orderBy(schema.reminders.remindAt);
   },
 
+  /** 全ユーザーの pending リマインダー (Nuntius 移行スクリプト用) */
+  async findAllPending(): Promise<Reminder[]> {
+    return db
+      .select()
+      .from(schema.reminders)
+      .where(eq(schema.reminders.status, "pending"))
+      .orderBy(schema.reminders.remindAt);
+  },
+
   async create(data: NewReminder): Promise<Reminder> {
     const [row] = await db.insert(schema.reminders).values(data).returning();
     return row;
