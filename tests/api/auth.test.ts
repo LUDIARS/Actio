@@ -23,15 +23,21 @@ beforeEach(() => {
 // ここでは Schedula 固有のエンドポイントのみテストする。
 
 describe("GET /api/auth/me", () => {
-  it("should return current user", async () => {
+  // 個人データ (name/email/role) は Cernere 単一情報源。
+  // テスト環境では Cernere 未接続のため `getUserInfo` はプレースホルダを返す。
+  // (`user-${id.slice(0,8)}` / `${id}@unknown.local` / "general")
+
+  it("should return current user with placeholder when Cernere unavailable", async () => {
     insertTestUser({ id: "user-1", name: "MeUser", email: "me@test.com", role: "general" });
     const token = generateTestToken("user-1", "general");
 
     const { status, json } = await request(app, "GET", "/api/auth/me", { token });
 
     expect(status).toBe(200);
-    expect(json.name).toBe("MeUser");
-    expect(json.email).toBe("me@test.com");
+    expect(json.id).toBe("user-1");
+    // Cernere 未接続時のプレースホルダ
+    expect(json.name).toBe("user-user-1");
+    expect(json.email).toBe("user-1@unknown.local");
     expect(json.role).toBe("general");
   });
 
@@ -73,7 +79,10 @@ describe("GET /api/auth/users (admin)", () => {
 });
 
 describe("PUT /api/auth/users/:id/role", () => {
-  it("should change user role", async () => {
+  // role 管理は Cernere に移管された (個人データ保管禁止ルール)。
+  // Schedula 側のエンドポイントは 410 Gone を返す。
+
+  it("should return 410 (role management moved to Cernere)", async () => {
     insertTestUser({ id: "admin-1", name: "Admin", email: "admin@test.com", role: "admin" });
     insertTestUser({ id: "user-1", name: "User", email: "user@test.com", role: "general" });
     const token = generateTestToken("admin-1", "admin");
@@ -83,21 +92,8 @@ describe("PUT /api/auth/users/:id/role", () => {
       body: { role: "group_leader" },
     });
 
-    expect(status).toBe(200);
-    expect(json.user.role).toBe("group_leader");
-  });
-
-  it("should reject invalid role", async () => {
-    insertTestUser({ id: "admin-1", name: "Admin", email: "admin@test.com", role: "admin" });
-    insertTestUser({ id: "user-1", name: "User", email: "user@test.com", role: "general" });
-    const token = generateTestToken("admin-1", "admin");
-
-    const { status } = await request(app, "PUT", "/api/auth/users/user-1/role", {
-      token,
-      body: { role: "superadmin" },
-    });
-
-    expect(status).toBe(400);
+    expect(status).toBe(410);
+    expect(json.error).toMatch(/Cernere/);
   });
 
   it("should reject non-admin", async () => {

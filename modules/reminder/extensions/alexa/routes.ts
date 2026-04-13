@@ -107,8 +107,9 @@ alexaRoutes.post("/webhook", async (c) => {
 alexaRoutes.get("/settings", async (c) => {
   const userId = getUserId(c);
   if (!userId) return c.json({ error: "Authentication required" }, 401);
-  const user = await userRepo.findById(userId);
-  if (!user || user.role !== "admin") {
+  const { getUserInfo } = await import("../../../../src/auth/user-info.js");
+  const user = await getUserInfo(userId);
+  if (user.role !== "admin") {
     return c.json({ error: "管理者権限が必要です" }, 403);
   }
 
@@ -125,8 +126,9 @@ alexaRoutes.get("/settings", async (c) => {
 alexaRoutes.put("/settings", async (c) => {
   const userId = getUserId(c);
   if (!userId) return c.json({ error: "Authentication required" }, 401);
-  const user = await userRepo.findById(userId);
-  if (!user || user.role !== "admin") {
+  const { getUserInfo } = await import("../../../../src/auth/user-info.js");
+  const user = await getUserInfo(userId);
+  if (user.role !== "admin") {
     return c.json({ error: "管理者権限が必要です" }, 403);
   }
 

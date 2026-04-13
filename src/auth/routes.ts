@@ -75,7 +75,7 @@ compositeAuthRoutes.post("/exchange", async (c) => {
   }
   try {
     const result = await exchangeAuthCode(body.authCode);
-    await ensureLocalUser(result.user);
+    await ensureLocalUser(result.user.id);
     // Redis にセッションユーザー情報をキャッシュ
     await saveSessionUser({
       id: result.user.id,
@@ -159,36 +159,14 @@ compositeAuthRoutes.post("/cernere/mfa-verify", async (c) => {
 });
 
 // ─── ユーザー自動プロビジョニング ──────────────────────────────
-// Cernere 認証済みリクエストが来た際、Schedula の users テーブルに
-// レコードがなければ自動作成する。
+// Cernere 認証済みリクエストが来た際、Schedula の users テーブル
+// (FK アンカー) にレコードがなければ自動作成する。
+// 個人データ (name/email/role) は Cernere 側で管理するため保存しない。
 
-async function ensureLocalUser(user: {
-  id: string;
-  displayName: string;
-  email: string;
-  role: string;
-}): Promise<void> {
-  const normalizedRole = user.role === "admin" ? "admin" : "general";
-  const existing = await userRepo.findById(user.id);
-
-  if (!existing) {
-    await userRepo.create({
-      id: user.id,
-      name: user.displayName,
-      email: user.email,
-      role: normalizedRole,
-    });
-    return;
-  }
-
-  // 既存ユーザーが空の name/email で provisioning されていたケースをバックフィル。
-  // (PR #93 のバグで一時的に作られた壊れたレコードを修復する)
-  const patch: Partial<{ name: string; email: string }> = {};
-  if (!existing.name && user.displayName) patch.name = user.displayName;
-  if (!existing.email && user.email) patch.email = user.email;
-  if (Object.keys(patch).length > 0) {
-    await userRepo.update(user.id, patch);
-  }
+async function ensureLocalUser(userId: string): Promise<void> {
+  const existing = await userRepo.findById(userId);
+  if (existing) return;
+  await userRepo.create({ id: userId });
 }
 
 // ─── GET /me ─────────────────────────────────────────────────
@@ -197,46 +175,23 @@ auth.get("/me", async (c) => {
   const userId = getUserId(c);
   if (!userId) return c.json({ error: "No token provided" }, 401);
 
-  // Safety net: provisioning は通常 /exchange で行われるが、ここでも
-  // 念のため呼ぶ (空フィールドで provisioning された既存ユーザーのバックフィル含む)。
-  // 可能なら Cernere から正しい name/email を取得、失敗時は userId 由来のプレースホルダで
-  // 衝突回避 (UNIQUE 制約の email は user 単位で一意になる)。
-  const { fetchCernereProfile } = await import("./cernere-client.js");
-  let profileData: { displayName: string; email: string; role: string };
-  try {
-    const profile = await fetchCernereProfile(userId);
-    profileData = {
-      displayName: profile.displayName,
-      email: profile.email,
-      role: profile.role,
-    };
-  } catch (err) {
-    console.warn("[/me] Cernere profile fetch failed, using placeholder:", err);
-    profileData = {
-      displayName: `user-${userId.slice(0, 8)}`,
-      email: `${userId}@unknown.local`,
-      role: getUserRole(c),
-    };
-  }
-  await ensureLocalUser({
-    id: userId,
-    displayName: profileData.displayName,
-    email: profileData.email,
-    role: profileData.role || getUserRole(c),
-  });
+  // Cernere から個人情報 (name/email/role) を取得 (cache 経由)
+  const { getUserInfo } = await import("./user-info.js");
+  const info = await getUserInfo(userId);
+
+  // FK アンカー用に Schedula DB にレコード作成 (idempotent)
+  await ensureLocalUser(userId);
 
   const user = await userRepo.findById(userId);
   if (!user) return c.json({ error: "User not found" }, 404);
 
-  const userRecord = user as unknown as Record<string, unknown>;
-
   return c.json({
     id: user.id,
-    name: user.name,
-    email: user.email,
-    role: user.role,
-    major: userRecord.major ?? null,
-    calendarAccessId: userRecord.calendarAccessId ?? null,
+    name: info.name,
+    email: info.email,
+    role: info.role,
+    major: user.major ?? null,
+    calendarAccessId: user.calendarAccessId ?? null,
   });
 });
 
@@ -246,29 +201,43 @@ auth.get("/users/list", async (c) => {
   const userId = getUserId(c);
   if (!userId) return c.json({ error: "No token provided" }, 401);
   const role = getUserRole(c);
+  const { getUserInfos } = await import("./user-info.js");
 
-  async function attachGroups(users: IdUserBasic[], filterGroupIds?: string[]) {
+  type LocalUser = { id: string; major: string | null; createdAt: Date };
+
+  async function buildUsersWithGroups(
+    localUsers: LocalUser[],
+    filterGroupIds?: string[],
+  ) {
+    const infoMap = await getUserInfos(localUsers.map((u) => u.id));
     const result = [];
-    for (const u of users) {
+    for (const u of localUsers) {
+      const info = infoMap.get(u.id);
       const memberships = await groupMemberRepo.findByUserId(u.id);
       const filtered = filterGroupIds
         ? memberships.filter((m: { groupId: string }) => filterGroupIds.includes(m.groupId))
         : memberships;
-
       const groupDetails = [];
       for (const m of filtered) {
         const group = await groupRepo.findById(m.groupId);
         if (group) groupDetails.push({ id: group.id, name: group.name, role: m.role });
       }
-      result.push({ ...u, groups: groupDetails });
+      result.push({
+        id: u.id,
+        name: info?.name ?? "",
+        email: info?.email ?? "",
+        role: info?.role ?? "general",
+        major: u.major,
+        createdAt: u.createdAt,
+        groups: groupDetails,
+      });
     }
     return result;
   }
 
   if (role === "admin") {
     const users = await userListRepo.findAllBasic();
-    const usersWithGroups = await attachGroups(users);
-    return c.json({ users: usersWithGroups });
+    return c.json({ users: await buildUsersWithGroups(users) });
   }
 
   const myMemberships = await groupMemberRepo.findByUserId(userId);
@@ -276,11 +245,7 @@ auth.get("/users/list", async (c) => {
 
   if (myGroupIds.length === 0) {
     const me = await userListRepo.findByIds([userId]);
-    return c.json({
-      users: me.map((u: IdUserBasic) => ({
-        ...u, groups: [] as Array<{ id: string; name: string; role: string }>,
-      })),
-    });
+    return c.json({ users: await buildUsersWithGroups(me) });
   }
 
   const memberSets = await Promise.all(
@@ -289,45 +254,40 @@ auth.get("/users/list", async (c) => {
   const userIds = [...new Set(memberSets.flat().map((m) => m.userId))];
 
   const users = await userListRepo.findByIds(userIds);
-  const usersWithGroups = await attachGroups(users, myGroupIds);
-
-  return c.json({ users: usersWithGroups });
+  return c.json({ users: await buildUsersWithGroups(users, myGroupIds) });
 });
 
 // ─── GET /users (admin のみ) ─────────────────────────────────
 
 auth.get("/users", requireRole("admin"), async (c) => {
-  const users = await userListRepo.findAllBasic();
+  const { getUserInfos } = await import("./user-info.js");
+  const localUsers = await userListRepo.findAllBasic();
+  const infoMap = await getUserInfos(localUsers.map((u: { id: string }) => u.id));
+  const users = localUsers.map((u: { id: string; major: string | null; createdAt: Date }) => {
+    const info = infoMap.get(u.id);
+    return {
+      id: u.id,
+      name: info?.name ?? "",
+      email: info?.email ?? "",
+      role: info?.role ?? "general",
+      major: u.major,
+      createdAt: u.createdAt,
+    };
+  });
   return c.json({ users });
 });
 
 // ─── PUT /users/:id/role (admin のみ) ─────────────────────────
+// role は Cernere 側で管理する (Schedula DB に保存しない)。
+// 本エンドポイントは廃止。Cernere の admin UI でロール変更してください。
 
 auth.put("/users/:id/role", requireRole("admin"), async (c) => {
-  const adminUserId = getUserId(c);
-  const targetUserId = c.req.param("id");
-  const body = await c.req.json<{ role: string }>();
-
-  if (!["admin", "group_leader", "general"].includes(body.role)) {
-    return c.json({ error: "無効なロールです。admin, group_leader, general のいずれかを指定してください" }, 400);
-  }
-
-  const targetUser = await userRepo.findById(targetUserId);
-  if (!targetUser) {
-    return c.json({ error: "ユーザーが見つかりません" }, 404);
-  }
-
-  await userRepo.update(targetUserId, { role: body.role, updatedAt: new Date() });
-
-  if (adminUserId) {
-    const adminUser = await userRepo.findById(adminUserId);
-    logActivity(adminUserId, adminUser?.name || "Unknown", "ユーザーロール変更", `ユーザー「${targetUser.name}」のロールが「${body.role}」に変更されました`);
-  }
-
-  return c.json({
-    user: { id: targetUserId, name: targetUser.name, email: targetUser.email, role: body.role },
-    message: "ロールを変更しました",
-  });
+  return c.json(
+    {
+      error: "Role management has moved to Cernere. Use the Cernere admin UI to change user roles.",
+    },
+    410,
+  );
 });
 
 export { auth, compositeAuthRoutes };

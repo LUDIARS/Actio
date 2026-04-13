@@ -18,29 +18,31 @@ export type UserProjectRoleRecord = typeof schema.userProjectRoles.$inferSelect;
 export type NewUserProjectRole = typeof schema.userProjectRoles.$inferInsert;
 
 // ─── User Repository ───────────────────────────────────────
+// 個人データ (name/email/role/auth) は Cernere で管理 (AIFormat ルール)。
+// 本リポジトリは FK アンカー + Schedula 固有フィールド (major,
+// calendarAccessId) のみを扱う。
+// 個人データの読み出しは src/auth/user-info.ts の getUserInfo() を使用。
+
+/** Schedula 固有フィールドのみで構成される作成データ (個人データを除外) */
+export interface NewLocalUser {
+  id: string;
+  major?: string | null;
+  calendarAccessId?: string | null;
+}
+
+/**
+ * 更新可能フィールド。新規コードは Schedula 固有フィールドのみ使用すること。
+ * legacy フィールド (google_*, password_hash 等) は Cernere 移管前の機能維持のため
+ * 一時的に許容するが、新規コードからは使わないこと。
+ */
+export type UpdateLocalUser = Partial<Omit<NewUser, "id">>;
 
 export const userRepo = {
-  async findByEmail(email: string): Promise<User | undefined> {
-    const [user] = await db
-      .select()
-      .from(schema.users)
-      .where(eq(schema.users.email, email));
-    return user;
-  },
-
   async findById(id: string): Promise<User | undefined> {
     const [user] = await db
       .select()
       .from(schema.users)
       .where(eq(schema.users.id, id));
-    return user;
-  },
-
-  async findByGoogleId(googleId: string): Promise<User | undefined> {
-    const [user] = await db
-      .select()
-      .from(schema.users)
-      .where(eq(schema.users.googleId, googleId));
     return user;
   },
 
@@ -51,14 +53,11 @@ export const userRepo = {
     return result?.value ?? 0;
   },
 
-  async create(data: NewUser): Promise<void> {
-    await db.insert(schema.users).values(data);
+  async create(data: NewLocalUser): Promise<void> {
+    await db.insert(schema.users).values(data as NewUser);
   },
 
-  async update(
-    id: string,
-    data: Partial<Omit<NewUser, "id">>,
-  ): Promise<void> {
+  async update(id: string, data: UpdateLocalUser): Promise<void> {
     await db
       .update(schema.users)
       .set(data)
@@ -1315,37 +1314,24 @@ export const appSettingsRepo = {
 };
 
 // ─── User List Repository (admin/user list queries) ──────────
+// 個人データ (name/email/role) は Cernere 側で取得 (getUserInfos)。
+// このリポジトリは Schedula 固有フィールドのみを返す。
 
 export const userListRepo = {
   async findAllBasic() {
     return db.select({
       id: schema.users.id,
-      name: schema.users.name,
-      email: schema.users.email,
-      role: schema.users.role,
       major: schema.users.major,
       createdAt: schema.users.createdAt,
-      lastLoginAt: schema.users.lastLoginAt,
     }).from(schema.users);
   },
 
   async findByIds(userIds: string[]) {
     return db.select({
       id: schema.users.id,
-      name: schema.users.name,
-      email: schema.users.email,
-      role: schema.users.role,
       major: schema.users.major,
       createdAt: schema.users.createdAt,
-      lastLoginAt: schema.users.lastLoginAt,
     }).from(schema.users)
-      .where(inArray(schema.users.id, userIds));
-  },
-
-  async findUserNamesById(userIds: string[]) {
-    return db
-      .select({ id: schema.users.id, name: schema.users.name })
-      .from(schema.users)
       .where(inArray(schema.users.id, userIds));
   },
 };

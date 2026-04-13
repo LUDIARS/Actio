@@ -8,8 +8,8 @@ import {
   votingEventRepo,
   votingCandidateRepo,
   voteRepo,
-  userRepo,
 } from "../../db/repository.js";
+import { getUserInfo } from "../../auth/user-info.js";
 import { generateAutoReply } from "../../../modules/voting/auto-reply.js";
 import type { VoteAnswer } from "../../shared/constants.js";
 import { logActivity } from "../../activity-logger.js";
@@ -52,8 +52,8 @@ registerCommand("voting", "create_event", async (userId, payload) => {
     await votingCandidateRepo.create(row);
   }
 
-  const user = await userRepo.findById(userId);
-  logActivity(userId, user?.name || "Unknown", "投票イベント作成", `投票イベント「${body.title}」が追加されました`);
+  const user = await getUserInfo(userId);
+  logActivity(userId, user.name || "Unknown", "投票イベント作成", `投票イベント「${body.title}」が追加されました`);
 
   return {
     id: eventId,
@@ -111,8 +111,8 @@ registerCommand("voting", "submit_votes", async (userId, payload) => {
     }
   }
 
-  const user = await userRepo.findById(userId);
-  logActivity(userId, user?.name || "Unknown", "投票回答", `投票イベント(${body.eventId})に回答しました`);
+  const user = await getUserInfo(userId);
+  logActivity(userId, user.name || "Unknown", "投票回答", `投票イベント(${body.eventId})に回答しました`);
 
   // イベント作成者に投票通知
   if (event.createdBy !== userId) {
@@ -216,8 +216,8 @@ registerCommand("voting", "update_event", async (userId, payload) => {
 
   await votingEventRepo.update(body.eventId, updates);
 
-  const user = await userRepo.findById(userId);
-  logActivity(userId, user?.name || "Unknown", "投票イベント更新", `投票イベント「${event.title}」が更新されました`);
+  const user = await getUserInfo(userId);
+  logActivity(userId, user.name || "Unknown", "投票イベント更新", `投票イベント「${event.title}」が更新されました`);
 
   // ステータス変更時（closed など）は投票参加者に通知
   if (body.status) {

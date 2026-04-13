@@ -5,8 +5,8 @@
 import { registerCommand } from "../dispatcher.js";
 import {
   appSettingsRepo,
-  userRepo,
 } from "../../db/repository.js";
+import { getUserInfo } from "../../auth/user-info.js";
 import { logActivity } from "../../activity-logger.js";
 
 // ── Default settings (matches modules/settings/routes.ts) ──
@@ -31,8 +31,8 @@ registerCommand("admin", "update_settings", async (userId, payload) => {
   }
 
   // Admin check: caller must be admin
-  const caller = await userRepo.findById(userId);
-  if (!caller || caller.role !== "admin") {
+  const caller = await getUserInfo(userId);
+  if (caller.role !== "admin") {
     throw new Error("管理者権限が必要です");
   }
 
@@ -54,36 +54,11 @@ registerCommand("admin", "update_settings", async (userId, payload) => {
 });
 
 // ── admin.update_user_role ──
+// role は Cernere 側で管理する (Schedula DB に保存しない)。
+// 本コマンドは廃止。Cernere の admin UI でロール変更してください。
 
-interface UpdateUserRolePayload {
-  targetUserId: string;
-  role: string;
-}
-
-registerCommand("admin", "update_user_role", async (userId, payload) => {
-  const body = payload as UpdateUserRolePayload;
-  if (!body.targetUserId) throw new Error("targetUserId is required");
-  if (!body.role) throw new Error("role is required");
-
-  // Admin check
-  const caller = await userRepo.findById(userId);
-  if (!caller || caller.role !== "admin") {
-    throw new Error("管理者権限が必要です");
-  }
-
-  if (!["admin", "group_leader", "general"].includes(body.role)) {
-    throw new Error("無効なロールです。admin, group_leader, general のいずれかを指定してください");
-  }
-
-  const targetUser = await userRepo.findById(body.targetUserId);
-  if (!targetUser) throw new Error("ユーザーが見つかりません");
-
-  await userRepo.update(body.targetUserId, { role: body.role, updatedAt: new Date() });
-
-  logActivity(userId, caller.name || "Unknown", "ユーザーロール変更", `ユーザー「${targetUser.name}」のロールが「${body.role}」に変更されました`);
-
-  return {
-    user: { id: body.targetUserId, name: targetUser.name, email: targetUser.email, role: body.role },
-    message: "ロールを変更しました",
-  };
+registerCommand("admin", "update_user_role", async () => {
+  throw new Error(
+    "Role management has moved to Cernere. Use the Cernere admin UI to change user roles.",
+  );
 });
