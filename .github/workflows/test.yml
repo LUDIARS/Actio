@@ -24,6 +24,11 @@ jobs:
           node-version: "22"
           cache: npm
 
+      - name: Configure npm auth for @ludiars
+        run: |
+          echo "@ludiars:registry=https://npm.pkg.github.com" > ~/.npmrc
+          echo "//npm.pkg.github.com/:_authToken=${NODE_AUTH_TOKEN}" >> ~/.npmrc
+
       - run: npm ci
 
       - name: Install frontend dependencies
