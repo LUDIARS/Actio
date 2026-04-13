@@ -15,6 +15,8 @@ interface AuthContextType {
   loading: boolean;
   wsConnected: boolean;
   loginWithPopup: () => Promise<void>;
+  /** 埋め込みログイン (モバイル向け): authCode を受け取ってセッション確立 */
+  completeLogin: (authCode: string) => Promise<void>;
   logout: () => Promise<void>;
 }
 
@@ -145,6 +147,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       window.addEventListener("message", onMessage);
     });
 
+    await completeLogin(authCode);
+  }, []);
+
+  /**
+   * authCode を受け取って backend で serviceToken に交換 → セッション確立。
+   * Popup モードと埋め込みモード両方で使う共通処理。
+   */
+  const completeLogin = useCallback(async (authCode: string) => {
     const exchangeRes = await fetch(`${API_BASE}/api/auth/exchange`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -161,7 +171,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       user: { id: string; displayName: string; email: string; role: string };
     };
 
-    // service_token は HttpOnly Cookie に保存される (レスポンスボディには含まれない)
     const u = {
       id: result.user.id,
       name: result.user.displayName,
@@ -181,7 +190,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   return (
     <AuthContext.Provider
-      value={{ user, loading, wsConnected, loginWithPopup, logout }}
+      value={{ user, loading, wsConnected, loginWithPopup, completeLogin, logout }}
     >
       {children}
     </AuthContext.Provider>

@@ -118,6 +118,46 @@ compositeAuthRoutes.get("/ws-token", async (c) => {
   return c.json({ token });
 });
 
+// ─── Cernere 埋め込み認証プロキシ (モバイル半SPA 用) ─────────
+// SPA に埋め込まれた <CompositeLogin> からの認証要求を project WS で Cernere に転送。
+// CORS を避けるため全て same-origin。
+
+compositeAuthRoutes.post("/cernere/login", async (c) => {
+  const { compositeLogin } = await import("./cernere-client.js");
+  try {
+    const body = await c.req.json<{ email: string; password: string }>();
+    const res = await compositeLogin(body.email, body.password);
+    return c.json(res);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Login failed";
+    return c.json({ error: message }, 401);
+  }
+});
+
+compositeAuthRoutes.post("/cernere/register", async (c) => {
+  const { compositeRegister } = await import("./cernere-client.js");
+  try {
+    const body = await c.req.json<{ name: string; email: string; password: string }>();
+    const res = await compositeRegister(body.name, body.email, body.password);
+    return c.json(res);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Registration failed";
+    return c.json({ error: message }, 400);
+  }
+});
+
+compositeAuthRoutes.post("/cernere/mfa-verify", async (c) => {
+  const { compositeMfaVerify } = await import("./cernere-client.js");
+  try {
+    const body = await c.req.json<{ mfaToken: string; method: string; code: string }>();
+    const res = await compositeMfaVerify(body.mfaToken, body.method, body.code);
+    return c.json(res);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "MFA verification failed";
+    return c.json({ error: message }, 401);
+  }
+});
+
 // ─── ユーザー自動プロビジョニング ──────────────────────────────
 // Cernere 認証済みリクエストが来た際、Schedula の users テーブルに
 // レコードがなければ自動作成する。
