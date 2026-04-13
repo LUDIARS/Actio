@@ -75,7 +75,7 @@ compositeAuthRoutes.post("/exchange", async (c) => {
   }
   try {
     const result = await exchangeAuthCode(body.authCode);
-    await ensureLocalUser(result.user.id, result.user.role);
+    await ensureLocalUser(result.user);
     // Redis にセッションユーザー情報をキャッシュ
     await saveSessionUser({
       id: result.user.id,
@@ -162,16 +162,33 @@ compositeAuthRoutes.post("/cernere/mfa-verify", async (c) => {
 // Cernere 認証済みリクエストが来た際、Schedula の users テーブルに
 // レコードがなければ自動作成する。
 
-async function ensureLocalUser(userId: string, role: string): Promise<void> {
-  const existing = await userRepo.findById(userId);
-  if (existing) return;
+async function ensureLocalUser(user: {
+  id: string;
+  displayName: string;
+  email: string;
+  role: string;
+}): Promise<void> {
+  const normalizedRole = user.role === "admin" ? "admin" : "general";
+  const existing = await userRepo.findById(user.id);
 
-  await userRepo.create({
-    id: userId,
-    name: "",
-    email: "",
-    role: role === "admin" ? "admin" : "general",
-  });
+  if (!existing) {
+    await userRepo.create({
+      id: user.id,
+      name: user.displayName,
+      email: user.email,
+      role: normalizedRole,
+    });
+    return;
+  }
+
+  // 既存ユーザーが空の name/email で provisioning されていたケースをバックフィル。
+  // (PR #93 のバグで一時的に作られた壊れたレコードを修復する)
+  const patch: Partial<{ name: string; email: string }> = {};
+  if (!existing.name && user.displayName) patch.name = user.displayName;
+  if (!existing.email && user.email) patch.email = user.email;
+  if (Object.keys(patch).length > 0) {
+    await userRepo.update(user.id, patch);
+  }
 }
 
 // ─── GET /me ─────────────────────────────────────────────────
@@ -180,7 +197,33 @@ auth.get("/me", async (c) => {
   const userId = getUserId(c);
   if (!userId) return c.json({ error: "No token provided" }, 401);
 
-  await ensureLocalUser(userId, getUserRole(c));
+  // Safety net: provisioning は通常 /exchange で行われるが、ここでも
+  // 念のため呼ぶ (空フィールドで provisioning された既存ユーザーのバックフィル含む)。
+  // 可能なら Cernere から正しい name/email を取得、失敗時は userId 由来のプレースホルダで
+  // 衝突回避 (UNIQUE 制約の email は user 単位で一意になる)。
+  const { fetchCernereProfile } = await import("./cernere-client.js");
+  let profileData: { displayName: string; email: string; role: string };
+  try {
+    const profile = await fetchCernereProfile(userId);
+    profileData = {
+      displayName: profile.displayName,
+      email: profile.email,
+      role: profile.role,
+    };
+  } catch (err) {
+    console.warn("[/me] Cernere profile fetch failed, using placeholder:", err);
+    profileData = {
+      displayName: `user-${userId.slice(0, 8)}`,
+      email: `${userId}@unknown.local`,
+      role: getUserRole(c),
+    };
+  }
+  await ensureLocalUser({
+    id: userId,
+    displayName: profileData.displayName,
+    email: profileData.email,
+    role: profileData.role || getUserRole(c),
+  });
 
   const user = await userRepo.findById(userId);
   if (!user) return c.json({ error: "User not found" }, 404);
