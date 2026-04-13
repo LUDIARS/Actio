@@ -246,3 +246,27 @@ export async function updateCernereProfile(
     ...payload,
   }) as Promise<CernereProfile>;
 }
+
+// ── Composite auth (埋め込みログイン用) ──────────────────
+
+export interface CompositeAuthResponse {
+  authCode?: string;
+  mfaRequired?: boolean;
+  mfaMethods?: string[];
+  mfaToken?: string;
+}
+
+/** Cernere Composite login を project WS 経由で実行 */
+export async function compositeLogin(email: string, password: string): Promise<CompositeAuthResponse> {
+  return cernereClient.request("auth", "login", { email, password }) as Promise<CompositeAuthResponse>;
+}
+
+/** Cernere Composite register を project WS 経由で実行 */
+export async function compositeRegister(name: string, email: string, password: string): Promise<CompositeAuthResponse> {
+  return cernereClient.request("auth", "register", { name, email, password }) as Promise<CompositeAuthResponse>;
+}
+
+/** Cernere Composite MFA 検証を project WS 経由で実行 */
+export async function compositeMfaVerify(mfaToken: string, method: string, code: string): Promise<CompositeAuthResponse> {
+  return cernereClient.request("auth", "mfa-verify", { mfaToken, method, code }) as Promise<CompositeAuthResponse>;
+}
