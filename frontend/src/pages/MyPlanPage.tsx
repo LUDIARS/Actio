@@ -34,8 +34,8 @@ export function MyPlanPage() {
     try {
       const data = await myPlanApi.list();
       setPlans(data.plans || []);
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
     }
     setLoading(false);
   }, []);
@@ -65,8 +65,8 @@ export function MyPlanPage() {
       setShowForm(false);
       resetForm();
       await loadPlans();
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
     }
   };
 
@@ -86,8 +86,8 @@ export function MyPlanPage() {
       setShowForm(false);
       resetForm();
       await loadPlans();
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
     }
   };
 
@@ -95,8 +95,8 @@ export function MyPlanPage() {
     try {
       await myPlanApi.update(plan.id, { isActive: !plan.isActive });
       await loadPlans();
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
     }
   };
 
@@ -110,8 +110,8 @@ export function MyPlanPage() {
         resetForm();
       }
       await loadPlans();
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
     }
   };
 

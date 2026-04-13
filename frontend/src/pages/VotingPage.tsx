@@ -67,17 +67,15 @@ export function VotingPage() {
     try {
       const res = await m6Voting.listEvents();
       setEvents(res.events || []);
-    } catch (e: any) {
+    } catch (e) {
       console.error("[VotingPage] fetchEvents失敗:", e);
-      showMsg(`Error: ${e.message}`);
+      showMsg(`Error: ${e instanceof Error ? e.message : String(e)}`);
     }
   }, []);
 
-  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     fetchEvents();
   }, [fetchEvents]);
-  /* eslint-enable react-hooks/set-state-in-effect */
 
   // ─── Fetch event detail ────────────────────────────────────
 
@@ -95,9 +93,9 @@ export function VotingPage() {
         initial[cand.id] = existing?.answer || "ok";
       }
       setVoteForm(initial);
-    } catch (e: any) {
+    } catch (e) {
       console.error("[VotingPage] fetchDetail失敗:", e);
-      showMsg(`Error: ${e.message}`);
+      showMsg(`Error: ${e instanceof Error ? e.message : String(e)}`);
     }
   };
 
@@ -138,9 +136,9 @@ export function VotingPage() {
       setShowCreate(false);
       setForm({ title: "", description: "", deadline: "", candidatesText: "" });
       fetchEvents();
-    } catch (e: any) {
+    } catch (e) {
       console.error("[VotingPage] handleCreate失敗:", e);
-      showMsg(`Error: ${e.message}`);
+      showMsg(`Error: ${e instanceof Error ? e.message : String(e)}`);
     }
     setLoading(false);
   };
@@ -158,9 +156,9 @@ export function VotingPage() {
       await m6Voting.submitVotes(selectedEventId, votes);
       showMsg("回答を送信しました");
       fetchDetail(selectedEventId);
-    } catch (e: any) {
+    } catch (e) {
       console.error("[VotingPage] handleSubmitVotes失敗:", e);
-      showMsg(`Error: ${e.message}`);
+      showMsg(`Error: ${e instanceof Error ? e.message : String(e)}`);
     }
     setLoading(false);
   };
@@ -174,9 +172,9 @@ export function VotingPage() {
       const res = await m6Voting.autoReply(selectedEventId);
       showMsg(res.message);
       fetchDetail(selectedEventId);
-    } catch (e: any) {
+    } catch (e) {
       console.error("[VotingPage] handleAutoReply失敗:", e);
-      showMsg(`Error: ${e.message}`);
+      showMsg(`Error: ${e instanceof Error ? e.message : String(e)}`);
     }
     setLoading(false);
   };
@@ -191,9 +189,9 @@ export function VotingPage() {
       if (selectedEventId === eventId) {
         fetchDetail(eventId);
       }
-    } catch (e: any) {
+    } catch (e) {
       console.error("[VotingPage] handleClose失敗:", e);
-      showMsg(`Error: ${e.message}`);
+      showMsg(`Error: ${e instanceof Error ? e.message : String(e)}`);
     }
   };
 
@@ -208,9 +206,9 @@ export function VotingPage() {
         setDetail(null);
       }
       fetchEvents();
-    } catch (e: any) {
+    } catch (e) {
       console.error("[VotingPage] handleDelete失敗:", e);
-      showMsg(`Error: ${e.message}`);
+      showMsg(`Error: ${e instanceof Error ? e.message : String(e)}`);
     }
   };
 

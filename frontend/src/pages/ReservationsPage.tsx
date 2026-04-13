@@ -1,20 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { reservationPluginsApi } from "../lib/api";
-
-interface ReservationPlugin {
-  id: string;
-  name: string;
-  description: string;
-  icon: string;
-  apiBasePath: string;
-  frontendPath: string;
-  operations: {
-    list: string;
-    create: string;
-    cancel: string;
-  };
-}
+import type { ReservationPluginInfo } from "../lib/api";
 
 const ICON_MAP: Record<string, string> = {
   Building2: "\u{1F3E2}",
@@ -23,12 +10,12 @@ const ICON_MAP: Record<string, string> = {
 
 export function ReservationsPage() {
   const navigate = useNavigate();
-  const [plugins, setPlugins] = useState<ReservationPlugin[]>([]);
+  const [plugins, setPlugins] = useState<ReservationPluginInfo[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     reservationPluginsApi.listPlugins()
-      .then((res: any) => setPlugins(res.plugins || []))
+      .then((res) => setPlugins(res.plugins || []))
       .catch(() => {})
       .finally(() => setLoading(false));
   }, []);
