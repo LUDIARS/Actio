@@ -15,8 +15,41 @@ import { randomUUID } from "crypto";
 import { getUserId } from "../../src/middleware/getUserId.js";
 import { reminderRepo } from "../../src/db/repository.js";
 import { parseReminderText } from "./text-parser.js";
+import { nuntiusClient } from "../../src/lib/nuntius-client.js";
 
 export const reminderRoutes = new Hono();
+
+/**
+ * Nuntius にリマインダー登録を shadow write する (Phase 2-3 移行期)。
+ * Nuntius 未設定や失敗時もローカル登録は成功させるため、エラーは握り潰す。
+ * 既存の DB レコード id を idempotencyKey にして重複登録を防ぐ。
+ */
+async function shadowSendToNuntius(reminder: {
+  id: string;
+  userId: string;
+  title: string;
+  description?: string | null;
+  remindAt: string;
+}): Promise<void> {
+  if (!nuntiusClient.isConfigured()) return;
+  try {
+    await nuntiusClient.schedule({
+      userId: reminder.userId,
+      // 既定チャネルは webhook (Schedula 内部の通知ハンドラ)
+      // 将来的にユーザー設定に応じて slack/discord/line/email 等に切替
+      channel: "webhook",
+      sendAt: reminder.remindAt,
+      payload: {
+        title: reminder.title,
+        description: reminder.description ?? "",
+      },
+      source: "schedula.reminder",
+      idempotencyKey: reminder.id,
+    });
+  } catch (err) {
+    console.warn("[reminder→nuntius] shadow write failed:", err instanceof Error ? err.message : err);
+  }
+}
 
 // ─── 一覧取得 ───────────────────────────────────────────────
 reminderRoutes.get("/", async (c) => {
@@ -70,6 +103,15 @@ reminderRoutes.post("/", async (c) => {
     source: "api",
   });
 
+  // Nuntius にも shadow write (Phase 2-3 移行期)
+  shadowSendToNuntius({
+    id: reminder.id,
+    userId: reminder.userId,
+    title: reminder.title,
+    description: reminder.description,
+    remindAt: reminder.remindAt,
+  }).catch(() => { /* fire and forget */ });
+
   return c.json({ reminder }, 201);
 });
 
@@ -95,6 +137,15 @@ reminderRoutes.post("/parse", async (c) => {
     source: body.source || "web",
     originalText: body.text.trim(),
   });
+
+  // Nuntius にも shadow write (Phase 2-3 移行期)
+  shadowSendToNuntius({
+    id: reminder.id,
+    userId: reminder.userId,
+    title: reminder.title,
+    description: null,
+    remindAt: reminder.remindAt,
+  }).catch(() => { /* fire and forget */ });
 
   return c.json({
     reminder,
