@@ -1,6 +1,7 @@
-import { Hono } from "hono";
+import { Hono, type Context } from "hono";
 import { cors } from "hono/cors";
 import { userContext, requireRole } from "./middleware/auth.js";
+import { requestId } from "./middleware/request-id.js";
 import { setupWebSocket } from "./ws/handler.js";
 import "./ws/commands/index.js";
 import { auth, compositeAuthRoutes } from "./auth/routes.js";
@@ -57,6 +58,8 @@ export function createApp() {
   }
 
   // ─── Global Middleware ──────────────────────────────────────
+  // requestId を最初に付与して、以降のログ・レスポンスヘッダで使えるようにする
+  app.use("*", requestId());
   app.use("*", cors({
     origin: secretManager.getOrDefault("CORS_ORIGIN",
       secretManager.getOrDefault("FRONTEND_URL", "http://localhost:8080")),
@@ -219,9 +222,23 @@ export function createApp() {
     });
   });
 
-  app.get("/api/health", async (c) => {
+  // ─── Liveness check (軽量) ────────────────────────────────
+  // プロセスが生きているかだけを返す。k8s liveness probe 用。
+  app.get("/api/health/live", (c) => {
+    return c.json({
+      status: "ok",
+      service: "schedula",
+      timestamp: new Date().toISOString(),
+    });
+  });
+
+  // ─── Readiness check (DB / Redis 接続確認) ───────────────
+  // 依存サービスの準備が整っているかチェック。k8s readiness probe 用。
+  // 既存の /api/health は後方互換のため /api/ready のエイリアスとして残す。
+  const readinessHandler = async (c: Context) => {
     const health: Record<string, unknown> = {
       status: "ok",
+      service: "schedula",
       timestamp: new Date().toISOString(),
     };
 
@@ -259,7 +276,11 @@ export function createApp() {
 
     const statusCode = health.status === "ok" ? 200 : 503;
     return c.json(health, statusCode);
-  });
+  };
+
+  app.get("/api/ready", readinessHandler);
+  // 後方互換: 既存の /api/health もそのまま残す (中身は readiness)
+  app.get("/api/health", readinessHandler);
 
   // ─── Initialize Notification Handler ────────────────────────
   initNotificationHandler();
