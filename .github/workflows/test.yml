@@ -8,11 +8,14 @@ on:
 
 permissions:
   contents: read
+  packages: read
 
 jobs:
   ci-check:
     name: CI Check
     runs-on: ubuntu-latest
+    env:
+      NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - uses: actions/checkout@v4
 
