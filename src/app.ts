@@ -8,7 +8,7 @@ import { auth, compositeAuthRoutes } from "./auth/routes.js";
 import { notification } from "../modules/notification/routes.js";
 import { groupRoutes } from "../modules/group/routes.js";
 import { calendar } from "../modules/calendar/routes.js";
-import { myPlanRoutes } from "../modules/myplan/routes.js";
+// myPlanRoutes は @ludiars/schedula-module-myplan に移行
 import { smartScheduler } from "../modules/smart-scheduler/routes.js";
 import { schoolModule } from "../modules/school/index.js";
 import { pmModule } from "../modules/pm/index.js";
@@ -36,6 +36,7 @@ import { installModule } from "./plugins/loader.js";
 import exampleModule from "../modules-ext/example/server.js";
 import votingModule from "@ludiars/schedula-module-voting";
 import holidayModule from "@ludiars/schedula-module-holiday";
+import myplanModule from "@ludiars/schedula-module-myplan";
 
 export function createApp() {
   const app = new Hono();
@@ -107,8 +108,7 @@ export function createApp() {
   // ─── Core: Calendar (Google Calendar + 手動予定 + プラン) ────
   app.route("/api/calendar", calendar);
 
-  // ─── Core: MyPlan (マイプラン: 週間ルーティーン) ─────────────
-  app.route("/api/myplans", myPlanRoutes);
+  // ─── Module: MyPlan — SDK module 経由 ────────────────────────
 
   // ─── Core: Smart Scheduler (自動配置スケジューラ) ────────────
   app.route("/api/smart-scheduler", smartScheduler);
@@ -150,6 +150,10 @@ export function createApp() {
   });
   installModule(app, holidayModule, {
     packageName: "@ludiars/schedula-module-holiday",
+    packageVersion: "0.1.0",
+  });
+  installModule(app, myplanModule, {
+    packageName: "@ludiars/schedula-module-myplan",
     packageVersion: "0.1.0",
   });
 

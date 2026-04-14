@@ -51,6 +51,7 @@
     "@ludiars/schedula-sdk": "file:./packages/sdk",
     "@ludiars/schedula-module-voting": "file:../Actio-PublicModules.voting",
     "@ludiars/schedula-module-holiday": "file:../Actio-PublicModules.holiday",
+    "@ludiars/schedula-module-myplan": "file:../Actio-PublicModules.myplan",
     "bcryptjs": "^3.0.3",
     "better-sqlite3": "^12.8.0",
     "csv-parse": "^6.1.0",

@@ -7,8 +7,8 @@
 
 import "./calendar.js";
 import "./group.js";
-import "./myplan.js";
-// voting.ts は modules-ext/voting/ に移行済み (SDK wsCommands 経由で登録)
+// myplan.ts は @ludiars/schedula-module-myplan に移行
+// voting.ts は @ludiars/schedula-module-voting に移行
 import "./facility.js";
 import "./pm.js";
 import "./admin.js";
