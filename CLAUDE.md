@@ -143,6 +143,8 @@ m1.get("/departments", async (c) => {
 
 ### 既存リポジトリ
 
+- `eventRepo` — コア「予定 (Event)」 (events テーブル)
+- `taskRepo` — コア「タスク (Task)」 (tasks テーブル)
 - `userRepo` / `sessionRepo` — 認証関連
 - `departmentRepo` / `instructorRepo` / `curriculumRepo` / `availableSlotRepo` — M1 カリキュラム関連
 - `personalEventRepo` / `planRepo` / `myPlanRepo` — カレンダー・プラン関連
@@ -184,10 +186,57 @@ const roomMap = new Map(rooms.map((r: any) => [r.id, r.name]));
 
 ## アーキテクチャ
 
+Schedula は **プラグインベースの「予定 (Event)」 & 「タスク (Task)」管理プラットフォーム**。
+JIRA のように、コアの 2 概念を中心に各種プラグインが機能を拡充する。
+
+### コア概念
+
+- **予定 (Event)** = 時間拘束のある未来の事象
+  - `startTime` / `endTime` で固定的な時間枠を表現
+  - 要件は持たない (例: MTG、講義、予約)
+  - DB: `events` テーブル / API: `/api/events` / モジュール: `modules/event/`
+
+- **タスク (Task)** = 解決すべき現在の事象
+  - 要件 (`requirements`) を持ち、`deadline` で期限を設定可能
+  - 時間拘束はなく、解決時刻は各自の自由意思 (例: ToDo、Issue)
+  - DB: `tasks` テーブル / API: `/api/tasks` / モジュール: `modules/task/`
+
+### プラグインシステム
+
+各機能モジュールは Event / Task のプラグインとして登録され、コア API と統合される。
+
+```typescript
+// Event プラグイン例
+import { registerEventPlugin } from "../../src/event-plugins.js";
+registerEventPlugin({
+  id: "calendar",
+  name: "カレンダー",
+  description: "Google Calendar 連携",
+  apiBasePath: "/api/calendar",
+  managed: "external",  // 独自テーブル管理 (pluginRef で events と紐付け)
+});
+
+// Task プラグイン例
+import { registerTaskPlugin } from "../../src/task-plugins.js";
+registerTaskPlugin({
+  id: "pm",
+  name: "PM",
+  description: "GitHub / Notion 連携",
+  apiBasePath: "/api/pm",
+  managed: "external",
+});
+```
+
+`managed`:
+- `"core"`: events / tasks テーブルに直接書き込む (POST /api/events に pluginId を指定)
+- `"external"`: 独自テーブルを保持し、`pluginRef` で events / tasks と紐付け
+
 ### コア機能 (基本実装)
 
 - **ユーザ** (`src/auth/`) — 認証・ユーザ管理
 - **グループ** (`modules/group/`) — グループ管理 (`/api/groups`)
+- **予定 (Event)** (`modules/event/`) — コア「予定」(`/api/events`)
+- **タスク (Task)** (`modules/task/`) — コア「タスク」(`/api/tasks`)
 - **マイプラン** (`modules/myplan/`) — 週間ルーティーン (`/api/myplans`)
 - **自動配置スケジューラ** (`modules/smart-scheduler/`) — DP自動配置 (`/api/smart-scheduler`)
 - **カレンダー** (`modules/calendar/`) — Google Calendar連携 + 手動予定 (`/api/calendar`)

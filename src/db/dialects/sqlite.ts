@@ -190,6 +190,58 @@ export function createConnection(): { db: ReturnType<typeof drizzle>; sqlite: Sq
     CREATE INDEX IF NOT EXISTS idx_pm_cache_project_type ON pm_analytics_cache(project_id, report_type);
   `);
 
+  // ─── Core: events / tasks (予定 / タスク) ──────────────────
+  // Schedula のコア概念。プラグインから利用される。
+  sqlite.exec(`
+    CREATE TABLE IF NOT EXISTS events (
+      id TEXT PRIMARY KEY,
+      owner_id TEXT NOT NULL,
+      group_id TEXT,
+      title TEXT NOT NULL,
+      description TEXT,
+      start_time INTEGER NOT NULL,
+      end_time INTEGER NOT NULL,
+      is_all_day INTEGER NOT NULL DEFAULT 0,
+      location TEXT,
+      visibility TEXT NOT NULL DEFAULT 'private',
+      plugin_id TEXT,
+      plugin_ref TEXT,
+      plugin_payload TEXT,
+      created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+      updated_at INTEGER NOT NULL DEFAULT (unixepoch())
+    );
+    CREATE INDEX IF NOT EXISTS idx_event_owner ON events(owner_id);
+    CREATE INDEX IF NOT EXISTS idx_event_group ON events(group_id);
+    CREATE INDEX IF NOT EXISTS idx_event_start ON events(start_time);
+    CREATE INDEX IF NOT EXISTS idx_event_plugin ON events(plugin_id);
+
+    CREATE TABLE IF NOT EXISTS tasks (
+      id TEXT PRIMARY KEY,
+      owner_id TEXT NOT NULL,
+      assignee_id TEXT,
+      group_id TEXT,
+      title TEXT NOT NULL,
+      description TEXT,
+      requirements TEXT,
+      status TEXT NOT NULL DEFAULT 'open',
+      priority TEXT NOT NULL DEFAULT 'medium',
+      deadline INTEGER,
+      estimated_minutes INTEGER,
+      plugin_id TEXT,
+      plugin_ref TEXT,
+      plugin_payload TEXT,
+      completed_at INTEGER,
+      created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+      updated_at INTEGER NOT NULL DEFAULT (unixepoch())
+    );
+    CREATE INDEX IF NOT EXISTS idx_task_owner ON tasks(owner_id);
+    CREATE INDEX IF NOT EXISTS idx_task_assignee ON tasks(assignee_id);
+    CREATE INDEX IF NOT EXISTS idx_task_group ON tasks(group_id);
+    CREATE INDEX IF NOT EXISTS idx_task_status ON tasks(status);
+    CREATE INDEX IF NOT EXISTS idx_task_deadline ON tasks(deadline);
+    CREATE INDEX IF NOT EXISTS idx_task_plugin ON tasks(plugin_id);
+  `);
+
   // カラム追加マイグレーション (既存DBとの互換)
   try { sqlite.exec(`ALTER TABLE group_schedules ADD COLUMN label TEXT`); } catch { /* already exists */ }
   try { sqlite.exec(`ALTER TABLE curricula ADD COLUMN term_id TEXT REFERENCES terms(id)`); } catch { /* already exists */ }

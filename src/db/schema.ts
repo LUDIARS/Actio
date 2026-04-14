@@ -970,3 +970,109 @@ export const groupEvents = sqliteTable(
     index("idx_group_event_date").on(table.date),
   ]
 );
+
+// ─── Core: Events (予定) ──────────────────────────────────────
+// Schedula のコア「予定」: 時間拘束のある未来の事象。
+// 要件は持たず、確定した時間枠を表現する (例: MTG, 講義, 予約)。
+//
+// プラグイン (calendar / voting / facility-booking 等) は
+// pluginId / pluginRef / pluginPayload 経由で固有データを保持する。
+// プラグインなし (素の予定) でも作成可能。
+
+export const events = sqliteTable(
+  "events",
+  {
+    id: text("id").primaryKey(),
+    /** 作成者ユーザID */
+    ownerId: text("owner_id").notNull(),
+    /** グループ予定の場合のグループID (null = 個人予定) */
+    groupId: text("group_id"),
+    title: text("title").notNull(),
+    description: text("description"),
+    /** 開始時刻 (UTC) */
+    startTime: integer("start_time", { mode: "timestamp" }).notNull(),
+    /** 終了時刻 (UTC) */
+    endTime: integer("end_time", { mode: "timestamp" }).notNull(),
+    /** 終日予定か */
+    isAllDay: integer("is_all_day", { mode: "boolean" }).notNull().default(false),
+    /** 場所 (任意) */
+    location: text("location"),
+    /** 公開範囲: private / group / public */
+    visibility: text("visibility").notNull().default("private"),
+    /** 生成元プラグイン ID (例: "calendar", "voting", "facility-booking") */
+    pluginId: text("plugin_id"),
+    /** プラグイン側の参照 ID */
+    pluginRef: text("plugin_ref"),
+    /** プラグイン固有データ (JSON) */
+    pluginPayload: text("plugin_payload", { mode: "json" })
+      .$type<Record<string, unknown>>(),
+    createdAt: integer("created_at", { mode: "timestamp" })
+      .$defaultFn(() => new Date())
+      .notNull(),
+    updatedAt: integer("updated_at", { mode: "timestamp" })
+      .$defaultFn(() => new Date())
+      .notNull(),
+  },
+  (table) => [
+    index("idx_event_owner").on(table.ownerId),
+    index("idx_event_group").on(table.groupId),
+    index("idx_event_start").on(table.startTime),
+    index("idx_event_plugin").on(table.pluginId),
+  ]
+);
+
+// ─── Core: Tasks (タスク) ─────────────────────────────────────
+// Schedula のコア「タスク」: 解決すべき現在の事象。
+// 要件 (requirements) を持ち、時間拘束はないが、deadline で
+// 期限を設定可能 (例: ToDo, Issue, レビュー依頼)。
+//
+// プラグイン (pm / machina 等) は pluginId / pluginRef /
+// pluginPayload 経由で外部システムとの紐付けを保持する。
+
+export const tasks = sqliteTable(
+  "tasks",
+  {
+    id: text("id").primaryKey(),
+    /** 作成者ユーザID */
+    ownerId: text("owner_id").notNull(),
+    /** 担当者ユーザID (null = 未アサイン) */
+    assigneeId: text("assignee_id"),
+    /** グループタスクの場合のグループID */
+    groupId: text("group_id"),
+    title: text("title").notNull(),
+    description: text("description"),
+    /** 要件 (Markdown / freeform) */
+    requirements: text("requirements"),
+    /** ステータス: open / in_progress / blocked / done / cancelled */
+    status: text("status").notNull().default("open"),
+    /** 優先度: low / medium / high / critical */
+    priority: text("priority").notNull().default("medium"),
+    /** 期限 (UTC, null = 期限なし) */
+    deadline: integer("deadline", { mode: "timestamp" }),
+    /** 見積もり作業時間 (分) */
+    estimatedMinutes: integer("estimated_minutes"),
+    /** 生成元プラグイン ID (例: "pm", "machina") */
+    pluginId: text("plugin_id"),
+    /** プラグイン側の参照 ID (例: GitHub Issue 番号) */
+    pluginRef: text("plugin_ref"),
+    /** プラグイン固有データ (JSON) */
+    pluginPayload: text("plugin_payload", { mode: "json" })
+      .$type<Record<string, unknown>>(),
+    /** 完了時刻 (status=done になったとき) */
+    completedAt: integer("completed_at", { mode: "timestamp" }),
+    createdAt: integer("created_at", { mode: "timestamp" })
+      .$defaultFn(() => new Date())
+      .notNull(),
+    updatedAt: integer("updated_at", { mode: "timestamp" })
+      .$defaultFn(() => new Date())
+      .notNull(),
+  },
+  (table) => [
+    index("idx_task_owner").on(table.ownerId),
+    index("idx_task_assignee").on(table.assigneeId),
+    index("idx_task_group").on(table.groupId),
+    index("idx_task_status").on(table.status),
+    index("idx_task_deadline").on(table.deadline),
+    index("idx_task_plugin").on(table.pluginId),
+  ]
+);

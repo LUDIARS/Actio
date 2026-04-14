@@ -354,6 +354,115 @@ export interface MachinaPmRelay {
   updateTask(pmTaskId: string, updates: Partial<MachinaTask>): Promise<void>;
 }
 
+// ─── Core: Event (予定) ──────────────────────────────────────
+// 時間拘束のある未来の事象。要件は持たない (例: MTG, 講義, 予約)。
+
+export type EventVisibility = "private" | "group" | "public";
+
+export interface CoreEvent {
+  id: string;
+  ownerId: string;
+  groupId: string | null;
+  title: string;
+  description: string | null;
+  startTime: Date;
+  endTime: Date;
+  isAllDay: boolean;
+  location: string | null;
+  visibility: EventVisibility;
+  /** 生成元プラグイン ID (例: "calendar", "voting", "facility-booking") */
+  pluginId: string | null;
+  pluginRef: string | null;
+  pluginPayload: Record<string, unknown> | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface CreateEventInput {
+  title: string;
+  description?: string;
+  startTime: string | Date;
+  endTime: string | Date;
+  isAllDay?: boolean;
+  location?: string;
+  groupId?: string;
+  visibility?: EventVisibility;
+  pluginId?: string;
+  pluginRef?: string;
+  pluginPayload?: Record<string, unknown>;
+}
+
+/** Event プラグイン: Schedula コアの「予定」を生成・拡張するモジュール */
+export interface EventPlugin {
+  /** プラグイン識別子 (例: "calendar", "voting") */
+  id: string;
+  /** 表示名 */
+  name: string;
+  /** 説明 */
+  description: string;
+  /** Lucide icon 名 (任意) */
+  icon?: string;
+  /** バックエンド API ベースパス (任意) */
+  apiBasePath?: string;
+  /** フロントエンドルートパス (任意) */
+  frontendPath?: string;
+  /** プラグインが events テーブルに直接書き込むか、独自管理か */
+  managed: "core" | "external";
+}
+
+// ─── Core: Task (タスク) ─────────────────────────────────────
+// 解決すべき現在の事象。要件を持つが時間拘束はない。
+// deadline (期限) を持つことができる。
+
+export type TaskStatus = "open" | "in_progress" | "blocked" | "done" | "cancelled";
+export type TaskPriority = "low" | "medium" | "high" | "critical";
+
+export interface CoreTask {
+  id: string;
+  ownerId: string;
+  assigneeId: string | null;
+  groupId: string | null;
+  title: string;
+  description: string | null;
+  requirements: string | null;
+  status: TaskStatus;
+  priority: TaskPriority;
+  deadline: Date | null;
+  estimatedMinutes: number | null;
+  pluginId: string | null;
+  pluginRef: string | null;
+  pluginPayload: Record<string, unknown> | null;
+  completedAt: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface CreateTaskInput {
+  title: string;
+  description?: string;
+  requirements?: string;
+  assigneeId?: string;
+  groupId?: string;
+  status?: TaskStatus;
+  priority?: TaskPriority;
+  deadline?: string | Date;
+  estimatedMinutes?: number;
+  pluginId?: string;
+  pluginRef?: string;
+  pluginPayload?: Record<string, unknown>;
+}
+
+/** Task プラグイン: Schedula コアの「タスク」を生成・拡張するモジュール */
+export interface TaskPlugin {
+  id: string;
+  name: string;
+  description: string;
+  icon?: string;
+  apiBasePath?: string;
+  frontendPath?: string;
+  managed: "core" | "external";
+}
+
 // ─── Reservation Plugin System ──────────────────────────────
 
 /** 予約プラグインが出力する共通カレンダー予定スキーマ */

@@ -6,6 +6,7 @@
  */
 
 import { eq, and, count, inArray, desc, like, gte, lte, or, isNull } from "drizzle-orm";
+import type { SQL } from "drizzle-orm";
 import { db, schema, curriculumSchema, pmSchema } from "./connection.js";
 
 // ─── Types ──────────────────────────────────────────────────
@@ -2220,5 +2221,119 @@ export const pmAnalyticsCacheRepo = {
 
   async deleteByProject(projectId: string): Promise<void> {
     await db.delete(pmSchema.pmAnalyticsCache).where(eq(pmSchema.pmAnalyticsCache.projectId, projectId));
+  },
+};
+
+// ─── Core: Event Repository (予定) ──────────────────────────
+// Schedula コア「予定」: 時間拘束のある未来の事象。
+// 詳細仕様: docs / CLAUDE.md / modules/event/PLAN.md を参照。
+
+export type Event = typeof schema.events.$inferSelect;
+export type NewEvent = typeof schema.events.$inferInsert;
+
+export interface EventListFilter {
+  ownerId?: string;
+  groupId?: string;
+  /** ISO 文字列 / Date — startTime >= from */
+  from?: Date;
+  /** ISO 文字列 / Date — startTime <= to */
+  to?: Date;
+  pluginId?: string;
+}
+
+export const eventRepo = {
+  async findById(id: string): Promise<Event | undefined> {
+    const [row] = await db
+      .select()
+      .from(schema.events)
+      .where(eq(schema.events.id, id));
+    return row;
+  },
+
+  async list(filter: EventListFilter = {}): Promise<Event[]> {
+    const conditions: SQL[] = [];
+    if (filter.ownerId) conditions.push(eq(schema.events.ownerId, filter.ownerId));
+    if (filter.groupId) conditions.push(eq(schema.events.groupId, filter.groupId));
+    if (filter.pluginId) conditions.push(eq(schema.events.pluginId, filter.pluginId));
+    if (filter.from) conditions.push(gte(schema.events.startTime, filter.from));
+    if (filter.to) conditions.push(lte(schema.events.startTime, filter.to));
+
+    const query = db.select().from(schema.events);
+    const rows = conditions.length
+      ? await query.where(and(...conditions)).orderBy(schema.events.startTime)
+      : await query.orderBy(schema.events.startTime);
+    return rows;
+  },
+
+  async create(data: NewEvent): Promise<void> {
+    await db.insert(schema.events).values(data);
+  },
+
+  async update(id: string, data: Partial<Omit<NewEvent, "id">>): Promise<void> {
+    await db
+      .update(schema.events)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(schema.events.id, id));
+  },
+
+  async deleteById(id: string): Promise<void> {
+    await db.delete(schema.events).where(eq(schema.events.id, id));
+  },
+};
+
+// ─── Core: Task Repository (タスク) ─────────────────────────
+// Schedula コア「タスク」: 解決すべき現在の事象。
+
+export type Task = typeof schema.tasks.$inferSelect;
+export type NewTask = typeof schema.tasks.$inferInsert;
+
+export interface TaskListFilter {
+  ownerId?: string;
+  assigneeId?: string;
+  groupId?: string;
+  status?: string;
+  pluginId?: string;
+  /** deadline <= dueBefore */
+  dueBefore?: Date;
+}
+
+export const taskRepo = {
+  async findById(id: string): Promise<Task | undefined> {
+    const [row] = await db
+      .select()
+      .from(schema.tasks)
+      .where(eq(schema.tasks.id, id));
+    return row;
+  },
+
+  async list(filter: TaskListFilter = {}): Promise<Task[]> {
+    const conditions: SQL[] = [];
+    if (filter.ownerId) conditions.push(eq(schema.tasks.ownerId, filter.ownerId));
+    if (filter.assigneeId) conditions.push(eq(schema.tasks.assigneeId, filter.assigneeId));
+    if (filter.groupId) conditions.push(eq(schema.tasks.groupId, filter.groupId));
+    if (filter.status) conditions.push(eq(schema.tasks.status, filter.status));
+    if (filter.pluginId) conditions.push(eq(schema.tasks.pluginId, filter.pluginId));
+    if (filter.dueBefore) conditions.push(lte(schema.tasks.deadline, filter.dueBefore));
+
+    const query = db.select().from(schema.tasks);
+    const rows = conditions.length
+      ? await query.where(and(...conditions)).orderBy(desc(schema.tasks.createdAt))
+      : await query.orderBy(desc(schema.tasks.createdAt));
+    return rows;
+  },
+
+  async create(data: NewTask): Promise<void> {
+    await db.insert(schema.tasks).values(data);
+  },
+
+  async update(id: string, data: Partial<Omit<NewTask, "id">>): Promise<void> {
+    await db
+      .update(schema.tasks)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(schema.tasks.id, id));
+  },
+
+  async deleteById(id: string): Promise<void> {
+    await db.delete(schema.tasks).where(eq(schema.tasks.id, id));
   },
 };
