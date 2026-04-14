@@ -5,7 +5,8 @@
  */
 
 import { holidayRepo, groupEventRepo } from "../../src/db/repository.js";
-import { isNonBusinessDay, getJapaneseHolidays } from "./japanese-holidays.js";
+// japanese-holidays は @ludiars/schedula-module-holiday から取得
+import { isNonBusinessDay, getJapaneseHolidays } from "@ludiars/schedula-module-holiday";
 
 export interface SchedulingOptions {
   /** 休日を考慮するか (default: true) */

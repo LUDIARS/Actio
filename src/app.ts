@@ -13,7 +13,7 @@ import { smartScheduler } from "../modules/smart-scheduler/routes.js";
 import { schoolModule } from "../modules/school/index.js";
 import { pmModule } from "../modules/pm/index.js";
 import { m1 } from "../modules/schedule/routes.js";
-import { holidayRoutes } from "../modules/holiday/routes.js";
+// holidayRoutes は @ludiars/schedula-module-holiday に移行
 import { reminderRoutes } from "../modules/reminder/routes.js";
 import { alexaRoutes } from "../modules/reminder/extensions/alexa/routes.js";
 import { integrations } from "../modules/integrations/index.js";
@@ -35,6 +35,7 @@ import { moduleAdminRoutes } from "./plugins/admin-routes.js";
 import { installModule } from "./plugins/loader.js";
 import exampleModule from "../modules-ext/example/server.js";
 import votingModule from "@ludiars/schedula-module-voting";
+import holidayModule from "@ludiars/schedula-module-holiday";
 
 export function createApp() {
   const app = new Hono();
@@ -117,8 +118,7 @@ export function createApp() {
 
   // ─── Module: Voting ─ SDK-based (installModule 経由で /api/voting 登録) ──
 
-  // ─── Module: Holidays (休日管理) ──────────────────────────────
-  app.route("/api/holidays", holidayRoutes);
+  // ─── Module: Holidays — SDK module 経由 (installModule で /api/holidays 登録) ──
 
   // ─── Core: Reminders (リマインダー) ──────────────────────────
   app.route("/api/reminders", reminderRoutes);
@@ -146,6 +146,10 @@ export function createApp() {
   });
   installModule(app, votingModule, {
     packageName: "schedula-voting-module",
+    packageVersion: "0.1.0",
+  });
+  installModule(app, holidayModule, {
+    packageName: "@ludiars/schedula-module-holiday",
     packageVersion: "0.1.0",
   });
 
