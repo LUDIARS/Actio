@@ -34,7 +34,7 @@ import { rateLimit } from "./middleware/rate-limit.js";
 import { moduleAdminRoutes } from "./plugins/admin-routes.js";
 import { installModule } from "./plugins/loader.js";
 import exampleModule from "../modules-ext/example/server.js";
-import votingModule from "../modules-ext/voting/server.js";
+import votingModule from "@ludiars/schedula-module-voting";
 
 export function createApp() {
   const app = new Hono();
