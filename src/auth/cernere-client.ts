@@ -270,3 +270,57 @@ export async function compositeRegister(name: string, email: string, password: s
 export async function compositeMfaVerify(mfaToken: string, method: string, code: string): Promise<CompositeAuthResponse> {
   return cernereClient.request("auth", "mfa-verify", { mfaToken, method, code }) as Promise<CompositeAuthResponse>;
 }
+
+// ── managed_project ユーザーデータ API (Module SDK の ctx.userData で使用) ──
+
+/**
+ * Cernere project_data_{projectKey} から指定カラムを取得。
+ * columns 未指定なら全カラム。未接続時は空オブジェクトを返す (フォールバック)。
+ */
+export async function getProjectUserColumns(
+  userId: string,
+  columns?: string[],
+): Promise<Record<string, unknown>> {
+  try {
+    return await cernereClient.request("managed_project", "get_user_data", {
+      userId,
+      ...(columns ? { columns } : {}),
+    }) as Record<string, unknown>;
+  } catch (err) {
+    console.warn("[cernere-client] get_user_data failed, returning empty:", err);
+    return {};
+  }
+}
+
+/** Cernere project_data_{projectKey} に部分 upsert */
+export async function setProjectUserData(
+  userId: string,
+  data: Record<string, unknown>,
+): Promise<{ ok: true; updated: string[] }> {
+  return cernereClient.request("managed_project", "set_user_data", {
+    userId,
+    data,
+  }) as Promise<{ ok: true; updated: string[] }>;
+}
+
+/** Cernere project_data_{projectKey} の指定カラムを NULL 化 */
+export async function deleteProjectUserColumns(
+  userId: string,
+  columns: string[],
+): Promise<{ ok: true; deleted: string[] }> {
+  return cernereClient.request("managed_project", "delete_user_data", {
+    userId,
+    columns,
+  }) as Promise<{ ok: true; deleted: string[] }>;
+}
+
+/** Cernere project schema を更新 (manifest の userData カラム反映に使用) */
+export async function updateProjectSchema(
+  definition: Record<string, unknown>,
+): Promise<{ message: string; key: string; columnsAdded: string[] }> {
+  return cernereClient.request("managed_project", "update_schema", definition) as Promise<{
+    message: string;
+    key: string;
+    columnsAdded: string[];
+  }>;
+}

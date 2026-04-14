@@ -149,6 +149,12 @@ export function createApp() {
     packageVersion: "0.1.0",
   });
 
+  // Cernere に userData カラムを同期 (fire-and-forget、CERNERE_URL 未設定なら no-op)
+  void (async () => {
+    const { syncProjectSchemaToCernere } = await import("./plugins/schema-sync.js");
+    await syncProjectSchemaToCernere();
+  })();
+
   // ─── Legacy Compatibility ───────────────────────────────────
   app.route("/api/m1", m1);
   app.route("/api/m5", notification);

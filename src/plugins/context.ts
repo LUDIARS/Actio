@@ -18,8 +18,20 @@ import type {
 } from "@ludiars/schedula-sdk";
 import { db } from "../db/connection.js";
 import { getUserInfo, getUserInfos } from "../auth/user-info.js";
+import {
+  getProjectUserColumns,
+  setProjectUserData,
+  deleteProjectUserColumns,
+} from "../auth/cernere-client.js";
 import { secretManager } from "../config/secrets.js";
 import { logActivity } from "../activity-logger.js";
+
+/** manifest の userData キーから Cernere のカラム名を合成 (module: prefix) */
+function columnKey(moduleId: string, key: string): string {
+  // SDK 側の defineModule() で lowerCamel の key を使うが Cernere は snake_case 前提。
+  const snake = key.replace(/([a-z])([A-Z])/g, "$1_$2").toLowerCase();
+  return `${moduleId}:${snake}`;
+}
 
 export function buildModuleContext(moduleId: string): ModuleContext {
   const users: UserIdentityApi = {
@@ -32,21 +44,21 @@ export function buildModuleContext(moduleId: string): ModuleContext {
     },
   };
 
-  // Phase 1: userData は Cernere に project_schema API がまだ無いため
-  // プレースホルダ実装。Phase 2 で Cernere 側 API を追加後に本実装。
+  // userData: Cernere project_data_{schedula} を proxy する。
+  // カラム名は `${moduleId}:${snake_case(key)}` 形式で衝突回避。
   const userData: UserDataApi = {
-    async get() {
-      return null;
+    async get<T = unknown>(userId: string, key: string): Promise<T | null> {
+      const col = columnKey(moduleId, key);
+      const cols = await getProjectUserColumns(userId, [col]);
+      return (cols[col] as T | undefined) ?? null;
     },
-    async set() {
-      throw new Error(
-        "[schedula] userData.set() not implemented yet (Phase 2: pending Cernere API)",
-      );
+    async set(userId, key, value) {
+      const col = columnKey(moduleId, key);
+      await setProjectUserData(userId, { [col]: value });
     },
-    async delete() {
-      throw new Error(
-        "[schedula] userData.delete() not implemented yet (Phase 2)",
-      );
+    async delete(userId, key) {
+      const col = columnKey(moduleId, key);
+      await deleteProjectUserColumns(userId, [col]);
     },
   };
 
