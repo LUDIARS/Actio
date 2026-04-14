@@ -11,6 +11,51 @@
 
 バックエンドの JWT 検証は `@ludiars/cernere-id-cache` が担当する。
 
+## 個人データの保管禁止
+
+**Schedula DB に個人データ (name, email, role, 認証トークン等) を保管してはいけません。**
+Cernere を単一情報源 (single source of truth) とし、Schedula 側は `id` を FK
+アンカーとしてのみ保持する。
+
+### なぜ？
+
+- Cernere はユーザーデータの opt-out をサポートする方針。各サービスが
+  個人データを持つと opt-out 時の整合性が取れない
+- 個人情報は単一情報源 (Cernere) に集約することで GDPR 等への対応が容易
+- 認証関連トークン (JWT, OAuth refresh token 等) も Cernere が責任を持つ
+
+### やること
+
+1. ユーザー情報の取得は `src/auth/user-info.ts` の `getUserInfo(userId)` /
+   `getUserInfos(userIds)` を使用する (Redis cache + Cernere fetch)
+2. 新規スキーマ追加時、ユーザー個人データ用カラムを作らない
+3. 既存 legacy カラム (`users.name` / `email` / `role` / `password_hash` /
+   `google_*` / `last_login_at`) は **読み書き禁止**。残置されているのは
+   AIFormat の `DROP COLUMN 禁止` ルールのため
+4. `userRepo.findById(id)` は FK 存在確認用途のみに使用 (個人データの
+   取得には使わない)
+5. Cernere 未接続時は `getUserInfo` がプレースホルダ
+   (`user-${id.slice(0,8)}` / `${id}@unknown.local`) を返す。UI 劣化を許容
+
+### 例
+
+```typescript
+// ✅ 正しい: Cernere から取得 (cache 経由)
+import { getUserInfo } from "../auth/user-info.js";
+const user = await getUserInfo(userId);
+logActivity(userId, user.name, "アクション", "...");
+
+// ❌ 間違い: DB から個人データを読む
+const user = await userRepo.findById(userId);
+logActivity(userId, user.name, "アクション", "...");  // user.name は legacy
+```
+
+### Schedula 固有フィールドは保持OK
+
+`major` (学科)、`calendar_access_id` (Calendar 連携 nonce) など Schedula
+ドメインに密接で Cernere に存在しないフィールドは引き続き Schedula DB
+に保存してよい。
+
 ## 環境変数・シークレット管理
 
 `@ludiars/cernere-env-cli` + Infisical で管理する。

@@ -14,24 +14,14 @@ import { drizzle } from "drizzle-orm/mysql2";
 import mysql from "mysql2/promise";
 import { secretManager } from "../../config/secrets.js";
 
-// ─── Users ───────────────────────────────────────────────────
+// ─── Users (FK アンカー + Schedula 固有のみ) ─────────────────
+// 個人データ (name/email/role/auth) は Cernere で管理。
+// AIFormat ルール (DROP COLUMN 禁止) のため legacy カラムは残置するが
+// 新規コードからは読み書きしない。NOT NULL は解除。
 
 export const users = mysqlTable("users", {
   id: varchar("id", { length: 255 }).primaryKey(),
-  name: varchar("name", { length: 255 }).notNull(),
-  email: varchar("email", { length: 255 }).notNull().unique(),
-  role: varchar("role", { length: 255 }).notNull().default("general"),
   major: varchar("major", { length: 255 }),
-
-  passwordHash: varchar("password_hash", { length: 255 }),
-
-  googleId: varchar("google_id", { length: 255 }).unique(),
-  googleAccessToken: text("google_access_token"),
-  googleRefreshToken: text("google_refresh_token"),
-  googleTokenExpiresAt: bigint("google_token_expires_at", { mode: "number" }),
-
-  // Google認可スコープ（許可されたパーミッション一覧）
-  googleScopes: json("google_scopes").$type<string[]>(),
 
   calendarAccessId: varchar("calendar_access_id", { length: 255 }),
 
@@ -41,6 +31,17 @@ export const users = mysqlTable("users", {
   updatedAt: timestamp("updated_at")
     .$defaultFn(() => new Date())
     .notNull(),
+
+  // ─── legacy: 個人データは Cernere 側で管理 (AIFormat 個人データ保管禁止ルール) ───
+  name: varchar("name", { length: 255 }),
+  email: varchar("email", { length: 255 }).unique(),
+  role: varchar("role", { length: 255 }).default("general"),
+  passwordHash: varchar("password_hash", { length: 255 }),
+  googleId: varchar("google_id", { length: 255 }).unique(),
+  googleAccessToken: text("google_access_token"),
+  googleRefreshToken: text("google_refresh_token"),
+  googleTokenExpiresAt: bigint("google_token_expires_at", { mode: "number" }),
+  googleScopes: json("google_scopes").$type<string[]>(),
 });
 
 // ─── Sessions ────────────────────────────────────────────────

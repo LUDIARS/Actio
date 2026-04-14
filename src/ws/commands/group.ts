@@ -9,8 +9,8 @@ import {
   groupMemberRepo,
   groupScheduleRepo,
   groupEventRepo,
-  userRepo,
 } from "../../db/repository.js";
+import { getUserInfo } from "../../auth/user-info.js";
 import { logActivity } from "../../activity-logger.js";
 import { broadcastToGroupMembers } from "../broadcast.js";
 
@@ -44,8 +44,8 @@ registerCommand("group", "create", async (userId, payload) => {
     joinedAt: now,
   });
 
-  const user = await userRepo.findById(userId);
-  logActivity(userId, user?.name || "Unknown", "グループ作成", `グループ「${body.name}」が追加されました`);
+  const user = await getUserInfo(userId);
+  logActivity(userId, user.name || "Unknown", "グループ作成", `グループ「${body.name}」が追加されました`);
 
   return { groupId, message: "Group created" };
 });
@@ -74,13 +74,13 @@ registerCommand("group", "join", async (userId, payload) => {
     joinedAt: new Date(),
   });
 
-  const user = await userRepo.findById(userId);
-  logActivity(userId, user?.name || "Unknown", "グループ参加", `グループ「${group.name}」に参加しました`);
+  const user = await getUserInfo(userId);
+  logActivity(userId, user.name || "Unknown", "グループ参加", `グループ「${group.name}」に参加しました`);
 
   await broadcastToGroupMembers(body.groupId, "group.member_joined", {
     groupId: body.groupId,
     userId,
-    userName: user?.name || "Unknown",
+    userName: user.name || "Unknown",
   }, userId);
 
   return { message: "Joined group" };
@@ -98,13 +98,13 @@ registerCommand("group", "leave", async (userId, payload) => {
   await groupMemberRepo.deleteByGroupAndUser(body.groupId, userId);
 
   const group = await groupRepo.findById(body.groupId);
-  const user = await userRepo.findById(userId);
-  logActivity(userId, user?.name || "Unknown", "グループ脱退", `グループ「${group?.name || body.groupId}」から脱退しました`);
+  const user = await getUserInfo(userId);
+  logActivity(userId, user.name || "Unknown", "グループ脱退", `グループ「${group?.name || body.groupId}」から脱退しました`);
 
   await broadcastToGroupMembers(body.groupId, "group.member_left", {
     groupId: body.groupId,
     userId,
-    userName: user?.name || "Unknown",
+    userName: user.name || "Unknown",
   }, userId);
 
   return { message: "Left group" };
@@ -132,8 +132,7 @@ registerCommand("group", "invite", async (userId, payload) => {
     throw new Error("グループリーダーまたは管理者のみ招待できます");
   }
 
-  const targetUser = await userRepo.findById(body.targetUserId);
-  if (!targetUser) throw new Error("User not found");
+  const targetUser = await getUserInfo(body.targetUserId);
 
   const existing = await groupMemberRepo.findByGroupAndUser(body.groupId, body.targetUserId);
   if (existing) throw new Error("既にグループのメンバーです");
@@ -146,14 +145,14 @@ registerCommand("group", "invite", async (userId, payload) => {
     joinedAt: new Date(),
   });
 
-  const inviter = await userRepo.findById(userId);
-  logActivity(userId, inviter?.name || "Unknown", "グループ招待", `「${targetUser.name}」をグループ「${group.name}」に招待しました`);
+  const inviter = await getUserInfo(userId);
+  logActivity(userId, inviter.name || "Unknown", "グループ招待", `「${targetUser.name}」をグループ「${group.name}」に招待しました`);
 
   await broadcastToGroupMembers(body.groupId, "group.member_invited", {
     groupId: body.groupId,
     invitedUserId: body.targetUserId,
     invitedUserName: targetUser.name,
-    invitedBy: inviter?.name || "Unknown",
+    invitedBy: inviter.name || "Unknown",
   }, userId);
 
   return { message: `${targetUser.name} をグループに招待しました` };
@@ -196,9 +195,9 @@ registerCommand("group", "update_member_role", async (userId, payload) => {
 
   await groupMemberRepo.updateRole(body.groupId, body.targetUserId, body.role);
 
-  const targetUser = await userRepo.findById(body.targetUserId);
-  const actor = await userRepo.findById(userId);
-  logActivity(userId, actor?.name || "Unknown", "ロール変更", `「${targetUser?.name || body.targetUserId}」のロールを「${body.role}」に変更しました（グループ: ${group.name}）`);
+  const targetUser = await getUserInfo(body.targetUserId);
+  const actor = await getUserInfo(userId);
+  logActivity(userId, actor.name || "Unknown", "ロール変更", `「${targetUser.name || body.targetUserId}」のロールを「${body.role}」に変更しました（グループ: ${group.name}）`);
 
   return { message: `ロールを ${body.role} に変更しました` };
 });
@@ -245,13 +244,13 @@ registerCommand("group", "create_schedule", async (userId, payload) => {
 
   const created = await groupScheduleRepo.findById(id);
 
-  const user = await userRepo.findById(userId);
-  logActivity(userId, user?.name || "Unknown", "グループ予定追加", `グループ予定「${body.title}」が追加されました`);
+  const user = await getUserInfo(userId);
+  logActivity(userId, user.name || "Unknown", "グループ予定追加", `グループ予定「${body.title}」が追加されました`);
 
   await broadcastToGroupMembers(body.groupId, "group.schedule_created", {
     groupId: body.groupId,
     schedule: created,
-    createdBy: user?.name || "Unknown",
+    createdBy: user.name || "Unknown",
   }, userId);
 
   return { schedule: created };
@@ -299,13 +298,13 @@ registerCommand("group", "create_event", async (userId, payload) => {
 
   const created = await groupEventRepo.findById(id);
 
-  const user = await userRepo.findById(userId);
-  logActivity(userId, user?.name || "Unknown", "グループ予定追加", `グループ個別予定「${body.title}」が追加されました`);
+  const user = await getUserInfo(userId);
+  logActivity(userId, user.name || "Unknown", "グループ予定追加", `グループ個別予定「${body.title}」が追加されました`);
 
   await broadcastToGroupMembers(body.groupId, "group.event_created", {
     groupId: body.groupId,
     event: created,
-    createdBy: user?.name || "Unknown",
+    createdBy: user.name || "Unknown",
   }, userId);
 
   return { event: created };
@@ -422,8 +421,8 @@ registerCommand("group", "update_modules", async (userId, payload) => {
 
   await groupRepo.updateEnabledModules(body.groupId, body.enabledModules);
 
-  const user = await userRepo.findById(userId);
-  logActivity(userId, user?.name || "Unknown", "モジュール設定変更", `グループ ${body.groupId} の使用モジュールを更新: ${body.enabledModules.join(", ")}`);
+  const user = await getUserInfo(userId);
+  logActivity(userId, user.name || "Unknown", "モジュール設定変更", `グループ ${body.groupId} の使用モジュールを更新: ${body.enabledModules.join(", ")}`);
 
   return { enabledModules: body.enabledModules };
 });

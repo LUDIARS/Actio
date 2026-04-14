@@ -1,31 +1,34 @@
 import { sqliteTable, text, integer, unique, index } from "drizzle-orm/sqlite-core";
 
-// ─── Users (認証 + カレンダーアクセス) ──────────────────────
-// メインDBのユーザテーブル: パスワード認証 / Google OAuth両対応
+// ─── Users (FK アンカー + Schedula 固有フィールド) ──────────
+// 個人データ (name, email, role, password, OAuth トークン等) は
+// Schedula DB に保管しない。Cernere を単一情報源とする。
+// このテーブルは FK ターゲットおよび Schedula 固有メタデータ
+// (academic major, calendar access ID 等) のみを保持する。
+//
+// 旧フィールド (name, email, role, passwordHash, google_*, lastLoginAt) は
+// AIFormat ルール (DROP COLUMN 禁止) により残置するが、新規コードからは
+// 一切読み書きしない。Drizzle スキーマ上は nullable に変更し、
+// 既存レコード/データは保全する。
 
 export const users = sqliteTable("users", {
   id: text("id").primaryKey(),
-  name: text("name").notNull(),
-  email: text("email").notNull().unique(),
-  role: text("role").notNull().default("general"),
   major: text("major"),
 
-  // パスワード認証用 (bcryptハッシュ)
-  passwordHash: text("password_hash"),
+  // Schedula 固有: カレンダーアクセス ID (Google Calendar 連携用 nonce)
+  calendarAccessId: text("calendar_access_id"),
 
-  // Google OAuth用
+  // ─── 以下は legacy: 個人データは Cernere 側で管理 (AIFormat 個人データ保管禁止ルール) ───
+  // 新規コードから読み書きしない。スキーマ上は残置。
+  name: text("name"),
+  email: text("email").unique(),
+  role: text("role").default("general"),
+  passwordHash: text("password_hash"),
   googleId: text("google_id").unique(),
   googleAccessToken: text("google_access_token"),
   googleRefreshToken: text("google_refresh_token"),
   googleTokenExpiresAt: integer("google_token_expires_at"),
-
-  // Google認可スコープ（許可されたパーミッション一覧）
   googleScopes: text("google_scopes", { mode: "json" }).$type<string[]>(),
-
-  // Google Calendar連携用
-  calendarAccessId: text("calendar_access_id"),
-
-  // 最終ログイン日時
   lastLoginAt: integer("last_login_at", { mode: "timestamp" }),
 
   createdAt: integer("created_at", { mode: "timestamp" })

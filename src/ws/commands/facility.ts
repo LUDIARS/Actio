@@ -7,11 +7,11 @@ import { registerCommand } from "../dispatcher.js";
 import {
   reservationRepo,
   scheduleEntryExtRepo,
-  userRepo,
   roomRepo,
   personalEventRepo,
   groupMemberRepo,
 } from "../../db/repository.js";
+import { getUserInfo } from "../../auth/user-info.js";
 import { getPeriodTime, EVENT_NAMES } from "../../shared/constants.js";
 import { logActivity } from "../../activity-logger.js";
 import { emitEvent } from "../../../modules/notification/core/handler.js";
@@ -104,8 +104,8 @@ registerCommand("facility", "create_reservation", async (userId, payload) => {
     calendarEventId,
   });
 
-  const user = await userRepo.findById(userId);
-  logActivity(userId, user?.name || "Unknown", "施設予約作成", `予約「${body.title}」が追加されました（教室: ${roomName}）`);
+  const user = await getUserInfo(userId);
+  logActivity(userId, user.name || "Unknown", "施設予約作成", `予約「${body.title}」が追加されました（教室: ${roomName}）`);
 
   await emitEvent(EVENT_NAMES.RESERVATION_CREATED, {
     title: body.title,
@@ -195,8 +195,8 @@ registerCommand("facility", "update_reservation", async (userId, payload) => {
     });
   }
 
-  const user = await userRepo.findById(userId);
-  logActivity(userId, user?.name || "Unknown", "施設予約更新", `予約「${updated?.title || body.id}」が更新されました`);
+  const user = await getUserInfo(userId);
+  logActivity(userId, user.name || "Unknown", "施設予約更新", `予約「${updated?.title || body.id}」が更新されました`);
 
   const room = await roomRepo.findById(newRoomId);
   const roomName = room?.name || newRoomId;

@@ -119,12 +119,13 @@ m6.get("/events/:eventId", async (c) => {
     responses[vote.userId][vote.candidateId] = vote;
   }
 
-  // ユーザー名を取得
+  // ユーザー名を取得 (Cernere 経由・キャッシュ)
   const respondents: Record<string, string> = {};
   if (userIds.size > 0) {
-    const users = await userListRepo.findUserNamesById(Array.from(userIds));
-    for (const u of users) {
-      respondents[u.id] = u.name;
+    const { getUserInfos } = await import("../../src/auth/user-info.js");
+    const infoMap = await getUserInfos(Array.from(userIds));
+    for (const [id, info] of infoMap) {
+      respondents[id] = info.name;
     }
   }
 

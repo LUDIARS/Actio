@@ -204,17 +204,21 @@ calendar.get("/status", async (c) => {
   if (!userId) return c.json({ error: "Authentication required" }, 401);
 
   const user = await userRepo.findById(userId);
-
   if (!user) return c.json({ error: "User not found" }, 404);
 
+  // Google OAuth トークンは Cernere 移管済み (legacy フィールド経由のみ参照)
   const scopes: string[] = (user.googleScopes as string[] | null) || [];
   const hasCalendarScope = scopes.some((s: string) =>
     s.includes("calendar.readonly") || s.includes("calendar.events")
   );
 
+  // email は Cernere から取得 (個人データ Cernere 移管済み)
+  const { getUserInfo } = await import("../../src/auth/user-info.js");
+  const info = await getUserInfo(userId);
+
   return c.json({
     connected: !!user.calendarAccessId,
-    email: user.email,
+    email: info.email,
     hasGoogleAuth: !!user.googleId,
     googleScopes: scopes,
     hasCalendarScope,
@@ -227,28 +231,16 @@ calendar.post("/disconnect", async (c) => {
   const userId = getUserId(c);
   if (!userId) return c.json({ error: "Authentication required" }, 401);
 
-  const user = await userRepo.findById(userId);
-
-  if (!user) return c.json({ error: "User not found" }, 404);
-
-  // パスワードが設定されてない場合は切断不可(ログイン手段がなくなる)
-  if (!user.passwordHash) {
-    return c.json({
-      error: "パスワードを設定してからGoogle連携を解除してください",
-    }, 400);
-  }
-
+  // 認証は Cernere 委譲済み - パスワード設定確認は不要
+  // calendarAccessId のみクリア (個人データ Cernere 移管ルール)
   await userRepo.update(userId, {
-    googleId: null,
-    googleAccessToken: null,
-    googleRefreshToken: null,
-    googleTokenExpiresAt: null,
-    googleScopes: null,
     calendarAccessId: null,
     updatedAt: new Date(),
   });
 
-  logActivity(userId, user.name, "Google Calendar連携解除", "Google Calendarの連携が解除されました");
+  const { getUserInfo } = await import("../../src/auth/user-info.js");
+  const info = await getUserInfo(userId);
+  logActivity(userId, info.name, "Google Calendar連携解除", "Google Calendarの連携が解除されました");
 
   return c.json({ message: "Google Calendar disconnected" });
 });

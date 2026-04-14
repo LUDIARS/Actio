@@ -7,8 +7,8 @@ import { registerCommand } from "../dispatcher.js";
 import {
   myPlanRepo,
   personalEventRepo,
-  userRepo,
 } from "../../db/repository.js";
+import { getUserInfo } from "../../auth/user-info.js";
 import { logActivity } from "../../activity-logger.js";
 
 // ── Helper types ──
@@ -135,8 +135,8 @@ registerCommand("myplan", "create", async (userId, payload) => {
 
   const plan = await myPlanRepo.findById(planId);
 
-  const user = await userRepo.findById(userId);
-  logActivity(userId, user?.name || "Unknown", "マイプラン作成", `マイプラン「${body.name}」が追加されました`);
+  const user = await getUserInfo(userId);
+  logActivity(userId, user.name || "Unknown", "マイプラン作成", `マイプラン「${body.name}」が追加されました`);
 
   return { plan, generatedEvents };
 });
@@ -186,8 +186,8 @@ registerCommand("myplan", "update", async (userId, payload) => {
     await personalEventRepo.deleteByUserAndPlan(userId, planId);
   }
 
-  const user = await userRepo.findById(userId);
-  logActivity(userId, user?.name || "Unknown", "マイプラン更新", `マイプラン「${updated?.name || planId}」が更新されました`);
+  const user = await getUserInfo(userId);
+  logActivity(userId, user.name || "Unknown", "マイプラン更新", `マイプラン「${updated?.name || planId}」が更新されました`);
 
   return { plan: updated, generatedEvents };
 });

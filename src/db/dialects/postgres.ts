@@ -13,24 +13,14 @@ import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 import { secretManager } from "../../config/secrets.js";
 
-// ─── Users ───────────────────────────────────────────────────
+// ─── Users (FK アンカー + Schedula 固有のみ) ─────────────────
+// 個人データ (name/email/role/auth) は Cernere で管理。
+// AIFormat ルール (DROP COLUMN 禁止) のため legacy カラムは残置するが
+// 新規コードからは読み書きしない。NOT NULL は解除。
 
 export const users = pgTable("users", {
   id: text("id").primaryKey(),
-  name: text("name").notNull(),
-  email: text("email").notNull().unique(),
-  role: text("role").notNull().default("general"),
   major: text("major"),
-
-  passwordHash: text("password_hash"),
-
-  googleId: text("google_id").unique(),
-  googleAccessToken: text("google_access_token"),
-  googleRefreshToken: text("google_refresh_token"),
-  googleTokenExpiresAt: bigint("google_token_expires_at", { mode: "number" }),
-
-  // Google認可スコープ（許可されたパーミッション一覧）
-  googleScopes: jsonb("google_scopes").$type<string[]>(),
 
   calendarAccessId: text("calendar_access_id"),
 
@@ -40,6 +30,17 @@ export const users = pgTable("users", {
   updatedAt: timestamp("updated_at")
     .$defaultFn(() => new Date())
     .notNull(),
+
+  // ─── legacy: 個人データは Cernere 側で管理 (AIFormat 個人データ保管禁止ルール) ───
+  name: text("name"),
+  email: text("email").unique(),
+  role: text("role").default("general"),
+  passwordHash: text("password_hash"),
+  googleId: text("google_id").unique(),
+  googleAccessToken: text("google_access_token"),
+  googleRefreshToken: text("google_refresh_token"),
+  googleTokenExpiresAt: bigint("google_token_expires_at", { mode: "number" }),
+  googleScopes: jsonb("google_scopes").$type<string[]>(),
   lastLoginAt: timestamp("last_login_at"),
 });
 

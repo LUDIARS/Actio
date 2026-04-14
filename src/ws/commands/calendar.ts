@@ -9,6 +9,7 @@ import {
   personalEventRepo,
   planRepo,
 } from "../../db/repository.js";
+import { getUserInfo } from "../../auth/user-info.js";
 import { logActivity } from "../../activity-logger.js";
 
 // ── Helper: period → 時刻変換 (09:30 + period * 60min) ──
@@ -357,26 +358,18 @@ registerCommand("calendar", "regenerate_plan", async (userId, payload) => {
 });
 
 // ── calendar.disconnect_google ──
+// Google OAuth トークンは Cernere 側で管理する (個人データ保管禁止ルール)。
+// Schedula 側では calendarAccessId のみクリアする。
 
 registerCommand("calendar", "disconnect_google", async (userId) => {
-  const user = await userRepo.findById(userId);
-  if (!user) throw new Error("User not found");
-
-  if (!user.passwordHash) {
-    throw new Error("パスワードを設定してからGoogle連携を解除してください");
-  }
+  const info = await getUserInfo(userId);
 
   await userRepo.update(userId, {
-    googleId: null,
-    googleAccessToken: null,
-    googleRefreshToken: null,
-    googleTokenExpiresAt: null,
-    googleScopes: null,
     calendarAccessId: null,
     updatedAt: new Date(),
   });
 
-  logActivity(userId, user.name, "Google Calendar連携解除", "Google Calendarの連携が解除されました");
+  logActivity(userId, info.name, "Google Calendar連携解除", "Google Calendarの連携が解除されました");
 
   return { message: "Google Calendar disconnected" };
 });

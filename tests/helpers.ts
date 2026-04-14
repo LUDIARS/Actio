@@ -17,20 +17,21 @@ export function initTestDatabase() {
   sqlite.exec(`
     CREATE TABLE IF NOT EXISTS users (
       id TEXT PRIMARY KEY,
-      name TEXT NOT NULL,
-      email TEXT NOT NULL UNIQUE,
-      role TEXT NOT NULL DEFAULT 'general',
       major TEXT,
+      calendar_access_id TEXT,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL,
+      -- legacy (Cernere 移管済み): 新規コードから読み書きしない
+      name TEXT,
+      email TEXT UNIQUE,
+      role TEXT DEFAULT 'general',
       password_hash TEXT,
       google_id TEXT UNIQUE,
       google_access_token TEXT,
       google_refresh_token TEXT,
       google_token_expires_at INTEGER,
       google_scopes TEXT,
-      calendar_access_id TEXT,
-      last_login_at INTEGER,
-      created_at INTEGER NOT NULL,
-      updated_at INTEGER NOT NULL
+      last_login_at INTEGER
     );
 
     CREATE TABLE IF NOT EXISTS sessions (
