@@ -22,7 +22,6 @@ import { dbViewer } from "./admin/db-viewer.js";
 import { externalApi } from "../modules/external-api/routes.js";
 import { settingsRoutes } from "../modules/settings/routes.js";
 import { secretsRoutes } from "../modules/secrets/routes.js";
-import { initNotificationHandler } from "../modules/notification/core/handler.js";
 import { DAY_LABELS, getPeriodTime, PERIODS_COUNT } from "./shared/constants.js";
 import type { SchulaModule } from "./shared/types.js";
 import { getRecentLogs } from "./activity-logger.js";
@@ -282,8 +281,8 @@ export function createApp() {
   // 後方互換: 既存の /api/health もそのまま残す (中身は readiness)
   app.get("/api/health", readinessHandler);
 
-  // ─── Initialize Notification Handler ────────────────────────
-  initNotificationHandler();
+  // ─── Notification 配信は Nuntius に完全移行済み ──────────────
+  // 旧 initNotificationHandler はローカル EventBus 購読用だったが廃止。
 
   return { app, injectWebSocket };
 }

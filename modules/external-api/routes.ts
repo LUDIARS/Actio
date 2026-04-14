@@ -21,6 +21,7 @@ import {
 } from "../../src/db/repository.js";
 import { randomUUID } from "crypto";
 import { apiDocumentation } from "./docs.js";
+import { nuntiusClient } from "../../src/lib/nuntius-client.js";
 
 const externalApi = new Hono();
 
@@ -327,11 +328,12 @@ remindersApi.get("/reminders", async (c) => {
   return c.json({ reminders: items });
 });
 
-// ─── POST /reminders - リマインダー作成 ─────────────────────────
+// ─── POST /reminders - リマインダー作成 (Nuntius) ──────────────
 
 remindersApi.post("/reminders", async (c) => {
   const userId = getUserId(c);
   if (!userId) return c.json({ error: "Authentication required" }, 401);
+  if (!nuntiusClient.isConfigured()) return c.json({ error: "Nuntius is not configured" }, 503);
 
   const body = await c.req.json<{
     title: string;
@@ -355,86 +357,59 @@ remindersApi.post("/reminders", async (c) => {
     return c.json({ error: `repeatRule must be one of: ${validRules.join(", ")}` }, 400);
   }
 
-  const reminder = await reminderRepo.create({
-    id: randomUUID(),
+  const id = randomUUID();
+  const result = await nuntiusClient.schedule({
     userId,
-    title: body.title,
-    description: body.description || null,
-    remindAt: remindDate.toISOString(),
-    repeatRule,
-    status: "pending",
-    source: "api",
+    channel: "webhook",
+    sendAt: remindDate.toISOString(),
+    payload: { title: body.title, description: body.description ?? "" },
+    source: "schedula.reminder.external",
+    idempotencyKey: id,
+    recurrenceRule: repeatRule === "none" ? undefined : repeatRule,
   });
 
-  return c.json({ reminder }, 201);
+  return c.json({
+    reminder: {
+      id: result.id,
+      userId,
+      title: body.title,
+      description: body.description ?? null,
+      remindAt: remindDate.toISOString(),
+      repeatRule,
+      status: result.status,
+      source: "api",
+    },
+  }, 201);
 });
 
-// ─── PUT /reminders/:id - リマインダー更新 ──────────────────────
+// ─── PUT /reminders/:id - 廃止 ──────────────────────────────────
 
-remindersApi.put("/reminders/:id", async (c) => {
-  const userId = getUserId(c);
-  if (!userId) return c.json({ error: "Authentication required" }, 401);
-
-  const id = c.req.param("id");
-  const existing = await reminderRepo.findById(id);
-  if (!existing) return c.json({ error: "Reminder not found" }, 404);
-  if (existing.userId !== userId) return c.json({ error: "Forbidden" }, 403);
-
-  const body = await c.req.json<{
-    title?: string;
-    description?: string;
-    remindAt?: string;
-    repeatRule?: string;
-    status?: string;
-  }>();
-
-  const updates: Record<string, unknown> = {};
-  if (body.title !== undefined) updates.title = body.title;
-  if (body.description !== undefined) updates.description = body.description;
-  if (body.remindAt !== undefined) {
-    const d = new Date(body.remindAt);
-    if (isNaN(d.getTime())) return c.json({ error: "remindAt is not valid" }, 400);
-    updates.remindAt = d.toISOString();
-  }
-  if (body.repeatRule !== undefined) updates.repeatRule = body.repeatRule;
-  if (body.status !== undefined) {
-    const valid = ["pending", "done", "cancelled"];
-    if (!valid.includes(body.status)) return c.json({ error: `status must be: ${valid.join(", ")}` }, 400);
-    updates.status = body.status;
-  }
-
-  const updated = await reminderRepo.update(id, updates);
-  return c.json({ reminder: updated });
+remindersApi.put("/reminders/:id", (c) => {
+  return c.json({ error: "Reminder update is no longer supported. Cancel and reschedule via Nuntius instead." }, 501);
 });
 
-// ─── DELETE /reminders/:id - リマインダー削除 ───────────────────
+// ─── DELETE /reminders/:id - Nuntius cancel ─────────────────────
 
 remindersApi.delete("/reminders/:id", async (c) => {
   const userId = getUserId(c);
   if (!userId) return c.json({ error: "Authentication required" }, 401);
+  if (!nuntiusClient.isConfigured()) return c.json({ error: "Nuntius is not configured" }, 503);
 
   const id = c.req.param("id");
-  const existing = await reminderRepo.findById(id);
-  if (!existing) return c.json({ error: "Reminder not found" }, 404);
-  if (existing.userId !== userId) return c.json({ error: "Forbidden" }, 403);
-
-  await reminderRepo.deleteById(id);
-  return c.json({ deleted: id });
+  try {
+    const result = await nuntiusClient.cancel(id);
+    return c.json({ deleted: result.id, status: result.status });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (msg.includes("404")) return c.json({ error: "Reminder not found" }, 404);
+    throw err;
+  }
 });
 
-// ─── PATCH /reminders/:id/done - リマインダー完了 ───────────────
+// ─── PATCH /reminders/:id/done - 廃止 ────────────────────────────
 
-remindersApi.patch("/reminders/:id/done", async (c) => {
-  const userId = getUserId(c);
-  if (!userId) return c.json({ error: "Authentication required" }, 401);
-
-  const id = c.req.param("id");
-  const existing = await reminderRepo.findById(id);
-  if (!existing) return c.json({ error: "Reminder not found" }, 404);
-  if (existing.userId !== userId) return c.json({ error: "Forbidden" }, 403);
-
-  const updated = await reminderRepo.update(id, { status: "done" });
-  return c.json({ reminder: updated });
+remindersApi.patch("/reminders/:id/done", (c) => {
+  return c.json({ error: "Manual completion is no longer supported. Nuntius marks status automatically on dispatch." }, 501);
 });
 
 // ═══════════════════════════════════════════════════════════════
