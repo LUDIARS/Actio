@@ -6,6 +6,11 @@ set -euo pipefail
 
 cd "$(git rev-parse --show-toplevel)"
 
+echo "=== [0/4] Build SDK (packages/sdk) ==="
+# npm が packages/sdk をローカルリンクで解決するため、dist/ を事前ビルドする必要あり。
+# CI では clone 直後 dist/ が存在しないので tsc が @ludiars/schedula-sdk の型を解決できない。
+(cd packages/sdk && npx tsc)
+
 echo "=== [1/4] Backend type check (npm run build) ==="
 npm run build
 
