@@ -42,7 +42,6 @@ export function ReminderPage() {
   const [showCreate, setShowCreate] = useState(false);
   const [inputMode, setInputMode] = useState<InputMode>("form");
   const [statusFilter, setStatusFilter] = useState<string>("");
-  const [editingId, setEditingId] = useState<string | null>(null);
 
   // Form mode fields
   const [form, setForm] = useState({
@@ -54,14 +53,6 @@ export function ReminderPage() {
 
   // Text mode field
   const [freeText, setFreeText] = useState("");
-
-  // Edit form
-  const [editForm, setEditForm] = useState({
-    title: "",
-    description: "",
-    remindAt: "",
-    repeatRule: "none",
-  });
 
   const showMsg = (msg: string) => {
     setMessage(msg);
@@ -134,18 +125,6 @@ export function ReminderPage() {
     }
   };
 
-  // ─── Mark Done ─────────────────────────────────────────────
-  const handleDone = async (id: string) => {
-    try {
-      await reminderApi.markDone(id);
-      showMsg("完了にしました");
-      await fetchReminders();
-    } catch (e: unknown) {
-      const err = e as Error;
-      showMsg(`Error: ${err.message}`);
-    }
-  };
-
   // ─── Delete ────────────────────────────────────────────────
   const handleDelete = async (id: string) => {
     if (!confirm("このリマインダーを削除しますか？")) return;
@@ -156,38 +135,6 @@ export function ReminderPage() {
     } catch (e: unknown) {
       const err = e as Error;
       showMsg(`Error: ${err.message}`);
-    }
-  };
-
-  // ─── Edit ──────────────────────────────────────────────────
-  const startEdit = (r: ReminderItem) => {
-    setEditingId(r.id);
-    setEditForm({
-      title: r.title,
-      description: r.description || "",
-      remindAt: r.remindAt.slice(0, 16), // datetime-local format
-      repeatRule: r.repeatRule,
-    });
-  };
-
-  const handleUpdate = async () => {
-    if (!editingId) return;
-    try {
-      setLoading(true);
-      await reminderApi.update(editingId, {
-        title: editForm.title.trim(),
-        description: editForm.description.trim() || undefined,
-        remindAt: new Date(editForm.remindAt).toISOString(),
-        repeatRule: editForm.repeatRule,
-      });
-      setEditingId(null);
-      showMsg("更新しました");
-      await fetchReminders();
-    } catch (e: unknown) {
-      const err = e as Error;
-      showMsg(`Error: ${err.message}`);
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -425,99 +372,8 @@ export function ReminderPage() {
                 opacity: r.status === "done" || r.status === "cancelled" ? 0.6 : 1,
               }}
             >
-              {editingId === r.id ? (
-                /* Edit mode */
-                <div style={{ display: "flex", flexDirection: "column", gap: "0.4rem" }}>
-                  <input
-                    type="text"
-                    value={editForm.title}
-                    onChange={(e) => setEditForm({ ...editForm, title: e.target.value })}
-                    style={{
-                      padding: "0.3rem 0.5rem",
-                      background: "var(--bg-surface-2)",
-                      border: "1px solid var(--border)",
-                      borderRadius: "var(--radius-sm)",
-                      color: "var(--text)",
-                      fontSize: "0.85rem",
-                    }}
-                  />
-                  <input
-                    type="text"
-                    placeholder="説明"
-                    value={editForm.description}
-                    onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
-                    style={{
-                      padding: "0.3rem 0.5rem",
-                      background: "var(--bg-surface-2)",
-                      border: "1px solid var(--border)",
-                      borderRadius: "var(--radius-sm)",
-                      color: "var(--text)",
-                      fontSize: "0.85rem",
-                    }}
-                  />
-                  <input
-                    type="datetime-local"
-                    value={editForm.remindAt}
-                    onChange={(e) => setEditForm({ ...editForm, remindAt: e.target.value })}
-                    style={{
-                      padding: "0.3rem 0.5rem",
-                      background: "var(--bg-surface-2)",
-                      border: "1px solid var(--border)",
-                      borderRadius: "var(--radius-sm)",
-                      color: "var(--text)",
-                      fontSize: "0.85rem",
-                    }}
-                  />
-                  <select
-                    value={editForm.repeatRule}
-                    onChange={(e) => setEditForm({ ...editForm, repeatRule: e.target.value })}
-                    style={{
-                      padding: "0.3rem 0.5rem",
-                      background: "var(--bg-surface-2)",
-                      border: "1px solid var(--border)",
-                      borderRadius: "var(--radius-sm)",
-                      color: "var(--text)",
-                      fontSize: "0.85rem",
-                    }}
-                  >
-                    {Object.entries(REPEAT_LABELS).map(([k, v]) => (
-                      <option key={k} value={k}>{v}</option>
-                    ))}
-                  </select>
-                  <div style={{ display: "flex", gap: "0.3rem" }}>
-                    <button
-                      onClick={handleUpdate}
-                      disabled={loading}
-                      style={{
-                        padding: "0.25rem 0.6rem",
-                        background: "var(--accent)",
-                        color: "#000",
-                        border: "none",
-                        borderRadius: "var(--radius-sm)",
-                        cursor: "pointer",
-                        fontSize: "0.8rem",
-                      }}
-                    >
-                      保存
-                    </button>
-                    <button
-                      onClick={() => setEditingId(null)}
-                      style={{
-                        padding: "0.25rem 0.6rem",
-                        background: "var(--bg-surface-2)",
-                        color: "var(--text-muted)",
-                        border: "1px solid var(--border)",
-                        borderRadius: "var(--radius-sm)",
-                        cursor: "pointer",
-                        fontSize: "0.8rem",
-                      }}
-                    >
-                      キャンセル
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                /* Display mode */
+              {(
+                /* Display mode (Nuntius 委譲につき編集はキャンセル+再作成で対応) */
                 <>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
                     <div style={{ flex: 1 }}>
@@ -571,41 +427,9 @@ export function ReminderPage() {
                       )}
                     </div>
                     <div style={{ display: "flex", gap: "0.3rem", flexShrink: 0, marginLeft: "0.5rem" }}>
-                      {r.status === "pending" && (
-                        <button
-                          onClick={() => handleDone(r.id)}
-                          title="完了にする"
-                          style={{
-                            padding: "0.2rem 0.5rem",
-                            background: "rgba(63,185,80,0.15)",
-                            color: "var(--green)",
-                            border: "1px solid var(--green)",
-                            borderRadius: "var(--radius-sm)",
-                            cursor: "pointer",
-                            fontSize: "0.75rem",
-                          }}
-                        >
-                          完了
-                        </button>
-                      )}
-                      <button
-                        onClick={() => startEdit(r)}
-                        title="編集"
-                        style={{
-                          padding: "0.2rem 0.5rem",
-                          background: "var(--bg-surface-2)",
-                          color: "var(--text-muted)",
-                          border: "1px solid var(--border)",
-                          borderRadius: "var(--radius-sm)",
-                          cursor: "pointer",
-                          fontSize: "0.75rem",
-                        }}
-                      >
-                        編集
-                      </button>
                       <button
                         onClick={() => handleDelete(r.id)}
-                        title="削除"
+                        title="キャンセル (Nuntius 配信停止)"
                         style={{
                           padding: "0.2rem 0.5rem",
                           background: "rgba(248,81,73,0.1)",

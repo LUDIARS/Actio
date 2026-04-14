@@ -14,11 +14,11 @@
 
 import { Hono } from "hono";
 import { randomUUID } from "crypto";
-import { reminderRepo } from "../../../../src/db/repository.js";
 import { userRepo } from "../../../../src/db/repository.js";
 import { parseReminderText } from "../../text-parser.js";
 import { appSettingsRepo } from "../../../../src/db/repository.js";
 import { getUserId } from "../../../../src/middleware/getUserId.js";
+import { nuntiusClient } from "../../../../src/lib/nuntius-client.js";
 
 export const alexaRoutes = new Hono();
 
@@ -75,15 +75,21 @@ alexaRoutes.post("/webhook", async (c) => {
 
   const parsed = parseReminderText(body.text.trim());
 
-  const reminder = await reminderRepo.create({
-    id: randomUUID(),
+  if (!nuntiusClient.isConfigured()) {
+    return c.json({ error: "Nuntius is not configured" }, 503);
+  }
+
+  const id = randomUUID();
+  const result = await nuntiusClient.schedule({
     userId: auth.userId,
-    title: parsed.title,
-    remindAt: parsed.remindAt,
-    repeatRule: "none",
-    status: "pending",
-    source: "alexa",
-    originalText: body.text.trim(),
+    channel: "alexa",
+    sendAt: parsed.remindAt,
+    payload: {
+      title: parsed.title,
+      originalText: body.text.trim(),
+    },
+    source: "schedula.reminder.alexa",
+    idempotencyKey: id,
   });
 
   // Alexa 向けレスポンス (音声応答用テキストを含む)
@@ -92,7 +98,16 @@ alexaRoutes.post("/webhook", async (c) => {
   const speechText = `${parsed.title}のリマインダーを${dateStr}に設定しました`;
 
   return c.json({
-    reminder,
+    reminder: {
+      id: result.id,
+      userId: auth.userId,
+      title: parsed.title,
+      remindAt: parsed.remindAt,
+      repeatRule: "none",
+      status: result.status,
+      source: "alexa",
+      originalText: body.text.trim(),
+    },
     parsed: {
       title: parsed.title,
       remindAt: parsed.remindAt,

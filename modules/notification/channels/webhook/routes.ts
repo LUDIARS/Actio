@@ -5,10 +5,6 @@ import {
   webhookEndpointRepo,
   webhookDeliveryLogRepo,
 } from "../../../../src/db/repository.js";
-import { deliverWebhook } from "./delivery.js";
-import { dispatchToPlatform } from "../platform-dispatcher.js";
-import { renderNotificationTemplate } from "../../core/template-engine.js";
-import type { WebhookPayload } from "../../../../src/shared/types.js";
 import { getUserId } from "../../../../src/middleware/getUserId.js";
 import type { NotificationPlatform, SendMethod } from "../../../../src/shared/constants.js";
 
@@ -134,54 +130,12 @@ webhookRoutes.delete("/:id", async (c) => {
   return c.json({ message: "Webhook deleted" });
 });
 
-// ─── POST /webhooks/:id/test ────────────────────────────────
-webhookRoutes.post("/:id/test", async (c) => {
-  const id = c.req.param("id");
-  const webhook = await webhookEndpointRepo.findById(id);
-
-  if (!webhook) {
-    return c.json({ error: "Webhook not found" }, 404);
-  }
-
-  const testPayload: WebhookPayload = {
-    event: "webhook.test",
-    timestamp: new Date().toISOString(),
-    deliveryId: uuidv4(),
-    data: { message: "This is a test delivery" },
-  };
-
-  const platform = webhook.platform ?? "generic";
-
-  // Use platform dispatcher for platform-specific endpoints
-  if (platform !== "generic") {
-    const rendered = await renderNotificationTemplate(
-      "webhook.test",
-      platform,
-      testPayload.data as Record<string, unknown>
-    );
-    const result = await dispatchToPlatform(webhook, testPayload, rendered);
-    return c.json({
-      delivered: result.success,
-      statusCode: result.statusCode,
-      latencyMs: result.latencyMs,
-      platform,
-    });
-  }
-
-  // Generic webhook delivery
-  const result = await deliverWebhook(
-    webhook.id,
-    webhook.url,
-    webhook.secret,
-    testPayload
-  );
-
+// ─── POST /webhooks/:id/test (廃止) ─────────────────────────
+// 配信は Nuntius 側で実行される。Schedula 側のテスト配信は提供しない。
+webhookRoutes.post("/:id/test", (c) => {
   return c.json({
-    delivered: result.success,
-    statusCode: result.statusCode,
-    latencyMs: result.latencyMs,
-    platform: "generic",
-  });
+    error: "Webhook test send is no longer supported. Configure delivery via Nuntius topics.",
+  }, 501);
 });
 
 // ─── POST /webhooks/:id/rotate-secret ───────────────────────

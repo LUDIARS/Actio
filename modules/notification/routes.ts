@@ -4,16 +4,13 @@ import {
   notificationPreferenceRepo,
   notificationRepo,
   notificationTemplateRepo,
-  webhookEndpointRepo,
   userRepo,
   reminderRepo,
 } from "../../src/db/repository.js";
 import { webhookRoutes } from "./channels/webhook/routes.js";
-import { dispatchToPlatform } from "./channels/platform-dispatcher.js";
 import { renderNotificationTemplate } from "./core/template-engine.js";
 import { getUserId, getUserRole } from "../../src/middleware/getUserId.js";
 import { logActivity } from "../../src/activity-logger.js";
-import type { WebhookPayload } from "../../src/shared/types.js";
 
 const notification = new Hono();
 
@@ -355,50 +352,12 @@ notification.post("/templates/preview", async (c) => {
   return c.json({ rendered });
 });
 
-// ─── POST /test-send — Test send to a specific endpoint ─────
-notification.post("/test-send", async (c) => {
-  const userId = getUserId(c);
-  if (!userId) {
-    return c.json({ error: "X-User-Id header required" }, 400);
-  }
-
-  const body = await c.req.json<{
-    endpointId: string;
-    event?: string;
-    sampleData?: Record<string, unknown>;
-  }>();
-
-  const endpoint = await webhookEndpointRepo.findById(body.endpointId);
-  if (!endpoint) {
-    return c.json({ error: "Endpoint not found" }, 404);
-  }
-
-  const event = body.event || "webhook.test";
-  const sampleData = body.sampleData || { message: "テスト送信" };
-
-  const testPayload: WebhookPayload = {
-    event,
-    timestamp: new Date().toISOString(),
-    deliveryId: uuidv4(),
-    data: sampleData,
-  };
-
-  const rendered = await renderNotificationTemplate(
-    event,
-    endpoint.platform ?? "generic",
-    sampleData
-  );
-
-  const result = await dispatchToPlatform(endpoint, testPayload, rendered);
-
+// ─── POST /test-send (廃止) ──────────────────────────────────
+// 配信は Nuntius が担当する。Schedula 側のテスト配信は提供しない。
+notification.post("/test-send", (c) => {
   return c.json({
-    delivered: result.success,
-    statusCode: result.statusCode,
-    latencyMs: result.latencyMs,
-    platform: endpoint.platform,
-    sendMethod: endpoint.sendMethod,
-    rendered,
-  });
+    error: "test-send is no longer supported. Configure delivery via Nuntius topics.",
+  }, 501);
 });
 
 export { notification };
