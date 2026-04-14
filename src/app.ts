@@ -8,6 +8,8 @@ import { auth, compositeAuthRoutes } from "./auth/routes.js";
 import { notification } from "../modules/notification/routes.js";
 import { groupRoutes } from "../modules/group/routes.js";
 import { calendar } from "../modules/calendar/routes.js";
+import { eventRoutes } from "../modules/event/routes.js";
+import { taskRoutes } from "../modules/task/routes.js";
 // myPlan / smart-scheduler / school / schedule(m1) / integrations は SDK module に移行
 import { pmModule } from "../modules/pm/index.js";
 import { reminderRoutes } from "../modules/reminder/routes.js";
@@ -16,12 +18,13 @@ import { dbViewer } from "./admin/db-viewer.js";
 import { externalApi } from "../modules/external-api/routes.js";
 import { settingsRoutes } from "../modules/settings/routes.js";
 import { secretsRoutes } from "../modules/secrets/routes.js";
-import { initNotificationHandler } from "../modules/notification/core/handler.js";
 import { DAY_LABELS, getPeriodTime, PERIODS_COUNT } from "./shared/constants.js";
 import type { SchulaModule } from "./shared/types.js";
 import { getRecentLogs } from "./activity-logger.js";
 import { getReservationPlugins } from "./reservation-plugins.js";
 import { registerReservationPlugin } from "./reservation-plugins.js";
+import { getEventPlugins } from "./event-plugins.js";
+import { getTaskPlugins } from "./task-plugins.js";
 import { secretManager } from "./config/secrets.js";
 import { setupRoutes } from "../modules/setup/routes.js";
 import { profileRoutes } from "../modules/profile/routes.js";
@@ -102,6 +105,12 @@ export function createApp() {
 
   // ─── Core: Groups (グループ管理) ────────────────────────────
   app.route("/api/groups", groupRoutes);
+
+  // ─── Core: Events (予定: 時間拘束のある未来の事象) ─────────
+  app.route("/api/events", eventRoutes);
+
+  // ─── Core: Tasks (タスク: 解決すべき現在の事象) ────────────
+  app.route("/api/tasks", taskRoutes);
 
   // ─── Core: Calendar (Google Calendar + 手動予定 + プラン) ────
   app.route("/api/calendar", calendar);
@@ -228,12 +237,14 @@ export function createApp() {
 
     return c.json({
       name: "Schedula",
-      description: "汎用スケジューリング & 予約プラットフォーム",
+      description: "プラグインベースの予定 (Event) & タスク (Task) 管理プラットフォーム",
       version: "1.0.0",
       core: {
         auth: "認証 - /api/auth",
         profile: "プロフィール & プロジェクトロール - /api/profile",
         groups: "グループ管理 - /api/groups",
+        events: "予定 (時間拘束のある未来の事象) - /api/events",
+        tasks: "タスク (解決すべき現在の事象) - /api/tasks",
         calendar: "カレンダー & 手動予定 - /api/calendar",
         myplans: "マイプラン - /api/myplans",
         smartScheduler: "自動配置スケジューラ - /api/smart-scheduler",
@@ -246,6 +257,18 @@ export function createApp() {
         integrations: "外部サービス連携 (Google Calendar同期・Notion) - /api/integrations",
         externalApi: "外部API連携 (カレンダー・リマインダー・予定設定) - /api/external",
       },
+      eventPlugins: getEventPlugins().map((p) => ({
+        id: p.id,
+        name: p.name,
+        path: p.frontendPath,
+        managed: p.managed,
+      })),
+      taskPlugins: getTaskPlugins().map((p) => ({
+        id: p.id,
+        name: p.name,
+        path: p.frontendPath,
+        managed: p.managed,
+      })),
       reservationPlugins: getReservationPlugins().map((p) => ({
         id: p.id,
         name: p.name,
@@ -314,8 +337,8 @@ export function createApp() {
   // 後方互換: 既存の /api/health もそのまま残す (中身は readiness)
   app.get("/api/health", readinessHandler);
 
-  // ─── Initialize Notification Handler ────────────────────────
-  initNotificationHandler();
+  // ─── Notification 配信は Nuntius に完全移行済み ──────────────
+  // 旧 initNotificationHandler はローカル EventBus 購読用だったが廃止。
 
   return { app, injectWebSocket };
 }

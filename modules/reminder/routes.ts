@@ -1,13 +1,16 @@
 /**
- * リマインダー コアモジュール
+ * リマインダー コアモジュール (Nuntius 完全移行版)
+ *
+ * 配信は LUDIARS Nuntius サービスに完全委譲する。
+ * Schedula 側の reminders テーブルへの新規 INSERT は行わない。
  *
  * エンドポイント:
- *   GET    /             — 自分のリマインダー一覧
- *   POST   /             — 構造化データで作成
- *   POST   /parse        — 自由テキストをパースして作成
- *   PUT    /:id          — 更新
- *   DELETE /:id          — 削除
- *   PATCH  /:id/done     — 完了マーク
+ *   GET    /             — 過去の (移行前) リマインダー閲覧 (legacy / 読み取り専用)
+ *   POST   /             — 構造化データで Nuntius に登録
+ *   POST   /parse        — 自由テキストをパースして Nuntius に登録
+ *   DELETE /:id          — Nuntius 側で配信キャンセル
+ *   PUT    /:id          — 廃止 (501): Nuntius は cancel + reschedule パターン
+ *   PATCH  /:id/done     — 廃止 (501): Nuntius は配信完了で自動的にステータス更新
  */
 
 import { Hono } from "hono";
@@ -19,49 +22,23 @@ import { nuntiusClient } from "../../src/lib/nuntius-client.js";
 
 export const reminderRoutes = new Hono();
 
-/**
- * Nuntius にリマインダー登録を shadow write する (Phase 2-3 移行期)。
- * Nuntius 未設定や失敗時もローカル登録は成功させるため、エラーは握り潰す。
- * 既存の DB レコード id を idempotencyKey にして重複登録を防ぐ。
- */
-async function shadowSendToNuntius(reminder: {
-  id: string;
-  userId: string;
-  title: string;
-  description?: string | null;
-  remindAt: string;
-}): Promise<void> {
-  if (!nuntiusClient.isConfigured()) return;
-  try {
-    await nuntiusClient.schedule({
-      userId: reminder.userId,
-      // 既定チャネルは webhook (Schedula 内部の通知ハンドラ)
-      // 将来的にユーザー設定に応じて slack/discord/line/email 等に切替
-      channel: "webhook",
-      sendAt: reminder.remindAt,
-      payload: {
-        title: reminder.title,
-        description: reminder.description ?? "",
-      },
-      source: "schedula.reminder",
-      idempotencyKey: reminder.id,
-    });
-  } catch (err) {
-    console.warn("[reminder→nuntius] shadow write failed:", err instanceof Error ? err.message : err);
+function ensureNuntius(): { ok: true } | { ok: false; status: 503; body: { error: string } } {
+  if (!nuntiusClient.isConfigured()) {
+    return { ok: false, status: 503, body: { error: "Nuntius is not configured" } };
   }
+  return { ok: true };
 }
 
-// ─── 一覧取得 ───────────────────────────────────────────────
+// ─── 一覧取得 (legacy) ──────────────────────────────────────
+// 移行前にローカル DB に登録された pending リマインダーを参照する用。
+// 新規登録は Nuntius にのみ行われるため、新規分はここに現れない。
 reminderRoutes.get("/", async (c) => {
   const userId = getUserId(c);
   if (!userId) return c.json({ error: "Authentication required" }, 401);
-  const status = c.req.query("status"); // optional filter: pending / done / cancelled
-  let reminders;
-  if (status === "pending") {
-    reminders = await reminderRepo.findPending(userId);
-  } else {
-    reminders = await reminderRepo.findByUserId(userId);
-  }
+  const status = c.req.query("status");
+  const reminders = status === "pending"
+    ? await reminderRepo.findPending(userId)
+    : await reminderRepo.findByUserId(userId);
   return c.json({ reminders });
 });
 
@@ -69,18 +46,21 @@ reminderRoutes.get("/", async (c) => {
 reminderRoutes.post("/", async (c) => {
   const userId = getUserId(c);
   if (!userId) return c.json({ error: "Authentication required" }, 401);
+  const ready = ensureNuntius();
+  if (!ready.ok) return c.json(ready.body, ready.status);
+
   const body = await c.req.json() as {
     title?: string;
     description?: string;
     remindAt?: string;
     repeatRule?: string;
+    channel?: "slack" | "discord" | "line" | "webhook" | "email" | "voice" | "alexa" | "sms";
   };
 
   if (!body.title || !body.remindAt) {
     return c.json({ error: "title と remindAt は必須です" }, 400);
   }
 
-  // ISO 8601 形式の簡易バリデーション
   const remindDate = new Date(body.remindAt);
   if (isNaN(remindDate.getTime())) {
     return c.json({ error: "remindAt が無効な日時形式です" }, 400);
@@ -92,63 +72,71 @@ reminderRoutes.post("/", async (c) => {
     return c.json({ error: `repeatRule は ${validRepeatRules.join(", ")} のいずれかです` }, 400);
   }
 
-  const reminder = await reminderRepo.create({
-    id: randomUUID(),
+  const id = randomUUID();
+  const result = await nuntiusClient.schedule({
     userId,
-    title: body.title,
-    description: body.description || null,
-    remindAt: remindDate.toISOString(),
-    repeatRule,
-    status: "pending",
-    source: "api",
+    channel: body.channel ?? "webhook",
+    sendAt: remindDate.toISOString(),
+    payload: {
+      title: body.title,
+      description: body.description ?? "",
+    },
+    source: "schedula.reminder",
+    idempotencyKey: id,
+    recurrenceRule: repeatRule === "none" ? undefined : repeatRule,
   });
 
-  // Nuntius にも shadow write (Phase 2-3 移行期)
-  shadowSendToNuntius({
-    id: reminder.id,
-    userId: reminder.userId,
-    title: reminder.title,
-    description: reminder.description,
-    remindAt: reminder.remindAt,
-  }).catch(() => { /* fire and forget */ });
-
-  return c.json({ reminder }, 201);
+  return c.json({
+    reminder: {
+      id: result.id,
+      userId,
+      title: body.title,
+      description: body.description ?? null,
+      remindAt: remindDate.toISOString(),
+      repeatRule,
+      status: result.status,
+      source: "api",
+    },
+  }, 201);
 });
 
 // ─── 自由テキストをパースして作成 ─────────────────────────────
 reminderRoutes.post("/parse", async (c) => {
   const userId = getUserId(c);
   if (!userId) return c.json({ error: "Authentication required" }, 401);
-  const body = await c.req.json() as { text?: string; source?: string };
+  const ready = ensureNuntius();
+  if (!ready.ok) return c.json(ready.body, ready.status);
 
+  const body = await c.req.json() as { text?: string; source?: string };
   if (!body.text || body.text.trim() === "") {
     return c.json({ error: "text は必須です" }, 400);
   }
 
   const parsed = parseReminderText(body.text.trim());
-
-  const reminder = await reminderRepo.create({
-    id: randomUUID(),
+  const id = randomUUID();
+  const result = await nuntiusClient.schedule({
     userId,
-    title: parsed.title,
-    remindAt: parsed.remindAt,
-    repeatRule: "none",
-    status: "pending",
-    source: body.source || "web",
-    originalText: body.text.trim(),
+    channel: "webhook",
+    sendAt: parsed.remindAt,
+    payload: {
+      title: parsed.title,
+      originalText: body.text.trim(),
+    },
+    source: body.source || "schedula.reminder.parse",
+    idempotencyKey: id,
   });
 
-  // Nuntius にも shadow write (Phase 2-3 移行期)
-  shadowSendToNuntius({
-    id: reminder.id,
-    userId: reminder.userId,
-    title: reminder.title,
-    description: null,
-    remindAt: reminder.remindAt,
-  }).catch(() => { /* fire and forget */ });
-
   return c.json({
-    reminder,
+    reminder: {
+      id: result.id,
+      userId,
+      title: parsed.title,
+      remindAt: parsed.remindAt,
+      repeatRule: "none",
+      status: result.status,
+      source: body.source || "web",
+      originalText: body.text.trim(),
+    },
     parsed: {
       title: parsed.title,
       remindAt: parsed.remindAt,
@@ -157,81 +145,34 @@ reminderRoutes.post("/parse", async (c) => {
   }, 201);
 });
 
-// ─── 更新 ───────────────────────────────────────────────────
-reminderRoutes.put("/:id", async (c) => {
-  const userId = getUserId(c);
-  if (!userId) return c.json({ error: "Authentication required" }, 401);
-  const id = c.req.param("id");
-  const existing = await reminderRepo.findById(id);
-
-  if (!existing) {
-    return c.json({ error: "リマインダーが見つかりません" }, 404);
-  }
-  if (existing.userId !== userId) {
-    return c.json({ error: "権限がありません" }, 403);
-  }
-
-  const body = await c.req.json() as {
-    title?: string;
-    description?: string;
-    remindAt?: string;
-    repeatRule?: string;
-    status?: string;
-  };
-
-  const updateData: Record<string, unknown> = {};
-  if (body.title !== undefined) updateData.title = body.title;
-  if (body.description !== undefined) updateData.description = body.description;
-  if (body.remindAt !== undefined) {
-    const d = new Date(body.remindAt);
-    if (isNaN(d.getTime())) return c.json({ error: "remindAt が無効です" }, 400);
-    updateData.remindAt = d.toISOString();
-  }
-  if (body.repeatRule !== undefined) updateData.repeatRule = body.repeatRule;
-  if (body.status !== undefined) {
-    const validStatuses = ["pending", "done", "cancelled"];
-    if (!validStatuses.includes(body.status)) {
-      return c.json({ error: `status は ${validStatuses.join(", ")} のいずれかです` }, 400);
-    }
-    updateData.status = body.status;
-  }
-
-  const updated = await reminderRepo.update(id, updateData);
-  return c.json({ reminder: updated });
+// ─── 更新 (廃止) ────────────────────────────────────────────
+reminderRoutes.put("/:id", (c) => {
+  return c.json({
+    error: "Reminder update is no longer supported. Cancel and reschedule via Nuntius instead.",
+  }, 501);
 });
 
-// ─── 削除 ───────────────────────────────────────────────────
+// ─── 削除 (Nuntius cancel) ──────────────────────────────────
 reminderRoutes.delete("/:id", async (c) => {
   const userId = getUserId(c);
   if (!userId) return c.json({ error: "Authentication required" }, 401);
+  const ready = ensureNuntius();
+  if (!ready.ok) return c.json(ready.body, ready.status);
+
   const id = c.req.param("id");
-  const existing = await reminderRepo.findById(id);
-
-  if (!existing) {
-    return c.json({ error: "リマインダーが見つかりません" }, 404);
+  try {
+    const result = await nuntiusClient.cancel(id);
+    return c.json({ deleted: result.id, status: result.status });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (msg.includes("404")) return c.json({ error: "リマインダーが見つかりません" }, 404);
+    throw err;
   }
-  if (existing.userId !== userId) {
-    return c.json({ error: "権限がありません" }, 403);
-  }
-
-  await reminderRepo.deleteById(id);
-  return c.json({ deleted: id });
 });
 
-// ─── 完了マーク ─────────────────────────────────────────────
-reminderRoutes.patch("/:id/done", async (c) => {
-  const userId = getUserId(c);
-  if (!userId) return c.json({ error: "Authentication required" }, 401);
-  const id = c.req.param("id");
-  const existing = await reminderRepo.findById(id);
-
-  if (!existing) {
-    return c.json({ error: "リマインダーが見つかりません" }, 404);
-  }
-  if (existing.userId !== userId) {
-    return c.json({ error: "権限がありません" }, 403);
-  }
-
-  const updated = await reminderRepo.update(id, { status: "done" });
-  return c.json({ reminder: updated });
+// ─── 完了マーク (廃止) ─────────────────────────────────────
+reminderRoutes.patch("/:id/done", (c) => {
+  return c.json({
+    error: "Manual completion is no longer supported. Nuntius marks status automatically on dispatch.",
+  }, 501);
 });

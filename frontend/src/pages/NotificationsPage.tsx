@@ -113,11 +113,6 @@ export function NotificationsPage() {
     null
   );
 
-  // Test send
-  const [testEndpointId, setTestEndpointId] = useState("");
-  const [testEvent, setTestEvent] = useState("webhook.test");
-  const [showTestSend, setShowTestSend] = useState(false);
-
   // Settings form
   const [, setPrefs] = useState<unknown>(null);
 
@@ -306,24 +301,6 @@ export function NotificationsPage() {
       await m5.deleteTemplate(id);
       showMsg("テンプレートを削除しました");
       loadData();
-    } catch (e: unknown) {
-      const err = e as Error;
-      showMsg(`Error: ${err.message}`);
-    }
-  };
-
-  // ─── Test Send Handler ───────────────────────────────────────
-  const handleTestSend = async () => {
-    try {
-      const result = await m5.testSend({
-        endpointId: testEndpointId,
-        event: testEvent,
-      });
-      showMsg(
-        result.delivered
-          ? `テスト送信成功 (${result.latencyMs}ms, ${result.platform}/${result.sendMethod})`
-          : `テスト送信失敗: ${result.statusCode}`
-      );
     } catch (e: unknown) {
       const err = e as Error;
       showMsg(`Error: ${err.message}`);
@@ -561,75 +538,14 @@ export function NotificationsPage() {
           <div className="toolbar" style={{ gap: "0.5rem" }}>
             <button
               className="primary"
-              onClick={() => {
-                setShowWebhookForm(!showWebhookForm);
-                setShowTestSend(false);
-              }}
+              onClick={() => setShowWebhookForm(!showWebhookForm)}
             >
               {showWebhookForm ? "閉じる" : "エンドポイント登録"}
             </button>
-            <button
-              onClick={() => {
-                setShowTestSend(!showTestSend);
-                setShowWebhookForm(false);
-              }}
-            >
-              {showTestSend ? "閉じる" : "テスト送信"}
-            </button>
           </div>
-
-          {/* Test Send Form */}
-          {showTestSend && (
-            <div className="card" style={{ marginBottom: "1rem" }}>
-              <h3
-                style={{
-                  fontSize: "0.85rem",
-                  marginBottom: "0.5rem",
-                }}
-              >
-                テスト送信
-              </h3>
-              <div className="form-group">
-                <label>送信先エンドポイント</label>
-                <select
-                  value={testEndpointId}
-                  onChange={(e) => setTestEndpointId(e.target.value)}
-                >
-                  <option value="">選択してください</option>
-                  {webhooks.map((w) => (
-                    <option key={w.id} value={w.id}>
-                      [{w.platform}] {w.url}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="form-group">
-                <label>イベント種別</label>
-                <select
-                  value={testEvent}
-                  onChange={(e) => setTestEvent(e.target.value)}
-                >
-                  <option value="webhook.test">webhook.test</option>
-                  {EVENT_MODULES.map((mod) => (
-                    <optgroup key={mod.module} label={mod.label}>
-                      {mod.events.map((ev) => (
-                        <option key={ev.name} value={ev.name}>
-                          {ev.label}
-                        </option>
-                      ))}
-                    </optgroup>
-                  ))}
-                </select>
-              </div>
-              <button
-                className="primary"
-                onClick={handleTestSend}
-                disabled={!testEndpointId}
-              >
-                テスト送信
-              </button>
-            </div>
-          )}
+          <p style={{ fontSize: "0.8rem", color: "var(--text-muted)", marginTop: "0.5rem" }}>
+            配信は LUDIARS Nuntius が担当します。テスト送信は Nuntius 側で行ってください。
+          </p>
 
           {/* Webhook Create Form */}
           {showWebhookForm && (
