@@ -624,6 +624,68 @@ export const curriculumPlacements = mysqlTable(
   ]
 );
 
+// ─── Core: Events (予定) ─────────────────────────────────────
+
+export const events = mysqlTable(
+  "events",
+  {
+    id: varchar("id", { length: 255 }).primaryKey(),
+    ownerId: varchar("owner_id", { length: 255 }).notNull(),
+    groupId: varchar("group_id", { length: 255 }),
+    title: varchar("title", { length: 512 }).notNull(),
+    description: text("description"),
+    startTime: timestamp("start_time").notNull(),
+    endTime: timestamp("end_time").notNull(),
+    isAllDay: boolean("is_all_day").notNull().default(false),
+    location: varchar("location", { length: 512 }),
+    visibility: varchar("visibility", { length: 32 }).notNull().default("private"),
+    pluginId: varchar("plugin_id", { length: 128 }),
+    pluginRef: varchar("plugin_ref", { length: 255 }),
+    pluginPayload: json("plugin_payload").$type<Record<string, unknown>>(),
+    createdAt: timestamp("created_at").$defaultFn(() => new Date()).notNull(),
+    updatedAt: timestamp("updated_at").$defaultFn(() => new Date()).notNull(),
+  },
+  (t) => [
+    index("idx_event_owner").on(t.ownerId),
+    index("idx_event_group").on(t.groupId),
+    index("idx_event_start").on(t.startTime),
+    index("idx_event_plugin").on(t.pluginId),
+  ]
+);
+
+// ─── Core: Tasks (タスク) ────────────────────────────────────
+
+export const tasks = mysqlTable(
+  "tasks",
+  {
+    id: varchar("id", { length: 255 }).primaryKey(),
+    ownerId: varchar("owner_id", { length: 255 }).notNull(),
+    assigneeId: varchar("assignee_id", { length: 255 }),
+    groupId: varchar("group_id", { length: 255 }),
+    title: varchar("title", { length: 512 }).notNull(),
+    description: text("description"),
+    requirements: text("requirements"),
+    status: varchar("status", { length: 32 }).notNull().default("open"),
+    priority: varchar("priority", { length: 32 }).notNull().default("medium"),
+    deadline: timestamp("deadline"),
+    estimatedMinutes: int("estimated_minutes"),
+    pluginId: varchar("plugin_id", { length: 128 }),
+    pluginRef: varchar("plugin_ref", { length: 255 }),
+    pluginPayload: json("plugin_payload").$type<Record<string, unknown>>(),
+    completedAt: timestamp("completed_at"),
+    createdAt: timestamp("created_at").$defaultFn(() => new Date()).notNull(),
+    updatedAt: timestamp("updated_at").$defaultFn(() => new Date()).notNull(),
+  },
+  (t) => [
+    index("idx_task_owner").on(t.ownerId),
+    index("idx_task_assignee").on(t.assigneeId),
+    index("idx_task_group").on(t.groupId),
+    index("idx_task_status").on(t.status),
+    index("idx_task_deadline").on(t.deadline),
+    index("idx_task_plugin").on(t.pluginId),
+  ]
+);
+
 // ─── Schema Exports ─────────────────────────────────────────
 
 export const schema = {
@@ -648,6 +710,8 @@ export const schema = {
   votingCandidates,
   votes,
   appSettings,
+  events,
+  tasks,
 };
 
 export const curriculumSchema = {
@@ -691,6 +755,8 @@ const allTables = {
   instructorAvailableSlots,
   terms,
   curriculumPlacements,
+  events,
+  tasks,
 };
 
 export function createConnection() {

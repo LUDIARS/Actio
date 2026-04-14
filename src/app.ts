@@ -9,6 +9,8 @@ import { notification } from "../modules/notification/routes.js";
 import { m6 } from "../modules/voting/routes.js";
 import { groupRoutes } from "../modules/group/routes.js";
 import { calendar } from "../modules/calendar/routes.js";
+import { eventRoutes } from "../modules/event/routes.js";
+import { taskRoutes } from "../modules/task/routes.js";
 import { myPlanRoutes } from "../modules/myplan/routes.js";
 import { smartScheduler } from "../modules/smart-scheduler/routes.js";
 import { schoolModule } from "../modules/school/index.js";
@@ -27,6 +29,8 @@ import type { SchulaModule } from "./shared/types.js";
 import { getRecentLogs } from "./activity-logger.js";
 import { getReservationPlugins } from "./reservation-plugins.js";
 import { registerReservationPlugin } from "./reservation-plugins.js";
+import { getEventPlugins } from "./event-plugins.js";
+import { getTaskPlugins } from "./task-plugins.js";
 import { secretManager } from "./config/secrets.js";
 import { setupRoutes } from "../modules/setup/routes.js";
 import { profileRoutes } from "../modules/profile/routes.js";
@@ -95,6 +99,12 @@ export function createApp() {
 
   // ─── Core: Groups (グループ管理) ────────────────────────────
   app.route("/api/groups", groupRoutes);
+
+  // ─── Core: Events (予定: 時間拘束のある未来の事象) ─────────
+  app.route("/api/events", eventRoutes);
+
+  // ─── Core: Tasks (タスク: 解決すべき現在の事象) ────────────
+  app.route("/api/tasks", taskRoutes);
 
   // ─── Core: Calendar (Google Calendar + 手動予定 + プラン) ────
   app.route("/api/calendar", calendar);
@@ -195,12 +205,14 @@ export function createApp() {
 
     return c.json({
       name: "Schedula",
-      description: "汎用スケジューリング & 予約プラットフォーム",
+      description: "プラグインベースの予定 (Event) & タスク (Task) 管理プラットフォーム",
       version: "1.0.0",
       core: {
         auth: "認証 - /api/auth",
         profile: "プロフィール & プロジェクトロール - /api/profile",
         groups: "グループ管理 - /api/groups",
+        events: "予定 (時間拘束のある未来の事象) - /api/events",
+        tasks: "タスク (解決すべき現在の事象) - /api/tasks",
         calendar: "カレンダー & 手動予定 - /api/calendar",
         myplans: "マイプラン - /api/myplans",
         smartScheduler: "自動配置スケジューラ - /api/smart-scheduler",
@@ -213,6 +225,18 @@ export function createApp() {
         integrations: "外部サービス連携 (Google Calendar同期・Notion) - /api/integrations",
         externalApi: "外部API連携 (カレンダー・リマインダー・予定設定) - /api/external",
       },
+      eventPlugins: getEventPlugins().map((p) => ({
+        id: p.id,
+        name: p.name,
+        path: p.frontendPath,
+        managed: p.managed,
+      })),
+      taskPlugins: getTaskPlugins().map((p) => ({
+        id: p.id,
+        name: p.name,
+        path: p.frontendPath,
+        managed: p.managed,
+      })),
       reservationPlugins: getReservationPlugins().map((p) => ({
         id: p.id,
         name: p.name,

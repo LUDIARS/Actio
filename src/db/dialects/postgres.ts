@@ -661,6 +661,70 @@ export const holidays = pgTable("holidays", {
   index("idx_holiday_type").on(t.holidayType),
 ]);
 
+// ─── Core: Events (予定) ─────────────────────────────────────
+// Schedula コア「予定」: 時間拘束のある未来の事象。
+
+export const events = pgTable(
+  "events",
+  {
+    id: text("id").primaryKey(),
+    ownerId: text("owner_id").notNull(),
+    groupId: text("group_id"),
+    title: text("title").notNull(),
+    description: text("description"),
+    startTime: timestamp("start_time").notNull(),
+    endTime: timestamp("end_time").notNull(),
+    isAllDay: boolean("is_all_day").notNull().default(false),
+    location: text("location"),
+    visibility: text("visibility").notNull().default("private"),
+    pluginId: text("plugin_id"),
+    pluginRef: text("plugin_ref"),
+    pluginPayload: jsonb("plugin_payload").$type<Record<string, unknown>>(),
+    createdAt: timestamp("created_at").$defaultFn(() => new Date()).notNull(),
+    updatedAt: timestamp("updated_at").$defaultFn(() => new Date()).notNull(),
+  },
+  (t) => [
+    index("idx_event_owner").on(t.ownerId),
+    index("idx_event_group").on(t.groupId),
+    index("idx_event_start").on(t.startTime),
+    index("idx_event_plugin").on(t.pluginId),
+  ]
+);
+
+// ─── Core: Tasks (タスク) ────────────────────────────────────
+// Schedula コア「タスク」: 解決すべき現在の事象。
+
+export const tasks = pgTable(
+  "tasks",
+  {
+    id: text("id").primaryKey(),
+    ownerId: text("owner_id").notNull(),
+    assigneeId: text("assignee_id"),
+    groupId: text("group_id"),
+    title: text("title").notNull(),
+    description: text("description"),
+    requirements: text("requirements"),
+    status: text("status").notNull().default("open"),
+    priority: text("priority").notNull().default("medium"),
+    deadline: timestamp("deadline"),
+    estimatedMinutes: integer("estimated_minutes"),
+    pluginId: text("plugin_id"),
+    pluginRef: text("plugin_ref"),
+    pluginPayload: jsonb("plugin_payload").$type<Record<string, unknown>>(),
+    completedAt: timestamp("completed_at"),
+    createdAt: timestamp("created_at").$defaultFn(() => new Date()).notNull(),
+    updatedAt: timestamp("updated_at").$defaultFn(() => new Date()).notNull(),
+  },
+  (t) => [
+    index("idx_task_owner").on(t.ownerId),
+    index("idx_task_assignee").on(t.assigneeId),
+    index("idx_task_group").on(t.groupId),
+    index("idx_task_status").on(t.status),
+    index("idx_task_deadline").on(t.deadline),
+    index("idx_task_plugin").on(t.pluginId),
+  ]
+);
+
 // ─── Group Events ──────────────────────────────────────────
 
 export const groupEvents = pgTable("group_events", {
@@ -864,6 +928,8 @@ export const schema = {
   notificationTemplates,
   holidays,
   groupEvents,
+  events,
+  tasks,
   integrationSettings,
   syncLogs,
   apiClients,
@@ -918,6 +984,8 @@ const DB_SCHEMA = {
   notificationTemplates,
   holidays,
   groupEvents,
+  events,
+  tasks,
   integrationSettings,
   syncLogs,
   apiClients,
@@ -1088,6 +1156,67 @@ export async function createConnectionWithRetry() {
     const msg2 = err instanceof Error ? err.message : String(err);
     if (!msg2.includes("already exists")) {
       console.warn("[db:postgres] holidays/group_events テーブル自動作成エラー:", msg2);
+    }
+  }
+
+  // ─── Core: events / tasks (予定 / タスク) ──────────────────
+  try {
+    await client`
+      CREATE TABLE IF NOT EXISTS events (
+        id TEXT PRIMARY KEY,
+        owner_id TEXT NOT NULL,
+        group_id TEXT,
+        title TEXT NOT NULL,
+        description TEXT,
+        start_time TIMESTAMP NOT NULL,
+        end_time TIMESTAMP NOT NULL,
+        is_all_day BOOLEAN NOT NULL DEFAULT FALSE,
+        location TEXT,
+        visibility TEXT NOT NULL DEFAULT 'private',
+        plugin_id TEXT,
+        plugin_ref TEXT,
+        plugin_payload JSONB,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `;
+    await client`CREATE INDEX IF NOT EXISTS idx_event_owner ON events(owner_id)`;
+    await client`CREATE INDEX IF NOT EXISTS idx_event_group ON events(group_id)`;
+    await client`CREATE INDEX IF NOT EXISTS idx_event_start ON events(start_time)`;
+    await client`CREATE INDEX IF NOT EXISTS idx_event_plugin ON events(plugin_id)`;
+
+    await client`
+      CREATE TABLE IF NOT EXISTS tasks (
+        id TEXT PRIMARY KEY,
+        owner_id TEXT NOT NULL,
+        assignee_id TEXT,
+        group_id TEXT,
+        title TEXT NOT NULL,
+        description TEXT,
+        requirements TEXT,
+        status TEXT NOT NULL DEFAULT 'open',
+        priority TEXT NOT NULL DEFAULT 'medium',
+        deadline TIMESTAMP,
+        estimated_minutes INTEGER,
+        plugin_id TEXT,
+        plugin_ref TEXT,
+        plugin_payload JSONB,
+        completed_at TIMESTAMP,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `;
+    await client`CREATE INDEX IF NOT EXISTS idx_task_owner ON tasks(owner_id)`;
+    await client`CREATE INDEX IF NOT EXISTS idx_task_assignee ON tasks(assignee_id)`;
+    await client`CREATE INDEX IF NOT EXISTS idx_task_group ON tasks(group_id)`;
+    await client`CREATE INDEX IF NOT EXISTS idx_task_status ON tasks(status)`;
+    await client`CREATE INDEX IF NOT EXISTS idx_task_deadline ON tasks(deadline)`;
+    await client`CREATE INDEX IF NOT EXISTS idx_task_plugin ON tasks(plugin_id)`;
+    console.log("[db:postgres] events/tasks テーブル確認完了");
+  } catch (err) {
+    const msg3 = err instanceof Error ? err.message : String(err);
+    if (!msg3.includes("already exists")) {
+      console.warn("[db:postgres] events/tasks テーブル自動作成エラー:", msg3);
     }
   }
 
