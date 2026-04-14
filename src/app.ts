@@ -6,7 +6,6 @@ import { setupWebSocket } from "./ws/handler.js";
 import "./ws/commands/index.js";
 import { auth, compositeAuthRoutes } from "./auth/routes.js";
 import { notification } from "../modules/notification/routes.js";
-import { m6 } from "../modules/voting/routes.js";
 import { groupRoutes } from "../modules/group/routes.js";
 import { calendar } from "../modules/calendar/routes.js";
 import { myPlanRoutes } from "../modules/myplan/routes.js";
@@ -35,6 +34,7 @@ import { rateLimit } from "./middleware/rate-limit.js";
 import { moduleAdminRoutes } from "./plugins/admin-routes.js";
 import { installModule } from "./plugins/loader.js";
 import exampleModule from "../modules-ext/example/server.js";
+import votingModule from "../modules-ext/voting/server.js";
 
 export function createApp() {
   const app = new Hono();
@@ -115,8 +115,7 @@ export function createApp() {
   // ─── Module: Webhooks & Notifications ───────────────────────
   app.route("/api/webhooks", notification);
 
-  // ─── Module: Voting (日程調整) ──────────────────────────────
-  app.route("/api/voting", m6);
+  // ─── Module: Voting ─ SDK-based (installModule 経由で /api/voting 登録) ──
 
   // ─── Module: Holidays (休日管理) ──────────────────────────────
   app.route("/api/holidays", holidayRoutes);
@@ -144,12 +143,16 @@ export function createApp() {
   installModule(app, exampleModule, {
     packageName: "schedula-example-module",
     packageVersion: "0.1.0",
-  }).catch((err) => console.error("[plugin] example install failed:", err));
+  });
+  installModule(app, votingModule, {
+    packageName: "schedula-voting-module",
+    packageVersion: "0.1.0",
+  });
 
   // ─── Legacy Compatibility ───────────────────────────────────
   app.route("/api/m1", m1);
   app.route("/api/m5", notification);
-  app.route("/api/m6", m6);
+  // /api/m6 は voting SDK モジュールに移行、/api/voting のみ提供
 
   // ─── Reservation Plugin Registry ──────────────────────────
   // 日程調整 (Voting) をプラグイン登録

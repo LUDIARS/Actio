@@ -8,7 +8,7 @@
 import "./calendar.js";
 import "./group.js";
 import "./myplan.js";
-import "./voting.js";
+// voting.ts は modules-ext/voting/ に移行済み (SDK wsCommands 経由で登録)
 import "./facility.js";
 import "./pm.js";
 import "./admin.js";

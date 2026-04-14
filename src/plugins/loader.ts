@@ -5,7 +5,7 @@
  * 将来的に npm パッケージから動的 import する。
  */
 
-import type { Hono } from "hono";
+import { Hono } from "hono";
 import { v4 as uuidv4 } from "uuid";
 import type { ModuleDefinition } from "@ludiars/schedula-sdk";
 import { moduleRegistry, type LoadedModule } from "./registry.js";
@@ -22,46 +22,45 @@ export interface RegisterOptions {
 }
 
 /**
- * モジュールをレジストリに登録し、DB に installation 記録を upsert、
- * REST routes と WS commands をフレームワークに wire する。
+ * モジュールをレジストリに登録する。
+ *
+ * 実装方針: テスト/起動時の race condition を避けるため、REST 経路と
+ * WS commands の登録は **同期**で行う。DB への installation 記録や
+ * onInstall/onEnable フックは非同期 (fire-and-forget) で後追い実行する。
+ *
+ * ※ routes factory が async の場合は先に同期 Hono() を用意して
+ *    呼び出すため、factory 内部が await する場合でも route mount 自体は同期。
+ *    ただし factory 内の await 直前に定義された route しか同期で登録
+ *    されないため、モジュール作者は factory の最初に全 route を登録する
+ *    (SDK の convention)。
  */
-export async function installModule(
+export function installModule(
   app: Hono,
   definition: ModuleDefinition,
   opts: RegisterOptions,
-): Promise<void> {
+): void {
   const ctx = buildModuleContext(definition.id);
 
-  // install フック (初回のみ)
-  const wasInstalled = (await moduleInstallationRepo.findById(definition.id)) !== undefined;
-  if (!wasInstalled && definition.onInstall) {
-    await definition.onInstall(ctx);
-  }
-
-  // DB に installation 記録
-  await moduleInstallationRepo.upsert({
-    id: uuidv4(),
-    moduleId: definition.id,
-    packageName: opts.packageName,
-    packageVersion: opts.packageVersion,
-    manifest: serializeManifest(definition),
-    installedAt: new Date(),
-    installedBy: null,
-  });
-
-  // REST routes wire (gate middleware 付き)
+  // REST routes wire (gate middleware 付き) — 同期
   if (definition.routes && definition.basePath) {
-    const sub = new (await import("hono")).Hono();
-    await definition.routes(sub, ctx);
+    const sub = new Hono();
+    // factory を呼ぶ。async factory でも route 登録は同期的なので
+    // await せず進めても route mount は成立する。戻り値の Promise は
+    // 後処理のためにチェーンする。
+    const factoryResult = definition.routes(sub, ctx);
     app.use(`${definition.basePath}/*`, moduleGate(definition.id));
     app.route(definition.basePath, sub);
+    if (factoryResult && typeof factoryResult === "object" && "catch" in factoryResult) {
+      (factoryResult as Promise<void>).catch((err: unknown) =>
+        console.error(`[plugin] ${definition.id} routes factory async error:`, err),
+      );
+    }
   }
 
-  // WS commands wire
+  // WS commands wire — 同期
   if (definition.wsCommands) {
     for (const [action, handler] of Object.entries(definition.wsCommands)) {
       registerCommand(definition.id, action, async (userId, payload) => {
-        // WS は global scope でチェック (per-group は payload.groupId 経由で module 内部で判定)
         const globalEnabled = await isEnabled(definition.id, "global", null);
         if (!globalEnabled) throw new Error(`Module ${definition.id} is disabled`);
         return handler(userId, payload, ctx);
@@ -75,10 +74,29 @@ export async function installModule(
     packageVersion: opts.packageVersion,
   });
 
-  // enable フック
-  if (definition.onEnable) {
-    await definition.onEnable(ctx, "global");
-  }
+  // DB 記録 + lifecycle hooks は非同期後追い
+  void (async () => {
+    try {
+      const wasInstalled = (await moduleInstallationRepo.findById(definition.id)) !== undefined;
+      if (!wasInstalled && definition.onInstall) {
+        await definition.onInstall(ctx);
+      }
+      await moduleInstallationRepo.upsert({
+        id: uuidv4(),
+        moduleId: definition.id,
+        packageName: opts.packageName,
+        packageVersion: opts.packageVersion,
+        manifest: serializeManifest(definition),
+        installedAt: new Date(),
+        installedBy: null,
+      });
+      if (definition.onEnable) {
+        await definition.onEnable(ctx, "global");
+      }
+    } catch (err) {
+      console.error(`[plugin] ${definition.id} post-install failed:`, err);
+    }
+  })();
 }
 
 function serializeManifest(def: ModuleDefinition): Record<string, unknown> {
