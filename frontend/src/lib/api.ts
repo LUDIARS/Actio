@@ -9,7 +9,7 @@ import type {
   Reservation, ReservationListResponse, RoomScheduleResponse,
   WebhookListResponse, WebhookCreateResponse, WebhookTestResponse, WebhookRotateResponse, WebhookLogsResponse,
   NotificationPreferencesResponse, NotificationHistoryResponse,
-  NotificationTemplateListResponse, NotificationTemplateResponse, TemplatePreviewResponse, TestSendResponse, MorningReminderResponse,
+  NotificationTemplateListResponse, NotificationTemplateResponse, TemplatePreviewResponse, MorningReminderResponse,
   NotificationPlatform, SendMethod,
   MyPlanListResponse, MyPlanResponse,
   SchedulingTaskListResponse, SchedulingTaskResponse, SolveResponse, ConfirmResponse, SchedulingResultsResponse, SchedulerAvailabilityResponse,
@@ -676,18 +676,7 @@ export const m5 = {
       body: JSON.stringify(body),
     });
   },
-  // Test send
-  testSend(body: {
-    endpointId: string;
-    event?: string;
-    sampleData?: Record<string, unknown>;
-  }) {
-    return request<TestSendResponse>("/api/m5/test-send", {
-      method: "POST",
-      body: JSON.stringify(body),
-    });
-  },
-  // Morning reminder
+  // Morning reminder (Nuntius topic publish)
   triggerMorningReminder() {
     return request<MorningReminderResponse>("/api/m5/morning-reminder", {
       method: "POST",
@@ -1112,20 +1101,9 @@ export const reminderApi = {
       body: JSON.stringify({ text, source: "web" }),
     });
   },
-  /** 更新 */
-  update(id: string, body: { title?: string; description?: string; remindAt?: string; repeatRule?: string; status?: string }) {
-    return request<ReminderResponse>(`/api/reminders/${id}`, {
-      method: "PUT",
-      body: JSON.stringify(body),
-    });
-  },
-  /** 削除 */
+  /** キャンセル (Nuntius 配信停止) */
   remove(id: string) {
-    return request<{ deleted: string }>(`/api/reminders/${id}`, { method: "DELETE" });
-  },
-  /** 完了マーク */
-  markDone(id: string) {
-    return request<ReminderResponse>(`/api/reminders/${id}/done`, { method: "PATCH" });
+    return request<{ deleted: string; status: string }>(`/api/reminders/${id}`, { method: "DELETE" });
   },
 };
 
