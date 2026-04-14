@@ -32,6 +32,9 @@ import { secretManager } from "./config/secrets.js";
 import { setupRoutes } from "../modules/setup/routes.js";
 import { profileRoutes } from "../modules/profile/routes.js";
 import { rateLimit } from "./middleware/rate-limit.js";
+import { moduleAdminRoutes } from "./plugins/admin-routes.js";
+import { installModule } from "./plugins/loader.js";
+import exampleModule from "../modules-ext/example/server.js";
 
 export function createApp() {
   const app = new Hono();
@@ -88,6 +91,9 @@ export function createApp() {
 
   app.use("/api/*", userContext());
 
+  // ─── Module Admin API (プラグインモジュール管理) ─────────────
+  app.route("/api/admin", moduleAdminRoutes);
+
   // ─── Auth Routes (認証) — コア ──────────────────────────────
   app.route("/api/auth", auth);
 
@@ -130,6 +136,15 @@ export function createApp() {
   for (const mod of modules) {
     app.route(mod.basePath, mod.routes);
   }
+
+  // ─── SDK-based plugin modules (Phase 1: 静的登録) ────────────
+  // installModule() は Promise を返すが createApp() 内では await しない (同期構築)。
+  // アプリ起動時に reject するとログに載る。manifest の REST 登録は Hono が
+  // Promise で mount できるため遅延登録で問題ない。
+  installModule(app, exampleModule, {
+    packageName: "schedula-example-module",
+    packageVersion: "0.1.0",
+  }).catch((err) => console.error("[plugin] example install failed:", err));
 
   // ─── Legacy Compatibility ───────────────────────────────────
   app.route("/api/m1", m1);

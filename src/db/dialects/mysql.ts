@@ -44,6 +44,38 @@ export const users = mysqlTable("users", {
   googleScopes: json("google_scopes").$type<string[]>(),
 });
 
+// ─── Module Installations / States (プラグイン管理) ─────────
+
+export const moduleInstallations = mysqlTable("module_installations", {
+  id: varchar("id", { length: 255 }).primaryKey(),
+  moduleId: varchar("module_id", { length: 255 }).notNull().unique(),
+  packageName: varchar("package_name", { length: 255 }).notNull(),
+  packageVersion: varchar("package_version", { length: 64 }).notNull(),
+  manifest: json("manifest").$type<Record<string, unknown>>().notNull(),
+  installedAt: timestamp("installed_at")
+    .$defaultFn(() => new Date())
+    .notNull(),
+  installedBy: varchar("installed_by", { length: 255 }),
+});
+
+export const moduleStates = mysqlTable(
+  "module_states",
+  {
+    id: varchar("id", { length: 255 }).primaryKey(),
+    moduleId: varchar("module_id", { length: 255 }).notNull(),
+    scopeType: varchar("scope_type", { length: 16 }).notNull(),
+    scopeId: varchar("scope_id", { length: 255 }),
+    enabled: boolean("enabled").notNull().default(true),
+    changedAt: timestamp("changed_at")
+      .$defaultFn(() => new Date())
+      .notNull(),
+    changedBy: varchar("changed_by", { length: 255 }),
+  },
+  (t) => ({
+    uniqScope: unique().on(t.moduleId, t.scopeType, t.scopeId),
+  }),
+);
+
 // ─── Sessions ────────────────────────────────────────────────
 
 export const sessions = mysqlTable("sessions", {

@@ -39,6 +39,50 @@ export const users = sqliteTable("users", {
     .notNull(),
 });
 
+// ─── Module Installations (プラグインモジュール管理) ────────
+// Phase 1: モジュールはソースコード内に存在するが、manifest 駆動で
+// 有効/無効を切り替える。将来的に外部 npm パッケージからロードする。
+
+export const moduleInstallations = sqliteTable("module_installations", {
+  /** 一意ID */
+  id: text("id").primaryKey(),
+  /** モジュールID (manifest.id) */
+  moduleId: text("module_id").notNull().unique(),
+  /** パッケージ名 (Phase 1 ではソース内パス) */
+  packageName: text("package_name").notNull(),
+  /** パッケージバージョン (manifest.version または package.json) */
+  packageVersion: text("package_version").notNull(),
+  /** manifest snapshot (JSON, install 時点) */
+  manifest: text("manifest", { mode: "json" }).$type<Record<string, unknown>>().notNull(),
+  installedAt: integer("installed_at", { mode: "timestamp" })
+    .$defaultFn(() => new Date())
+    .notNull(),
+  installedBy: text("installed_by"),
+});
+
+/** モジュールの有効/無効状態 (3スコープ階層) */
+export const moduleStates = sqliteTable(
+  "module_states",
+  {
+    id: text("id").primaryKey(),
+    /** モジュールID (installations.module_id と対応) */
+    moduleId: text("module_id").notNull(),
+    /** スコープ種別: "global" | "group" | "user" */
+    scopeType: text("scope_type").notNull(),
+    /** スコープID: global なら NULL、group なら groupId、user なら userId */
+    scopeId: text("scope_id"),
+    /** 有効フラグ */
+    enabled: integer("enabled", { mode: "boolean" }).notNull().default(true),
+    changedAt: integer("changed_at", { mode: "timestamp" })
+      .$defaultFn(() => new Date())
+      .notNull(),
+    changedBy: text("changed_by"),
+  },
+  (t) => ({
+    uniqScope: unique().on(t.moduleId, t.scopeType, t.scopeId),
+  }),
+);
+
 // ─── Sessions (JWT管理用) ──────────────────────────────────
 
 export const sessions = sqliteTable("sessions", {

@@ -28,6 +28,28 @@ sqlite.exec(`
     google_scopes TEXT
   );
 
+  CREATE TABLE IF NOT EXISTS module_installations (
+    id TEXT PRIMARY KEY,
+    module_id TEXT NOT NULL UNIQUE,
+    package_name TEXT NOT NULL,
+    package_version TEXT NOT NULL,
+    manifest TEXT NOT NULL,
+    installed_at INTEGER NOT NULL,
+    installed_by TEXT
+  );
+
+  CREATE TABLE IF NOT EXISTS module_states (
+    id TEXT PRIMARY KEY,
+    module_id TEXT NOT NULL,
+    scope_type TEXT NOT NULL,
+    scope_id TEXT,
+    enabled INTEGER NOT NULL DEFAULT 1,
+    changed_at INTEGER NOT NULL,
+    changed_by TEXT,
+    UNIQUE(module_id, scope_type, scope_id)
+  );
+  CREATE INDEX IF NOT EXISTS idx_module_states_lookup ON module_states(module_id, scope_type, scope_id);
+
   CREATE TABLE IF NOT EXISTS sessions (
     id TEXT PRIMARY KEY,
     user_id TEXT NOT NULL REFERENCES users(id),
