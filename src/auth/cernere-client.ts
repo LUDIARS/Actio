@@ -324,3 +324,77 @@ export async function updateProjectSchema(
     columnsAdded: string[];
   }>;
 }
+
+// ── OAuth Token Storage (個人データ保管禁止ルールの基盤) ────────
+
+export interface CernereOAuthToken {
+  provider: string;
+  accessToken: string | null;
+  refreshToken: string | null;
+  expiresAt: string | null;
+  tokenType: string | null;
+  scope: string | null;
+  metadata: Record<string, unknown>;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface StoreOAuthTokenInput {
+  provider: string;
+  accessToken?: string | null;
+  refreshToken?: string | null;
+  expiresAt?: string | null;
+  tokenType?: string | null;
+  scope?: string | null;
+  metadata?: Record<string, unknown>;
+}
+
+/** Cernere に OAuth token を保管 (upsert) */
+export async function storeOAuthToken(
+  userId: string,
+  input: StoreOAuthTokenInput,
+): Promise<{ ok: true; provider: string }> {
+  return cernereClient.request("managed_project", "store_oauth_token", {
+    userId,
+    ...input,
+  }) as Promise<{ ok: true; provider: string }>;
+}
+
+/** Cernere から OAuth token を取得。未登録なら null */
+export async function getOAuthToken(
+  userId: string,
+  provider: string,
+): Promise<CernereOAuthToken | null> {
+  try {
+    return await cernereClient.request("managed_project", "get_oauth_token", {
+      userId,
+      provider,
+    }) as CernereOAuthToken | null;
+  } catch (err) {
+    console.warn("[cernere-client] get_oauth_token failed:", err);
+    return null;
+  }
+}
+
+/** Cernere から全 OAuth token を列挙 */
+export async function listOAuthTokens(userId: string): Promise<CernereOAuthToken[]> {
+  try {
+    return await cernereClient.request("managed_project", "list_oauth_tokens", {
+      userId,
+    }) as CernereOAuthToken[];
+  } catch (err) {
+    console.warn("[cernere-client] list_oauth_tokens failed:", err);
+    return [];
+  }
+}
+
+/** Cernere から OAuth token を削除 */
+export async function deleteOAuthToken(
+  userId: string,
+  provider: string,
+): Promise<{ ok: true; deleted: boolean }> {
+  return cernereClient.request("managed_project", "delete_oauth_token", {
+    userId,
+    provider,
+  }) as Promise<{ ok: true; deleted: boolean }>;
+}

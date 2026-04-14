@@ -72,6 +72,40 @@ export interface UserDataApi {
   delete(userId: string, key: string): Promise<void>;
 }
 
+/** OAuth トークンストレージ (Cernere project_oauth_tokens proxy)
+ *
+ * 個人データ保管禁止ルールに基づき、モジュールは OAuth トークンを自前で
+ * 保管せず Cernere に預ける。`provider` は "google" / "notion" / "github" など任意の文字列。
+ */
+export interface OAuthToken {
+  provider: string;
+  accessToken: string | null;
+  refreshToken: string | null;
+  expiresAt: string | null;
+  tokenType: string | null;
+  scope: string | null;
+  metadata: Record<string, unknown>;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface OAuthTokenInput {
+  provider: string;
+  accessToken?: string | null;
+  refreshToken?: string | null;
+  expiresAt?: string | null;
+  tokenType?: string | null;
+  scope?: string | null;
+  metadata?: Record<string, unknown>;
+}
+
+export interface OAuthApi {
+  store(userId: string, input: OAuthTokenInput): Promise<{ ok: true; provider: string }>;
+  get(userId: string, provider: string): Promise<OAuthToken | null>;
+  list(userId: string): Promise<OAuthToken[]>;
+  delete(userId: string, provider: string): Promise<{ ok: true; deleted: boolean }>;
+}
+
 /** WebSocket ブロードキャスト */
 export interface WsApi {
   /** 特定グループの全メンバーに通知 */
@@ -115,6 +149,8 @@ export interface ModuleContext {
   readonly users: UserIdentityApi;
   /** ユーザーデータ (Cernere proxy) */
   readonly userData: UserDataApi;
+  /** OAuth トークン (Cernere proxy) */
+  readonly oauth: OAuthApi;
   /** DB */
   readonly db: DbApi;
   /** WS */

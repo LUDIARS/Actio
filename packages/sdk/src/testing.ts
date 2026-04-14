@@ -9,6 +9,8 @@ import type {
   UserIdentity,
   UserIdentityApi,
   UserDataApi,
+  OAuthApi,
+  OAuthToken,
   DbApi,
   WsApi,
   SecretsApi,
@@ -74,6 +76,37 @@ export function createMockContext(opts: MockContextOptions = {}): ModuleContext 
     },
   };
 
+  const oauthStore = new Map<string, Map<string, OAuthToken>>();
+  const oauth: OAuthApi = {
+    async store(userId, input) {
+      if (!oauthStore.has(userId)) oauthStore.set(userId, new Map());
+      const now = new Date().toISOString();
+      const existing = oauthStore.get(userId)!.get(input.provider);
+      oauthStore.get(userId)!.set(input.provider, {
+        provider: input.provider,
+        accessToken: input.accessToken ?? existing?.accessToken ?? null,
+        refreshToken: input.refreshToken ?? existing?.refreshToken ?? null,
+        expiresAt: input.expiresAt ?? existing?.expiresAt ?? null,
+        tokenType: input.tokenType ?? existing?.tokenType ?? null,
+        scope: input.scope ?? existing?.scope ?? null,
+        metadata: input.metadata ?? existing?.metadata ?? {},
+        createdAt: existing?.createdAt ?? now,
+        updatedAt: now,
+      });
+      return { ok: true, provider: input.provider };
+    },
+    async get(userId, provider) {
+      return oauthStore.get(userId)?.get(provider) ?? null;
+    },
+    async list(userId) {
+      return Array.from(oauthStore.get(userId)?.values() ?? []);
+    },
+    async delete(userId, provider) {
+      const deleted = oauthStore.get(userId)?.delete(provider) ?? false;
+      return { ok: true, deleted };
+    },
+  };
+
   const ws: WsApi = {
     async broadcastToGroup() {
       /* no-op */
@@ -105,6 +138,7 @@ export function createMockContext(opts: MockContextOptions = {}): ModuleContext 
     moduleId,
     users,
     userData,
+    oauth,
     db,
     ws,
     secrets,

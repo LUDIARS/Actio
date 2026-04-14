@@ -8,15 +8,10 @@ import { auth, compositeAuthRoutes } from "./auth/routes.js";
 import { notification } from "../modules/notification/routes.js";
 import { groupRoutes } from "../modules/group/routes.js";
 import { calendar } from "../modules/calendar/routes.js";
-// myPlanRoutes は @ludiars/schedula-module-myplan に移行
-import { smartScheduler } from "../modules/smart-scheduler/routes.js";
-import { schoolModule } from "../modules/school/index.js";
+// myPlan / smart-scheduler / school / schedule(m1) / integrations は SDK module に移行
 import { pmModule } from "../modules/pm/index.js";
-import { m1 } from "../modules/schedule/routes.js";
-// holidayRoutes は @ludiars/schedula-module-holiday に移行
 import { reminderRoutes } from "../modules/reminder/routes.js";
 import { alexaRoutes } from "../modules/reminder/extensions/alexa/routes.js";
-import { integrations } from "../modules/integrations/index.js";
 import { dbViewer } from "./admin/db-viewer.js";
 import { externalApi } from "../modules/external-api/routes.js";
 import { settingsRoutes } from "../modules/settings/routes.js";
@@ -37,6 +32,9 @@ import exampleModule from "../modules-ext/example/server.js";
 import votingModule from "@ludiars/schedula-module-voting";
 import holidayModule from "@ludiars/schedula-module-holiday";
 import myplanModule from "@ludiars/schedula-module-myplan";
+import smartSchedulerModule from "@ludiars/schedula-module-smart-scheduler";
+import schoolModule from "@ludiars/schedula-module-school";
+import integrationsModule from "@ludiars/schedula-module-integrations";
 
 export function createApp() {
   const app = new Hono();
@@ -108,31 +106,21 @@ export function createApp() {
   // ─── Core: Calendar (Google Calendar + 手動予定 + プラン) ────
   app.route("/api/calendar", calendar);
 
-  // ─── Module: MyPlan — SDK module 経由 ────────────────────────
-
-  // ─── Core: Smart Scheduler (自動配置スケジューラ) ────────────
-  app.route("/api/smart-scheduler", smartScheduler);
+  // ─── SDK module 経由: MyPlan / Smart-Scheduler / School / Integrations / Holiday / Voting ──
 
   // ─── Module: Webhooks & Notifications ───────────────────────
   app.route("/api/webhooks", notification);
-
-  // ─── Module: Voting ─ SDK-based (installModule 経由で /api/voting 登録) ──
-
-  // ─── Module: Holidays — SDK module 経由 (installModule で /api/holidays 登録) ──
 
   // ─── Core: Reminders (リマインダー) ──────────────────────────
   app.route("/api/reminders", reminderRoutes);
   app.route("/api/reminders/alexa", alexaRoutes);
 
-  // ─── Module: Integrations (外部サービス連携) ──────────────────
-  app.route("/api/integrations", integrations);
-
   // ─── Module: External API (外部API連携) ─────────────────────
   app.route("/api/external", externalApi);
 
-  // ─── CALICULA (学校カリキュラム管理 + 施設予約: M1) & PM (M2) ─
-  const modules: SchulaModule[] = [schoolModule, pmModule];
-  for (const mod of modules) {
+  // ─── PM (M2) — legacy SchulaModule (SDK 移行未) ────────────
+  const legacyModules: SchulaModule[] = [pmModule];
+  for (const mod of legacyModules) {
     app.route(mod.basePath, mod.routes);
   }
 
@@ -156,6 +144,18 @@ export function createApp() {
     packageName: "@ludiars/schedula-module-myplan",
     packageVersion: "0.1.0",
   });
+  installModule(app, smartSchedulerModule, {
+    packageName: "@ludiars/schedula-module-smart-scheduler",
+    packageVersion: "0.1.0",
+  });
+  installModule(app, schoolModule, {
+    packageName: "@ludiars/schedula-module-school",
+    packageVersion: "0.1.0",
+  });
+  installModule(app, integrationsModule, {
+    packageName: "@ludiars/schedula-module-integrations",
+    packageVersion: "0.1.0",
+  });
 
   // Cernere に userData カラムを同期 (fire-and-forget、CERNERE_URL 未設定なら no-op)
   void (async () => {
@@ -164,7 +164,7 @@ export function createApp() {
   })();
 
   // ─── Legacy Compatibility ───────────────────────────────────
-  app.route("/api/m1", m1);
+  // /api/m1 は school SDK モジュールの /api/school/m1 に移行 (alias は別途必要なら module 内追加)
   app.route("/api/m5", notification);
   // /api/m6 は voting SDK モジュールに移行、/api/voting のみ提供
 
@@ -222,7 +222,7 @@ export function createApp() {
   // ─── Health & Info ──────────────────────────────────────────
   app.get("/", (c) => {
     const registeredModules: Record<string, string> = {};
-    for (const mod of modules) {
+    for (const mod of legacyModules) {
       registeredModules[mod.name] = `${mod.description} - ${mod.basePath}`;
     }
 

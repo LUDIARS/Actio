@@ -10,6 +10,7 @@ import type {
   UserIdentity,
   UserIdentityApi,
   UserDataApi,
+  OAuthApi,
   DbApi,
   WsApi,
   SecretsApi,
@@ -22,6 +23,10 @@ import {
   getProjectUserColumns,
   setProjectUserData,
   deleteProjectUserColumns,
+  storeOAuthToken,
+  getOAuthToken,
+  listOAuthTokens,
+  deleteOAuthToken,
 } from "../auth/cernere-client.js";
 import { secretManager } from "../config/secrets.js";
 import { logActivity } from "../activity-logger.js";
@@ -59,6 +64,21 @@ export function buildModuleContext(moduleId: string): ModuleContext {
     async delete(userId, key) {
       const col = columnKey(moduleId, key);
       await deleteProjectUserColumns(userId, [col]);
+    },
+  };
+
+  const oauth: OAuthApi = {
+    async store(userId, input) {
+      return storeOAuthToken(userId, input);
+    },
+    async get(userId, provider) {
+      return getOAuthToken(userId, provider);
+    },
+    async list(userId) {
+      return listOAuthTokens(userId);
+    },
+    async delete(userId, provider) {
+      return deleteOAuthToken(userId, provider);
     },
   };
 
@@ -111,6 +131,7 @@ export function buildModuleContext(moduleId: string): ModuleContext {
     moduleId,
     users,
     userData,
+    oauth,
     db: dbApi,
     ws,
     secrets,
