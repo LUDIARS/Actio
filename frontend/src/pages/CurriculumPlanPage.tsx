@@ -92,8 +92,8 @@ export function CurriculumPlanPage() {
 
       setCurricula(Array.from(currMap.values()));
       setBlocks(blockList);
-    } catch (err: any) {
-      setError(err.message || "M1データの読み込みに失敗しました");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "M1データの読み込みに失敗しました");
     }
     setLoading(false);
   }, []);

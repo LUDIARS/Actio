@@ -94,8 +94,8 @@ export function FacilityBookingPage() {
     try {
       const result = await facilityBooking.listReservations();
       setReservations(result.reservations || []);
-    } catch (e: any) {
-      showMsg(`Error: ${e.message}`, "error");
+    } catch (e) {
+      showMsg(`Error: ${e instanceof Error ? e.message : String(e)}`, "error");
     }
   }, []);
 
@@ -246,8 +246,8 @@ export function FacilityBookingPage() {
       setShowForm(false);
       fetchReservations();
       fetchRoomsAvailability();
-    } catch (e: any) {
-      showMsg(`Error: ${e.message}`, "error");
+    } catch (e) {
+      showMsg(`Error: ${e instanceof Error ? e.message : String(e)}`, "error");
     }
     setLoading(false);
   };
@@ -258,8 +258,8 @@ export function FacilityBookingPage() {
       showMsg("予約をキャンセルしました（カレンダーから削除済み）");
       fetchReservations();
       fetchRoomsAvailability();
-    } catch (e: any) {
-      showMsg(`Error: ${e.message}`, "error");
+    } catch (e) {
+      showMsg(`Error: ${e instanceof Error ? e.message : String(e)}`, "error");
     }
   };
 

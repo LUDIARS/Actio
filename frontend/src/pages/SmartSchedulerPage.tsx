@@ -75,10 +75,10 @@ export function SmartSchedulerPage() {
 
   // グループ一覧と講師一覧を取得
   useEffect(() => {
-    groupApi.listMyGroups().then((res: any) => {
+    groupApi.listMyGroups().then((res) => {
       setGroups(res.groups || []);
     }).catch((err: Error) => { console.error("[SmartScheduler] グループ取得失敗:", err.message); });
-    m1Schema.getInstructors().then((res: any) => {
+    m1Schema.getInstructors().then((res) => {
       setInstructors(res.instructors || []);
     }).catch((err: Error) => { console.error("[SmartScheduler] 講師取得失敗:", err.message); });
   }, []);
@@ -89,8 +89,8 @@ export function SmartSchedulerPage() {
     try {
       const res = await smartSchedulerApi.getTasks(selectedGroupId);
       setTasks(res.tasks || []);
-    } catch (e: any) {
-      showMsg(`Error: ${e.message}`);
+    } catch (e) {
+      showMsg(`Error: ${e instanceof Error ? e.message : String(e)}`);
     }
   }, [selectedGroupId]);
 
@@ -126,8 +126,8 @@ export function SmartSchedulerPage() {
       setShowAddForm(false);
       await loadTasks();
       showMsg("タスク追加しました");
-    } catch (e: any) {
-      showMsg(`Error: ${e.message}`);
+    } catch (e) {
+      showMsg(`Error: ${e instanceof Error ? e.message : String(e)}`);
     }
   };
 
@@ -135,8 +135,8 @@ export function SmartSchedulerPage() {
     try {
       await smartSchedulerApi.deleteTask(taskId);
       await loadTasks();
-    } catch (e: any) {
-      showMsg(`Error: ${e.message}`);
+    } catch (e) {
+      showMsg(`Error: ${e instanceof Error ? e.message : String(e)}`);
     }
   };
 
@@ -151,8 +151,8 @@ export function SmartSchedulerPage() {
       });
       setSolveResult(res);
       showMsg(`配置完了: ${res.placements.length}件配置, スコア ${res.totalScore}`);
-    } catch (e: any) {
-      showMsg(`Error: ${e.message}`);
+    } catch (e) {
+      showMsg(`Error: ${e instanceof Error ? e.message : String(e)}`);
     }
     setLoading(false);
   };
@@ -164,8 +164,8 @@ export function SmartSchedulerPage() {
       showMsg("配置を確定しました");
       setSolveResult(null);
       await loadTasks();
-    } catch (e: any) {
-      showMsg(`Error: ${e.message}`);
+    } catch (e) {
+      showMsg(`Error: ${e instanceof Error ? e.message : String(e)}`);
     }
   };
 

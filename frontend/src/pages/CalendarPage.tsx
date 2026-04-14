@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { calendarApi } from "../lib/api";
-import type { PersonalEvent, Plan } from "../lib/api-types";
+import type { PersonalEvent, Plan, GoogleCalendarEvent } from "../lib/api-types";
 import { useWsEvents } from "../hooks/useWsEvent";
 import { HelpButton } from "../components/HelpOverlay";
 import { DAY_LABELS, getPeriodLabel } from "../lib/constants";
@@ -14,7 +14,7 @@ export function CalendarPage() {
   const [events, setEvents] = useState<PersonalEvent[]>([]);
   const [plans, setPlans] = useState<Plan[]>([]);
   const [googleConnected, setGoogleConnected] = useState(false);
-  const [googleEvents, setGoogleEvents] = useState<any[]>([]);
+  const [googleEvents, setGoogleEvents] = useState<GoogleCalendarEvent[]>([]);
   const [conflicts, setConflicts] = useState<Array<{
     day: number;
     period: number;
@@ -104,9 +104,9 @@ export function CalendarPage() {
     try {
       const data = await calendarApi.getEvents();
       setGoogleEvents(data.events || []);
-    } catch (err: any) {
+    } catch (err) {
       console.error("[CalendarPage] loadGoogleEvents失敗:", err);
-      setError(err.message || "Googleカレンダーの取得に失敗しました");
+      setError(err instanceof Error ? err.message : "Googleカレンダーの取得に失敗しました");
     } finally {
       setLoading(false);
     }
@@ -121,9 +121,9 @@ export function CalendarPage() {
       setShowEventForm(false);
       setEventForm({ title: "", description: "", day: 0, period: 0, eventType: "personal", isPrivate: true });
       await loadEvents();
-    } catch (err: any) {
+    } catch (err) {
       console.error("[CalendarPage] handleAddEvent失敗:", err);
-      setError(err.message || "予定の追加に失敗しました");
+      setError(err instanceof Error ? err.message : "予定の追加に失敗しました");
     }
   };
 
@@ -131,9 +131,9 @@ export function CalendarPage() {
     try {
       await calendarApi.deletePersonalEvent(id);
       await loadEvents();
-    } catch (err: any) {
+    } catch (err) {
       console.error("[CalendarPage] handleDeleteEvent失敗:", err);
-      setError(err.message);
+      setError(err instanceof Error ? err.message : String(err));
     }
   };
 
@@ -151,9 +151,9 @@ export function CalendarPage() {
       setPlanForm({ name: "", description: "", days: [], startPeriod: 0, duration: 1, eventType: "personal", isPrivate: true });
       await loadPlans();
       await loadEvents();
-    } catch (err: any) {
+    } catch (err) {
       console.error("[CalendarPage] handleAddPlan失敗:", err);
-      setError(err.message || "プランの作成に失敗しました");
+      setError(err instanceof Error ? err.message : "プランの作成に失敗しました");
     }
   };
 
@@ -162,9 +162,9 @@ export function CalendarPage() {
       await calendarApi.deletePlan(id);
       await loadPlans();
       await loadEvents();
-    } catch (err: any) {
+    } catch (err) {
       console.error("[CalendarPage] handleDeletePlan失敗:", err);
-      setError(err.message);
+      setError(err instanceof Error ? err.message : String(err));
     }
   };
 
@@ -173,9 +173,9 @@ export function CalendarPage() {
       await calendarApi.updatePlan(plan.id, { isActive: !plan.isActive });
       await loadPlans();
       await loadEvents();
-    } catch (err: any) {
+    } catch (err) {
       console.error("[CalendarPage] handleTogglePlan失敗:", err);
-      setError(err.message);
+      setError(err instanceof Error ? err.message : String(err));
     }
   };
 
@@ -184,9 +184,9 @@ export function CalendarPage() {
       await calendarApi.disconnect();
       setGoogleConnected(false);
       setGoogleEvents([]);
-    } catch (err: any) {
+    } catch (err) {
       console.error("[CalendarPage] handleDisconnectGoogle失敗:", err);
-      setError(err.message);
+      setError(err instanceof Error ? err.message : String(err));
     }
   };
 
@@ -659,7 +659,7 @@ export function CalendarPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {googleEvents.map((evt: any) => (
+                  {googleEvents.map((evt) => (
                     <tr key={evt.id}>
                       <td style={{ fontWeight: 500 }}>{evt.title}</td>
                       <td style={{ fontSize: "0.8rem" }}>

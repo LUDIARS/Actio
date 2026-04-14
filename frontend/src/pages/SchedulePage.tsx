@@ -7,7 +7,7 @@ import {
   CANDIDATE_COLORS,
 } from "../lib/constants";
 import { m1 } from "../lib/api";
-import type { ScheduleEntry } from "../lib/api-types";
+import type { ScheduleEntry, GenerateStats } from "../lib/api-types";
 
 export function SchedulePage() {
   const [entries, setEntries] = useState<ScheduleEntry[]>([]);
@@ -21,7 +21,7 @@ export function SchedulePage() {
   const [mode, setMode] = useState<"pack" | "spread">("pack");
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
-  const [stats, setStats] = useState<any>(null);
+  const [stats, setStats] = useState<GenerateStats | null>(null);
 
   const showMessage = (msg: string) => {
     setMessage(msg);
@@ -36,9 +36,9 @@ export function SchedulePage() {
       else if (type === "rooms") result = await m1.importRooms(csvText);
       else result = await m1.importCurriculum(csvText);
       showMessage(`${type} imported: ${JSON.stringify(result)}`);
-    } catch (e: any) {
+    } catch (e) {
       console.error(`[SchedulePage] handleImport(${type})失敗:`, e);
-      showMessage(`Error: ${e.message}`);
+      showMessage(`Error: ${e instanceof Error ? e.message : String(e)}`);
     }
   };
 
@@ -51,9 +51,9 @@ export function SchedulePage() {
       showMessage(
         `Generated: ${result.stats?.placed || 0} placed, ${result.stats?.unplaced || 0} unplaced`
       );
-    } catch (e: any) {
+    } catch (e) {
       console.error("[SchedulePage] handleGenerate失敗:", e);
-      showMessage(`Error: ${e.message}`);
+      showMessage(`Error: ${e instanceof Error ? e.message : String(e)}`);
     }
     setLoading(false);
   };
@@ -63,9 +63,9 @@ export function SchedulePage() {
       const result = await m1.getSchedule();
       setEntries(result.entries || []);
       showMessage(`Loaded ${(result.entries || []).length} entries`);
-    } catch (e: any) {
+    } catch (e) {
       console.error("[SchedulePage] handleFetch失敗:", e);
-      showMessage(`Error: ${e.message}`);
+      showMessage(`Error: ${e instanceof Error ? e.message : String(e)}`);
     }
   };
 
@@ -118,9 +118,9 @@ export function SchedulePage() {
       } else {
         showMessage(`Swap failed: ${result.message}`);
       }
-    } catch (e: any) {
+    } catch (e) {
       console.error("[SchedulePage] handleSwap失敗:", e);
-      showMessage(`Swap error: ${e.message}`);
+      showMessage(`Swap error: ${e instanceof Error ? e.message : String(e)}`);
     }
   };
 
@@ -128,9 +128,9 @@ export function SchedulePage() {
     try {
       await m1.confirm();
       showMessage("Schedule confirmed and exported to M2");
-    } catch (e: any) {
+    } catch (e) {
       console.error("[SchedulePage] handleConfirm失敗:", e);
-      showMessage(`Error: ${e.message}`);
+      showMessage(`Error: ${e instanceof Error ? e.message : String(e)}`);
     }
   };
 

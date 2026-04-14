@@ -24,6 +24,7 @@ import type {
   PMProject, PMTask, PMTaskSnapshot, PMConflict, PMValidationResult, PMSyncResult,
   PMProgressReport, PMCriticalPathResult, PMDecompositionRecommendation, PMGompertzReport, PMFullReport,
   PMReminderSettings, PMReminderTestResult,
+  SyncLog, NotionPage,
 } from "./api-types";
 
 // ─── Session Management ────────────────────────────────────
@@ -526,9 +527,25 @@ export const m3 = {
 
 // ─── Reservation Plugins ────────────────────────────────────
 
+export interface ReservationPluginInfo {
+  id: string;
+  name: string;
+  description: string;
+  icon: string;
+  apiBasePath: string;
+  frontendPath: string;
+  operations: {
+    list: string;
+    create: string;
+    cancel: string;
+  };
+}
+
 export const reservationPluginsApi = {
   listPlugins() {
-    return request<any>("/api/reservations/plugins");
+    return request<{ plugins: ReservationPluginInfo[] }>(
+      "/api/reservations/plugins"
+    );
   },
 };
 
@@ -1172,7 +1189,7 @@ export const integrationsApi = {
       );
     },
     getLogs() {
-      return request<{ logs: any[] }>("/api/integrations/google-calendar/logs");
+      return request<{ logs: SyncLog[] }>("/api/integrations/google-calendar/logs");
     },
   },
 
@@ -1214,7 +1231,7 @@ export const integrationsApi = {
       );
     },
     getPages() {
-      return request<{ pages: any[] }>("/api/integrations/notion/pages");
+      return request<{ pages: NotionPage[] }>("/api/integrations/notion/pages");
     },
     createPage(properties: Record<string, unknown>) {
       return request<{ message: string; pageId: string }>(
@@ -1247,7 +1264,7 @@ export const integrationsApi = {
       );
     },
     getLogs() {
-      return request<{ logs: any[] }>("/api/integrations/notion/sync/logs");
+      return request<{ logs: SyncLog[] }>("/api/integrations/notion/sync/logs");
     },
   },
 };

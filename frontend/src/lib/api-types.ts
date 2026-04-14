@@ -722,13 +722,16 @@ export interface ScheduleResponse {
   entries: ScheduleEntry[];
 }
 
+export interface GenerateStats {
+  placed: number;
+  unplaced: number;
+  mode?: string;
+}
+
 export interface GenerateResponse {
   message: string;
   entries: ScheduleEntry[];
-  stats?: {
-    placed: number;
-    unplaced: number;
-  };
+  stats?: GenerateStats;
 }
 
 export interface SwapResponse {
@@ -1091,4 +1094,26 @@ export interface PMReminderTestResult {
   overdueCount: number;
   warningTasks: { id: string; title: string; dueDate: string | null }[];
   overdueTasks: { id: string; title: string; dueDate: string | null }[];
+}
+
+// ─── Integrations ───────────────────────────────────────────
+
+export interface SyncLog {
+  id: string;
+  service: string;
+  action: string;
+  localEventId?: string;
+  externalId?: string;
+  status: string;
+  errorMessage?: string;
+  createdAt: string;
+}
+
+export interface NotionPage {
+  id: string;
+  title?: string;
+  url?: string;
+  properties?: Record<string, unknown>;
+  createdTime?: string;
+  lastEditedTime?: string;
 }

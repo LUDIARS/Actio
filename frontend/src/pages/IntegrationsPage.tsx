@@ -1,16 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { integrationsApi, calendarApi } from "../lib/api";
-
-type SyncLog = {
-  id: string;
-  service: string;
-  action: string;
-  localEventId?: string;
-  externalId?: string;
-  status: string;
-  errorMessage?: string;
-  createdAt: string;
-};
+import type { PersonalEvent, SyncLog } from "../lib/api-types";
 
 export function IntegrationsPage() {
   // Google Calendar state
@@ -39,7 +29,7 @@ export function IntegrationsPage() {
   const [notionParentPageId, setNotionParentPageId] = useState("");
 
   // Personal events for sync
-  const [events, setEvents] = useState<any[]>([]);
+  const [events, setEvents] = useState<PersonalEvent[]>([]);
 
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<"google" | "notion">("google");

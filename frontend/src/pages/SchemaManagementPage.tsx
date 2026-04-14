@@ -112,8 +112,8 @@ function DepartmentsTab({ showMessage }: { showMessage: (msg: string, type?: "su
     try {
       const data = await m1Schema.getDepartments();
       setDepartments(data.departments || []);
-    } catch (e: any) {
-      showMessage(`取得エラー: ${e.message}`, "error");
+    } catch (e) {
+      showMessage(`取得エラー: ${e instanceof Error ? e.message : String(e)}`, "error");
     }
   }, [showMessage]);
 
@@ -132,8 +132,8 @@ function DepartmentsTab({ showMessage }: { showMessage: (msg: string, type?: "su
       setNewName("");
       showMessage(`学科「${newName.trim()}」を作成しました`);
       fetchDepartments();
-    } catch (e: any) {
-      showMessage(`作成エラー: ${e.message}`, "error");
+    } catch (e) {
+      showMessage(`作成エラー: ${e instanceof Error ? e.message : String(e)}`, "error");
     }
     setLoading(false);
   };
@@ -145,8 +145,8 @@ function DepartmentsTab({ showMessage }: { showMessage: (msg: string, type?: "su
       setEditId(null);
       showMessage("学科を更新しました");
       fetchDepartments();
-    } catch (e: any) {
-      showMessage(`更新エラー: ${e.message}`, "error");
+    } catch (e) {
+      showMessage(`更新エラー: ${e instanceof Error ? e.message : String(e)}`, "error");
     }
   };
 
@@ -156,8 +156,8 @@ function DepartmentsTab({ showMessage }: { showMessage: (msg: string, type?: "su
       await m1Schema.deleteDepartment(id);
       showMessage(`学科「${name}」を削除しました`);
       fetchDepartments();
-    } catch (e: any) {
-      showMessage(`削除エラー: ${e.message}`, "error");
+    } catch (e) {
+      showMessage(`削除エラー: ${e instanceof Error ? e.message : String(e)}`, "error");
     }
   };
 
@@ -281,8 +281,8 @@ function InstructorsTab({ showMessage }: { showMessage: (msg: string, type?: "su
     try {
       const data = await m1Schema.getInstructors();
       setInstructors(data.instructors || []);
-    } catch (e: any) {
-      showMessage(`取得エラー: ${e.message}`, "error");
+    } catch (e) {
+      showMessage(`取得エラー: ${e instanceof Error ? e.message : String(e)}`, "error");
     }
   }, [showMessage]);
 
@@ -301,8 +301,8 @@ function InstructorsTab({ showMessage }: { showMessage: (msg: string, type?: "su
       setNewName("");
       showMessage(`講師「${newName.trim()}」を作成しました`);
       fetchInstructors();
-    } catch (e: any) {
-      showMessage(`作成エラー: ${e.message}`, "error");
+    } catch (e) {
+      showMessage(`作成エラー: ${e instanceof Error ? e.message : String(e)}`, "error");
     }
     setLoading(false);
   };
@@ -314,8 +314,8 @@ function InstructorsTab({ showMessage }: { showMessage: (msg: string, type?: "su
       setEditId(null);
       showMessage("講師を更新しました");
       fetchInstructors();
-    } catch (e: any) {
-      showMessage(`更新エラー: ${e.message}`, "error");
+    } catch (e) {
+      showMessage(`更新エラー: ${e instanceof Error ? e.message : String(e)}`, "error");
     }
   };
 
@@ -325,8 +325,8 @@ function InstructorsTab({ showMessage }: { showMessage: (msg: string, type?: "su
       await m1Schema.deleteInstructor(id);
       showMessage(`講師「${name}」を削除しました`);
       fetchInstructors();
-    } catch (e: any) {
-      showMessage(`削除エラー: ${e.message}`, "error");
+    } catch (e) {
+      showMessage(`削除エラー: ${e instanceof Error ? e.message : String(e)}`, "error");
     }
   };
 
@@ -452,8 +452,8 @@ function TermsTab({ showMessage }: { showMessage: (msg: string, type?: "success"
     try {
       const data = await m1Schema.getTerms();
       setTerms(data.terms || []);
-    } catch (e: any) {
-      showMessage(`取得エラー: ${e.message}`, "error");
+    } catch (e) {
+      showMessage(`取得エラー: ${e instanceof Error ? e.message : String(e)}`, "error");
     }
   }, [showMessage]);
 
@@ -478,8 +478,8 @@ function TermsTab({ showMessage }: { showMessage: (msg: string, type?: "success"
       setNewEndDate("");
       showMessage(`ターム「${newName.trim()}」を作成しました`);
       fetchTerms();
-    } catch (e: any) {
-      showMessage(`作成エラー: ${e.message}`, "error");
+    } catch (e) {
+      showMessage(`作成エラー: ${e instanceof Error ? e.message : String(e)}`, "error");
     }
     setLoading(false);
   };
@@ -495,8 +495,8 @@ function TermsTab({ showMessage }: { showMessage: (msg: string, type?: "success"
       setEditId(null);
       showMessage("タームを更新しました");
       fetchTerms();
-    } catch (e: any) {
-      showMessage(`更新エラー: ${e.message}`, "error");
+    } catch (e) {
+      showMessage(`更新エラー: ${e instanceof Error ? e.message : String(e)}`, "error");
     }
   };
 
@@ -506,8 +506,8 @@ function TermsTab({ showMessage }: { showMessage: (msg: string, type?: "success"
       await m1Schema.deleteTerm(id);
       showMessage(`ターム「${name}」を削除しました`);
       fetchTerms();
-    } catch (e: any) {
-      showMessage(`削除エラー: ${e.message}`, "error");
+    } catch (e) {
+      showMessage(`削除エラー: ${e instanceof Error ? e.message : String(e)}`, "error");
     }
   };
 
@@ -699,8 +699,8 @@ function CurriculaTab({ showMessage }: { showMessage: (msg: string, type?: "succ
       setInstructors(instData.instructors || []);
       setCurricula(currData.curricula || []);
       setTerms(termData.terms || []);
-    } catch (e: any) {
-      showMessage(`取得エラー: ${e.message}`, "error");
+    } catch (e) {
+      showMessage(`取得エラー: ${e instanceof Error ? e.message : String(e)}`, "error");
     }
   }, [showMessage]);
 
@@ -730,8 +730,8 @@ function CurriculaTab({ showMessage }: { showMessage: (msg: string, type?: "succ
       setNewTermId("");
       showMessage(`カリキュラム「${newName.trim()}」を作成しました`);
       fetchAll();
-    } catch (e: any) {
-      showMessage(`作成エラー: ${e.message}`, "error");
+    } catch (e) {
+      showMessage(`作成エラー: ${e instanceof Error ? e.message : String(e)}`, "error");
     }
     setLoading(false);
   };
@@ -748,8 +748,8 @@ function CurriculaTab({ showMessage }: { showMessage: (msg: string, type?: "succ
       setEditId(null);
       showMessage("カリキュラムを更新しました");
       fetchAll();
-    } catch (e: any) {
-      showMessage(`更新エラー: ${e.message}`, "error");
+    } catch (e) {
+      showMessage(`更新エラー: ${e instanceof Error ? e.message : String(e)}`, "error");
     }
   };
 
@@ -759,8 +759,8 @@ function CurriculaTab({ showMessage }: { showMessage: (msg: string, type?: "succ
       await m1Schema.deleteCurriculum(id);
       showMessage(`カリキュラム「${name}」を削除しました`);
       fetchAll();
-    } catch (e: any) {
-      showMessage(`削除エラー: ${e.message}`, "error");
+    } catch (e) {
+      showMessage(`削除エラー: ${e instanceof Error ? e.message : String(e)}`, "error");
     }
   };
 
@@ -1064,8 +1064,8 @@ function AvailabilityTab({ showMessage }: { showMessage: (msg: string, type?: "s
     try {
       const data = await m1Schema.getInstructors();
       setInstructors(data.instructors || []);
-    } catch (e: any) {
-      showMessage(`取得エラー: ${e.message}`, "error");
+    } catch (e) {
+      showMessage(`取得エラー: ${e instanceof Error ? e.message : String(e)}`, "error");
     }
   }, [showMessage]);
 
@@ -1098,8 +1098,8 @@ function AvailabilityTab({ showMessage }: { showMessage: (msg: string, type?: "s
         }
       }
       setGrid(newGrid);
-    } catch (e: any) {
-      showMessage(`取得エラー: ${e.message}`, "error");
+    } catch (e) {
+      showMessage(`取得エラー: ${e instanceof Error ? e.message : String(e)}`, "error");
     }
   }, [showMessage]);
 
@@ -1137,8 +1137,8 @@ function AvailabilityTab({ showMessage }: { showMessage: (msg: string, type?: "s
       await m1Schema.setAvailability(selectedInstructor, slotsToSave);
       showMessage("出講可能スロットを保存しました");
       loadAvailability(selectedInstructor);
-    } catch (e: any) {
-      showMessage(`保存エラー: ${e.message}`, "error");
+    } catch (e) {
+      showMessage(`保存エラー: ${e instanceof Error ? e.message : String(e)}`, "error");
     }
     setSaving(false);
   };
@@ -1288,11 +1288,12 @@ function RoomsTab({ showMessage }: { showMessage: (msg: string, type?: "success"
     try {
       const data = await m1Schema.getRooms();
       setRooms(data.rooms || []);
-    } catch (e: any) {
-      showMessage(`取得エラー: ${e.message}`, "error");
+    } catch (e) {
+      showMessage(`取得エラー: ${e instanceof Error ? e.message : String(e)}`, "error");
     }
   }, [showMessage]);
 
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { fetchRooms(); }, [fetchRooms]);
 
   const handleCreate = async (e: React.FormEvent) => {
@@ -1306,8 +1307,8 @@ function RoomsTab({ showMessage }: { showMessage: (msg: string, type?: "success"
       setNewType("classroom");
       showMessage(`教室「${newName.trim()}」を作成しました`);
       fetchRooms();
-    } catch (e: any) {
-      showMessage(`作成エラー: ${e.message}`, "error");
+    } catch (e) {
+      showMessage(`作成エラー: ${e instanceof Error ? e.message : String(e)}`, "error");
     }
     setLoading(false);
   };
@@ -1319,8 +1320,8 @@ function RoomsTab({ showMessage }: { showMessage: (msg: string, type?: "success"
       setEditId(null);
       showMessage("教室を更新しました");
       fetchRooms();
-    } catch (e: any) {
-      showMessage(`更新エラー: ${e.message}`, "error");
+    } catch (e) {
+      showMessage(`更新エラー: ${e instanceof Error ? e.message : String(e)}`, "error");
     }
   };
 
@@ -1330,8 +1331,8 @@ function RoomsTab({ showMessage }: { showMessage: (msg: string, type?: "success"
       await m1Schema.deleteRoom(id);
       showMessage(`教室「${name}」を削除しました`);
       fetchRooms();
-    } catch (e: any) {
-      showMessage(`削除エラー: ${e.message}`, "error");
+    } catch (e) {
+      showMessage(`削除エラー: ${e instanceof Error ? e.message : String(e)}`, "error");
     }
   };
 
