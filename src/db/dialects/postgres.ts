@@ -936,6 +936,8 @@ export const userProjectRoles = pgTable(
 
 export const schema = {
   users,
+  moduleInstallations,
+  moduleStates,
   sessions,
   rooms,
   scheduleEntries,
@@ -1249,6 +1251,40 @@ export async function createConnectionWithRetry() {
     const msg3 = err instanceof Error ? err.message : String(err);
     if (!msg3.includes("already exists")) {
       console.warn("[db:postgres] events/tasks テーブル自動作成エラー:", msg3);
+    }
+  }
+
+  // モジュール管理テーブル (Module SDK: installation + enable/disable state)
+  try {
+    await client`
+      CREATE TABLE IF NOT EXISTS module_installations (
+        id TEXT PRIMARY KEY,
+        module_id TEXT NOT NULL UNIQUE,
+        package_name TEXT NOT NULL,
+        package_version TEXT NOT NULL,
+        manifest JSONB NOT NULL,
+        installed_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        installed_by TEXT
+      )
+    `;
+    await client`
+      CREATE TABLE IF NOT EXISTS module_states (
+        id TEXT PRIMARY KEY,
+        module_id TEXT NOT NULL,
+        scope_type TEXT NOT NULL,
+        scope_id TEXT,
+        enabled BOOLEAN NOT NULL DEFAULT TRUE,
+        changed_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        changed_by TEXT,
+        UNIQUE(module_id, scope_type, scope_id)
+      )
+    `;
+    await client`CREATE INDEX IF NOT EXISTS idx_module_states_lookup ON module_states(module_id, scope_type, scope_id)`;
+    console.log("[db:postgres] module_installations/module_states テーブル確認完了");
+  } catch (err) {
+    const msg4 = err instanceof Error ? err.message : String(err);
+    if (!msg4.includes("already exists")) {
+      console.warn("[db:postgres] module_installations/module_states テーブル自動作成エラー:", msg4);
     }
   }
 
