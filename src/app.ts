@@ -12,8 +12,6 @@ import { eventRoutes } from "../modules/event/routes.js";
 import { taskRoutes } from "../modules/task/routes.js";
 // myPlan / smart-scheduler / school / schedule(m1) / integrations は SDK module に移行
 import { pmModule } from "../modules/pm/index.js";
-import { reminderRoutes } from "../modules/reminder/routes.js";
-import { alexaRoutes } from "../modules/reminder/extensions/alexa/routes.js";
 import { dbViewer } from "./admin/db-viewer.js";
 import { externalApi } from "../modules/external-api/routes.js";
 import { settingsRoutes } from "../modules/settings/routes.js";
@@ -120,9 +118,7 @@ export function createApp() {
   // ─── Module: Webhooks & Notifications ───────────────────────
   app.route("/api/webhooks", notification);
 
-  // ─── Core: Reminders (リマインダー) ──────────────────────────
-  app.route("/api/reminders", reminderRoutes);
-  app.route("/api/reminders/alexa", alexaRoutes);
+  // ─── リマインダーは Nuntius に移行予定 (modules/reminder 撤去済) ─
 
   // ─── Module: External API (外部API連携) ─────────────────────
   app.route("/api/external", externalApi);
@@ -248,7 +244,6 @@ export function createApp() {
         calendar: "カレンダー & 手動予定 - /api/calendar",
         myplans: "マイプラン - /api/myplans",
         smartScheduler: "自動配置スケジューラ - /api/smart-scheduler",
-        reminders: "リマインダー - /api/reminders",
       },
       modules: {
         ...registeredModules,

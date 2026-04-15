@@ -431,12 +431,6 @@ export interface TestSendResponse {
   };
 }
 
-export interface MorningReminderResponse {
-  message: string;
-  sent: boolean;
-  count?: number;
-}
-
 export interface WebhookLog {
   id: string;
   webhookId: string;
@@ -790,38 +784,7 @@ export interface ApiClientUpdateResponse {
   client: ApiClientInfo | null;
 }
 
-// ─── Reminders ─────────────────────────────────────────────
-
-export interface ReminderItem {
-  id: string;
-  userId: string;
-  title: string;
-  description: string | null;
-  remindAt: string;
-  repeatRule: string;
-  status: string;
-  source: string;
-  originalText: string | null;
-  createdAt: string;
-  updatedAt: string;
-}
-
-export interface ReminderListResponse {
-  reminders: ReminderItem[];
-}
-
-export interface ReminderResponse {
-  reminder: ReminderItem;
-}
-
-export interface ReminderParseResponse {
-  reminder: ReminderItem;
-  parsed: {
-    title: string;
-    remindAt: string;
-    confidence: number;
-  };
-}
+// Reminder types は削除 (Nuntius 移行予定)
 
 // ─── M3 MACHINA ────────────────────────────────────────────
 
@@ -1116,4 +1079,73 @@ export interface NotionPage {
   properties?: Record<string, unknown>;
   createdTime?: string;
   lastEditedTime?: string;
+}
+
+// ─── Core Task ──────────────────────────────────────────────
+
+export type TaskStatus =
+  | "open"
+  | "in_progress"
+  | "blocked"
+  | "done"
+  | "cancelled";
+export type TaskPriority = "low" | "medium" | "high" | "critical";
+
+export interface CoreTask {
+  id: string;
+  ownerId: string;
+  assigneeId: string | null;
+  groupId: string | null;
+  title: string;
+  description: string | null;
+  requirements: string | null;
+  status: TaskStatus;
+  priority: TaskPriority;
+  deadline: string | null;
+  estimatedMinutes: number | null;
+  pluginId: string | null;
+  pluginRef: string | null;
+  pluginPayload: Record<string, unknown> | null;
+  completedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateTaskInput {
+  title: string;
+  description?: string | null;
+  requirements?: string | null;
+  assigneeId?: string | null;
+  groupId?: string | null;
+  status?: TaskStatus;
+  priority?: TaskPriority;
+  deadline?: string | null;
+  estimatedMinutes?: number | null;
+  pluginId?: string;
+  pluginRef?: string;
+  pluginPayload?: Record<string, unknown>;
+}
+
+export type UpdateTaskInput = Partial<CreateTaskInput>;
+
+export interface TaskResponse {
+  task: CoreTask;
+}
+
+export interface TaskListResponse {
+  tasks: CoreTask[];
+}
+
+export interface TaskPluginInfo {
+  id: string;
+  name: string;
+  description: string;
+  icon?: string;
+  apiBasePath?: string;
+  frontendPath?: string;
+  managed: "core" | "external";
+}
+
+export interface TaskPluginListResponse {
+  plugins: TaskPluginInfo[];
 }

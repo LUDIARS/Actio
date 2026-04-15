@@ -9,7 +9,7 @@ import type {
   Reservation, ReservationListResponse, RoomScheduleResponse,
   WebhookListResponse, WebhookCreateResponse, WebhookTestResponse, WebhookRotateResponse, WebhookLogsResponse,
   NotificationPreferencesResponse, NotificationHistoryResponse,
-  NotificationTemplateListResponse, NotificationTemplateResponse, TemplatePreviewResponse, MorningReminderResponse,
+  NotificationTemplateListResponse, NotificationTemplateResponse, TemplatePreviewResponse,
   NotificationPlatform, SendMethod,
   MyPlanListResponse, MyPlanResponse,
   SchedulingTaskListResponse, SchedulingTaskResponse, SolveResponse, ConfirmResponse, SchedulingResultsResponse, SchedulerAvailabilityResponse,
@@ -17,7 +17,6 @@ import type {
   M3Group, M3AvailabilityResponse, M3SuggestionsResponse,
   ScheduleResponse, GenerateResponse, SwapResponse,
   HolidayListResponse, ActivityLogsResponse,
-  ReminderListResponse, ReminderResponse, ReminderParseResponse,
   ProfileResponse, ProfileUpdateResponse, ProjectRolesResponse, ProjectRolesUpdateResponse, GroupProjectRolesResponse,
   MachinaTaskListResponse, MachinaTaskDetailResponse, MachinaTaskLogListResponse,
   MachinaMonitorListResponse, MachinaAnalysisResponse, MachinaStatusResponse,
@@ -25,6 +24,8 @@ import type {
   PMProgressReport, PMCriticalPathResult, PMDecompositionRecommendation, PMGompertzReport, PMFullReport,
   PMReminderSettings, PMReminderTestResult,
   SyncLog, NotionPage,
+  CoreTask, CreateTaskInput, UpdateTaskInput,
+  TaskResponse, TaskListResponse, TaskPluginListResponse,
 } from "./api-types";
 
 // ─── Session Management ────────────────────────────────────
@@ -693,12 +694,6 @@ export const m5 = {
       body: JSON.stringify(body),
     });
   },
-  // Morning reminder (Nuntius topic publish)
-  triggerMorningReminder() {
-    return request<MorningReminderResponse>("/api/m5/morning-reminder", {
-      method: "POST",
-    });
-  },
 };
 
 // ─── Settings (アプリ設定) ──────────────────────────────────────
@@ -1096,33 +1091,7 @@ export const externalApiClient = {
   },
 };
 
-// ─── Reminders (リマインダー) ──────────────────────────────────
-
-export const reminderApi = {
-  /** リマインダー一覧取得 */
-  list(status?: string) {
-    const query = status ? `?status=${status}` : "";
-    return request<ReminderListResponse>(`/api/reminders${query}`);
-  },
-  /** 構造化データで作成 */
-  create(body: { title: string; description?: string; remindAt: string; repeatRule?: string }) {
-    return request<ReminderResponse>("/api/reminders", {
-      method: "POST",
-      body: JSON.stringify(body),
-    });
-  },
-  /** 自由テキストで作成 */
-  parseAndCreate(text: string) {
-    return request<ReminderParseResponse>("/api/reminders/parse", {
-      method: "POST",
-      body: JSON.stringify({ text, source: "web" }),
-    });
-  },
-  /** キャンセル (Nuntius 配信停止) */
-  remove(id: string) {
-    return request<{ deleted: string; status: string }>(`/api/reminders/${id}`, { method: "DELETE" });
-  },
-};
+// Reminder API は削除 (Nuntius 移行予定)
 
 // ─── Integrations (外部サービス連携) ──────────────────────────
 
@@ -1552,3 +1521,55 @@ export const pmApi = {
     return request<PMFullReport>(`/api/pm/projects/${projectId}/analytics/report`);
   },
 };
+
+// ─── Core Task API (/api/tasks) ────────────────────────────
+
+export interface TaskListQuery {
+  scope?: "owned" | "assigned" | "group" | "all";
+  groupId?: string;
+  status?: string;
+  pluginId?: string;
+  /** ISO 8601 string */
+  dueBefore?: string;
+}
+
+export const tasksApi = {
+  list(query: TaskListQuery = {}) {
+    const params = new URLSearchParams();
+    if (query.scope) params.set("scope", query.scope);
+    if (query.groupId) params.set("groupId", query.groupId);
+    if (query.status) params.set("status", query.status);
+    if (query.pluginId) params.set("pluginId", query.pluginId);
+    if (query.dueBefore) params.set("dueBefore", query.dueBefore);
+    const qs = params.toString();
+    return request<TaskListResponse>(`/api/tasks${qs ? `?${qs}` : ""}`);
+  },
+
+  get(id: string) {
+    return request<TaskResponse>(`/api/tasks/${id}`);
+  },
+
+  create(body: CreateTaskInput) {
+    return request<TaskResponse>("/api/tasks", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  },
+
+  update(id: string, body: UpdateTaskInput) {
+    return request<TaskResponse>(`/api/tasks/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(body),
+    });
+  },
+
+  remove(id: string) {
+    return request<{ ok: boolean }>(`/api/tasks/${id}`, { method: "DELETE" });
+  },
+
+  plugins() {
+    return request<TaskPluginListResponse>("/api/tasks/plugins");
+  },
+};
+
+export type { CoreTask };

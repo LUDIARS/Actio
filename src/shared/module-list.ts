@@ -160,18 +160,7 @@ export const MODULE_LIST: readonly ModuleListEntry[] = [
     frontendModuleFile: "frontend/src/lib/modules/schedule.ts",
     dependsOn: ["holiday", "myplan", "group"],
   },
-  {
-    id: "reminder",
-    name: "リマインダー",
-    description: "リマインダー管理・NLP テキストパース・Alexa 連携",
-    category: "schedule",
-    status: "active",
-    backendDir: "modules/reminder",
-    apiBasePath: "/api/reminders",
-    frontendPages: ["ReminderPage.tsx"],
-    frontendPaths: ["/reminders"],
-    frontendModuleFile: "frontend/src/lib/modules/schedule.ts",
-  },
+  // reminder モジュールは削除 (Nuntius に移行予定)
 
   // ━━━ School (M1) ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   {
