@@ -13,6 +13,29 @@ import type { ComponentType, ReactNode } from "react";
 
 // ─── Menu Plugin Interface ─────────────────────────────────
 
+/**
+ * メニュー最上位カテゴリ
+ *
+ * Actio は「予定 (Event)」「タスク (Task)」「その他」の 3 軸で
+ * モジュールを分類する。各モジュールグループは category を宣言することで
+ * サイドバー / ダッシュボードの最上位見出しの下に配置される。
+ */
+export type MenuCategory = "event" | "task" | "other";
+
+/** カテゴリの表示ラベル */
+export const MENU_CATEGORY_LABELS: Record<MenuCategory, string> = {
+  event: "予定",
+  task: "タスク",
+  other: "その他機能",
+};
+
+/** カテゴリの表示順 */
+export const MENU_CATEGORY_ORDER: Record<MenuCategory, number> = {
+  event: 0,
+  task: 1,
+  other: 2,
+};
+
 /** ナビゲーションメニュー項目 */
 export interface MenuItem {
   /** ルートパス (例: "/calendar") */
@@ -45,6 +68,11 @@ export interface MenuGroup {
   items: MenuItem[];
   /** デフォルトで折りたたむか */
   defaultCollapsed?: boolean;
+  /**
+   * このグループが属する最上位カテゴリ。
+   * 指定しない場合は "other" (その他機能) 扱い。
+   */
+  category?: MenuCategory;
 }
 
 // ─── UI Block (Widget) Plugin Interface ────────────────────
@@ -168,6 +196,25 @@ class ModuleRegistry {
       g.items.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
     }
     return groups;
+  }
+
+  /**
+   * カテゴリ別 (予定 / タスク / その他) にメニューグループを取得
+   *
+   * 各カテゴリ内ではグループ order → 項目 order でソートされる。
+   * category 未指定のグループは "other" 扱い。
+   */
+  getMenuGroupsByCategory(): Record<MenuCategory, MenuGroup[]> {
+    const result: Record<MenuCategory, MenuGroup[]> = {
+      event: [],
+      task: [],
+      other: [],
+    };
+    for (const g of this.getMenuGroups()) {
+      const cat = g.category ?? "other";
+      result[cat].push(g);
+    }
+    return result;
   }
 
   /**

@@ -13,6 +13,7 @@ export const notificationModule: ModuleDefinition = {
       label: "M5 通知",
       icon: "N",
       order: 700,
+      category: "task",
       items: [
         { to: "/notifications", label: "通知管理", icon: "N", removable: true, order: 0 },
       ],

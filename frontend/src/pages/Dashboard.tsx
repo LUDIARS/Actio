@@ -1,10 +1,64 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 
-import { calendarApi, groupApi, myPlanApi } from "../lib/api";
-import type { PersonalEvent } from "../lib/api-types";
+import { calendarApi, groupApi, myPlanApi, reminderApi, pmApi } from "../lib/api";
+import type { PersonalEvent, ReminderItem, PMProject } from "../lib/api-types";
 import { HelpButton } from "../components/HelpOverlay";
 import { DAY_LABELS, getPeriodLabel } from "../lib/constants";
+import {
+  moduleRegistry,
+  MENU_CATEGORY_LABELS,
+  type MenuCategory,
+  type MenuGroup,
+} from "../lib/module-registry";
+import { useAuth } from "../contexts/AuthContext";
+
+// render 内で定義すると毎回再生成されて state がリセットされる警告 (react-hooks/static-components)
+// が出るためトップレベルに昇格。
+function SectionHeader({
+  category,
+  children,
+}: {
+  category: MenuCategory;
+  children?: ReactNode;
+}) {
+  return (
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: "0.75rem",
+        margin: "1.5rem 0 0.75rem",
+        paddingBottom: "0.35rem",
+        borderBottom: "1px solid var(--border)",
+      }}
+    >
+      <h2
+        style={{
+          fontSize: "1rem",
+          fontWeight: 700,
+          margin: 0,
+          color: "var(--text)",
+        }}
+      >
+        {MENU_CATEGORY_LABELS[category]}
+      </h2>
+      <span
+        style={{
+          fontSize: "0.7rem",
+          color: "var(--text-muted)",
+        }}
+      >
+        {category === "event"
+          ? "時間拘束のある予定"
+          : category === "task"
+            ? "解決すべきタスク"
+            : "連携・管理機能"}
+      </span>
+      {children && <div style={{ marginLeft: "auto" }}>{children}</div>}
+    </div>
+  );
+}
 
 interface GoogleCalEvent {
   id: string;
@@ -71,6 +125,7 @@ function getDayOfWeek(year: number, month: number, day: number): number {
 // ─── Component ──────────────────────────────────────────────
 
 export function Dashboard() {
+  const { user } = useAuth();
   const CERNERE_URL = import.meta.env.VITE_CERNERE_URL ?? "http://localhost:8080";
   const googleAuthUrl = `${CERNERE_URL}/auth/google/login?redirect=${encodeURIComponent(window.location.origin)}`;
   const [googleConnected, setGoogleConnected] = useState(false);
@@ -79,7 +134,11 @@ export function Dashboard() {
   const [googleEvents, setGoogleEvents] = useState<GoogleCalEvent[]>([]);
   const [groupSchedules, setGroupSchedules] = useState<GroupSchedule[]>([]);
   const [myPlans, setMyPlans] = useState<MyPlanEvent[]>([]);
+  const [reminders, setReminders] = useState<ReminderItem[]>([]);
+  const [pmProjects, setPmProjects] = useState<PMProject[]>([]);
   const [loading, setLoading] = useState(true);
+
+  const canManage = user?.role === "admin" || user?.role === "group_leader";
 
   // カレンダー表示: 今月と来月
   const today = new Date();
@@ -95,18 +154,22 @@ export function Dashboard() {
   const loadData = useCallback(async () => {
     try {
       const logErr = (label: string) => (err: Error) => { console.error(`[Dashboard] ${label}:`, err.message); };
-      const [statusRes, eventsRes, conflictsRes, groupsRes, myPlansRes] = await Promise.all([
+      const [statusRes, eventsRes, conflictsRes, groupsRes, myPlansRes, remindersRes, pmProjectsRes] = await Promise.all([
         calendarApi.getStatus().catch((e: Error) => { logErr("status")(e); return { connected: false, email: "" }; }),
         calendarApi.getPersonalEvents().catch((e: Error) => { logErr("events")(e); return { events: [] }; }),
         calendarApi.getConflicts().catch((e: Error) => { logErr("conflicts")(e); return { conflicts: [] }; }),
         groupApi.listMyGroups().catch((e: Error) => { logErr("groups")(e); return { groups: [] }; }),
         myPlanApi.list().catch((e: Error) => { logErr("plans")(e); return { plans: [] }; }),
+        reminderApi.list("pending").catch((e: Error) => { logErr("reminders")(e); return { reminders: [] }; }),
+        pmApi.listProjects().catch((e: Error) => { logErr("pm")(e); return { projects: [] }; }),
       ]);
       setConflicts(conflictsRes.conflicts || []);
       setGoogleConnected(statusRes.connected);
       setGoogleEmail(statusRes.email || "");
       setEvents(eventsRes.events || []);
       setMyPlans((myPlansRes.plans || []).filter((p: MyPlanEvent) => p.isActive));
+      setReminders(remindersRes.reminders || []);
+      setPmProjects(pmProjectsRes.projects || []);
 
       // グループの予定を取得
       const groups = groupsRes.groups || [];
@@ -148,11 +211,9 @@ export function Dashboard() {
     setLoading(false);
   }, []);
 
-  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     loadData();
   }, [loadData]);
-  /* eslint-enable react-hooks/set-state-in-effect */
 
   // 今日の曜日 (0=月)
   const todayDow = (() => {
@@ -285,6 +346,87 @@ export function Dashboard() {
     return viewYear === today.getFullYear() && viewMonth === today.getMonth() && day === today.getDate();
   };
 
+  // タスクサマリー
+  // Date.now() は render pure でないため、useState の initializer で 1 度だけ
+  // 取得し、reminders 変化時に useEffect で更新する。
+  const oneDayMs = 24 * 60 * 60 * 1000;
+  const [now, setNow] = useState<number>(() => Date.now());
+  useEffect(() => {
+    setNow(Date.now());
+  }, [reminders]);
+  const upcomingReminders = useMemo(
+    () =>
+      [...reminders]
+        .filter((r) => r.status === "pending")
+        .sort((a, b) => a.remindAt.localeCompare(b.remindAt))
+        .slice(0, 5),
+    [reminders],
+  );
+  const overdueReminderCount = useMemo(
+    () =>
+      reminders.filter(
+        (r) => r.status === "pending" && new Date(r.remindAt).getTime() < now,
+      ).length,
+    [reminders, now],
+  );
+  const todayReminderCount = useMemo(
+    () =>
+      reminders.filter((r) => {
+        if (r.status !== "pending") return false;
+        const t = new Date(r.remindAt).getTime();
+        return t >= now && t < now + oneDayMs;
+      }).length,
+    [reminders, now, oneDayMs],
+  );
+
+  // メニューレジストリから「予定 / タスク / その他」のモジュール一覧取得 (クイックリンク用)
+  const groupsByCategory = useMemo(
+    () => moduleRegistry.getMenuGroupsByCategory(),
+    [],
+  );
+
+  const renderQuickLinks = (category: MenuCategory, groups: MenuGroup[]) => {
+    const items = groups.flatMap((g) =>
+      g.items
+        .filter((i) => !(i.adminOnly && user?.role !== "admin"))
+        .map((i) => ({ ...i, groupLabel: g.label })),
+    );
+    if (items.length === 0) return null;
+    return (
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))",
+          gap: "0.5rem",
+        }}
+      >
+        {items.map((item) => (
+          <Link
+            key={`${category}-${item.to}`}
+            to={item.to}
+            className="card"
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              gap: "0.2rem",
+              padding: "0.6rem 0.75rem",
+              textDecoration: "none",
+              color: "inherit",
+              transition: "transform 0.1s",
+            }}
+            onMouseEnter={(e) => (e.currentTarget.style.transform = "translateY(-2px)")}
+            onMouseLeave={(e) => (e.currentTarget.style.transform = "none")}
+          >
+            <div style={{ fontSize: "0.8rem", fontWeight: 600 }}>{item.label}</div>
+            <div style={{ fontSize: "0.65rem", color: "var(--text-muted)" }}>
+              {item.groupLabel}
+            </div>
+          </Link>
+        ))}
+      </div>
+    );
+  };
+
   return (
     <div>
       <div className="page-header">
@@ -292,54 +434,20 @@ export function Dashboard() {
           <h1>Dashboard</h1>
           <HelpButton />
         </div>
-        <p>スケジュール管理プラットフォーム</p>
+        <p>予定とタスクを中心とした統合ダッシュボード</p>
       </div>
 
-      {/* Google連携情報 */}
-      <div className="card" style={{ marginBottom: "1rem" }}>
-        <h3 style={{ fontSize: "0.9rem", fontWeight: 600, marginBottom: "0.5rem" }}>
-          Google連携
-        </h3>
-        {googleConnected ? (
-          <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
-            <span className="badge green">接続済み</span>
-            <span style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>
-              {googleEmail}
-            </span>
-            <Link to="/calendar" style={{ fontSize: "0.8rem", color: "var(--accent)" }}>
-              カレンダー設定 &rarr;
-            </Link>
-          </div>
-        ) : (
-          <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
-            <span className="badge red">未接続</span>
-            <a
-              href={googleAuthUrl}
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: "0.5rem",
-                padding: "0.35rem 0.75rem",
-                background: "var(--bg-surface-2)",
-                border: "1px solid var(--border)",
-                borderRadius: "var(--radius-sm)",
-                color: "var(--text)",
-                fontSize: "0.8rem",
-                textDecoration: "none",
-                fontWeight: 500,
-              }}
-            >
-              <svg width="14" height="14" viewBox="0 0 18 18" fill="none">
-                <path d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844a4.14 4.14 0 01-1.796 2.716v2.259h2.908c1.702-1.567 2.684-3.875 2.684-6.615z" fill="#4285F4" />
-                <path d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 009 18z" fill="#34A853" />
-                <path d="M3.964 10.71A5.41 5.41 0 013.682 9c0-.593.102-1.17.282-1.71V4.958H.957A8.997 8.997 0 000 9c0 1.452.348 2.827.957 4.042l3.007-2.332z" fill="#FBBC05" />
-                <path d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 00.957 4.958L3.964 7.29C4.672 5.163 6.656 3.58 9 3.58z" fill="#EA4335" />
-              </svg>
-              Googleを接続
-            </a>
-          </div>
+      {/* ═════════════════ 予定 (Event) セクション ═════════════════ */}
+      <SectionHeader category="event">
+        {canManage && (
+          <Link
+            to="/admin/modules?category=event"
+            style={{ fontSize: "0.7rem", color: "var(--accent)" }}
+          >
+            モジュール管理 &rarr;
+          </Link>
         )}
-      </div>
+      </SectionHeader>
 
       {/* 今日の予定 */}
       <div className="card" style={{ marginBottom: "1rem" }}>
@@ -657,29 +765,196 @@ export function Dashboard() {
         </div>
       </div>
 
-      {/* クイックアクセス */}
-      <Link
-        to="/my-plan"
-        className="card"
+      {/* 予定モジュールのクイックリンク */}
+      <div style={{ marginTop: "1rem" }}>
+        {renderQuickLinks("event", groupsByCategory.event)}
+      </div>
+
+      {/* ═════════════════ タスク (Task) セクション ═════════════════ */}
+      <SectionHeader category="task">
+        {canManage && (
+          <Link
+            to="/admin/modules?category=task"
+            style={{ fontSize: "0.7rem", color: "var(--accent)" }}
+          >
+            モジュール管理 &rarr;
+          </Link>
+        )}
+      </SectionHeader>
+
+      {/* タスクサマリー */}
+      <div
         style={{
-          display: "flex",
-          alignItems: "center",
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))",
           gap: "0.75rem",
-          marginTop: "1rem",
-          padding: "0.75rem 1rem",
-          borderLeft: "3px solid var(--green)",
-          textDecoration: "none",
-          color: "inherit",
-          transition: "transform 0.15s",
+          marginBottom: "1rem",
         }}
-        onMouseEnter={(e) => (e.currentTarget.style.transform = "translateX(4px)")}
-        onMouseLeave={(e) => (e.currentTarget.style.transform = "none")}
       >
-        <div>
-          <div style={{ fontSize: "0.85rem", fontWeight: 600 }}>マイプラン</div>
-          <div style={{ fontSize: "0.7rem", color: "var(--text-muted)" }}>週間ルーティーン設定</div>
+        <div className="card" style={{ padding: "0.75rem 1rem" }}>
+          <div style={{ fontSize: "0.7rem", color: "var(--text-muted)", marginBottom: "0.2rem" }}>
+            期限切れリマインダー
+          </div>
+          <div
+            style={{
+              fontSize: "1.4rem",
+              fontWeight: 700,
+              color: overdueReminderCount > 0 ? "var(--red)" : "var(--text)",
+            }}
+          >
+            {overdueReminderCount}
+          </div>
         </div>
-      </Link>
+        <div className="card" style={{ padding: "0.75rem 1rem" }}>
+          <div style={{ fontSize: "0.7rem", color: "var(--text-muted)", marginBottom: "0.2rem" }}>
+            24時間以内
+          </div>
+          <div style={{ fontSize: "1.4rem", fontWeight: 700, color: "var(--text)" }}>
+            {todayReminderCount}
+          </div>
+        </div>
+        <div className="card" style={{ padding: "0.75rem 1rem" }}>
+          <div style={{ fontSize: "0.7rem", color: "var(--text-muted)", marginBottom: "0.2rem" }}>
+            PM プロジェクト
+          </div>
+          <div style={{ fontSize: "1.4rem", fontWeight: 700, color: "var(--text)" }}>
+            {pmProjects.length}
+          </div>
+        </div>
+      </div>
+
+      {/* 直近のリマインダー */}
+      <div className="card" style={{ marginBottom: "1rem" }}>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            marginBottom: "0.5rem",
+          }}
+        >
+          <h3 style={{ fontSize: "0.9rem", fontWeight: 600 }}>直近のタスク</h3>
+          <Link to="/reminders" style={{ fontSize: "0.75rem", color: "var(--accent)" }}>
+            リマインダー一覧 &rarr;
+          </Link>
+        </div>
+        {loading ? (
+          <div style={{ color: "var(--text-muted)", fontSize: "0.85rem" }}>読み込み中...</div>
+        ) : upcomingReminders.length === 0 ? (
+          <div className="empty-state" style={{ padding: "1rem" }}>
+            <p>直近のタスクはありません</p>
+          </div>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: "0.4rem" }}>
+            {upcomingReminders.map((r) => {
+              const due = new Date(r.remindAt).getTime();
+              const isOverdue = due < now;
+              return (
+                <div
+                  key={r.id}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "0.5rem",
+                    padding: "0.4rem 0.5rem",
+                    background: "var(--bg-surface-2)",
+                    borderRadius: "var(--radius-sm)",
+                    fontSize: "0.8rem",
+                  }}
+                >
+                  <span
+                    style={{
+                      fontSize: "0.7rem",
+                      color: isOverdue ? "var(--red)" : "var(--text-muted)",
+                      minWidth: 110,
+                    }}
+                  >
+                    {new Date(r.remindAt).toLocaleString("ja-JP", {
+                      month: "short",
+                      day: "numeric",
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}
+                  </span>
+                  <span style={{ fontWeight: 500 }}>{r.title}</span>
+                  {isOverdue && (
+                    <span
+                      className="badge red"
+                      style={{ fontSize: "0.65rem", marginLeft: "auto" }}
+                    >
+                      期限切れ
+                    </span>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* タスクモジュールのクイックリンク */}
+      {renderQuickLinks("task", groupsByCategory.task)}
+
+      {/* ═════════════════ その他機能 セクション ═════════════════ */}
+      <SectionHeader category="other">
+        {canManage && (
+          <Link
+            to="/admin/modules?category=other"
+            style={{ fontSize: "0.7rem", color: "var(--accent)" }}
+          >
+            モジュール管理 &rarr;
+          </Link>
+        )}
+      </SectionHeader>
+
+      {/* Google連携情報 */}
+      <div className="card" style={{ marginBottom: "1rem" }}>
+        <h3 style={{ fontSize: "0.9rem", fontWeight: 600, marginBottom: "0.5rem" }}>
+          Google連携
+        </h3>
+        {googleConnected ? (
+          <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
+            <span className="badge green">接続済み</span>
+            <span style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>
+              {googleEmail}
+            </span>
+            <Link to="/calendar" style={{ fontSize: "0.8rem", color: "var(--accent)" }}>
+              カレンダー設定 &rarr;
+            </Link>
+          </div>
+        ) : (
+          <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
+            <span className="badge red">未接続</span>
+            <a
+              href={googleAuthUrl}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "0.5rem",
+                padding: "0.35rem 0.75rem",
+                background: "var(--bg-surface-2)",
+                border: "1px solid var(--border)",
+                borderRadius: "var(--radius-sm)",
+                color: "var(--text)",
+                fontSize: "0.8rem",
+                textDecoration: "none",
+                fontWeight: 500,
+              }}
+            >
+              <svg width="14" height="14" viewBox="0 0 18 18" fill="none">
+                <path d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844a4.14 4.14 0 01-1.796 2.716v2.259h2.908c1.702-1.567 2.684-3.875 2.684-6.615z" fill="#4285F4" />
+                <path d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 009 18z" fill="#34A853" />
+                <path d="M3.964 10.71A5.41 5.41 0 013.682 9c0-.593.102-1.17.282-1.71V4.958H.957A8.997 8.997 0 000 9c0 1.452.348 2.827.957 4.042l3.007-2.332z" fill="#FBBC05" />
+                <path d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 00.957 4.958L3.964 7.29C4.672 5.163 6.656 3.58 9 3.58z" fill="#EA4335" />
+              </svg>
+              Googleを接続
+            </a>
+          </div>
+        )}
+      </div>
+
+      {/* その他機能モジュールのクイックリンク */}
+      {renderQuickLinks("other", groupsByCategory.other)}
     </div>
   );
 }

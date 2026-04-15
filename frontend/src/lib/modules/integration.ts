@@ -13,6 +13,7 @@ export const integrationModule: ModuleDefinition = {
       label: "外部連携",
       icon: "L",
       order: 800,
+      category: "other",
       items: [
         { to: "/integrations", label: "連携設定", icon: "L", removable: true, order: 0 },
         { to: "/api-keys", label: "API連携", icon: "K", removable: true, order: 1 },

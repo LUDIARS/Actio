@@ -13,6 +13,7 @@ export const reservationModule: ModuleDefinition = {
       label: "予約",
       icon: "B",
       order: 400,
+      category: "event",
       items: [
         { to: "/reservations", label: "予約管理", icon: "B", removable: true, order: 0 },
         { to: "/voting", label: "日程調整", icon: "V", removable: true, order: 1 },

@@ -13,6 +13,7 @@ export const pmModule: ModuleDefinition = {
       label: "M2 PM",
       icon: "P",
       order: 500,
+      category: "task",
       items: [
         { to: "/pm", label: "ダッシュボード", icon: "P", removable: true, order: 0 },
       ],
