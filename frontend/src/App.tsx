@@ -29,6 +29,7 @@ import { MachinaPage } from "./pages/MachinaPage";
 import { PMDashboardPage } from "./pages/PMDashboardPage";
 import { PMProjectPage } from "./pages/PMProjectPage";
 import { PMAnalyticsPage } from "./pages/PMAnalyticsPage";
+import { ModuleManagementPage } from "./pages/ModuleManagementPage";
 import { setupApi } from "./lib/api";
 import { registerAllModules } from "./lib/modules";
 import "./global.css";
@@ -83,6 +84,7 @@ function AppRoutes() {
         <Route path="/reminders" element={<ReminderPage />} />
         <Route path="/profile" element={<ProfilePage />} />
         <Route path="/admin/users" element={<UserManagementPage />} />
+        <Route path="/admin/modules" element={<ModuleManagementPage />} />
         <Route path="/admin/settings" element={<SettingsPage />} />
         <Route path="/admin/activity-logs" element={<ActivityLogsPage />} />
         <Route path="/admin/db" element={<DbViewerPage />} />

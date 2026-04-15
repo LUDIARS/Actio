@@ -14,6 +14,7 @@ export const m1SchoolModule: ModuleDefinition = {
       icon: "S",
       order: 300,
       adminOnly: true,
+      category: "event",
       items: [
         { to: "/schema-management", label: "スキーマ管理", icon: "S", adminOnly: true, removable: true, order: 0 },
         { to: "/data-management", label: "データ管理", icon: "D", adminOnly: true, removable: true, order: 1 },

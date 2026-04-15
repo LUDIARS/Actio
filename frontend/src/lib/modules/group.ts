@@ -13,6 +13,7 @@ export const groupModule: ModuleDefinition = {
       label: "グループ",
       icon: "G",
       order: 200,
+      category: "event",
       items: [
         { to: "/groups", label: "グループ管理", icon: "G", removable: true, order: 0 },
       ],

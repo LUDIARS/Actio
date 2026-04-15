@@ -13,6 +13,7 @@ export const machinaModule: ModuleDefinition = {
       label: "M3 MACHINA",
       icon: "A",
       order: 600,
+      category: "task",
       items: [
         { to: "/machina", label: "MACHINA", icon: "A", removable: true, order: 0 },
       ],
