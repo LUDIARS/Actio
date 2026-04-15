@@ -13,6 +13,53 @@ import {
 } from "../lib/module-registry";
 import { useAuth } from "../contexts/AuthContext";
 
+// render 内で定義すると毎回再生成されて state がリセットされる警告 (react-hooks/static-components)
+// が出るためトップレベルに昇格。
+function SectionHeader({
+  category,
+  children,
+}: {
+  category: MenuCategory;
+  children?: ReactNode;
+}) {
+  return (
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: "0.75rem",
+        margin: "1.5rem 0 0.75rem",
+        paddingBottom: "0.35rem",
+        borderBottom: "1px solid var(--border)",
+      }}
+    >
+      <h2
+        style={{
+          fontSize: "1rem",
+          fontWeight: 700,
+          margin: 0,
+          color: "var(--text)",
+        }}
+      >
+        {MENU_CATEGORY_LABELS[category]}
+      </h2>
+      <span
+        style={{
+          fontSize: "0.7rem",
+          color: "var(--text-muted)",
+        }}
+      >
+        {category === "event"
+          ? "時間拘束のある予定"
+          : category === "task"
+            ? "解決すべきタスク"
+            : "連携・管理機能"}
+      </span>
+      {children && <div style={{ marginLeft: "auto" }}>{children}</div>}
+    </div>
+  );
+}
+
 interface GoogleCalEvent {
   id: string;
   title: string;
@@ -164,11 +211,9 @@ export function Dashboard() {
     setLoading(false);
   }, []);
 
-  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     loadData();
   }, [loadData]);
-  /* eslint-enable react-hooks/set-state-in-effect */
 
   // 今日の曜日 (0=月)
   const todayDow = (() => {
@@ -302,8 +347,13 @@ export function Dashboard() {
   };
 
   // タスクサマリー
-  const now = Date.now();
+  // Date.now() は render pure でないため、useState の initializer で 1 度だけ
+  // 取得し、reminders 変化時に useEffect で更新する。
   const oneDayMs = 24 * 60 * 60 * 1000;
+  const [now, setNow] = useState<number>(() => Date.now());
+  useEffect(() => {
+    setNow(Date.now());
+  }, [reminders]);
   const upcomingReminders = useMemo(
     () =>
       [...reminders]
@@ -376,49 +426,6 @@ export function Dashboard() {
       </div>
     );
   };
-
-  const SectionHeader = ({
-    category,
-    children,
-  }: {
-    category: MenuCategory;
-    children?: ReactNode;
-  }) => (
-    <div
-      style={{
-        display: "flex",
-        alignItems: "center",
-        gap: "0.75rem",
-        margin: "1.5rem 0 0.75rem",
-        paddingBottom: "0.35rem",
-        borderBottom: "1px solid var(--border)",
-      }}
-    >
-      <h2
-        style={{
-          fontSize: "1rem",
-          fontWeight: 700,
-          margin: 0,
-          color: "var(--text)",
-        }}
-      >
-        {MENU_CATEGORY_LABELS[category]}
-      </h2>
-      <span
-        style={{
-          fontSize: "0.7rem",
-          color: "var(--text-muted)",
-        }}
-      >
-        {category === "event"
-          ? "時間拘束のある予定"
-          : category === "task"
-            ? "解決すべきタスク"
-            : "連携・管理機能"}
-      </span>
-      {children && <div style={{ marginLeft: "auto" }}>{children}</div>}
-    </div>
-  );
 
   return (
     <div>
