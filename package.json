@@ -5,9 +5,13 @@
   "type": "module",
   "main": "src/index.ts",
   "scripts": {
+    "sdk:build": "cd packages/sdk && npx tsc",
+    "predev": "npm run sdk:build",
     "dev": "npm run env:env && npx dotenv-cli -- concurrently -n api,web -c green,cyan \"tsx watch src/index.ts\" \"npx dotenv-cli -- npm run dev --prefix frontend\"",
+    "predev:server": "npm run sdk:build",
     "dev:server": "npx dotenv-cli -- tsx watch src/index.ts",
     "dev:front": "npx dotenv-cli -- npm run dev --prefix frontend",
+    "prebuild": "npm run sdk:build",
     "build": "tsc",
     "start": "node dist/index.js",
     "db:generate": "drizzle-kit generate",
