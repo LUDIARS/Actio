@@ -270,3 +270,131 @@ export async function compositeRegister(name: string, email: string, password: s
 export async function compositeMfaVerify(mfaToken: string, method: string, code: string): Promise<CompositeAuthResponse> {
   return cernereClient.request("auth", "mfa-verify", { mfaToken, method, code }) as Promise<CompositeAuthResponse>;
 }
+
+// ── managed_project ユーザーデータ API (Module SDK の ctx.userData で使用) ──
+
+/**
+ * Cernere project_data_{projectKey} から指定カラムを取得。
+ * columns 未指定なら全カラム。未接続時は空オブジェクトを返す (フォールバック)。
+ */
+export async function getProjectUserColumns(
+  userId: string,
+  columns?: string[],
+): Promise<Record<string, unknown>> {
+  try {
+    return await cernereClient.request("managed_project", "get_user_data", {
+      userId,
+      ...(columns ? { columns } : {}),
+    }) as Record<string, unknown>;
+  } catch (err) {
+    console.warn("[cernere-client] get_user_data failed, returning empty:", err);
+    return {};
+  }
+}
+
+/** Cernere project_data_{projectKey} に部分 upsert */
+export async function setProjectUserData(
+  userId: string,
+  data: Record<string, unknown>,
+): Promise<{ ok: true; updated: string[] }> {
+  return cernereClient.request("managed_project", "set_user_data", {
+    userId,
+    data,
+  }) as Promise<{ ok: true; updated: string[] }>;
+}
+
+/** Cernere project_data_{projectKey} の指定カラムを NULL 化 */
+export async function deleteProjectUserColumns(
+  userId: string,
+  columns: string[],
+): Promise<{ ok: true; deleted: string[] }> {
+  return cernereClient.request("managed_project", "delete_user_data", {
+    userId,
+    columns,
+  }) as Promise<{ ok: true; deleted: string[] }>;
+}
+
+/** Cernere project schema を更新 (manifest の userData カラム反映に使用) */
+export async function updateProjectSchema(
+  definition: Record<string, unknown>,
+): Promise<{ message: string; key: string; columnsAdded: string[] }> {
+  return cernereClient.request("managed_project", "update_schema", definition) as Promise<{
+    message: string;
+    key: string;
+    columnsAdded: string[];
+  }>;
+}
+
+// ── OAuth Token Storage (個人データ保管禁止ルールの基盤) ────────
+
+export interface CernereOAuthToken {
+  provider: string;
+  accessToken: string | null;
+  refreshToken: string | null;
+  expiresAt: string | null;
+  tokenType: string | null;
+  scope: string | null;
+  metadata: Record<string, unknown>;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface StoreOAuthTokenInput {
+  provider: string;
+  accessToken?: string | null;
+  refreshToken?: string | null;
+  expiresAt?: string | null;
+  tokenType?: string | null;
+  scope?: string | null;
+  metadata?: Record<string, unknown>;
+}
+
+/** Cernere に OAuth token を保管 (upsert) */
+export async function storeOAuthToken(
+  userId: string,
+  input: StoreOAuthTokenInput,
+): Promise<{ ok: true; provider: string }> {
+  return cernereClient.request("managed_project", "store_oauth_token", {
+    userId,
+    ...input,
+  }) as Promise<{ ok: true; provider: string }>;
+}
+
+/** Cernere から OAuth token を取得。未登録なら null */
+export async function getOAuthToken(
+  userId: string,
+  provider: string,
+): Promise<CernereOAuthToken | null> {
+  try {
+    return await cernereClient.request("managed_project", "get_oauth_token", {
+      userId,
+      provider,
+    }) as CernereOAuthToken | null;
+  } catch (err) {
+    console.warn("[cernere-client] get_oauth_token failed:", err);
+    return null;
+  }
+}
+
+/** Cernere から全 OAuth token を列挙 */
+export async function listOAuthTokens(userId: string): Promise<CernereOAuthToken[]> {
+  try {
+    return await cernereClient.request("managed_project", "list_oauth_tokens", {
+      userId,
+    }) as CernereOAuthToken[];
+  } catch (err) {
+    console.warn("[cernere-client] list_oauth_tokens failed:", err);
+    return [];
+  }
+}
+
+/** Cernere から OAuth token を削除 */
+export async function deleteOAuthToken(
+  userId: string,
+  provider: string,
+): Promise<{ ok: true; deleted: boolean }> {
+  return cernereClient.request("managed_project", "delete_oauth_token", {
+    userId,
+    provider,
+  }) as Promise<{ ok: true; deleted: boolean }>;
+}

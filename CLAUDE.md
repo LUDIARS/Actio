@@ -11,6 +11,64 @@
 
 バックエンドの JWT 検証は `@ludiars/cernere-id-cache` が担当する。
 
+## モジュール SDK (プラグインアーキテクチャ)
+
+Schedula は `@ludiars/schedula-sdk` による **プラグイン駆動のモジュール構造** に
+移行中。各モジュールは manifest (`defineModule()`) で宣言し、REST routes /
+WS commands / DB tables / Cernere ユーザーデータカラム を統合登録する。
+
+### 構成
+
+- `packages/sdk/` — SDK 本体 (types, defineModule, testing mocks)
+- `src/plugins/` — ホスト側のローダー / レジストリ / admin API
+  - `loader.ts` — `installModule()`, `isEnabled()`, `setModuleEnabled()`
+  - `registry.ts` — インメモリレジストリ + enabled cache
+  - `context.ts` — ModuleContext 構築 (DB/users/ws/secrets/audit 等の bridge)
+  - `admin-routes.ts` — `/api/admin/modules` (一覧/enable/disable)
+  - `repository.ts` — `moduleInstallationRepo` / `moduleStateRepo`
+- `modules-ext/example/` — PoC 用モジュール (`/api/example/hello`)
+
+### モジュール有効/無効のスコープ
+
+| スコープ | 用途 | 実装 |
+|---------|------|------|
+| global | システム管理者による機能停止 | `module_states.scope_type = "global"` |
+| group | グループ単位 (`enabledModules` の後継) | `scope_type = "group"` |
+| user | 個人オプトアウト | `scope_type = "user"` |
+
+### 新モジュール作成
+
+```typescript
+import { defineModule } from "@ludiars/schedula-sdk";
+
+export default defineModule({
+  id: "my-module",
+  name: "My Module",
+  schedulaApiVersion: "^1.0.0",
+  scope: "per-group",
+  basePath: "/api/my-module",
+  routes: (app, ctx) => {
+    app.get("/hello", (c) => c.json({ ok: true }));
+  },
+  wsCommands: {
+    action: async (userId, payload, ctx) => { /* ... */ },
+  },
+  userData: {  // Cernere project_schema に登録される予定 (Phase 2)
+    pref: { type: "json", description: "..." },
+  },
+});
+```
+
+`src/app.ts` の `installModule()` で登録。将来的には外部 npm パッケージから
+動的ロードに移行する (Phase 2)。
+
+### 個人データポリシーとの関係
+
+モジュールは `ctx.users.get(id)` で Cernere からユーザー情報取得、
+`ctx.userData` で user-scoped 個人設定を Cernere proxy で読み書きする
+(個人データ保管禁止ルールを継承)。モジュール自前のテーブルには `user_id` のみ
+保持し、識別情報は display 時に解決する。
+
 ## 個人データの保管禁止
 
 **Schedula DB に個人データ (name, email, role, 認証トークン等) を保管してはいけません。**

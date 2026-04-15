@@ -7,8 +7,8 @@
 
 import "./calendar.js";
 import "./group.js";
-import "./myplan.js";
-import "./voting.js";
+// myplan.ts は @ludiars/schedula-module-myplan に移行
+// voting.ts は @ludiars/schedula-module-voting に移行
 import "./facility.js";
 import "./pm.js";
 import "./admin.js";

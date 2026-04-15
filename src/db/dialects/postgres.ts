@@ -44,6 +44,38 @@ export const users = pgTable("users", {
   lastLoginAt: timestamp("last_login_at"),
 });
 
+// ─── Module Installations / States (プラグイン管理) ─────────
+
+export const moduleInstallations = pgTable("module_installations", {
+  id: text("id").primaryKey(),
+  moduleId: text("module_id").notNull().unique(),
+  packageName: text("package_name").notNull(),
+  packageVersion: text("package_version").notNull(),
+  manifest: jsonb("manifest").$type<Record<string, unknown>>().notNull(),
+  installedAt: timestamp("installed_at")
+    .$defaultFn(() => new Date())
+    .notNull(),
+  installedBy: text("installed_by"),
+});
+
+export const moduleStates = pgTable(
+  "module_states",
+  {
+    id: text("id").primaryKey(),
+    moduleId: text("module_id").notNull(),
+    scopeType: text("scope_type").notNull(),
+    scopeId: text("scope_id"),
+    enabled: boolean("enabled").notNull().default(true),
+    changedAt: timestamp("changed_at")
+      .$defaultFn(() => new Date())
+      .notNull(),
+    changedBy: text("changed_by"),
+  },
+  (t) => ({
+    uniqScope: unique().on(t.moduleId, t.scopeType, t.scopeId),
+  }),
+);
+
 // ─── Sessions ────────────────────────────────────────────────
 
 export const sessions = pgTable("sessions", {

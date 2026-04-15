@@ -34,6 +34,27 @@ export function initTestDatabase() {
       last_login_at INTEGER
     );
 
+    CREATE TABLE IF NOT EXISTS module_installations (
+      id TEXT PRIMARY KEY,
+      module_id TEXT NOT NULL UNIQUE,
+      package_name TEXT NOT NULL,
+      package_version TEXT NOT NULL,
+      manifest TEXT NOT NULL,
+      installed_at INTEGER NOT NULL,
+      installed_by TEXT
+    );
+
+    CREATE TABLE IF NOT EXISTS module_states (
+      id TEXT PRIMARY KEY,
+      module_id TEXT NOT NULL,
+      scope_type TEXT NOT NULL,
+      scope_id TEXT,
+      enabled INTEGER NOT NULL DEFAULT 1,
+      changed_at INTEGER NOT NULL,
+      changed_by TEXT,
+      UNIQUE(module_id, scope_type, scope_id)
+    );
+
     CREATE TABLE IF NOT EXISTS sessions (
       id TEXT PRIMARY KEY,
       user_id TEXT NOT NULL REFERENCES users(id),
@@ -401,7 +422,12 @@ export function clearTestDatabase() {
     .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'")
     .all() as { name: string }[];
 
+  // module_installations はアプリ起動時に一度だけ登録されるので保持する
+  // (各テスト beforeEach で再登録は非現実的)
+  const PRESERVED = new Set(["module_installations", "module_states"]);
+
   for (const { name } of tables) {
+    if (PRESERVED.has(name)) continue;
     sqlite.exec(`DELETE FROM "${name}"`);
   }
 

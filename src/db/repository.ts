@@ -1033,6 +1033,11 @@ export const voteRepo = {
   async deleteByEventId(eventId: string): Promise<void> {
     await db.delete(schema.votes).where(eq(schema.votes.eventId, eventId));
   },
+
+  /** 個人データ opt-out 時にユーザーの投票を全削除 */
+  async deleteByUserId(userId: string): Promise<void> {
+    await db.delete(schema.votes).where(eq(schema.votes.userId, userId));
+  },
 };
 
 // ─── Webhook Endpoint Repository ─────────────────────────────
