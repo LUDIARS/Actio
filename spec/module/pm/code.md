@@ -10,7 +10,7 @@
 | `modules/pm/sync/github-sync.ts` | GitHub Issues との双方向同期（fetch & update） |
 | `modules/pm/sync/notion-sync.ts` | Notion Database との双方向同期 |
 | `modules/pm/sync/diff-detector.ts` | タスク変更検出・差分計算 |
-| `modules/pm/sync/writeback.ts` | Schedula の変更を外部ソースに書き戻し |
+| `modules/pm/sync/writeback.ts` | Actio の変更を外部ソースに書き戻し |
 | `modules/pm/sync/conflict-resolver.ts` | コンフリクト検出・マージ解決 |
 | `modules/pm/validation/task-validator.ts` | タスク内容の検証・充実度スコア算出 |
 | `modules/pm/analytics/critical-path.ts` | クリティカルパス分析・タスク分解推奨 |

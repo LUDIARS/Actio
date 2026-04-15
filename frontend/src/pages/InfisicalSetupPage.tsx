@@ -41,10 +41,10 @@ const APP_ENV_VARS: EnvVarDef[] = [
   {
     key: "DATABASE_URL",
     label: "DATABASE_URL",
-    hint: "PostgreSQL/MySQL の接続文字列。例: postgresql://user:pass@host:5432/schedula",
+    hint: "PostgreSQL/MySQL の接続文字列。例: postgresql://user:pass@host:5432/actio",
     required: false,
     type: "text",
-    placeholder: "postgresql://schedula:schedula@db:5432/schedula",
+    placeholder: "postgresql://actio:actio@db:5432/actio",
     group: "db",
   },
   {
@@ -53,7 +53,7 @@ const APP_ENV_VARS: EnvVarDef[] = [
     hint: "SQLite 使用時のファイルパス (DB_DIALECT=sqlite の場合のみ)",
     required: false,
     type: "text",
-    placeholder: "data/schedula.db",
+    placeholder: "data/actio.db",
     group: "db",
   },
   // 認証
@@ -73,7 +73,7 @@ const APP_ENV_VARS: EnvVarDef[] = [
     hint: "フロントエンドの公開URL。OAuth コールバック等に使用。",
     required: false,
     type: "text",
-    placeholder: "https://schedula.example.com",
+    placeholder: "https://actio.example.com",
     group: "server",
   },
   {
@@ -105,7 +105,7 @@ const APP_ENV_VARS: EnvVarDef[] = [
     hint: "CORS 許可オリジン (未設定時は FRONTEND_URL を使用)",
     required: false,
     type: "text",
-    placeholder: "https://schedula.example.com",
+    placeholder: "https://actio.example.com",
     group: "server",
   },
   // Google OAuth
@@ -133,7 +133,7 @@ const APP_ENV_VARS: EnvVarDef[] = [
     hint: "Google OAuth コールバックURL",
     required: false,
     type: "text",
-    placeholder: "https://schedula.example.com/api/auth/google/callback",
+    placeholder: "https://actio.example.com/api/auth/google/callback",
     group: "google",
   },
   // Redis
@@ -174,7 +174,7 @@ export function InfisicalSetupPage({ onComplete }: InfisicalSetupPageProps) {
 
   // SSM フォーム状態
   const [ssmRegion, setSsmRegion] = useState("ap-northeast-1");
-  const [ssmPathPrefix, setSsmPathPrefix] = useState("/schedula/prod/");
+  const [ssmPathPrefix, setSsmPathPrefix] = useState("/actio/prod/");
 
   // アプリ環境変数 (SSM に登録する値)
   const [appSecrets, setAppSecrets] = useState<Record<string, string>>(() => {
@@ -357,7 +357,7 @@ export function InfisicalSetupPage({ onComplete }: InfisicalSetupPageProps) {
         {/* ヘッダー */}
         <div style={{ textAlign: "center", marginBottom: "1.5rem" }}>
           <h1 style={{ fontSize: "1.5rem", fontWeight: 700, marginBottom: "0.25rem" }}>
-            Schedula
+            Actio
           </h1>
           <p style={{ color: "var(--text-muted)", fontSize: "0.85rem" }}>
             Initial Setup
@@ -404,7 +404,7 @@ export function InfisicalSetupPage({ onComplete }: InfisicalSetupPageProps) {
               シークレット管理セットアップ
             </h2>
             <p style={{ color: "var(--text-muted)", marginBottom: "1rem", lineHeight: 1.6 }}>
-              Schedula は外部のシークレット管理サービスと連携して、環境変数やAPIキーを安全に一元管理できます。
+              Actio は外部のシークレット管理サービスと連携して、環境変数やAPIキーを安全に一元管理できます。
             </p>
             <div style={{ ...cardStyle, fontSize: "0.9rem" }}>
               <strong>対応プロバイダー</strong>
@@ -542,11 +542,11 @@ export function InfisicalSetupPage({ onComplete }: InfisicalSetupPageProps) {
                 type="text"
                 value={ssmPathPrefix}
                 onChange={(e) => setSsmPathPrefix(e.target.value)}
-                placeholder="/schedula/prod/"
+                placeholder="/actio/prod/"
                 style={{ fontFamily: "monospace" }}
               />
               <small style={{ color: "var(--text-muted)", fontSize: "0.8rem" }}>
-                SSM パラメータのパスプレフィックス。例: /schedula/prod/
+                SSM パラメータのパスプレフィックス。例: /actio/prod/
               </small>
             </div>
 

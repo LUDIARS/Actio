@@ -1,4 +1,4 @@
-# Schedula — スタンドアロン (PostgreSQL + Redis 込み)
+# Actio — スタンドアロン (PostgreSQL + Redis 込み)
 #
 # docker-compose.yaml と重ねて使う。
 # 共有インフラなしで DB/Redis を内蔵して単体運用する。
@@ -27,15 +27,15 @@ services:
     image: postgres:16-alpine
     restart: unless-stopped
     environment:
-      POSTGRES_USER: ${POSTGRES_USER:-schedula}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-schedula}
-      POSTGRES_DB: ${POSTGRES_DB:-schedula}
+      POSTGRES_USER: ${POSTGRES_USER:-actio}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-actio}
+      POSTGRES_DB: ${POSTGRES_DB:-actio}
     ports:
       - "${DB_PORT:-5432}:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-schedula}"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-actio}"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -43,7 +43,7 @@ services:
   # backend の接続先を compose 内部の DB/Redis に固定
   backend:
     environment:
-      DATABASE_URL: "postgresql://${POSTGRES_USER:-schedula}:${POSTGRES_PASSWORD:-schedula}@db:5432/${POSTGRES_DB:-schedula}"
+      DATABASE_URL: "postgresql://${POSTGRES_USER:-actio}:${POSTGRES_PASSWORD:-actio}@db:5432/${POSTGRES_DB:-actio}"
       REDIS_URL: "redis://redis:6379"
     depends_on:
       db:

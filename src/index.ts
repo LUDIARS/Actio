@@ -20,7 +20,7 @@ console.log(`[server] FRONTEND_URL = ${secretManager.getOrDefault("FRONTEND_URL"
 console.log(`[server] GOOGLE_REDIRECT_URI = ${secretManager.getOrDefault("GOOGLE_REDIRECT_URI", "http://localhost:8080/api/auth/google/callback")}`);
 console.log(`[server] Infisical = ${secretManager.isInfisicalEnabled() ? "有効" : "無効 (環境変数フォールバック)"}`);
 const server = serve({ fetch: app.fetch, port }, (info) => {
-  console.log(`[server] Schedula server running on http://localhost:${info.port}`);
+  console.log(`[server] Actio server running on http://localhost:${info.port}`);
 });
 
 // ─── WebSocket ──────────────────────────────────────────────

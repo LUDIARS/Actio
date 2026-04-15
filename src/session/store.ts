@@ -1,5 +1,5 @@
 /**
- * セッションストア — @schedula/id-service に委譲
+ * セッションストア — @actio/id-service に委譲
  */
 
 import { createSessionStore } from "@ludiars/cernere-id-service";

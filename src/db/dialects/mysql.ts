@@ -14,7 +14,7 @@ import { drizzle } from "drizzle-orm/mysql2";
 import mysql from "mysql2/promise";
 import { secretManager } from "../../config/secrets.js";
 
-// ─── Users (FK アンカー + Schedula 固有のみ) ─────────────────
+// ─── Users (FK アンカー + Actio 固有のみ) ────────────────────
 // 個人データ (name/email/role/auth) は Cernere で管理。
 // AIFormat ルール (DROP COLUMN 禁止) のため legacy カラムは残置するが
 // 新規コードからは読み書きしない。NOT NULL は解除。
@@ -794,7 +794,7 @@ const allTables = {
 };
 
 export function createConnection() {
-  const url = secretManager.getOrDefault("DATABASE_URL", "mysql://root@localhost:3306/schedula");
+  const url = secretManager.getOrDefault("DATABASE_URL", "mysql://root@localhost:3306/actio");
   const pool = mysql.createPool(url);
   return drizzle(pool, { schema: { ...allTables }, mode: "default" });
 }

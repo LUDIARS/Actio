@@ -13,8 +13,8 @@ GitHub Issues / Notion Database と双方向同期し、タスク管理・分析
 
 ### 双方向同期
 
-- **Pull**: 外部ソース → Schedula（定期実行）
-- **Push**: Schedula → 外部ソース（手動 or 変更検知時）
+- **Pull**: 外部ソース → Actio（定期実行）
+- **Push**: Actio → 外部ソース（手動 or 変更検知時）
 - 同期間隔: プロジェクト設定で指定（default: 15分）
 
 ### 差分検知 & コンフリクト解決

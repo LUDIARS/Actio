@@ -68,7 +68,7 @@ export function HelpPage() {
     <div>
       <div className="page-header">
         <h1>ヘルプ・ドキュメント</h1>
-        <p>Schedula の操作方法とワークフローガイド</p>
+        <p>Actio の操作方法とワークフローガイド</p>
       </div>
 
       {/* Search */}

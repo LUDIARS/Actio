@@ -20,7 +20,7 @@ beforeEach(() => {
 });
 
 // 認証処理 (login/register/refresh/logout) は Cernere に委譲済み。
-// ここでは Schedula 固有のエンドポイントのみテストする。
+// ここでは Actio 固有のエンドポイントのみテストする。
 
 describe("GET /api/auth/me", () => {
   // 個人データ (name/email/role) は Cernere 単一情報源。
@@ -80,7 +80,7 @@ describe("GET /api/auth/users (admin)", () => {
 
 describe("PUT /api/auth/users/:id/role", () => {
   // role 管理は Cernere に移管された (個人データ保管禁止ルール)。
-  // Schedula 側のエンドポイントは 410 Gone を返す。
+  // Actio 側のエンドポイントは 410 Gone を返す。
 
   it("should return 410 (role management moved to Cernere)", async () => {
     insertTestUser({ id: "admin-1", name: "Admin", email: "admin@test.com", role: "admin" });

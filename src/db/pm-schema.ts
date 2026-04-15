@@ -164,7 +164,7 @@ export const pmConflicts = sqliteTable(
     id: text("id").primaryKey(),
     taskId: text("task_id").notNull(),
     projectId: text("project_id").notNull(),
-    /** JSON: Schedula 側のスナップショット */
+    /** JSON: Actio 側のスナップショット */
     localVersion: text("local_version", { mode: "json" })
       .$type<Record<string, unknown>>()
       .notNull()

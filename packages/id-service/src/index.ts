@@ -1,5 +1,5 @@
 /**
- * @schedula/id-service — 汎用 Identity Service
+ * @actio/id-service — 汎用 Identity Service
  *
  * JWT認証、セッション管理、Google OAuth、ミドルウェア、
  * プラグイン方式のプロフィール拡張、マイグレーションスキャナーを提供する。
@@ -56,7 +56,7 @@ export { RepoScanner, scanAndGenerateConfig } from "./migration/scanner.js";
 export type { DetectedSchema, DetectedField, MigrationConfig } from "./migration/scanner.js";
 
 // ─── Backward Compatibility (packages/auth 互換) ──────────
-// 旧 @schedula/auth パッケージの型名を re-export
+// 旧 @actio/auth パッケージの型名を re-export
 export type { CoreUser as AuthUser } from "./core/types.js";
 export type { IdUserRepo as AuthUserRepo } from "./core/types.js";
 export type { IdUserListRepo as AuthUserListRepo } from "./core/types.js";

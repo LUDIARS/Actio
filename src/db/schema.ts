@@ -1,9 +1,9 @@
 import { sqliteTable, text, integer, unique, index } from "drizzle-orm/sqlite-core";
 
-// ─── Users (FK アンカー + Schedula 固有フィールド) ──────────
+// ─── Users (FK アンカー + Actio 固有フィールド) ─────────────
 // 個人データ (name, email, role, password, OAuth トークン等) は
-// Schedula DB に保管しない。Cernere を単一情報源とする。
-// このテーブルは FK ターゲットおよび Schedula 固有メタデータ
+// Actio DB に保管しない。Cernere を単一情報源とする。
+// このテーブルは FK ターゲットおよび Actio 固有メタデータ
 // (academic major, calendar access ID 等) のみを保持する。
 //
 // 旧フィールド (name, email, role, passwordHash, google_*, lastLoginAt) は
@@ -15,7 +15,7 @@ export const users = sqliteTable("users", {
   id: text("id").primaryKey(),
   major: text("major"),
 
-  // Schedula 固有: カレンダーアクセス ID (Google Calendar 連携用 nonce)
+  // Actio 固有: カレンダーアクセス ID (Google Calendar 連携用 nonce)
   calendarAccessId: text("calendar_access_id"),
 
   // ─── 以下は legacy: 個人データは Cernere 側で管理 (AIFormat 個人データ保管禁止ルール) ───
@@ -1016,7 +1016,7 @@ export const groupEvents = sqliteTable(
 );
 
 // ─── Core: Events (予定) ──────────────────────────────────────
-// Schedula のコア「予定」: 時間拘束のある未来の事象。
+// Actio のコア「予定」: 時間拘束のある未来の事象。
 // 要件は持たず、確定した時間枠を表現する (例: MTG, 講義, 予約)。
 //
 // プラグイン (calendar / voting / facility-booking 等) は
@@ -1066,7 +1066,7 @@ export const events = sqliteTable(
 );
 
 // ─── Core: Tasks (タスク) ─────────────────────────────────────
-// Schedula のコア「タスク」: 解決すべき現在の事象。
+// Actio のコア「タスク」: 解決すべき現在の事象。
 // 要件 (requirements) を持ち、時間拘束はないが、deadline で
 // 期限を設定可能 (例: ToDo, Issue, レビュー依頼)。
 //

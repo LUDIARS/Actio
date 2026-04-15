@@ -35,7 +35,7 @@ describe("GET /api/settings", () => {
     expect(json.settings).toBeDefined();
     expect(json.settings["session.refreshTokenDays"]).toBe("30");
     expect(json.settings["session.accessTokenMinutes"]).toBe("60");
-    expect(json.settings["app.name"]).toBe("Schedula");
+    expect(json.settings["app.name"]).toBe("Actio");
   });
 
   it("should reject non-admin users", async () => {

@@ -14,7 +14,7 @@ import { logActivity } from "../../activity-logger.js";
 const SETTING_DEFAULTS: Record<string, string> = {
   "session.refreshTokenDays": "30",
   "session.accessTokenMinutes": "60",
-  "app.name": "Schedula",
+  "app.name": "Actio",
 };
 
 // ── admin.update_settings ──
@@ -54,7 +54,7 @@ registerCommand("admin", "update_settings", async (userId, payload) => {
 });
 
 // ── admin.update_user_role ──
-// role は Cernere 側で管理する (Schedula DB に保存しない)。
+// role は Cernere 側で管理する (Actio DB に保存しない)。
 // 本コマンドは廃止。Cernere の admin UI でロール変更してください。
 
 registerCommand("admin", "update_user_role", async () => {

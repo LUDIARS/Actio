@@ -1,7 +1,7 @@
 /**
  * Task Plugin Registry
  *
- * Schedula コア「タスク (Task)」を生成・拡張するプラグインの登録/取得。
+ * Actio コア「タスク (Task)」を生成・拡張するプラグインの登録/取得。
  * 各モジュール初期化時に registerTaskPlugin() を呼び出して登録する。
  *
  * managed:

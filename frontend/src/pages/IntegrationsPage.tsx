@@ -158,7 +158,7 @@ export function IntegrationsPage() {
       const data = await integrationsApi.notion.createDatabase(notionParentPageId.trim());
       setNotionParentPageId("");
       await loadData();
-      setNotionResult(`Schedula用データベースを作成しました (ID: ${data.databaseId})`);
+      setNotionResult(`Actio用データベースを作成しました (ID: ${data.databaseId})`);
     } catch (err) {
       setError((err as Error).message);
     }
@@ -381,7 +381,7 @@ export function IntegrationsPage() {
 
                     <div style={{ borderTop: "1px solid var(--border, #ddd)", paddingTop: "1rem" }}>
                       <p style={{ fontSize: "0.85rem", marginBottom: "0.5rem" }}>
-                        または、Schedula用のDBを新規作成:
+                        または、Actio用のDBを新規作成:
                       </p>
                       <div style={{ display: "flex", gap: "0.5rem" }}>
                         <input

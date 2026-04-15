@@ -1,7 +1,7 @@
 /**
  * Event Plugin Registry
  *
- * Schedula コア「予定 (Event)」を生成・拡張するプラグインの登録/取得。
+ * Actio コア「予定 (Event)」を生成・拡張するプラグインの登録/取得。
  * 各モジュール初期化時に registerEventPlugin() を呼び出して登録する。
  *
  * managed:

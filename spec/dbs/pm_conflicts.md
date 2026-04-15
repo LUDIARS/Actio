@@ -1,6 +1,6 @@
 # pm_conflicts
 
-> 双方向同期コンフリクト。Schedula 側と外部 (GitHub/Notion) 側で
+> 双方向同期コンフリクト。Actio 側と外部 (GitHub/Notion) 側で
 > 競合が発生した場合のレコード。
 
 - **ソース**: `src/db/pm-schema.ts`
@@ -13,7 +13,7 @@
 | `id` | text | PRIMARY KEY | コンフリクト ID |
 | `task_id` | text | NOT NULL | 対象タスク ID |
 | `project_id` | text | NOT NULL | プロジェクト ID |
-| `local_version` | text (JSON `Record<string, unknown>`) | NOT NULL, default `{}` | Schedula 側スナップショット |
+| `local_version` | text (JSON `Record<string, unknown>`) | NOT NULL, default `{}` | Actio 側スナップショット |
 | `external_version` | text (JSON `Record<string, unknown>`) | NOT NULL, default `{}` | 外部側スナップショット |
 | `base_version` | text (JSON `Record<string, unknown>`) | NOT NULL, default `{}` | 前回同期時点のスナップショット |
 | `resolution` | text | NOT NULL, default `manual` | 解決方針 (`auto_field_merge` / `claude_merge` / `force_external` / `manual`) |

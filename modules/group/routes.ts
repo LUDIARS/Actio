@@ -666,8 +666,8 @@ groupRoutes.put("/:id/modules", async (c) => {
   }
 
   // Validate module IDs
-  const { SCHEDULA_MODULES } = await import("../../src/shared/constants.js");
-  const validIds = new Set<string>(SCHEDULA_MODULES);
+  const { ACTIO_MODULES } = await import("../../src/shared/constants.js");
+  const validIds = new Set<string>(ACTIO_MODULES);
   const invalid = body.enabledModules.filter((m: string) => !validIds.has(m));
   if (invalid.length > 0) {
     return c.json({ error: `Invalid module IDs: ${invalid.join(", ")}` }, 400);

@@ -1,10 +1,10 @@
 /**
- * 認証ルート — Schedula 固有エンドポイントのみ
+ * 認証ルート — Actio 固有エンドポイントのみ
  *
  * 認証処理 (login, register, refresh, logout, OAuth) は Cernere に委譲。
- * ここでは Schedula 固有のユーザー情報 API のみを提供する。
+ * ここでは Actio 固有のユーザー情報 API のみを提供する。
  *
- *   GET  /me          — 現在のユーザー情報 (Schedula 固有フィールド付き)
+ *   GET  /me          — 現在のユーザー情報 (Actio 固有フィールド付き)
  *   GET  /users/list  — ユーザー一覧 (グループベース)
  *   GET  /users       — 全ユーザー一覧 (admin のみ)
  *   PUT  /users/:id/role — ロール変更 (admin のみ)
@@ -25,7 +25,7 @@ import { logActivity } from "../activity-logger.js";
 import { isCompositeEnabled, getLoginUrl, exchangeAuthCode } from "./composite.js";
 import { saveSessionUser, invalidateSessionUser } from "./session-cache.js";
 
-const TOKEN_COOKIE = "schedula_token";
+const TOKEN_COOKIE = "actio_token";
 const TOKEN_COOKIE_MAX_AGE = 3600; // 1時間 (トークン有効期限に合わせる)
 
 function setTokenCookie(c: Parameters<typeof setCookie>[0], token: string) {
@@ -159,7 +159,7 @@ compositeAuthRoutes.post("/cernere/mfa-verify", async (c) => {
 });
 
 // ─── ユーザー自動プロビジョニング ──────────────────────────────
-// Cernere 認証済みリクエストが来た際、Schedula の users テーブル
+// Cernere 認証済みリクエストが来た際、Actio の users テーブル
 // (FK アンカー) にレコードがなければ自動作成する。
 // 個人データ (name/email/role) は Cernere 側で管理するため保存しない。
 
@@ -179,7 +179,7 @@ auth.get("/me", async (c) => {
   const { getUserInfo } = await import("./user-info.js");
   const info = await getUserInfo(userId);
 
-  // FK アンカー用に Schedula DB にレコード作成 (idempotent)
+  // FK アンカー用に Actio DB にレコード作成 (idempotent)
   await ensureLocalUser(userId);
 
   const user = await userRepo.findById(userId);
@@ -278,7 +278,7 @@ auth.get("/users", requireRole("admin"), async (c) => {
 });
 
 // ─── PUT /users/:id/role (admin のみ) ─────────────────────────
-// role は Cernere 側で管理する (Schedula DB に保存しない)。
+// role は Cernere 側で管理する (Actio DB に保存しない)。
 // 本エンドポイントは廃止。Cernere の admin UI でロール変更してください。
 
 auth.put("/users/:id/role", requireRole("admin"), async (c) => {

@@ -13,7 +13,7 @@ import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 import { secretManager } from "../../config/secrets.js";
 
-// ─── Users (FK アンカー + Schedula 固有のみ) ─────────────────
+// ─── Users (FK アンカー + Actio 固有のみ) ────────────────────
 // 個人データ (name/email/role/auth) は Cernere で管理。
 // AIFormat ルール (DROP COLUMN 禁止) のため legacy カラムは残置するが
 // 新規コードからは読み書きしない。NOT NULL は解除。
@@ -694,7 +694,7 @@ export const holidays = pgTable("holidays", {
 ]);
 
 // ─── Core: Events (予定) ─────────────────────────────────────
-// Schedula コア「予定」: 時間拘束のある未来の事象。
+// Actio コア「予定」: 時間拘束のある未来の事象。
 
 export const events = pgTable(
   "events",
@@ -724,7 +724,7 @@ export const events = pgTable(
 );
 
 // ─── Core: Tasks (タスク) ────────────────────────────────────
-// Schedula コア「タスク」: 解決すべき現在の事象。
+// Actio コア「タスク」: 解決すべき現在の事象。
 
 export const tasks = pgTable(
   "tasks",
@@ -913,7 +913,7 @@ export const machinaTaskLogs = pgTable("machina_task_logs", {
 
 // ─── User Project Roles (プロジェクト別ロール) ──────────────────
 // ※ユーザープロファイル (bio / displayName / avatarUrl 等) は Cernere 側で管理する
-//   ため Schedula では保存しない。ここは Schedula 固有の業務ロールのみ。
+//   ため Actio では保存しない。ここは Actio 固有の業務ロールのみ。
 
 export const userProjectRoles = pgTable(
   "user_project_roles",
@@ -1092,7 +1092,7 @@ export async function waitForPostgres(
 
 export function createConnection() {
   const connectionString =
-    secretManager.getOrDefault("DATABASE_URL", "postgresql://localhost:5432/schedula");
+    secretManager.getOrDefault("DATABASE_URL", "postgresql://localhost:5432/actio");
   console.log(
     `[db:postgres] createConnection called (lazy — 接続は初回クエリ時に確立されます)`
   );
@@ -1109,7 +1109,7 @@ export function createConnection() {
  */
 export async function createConnectionWithRetry() {
   const connectionString =
-    secretManager.getOrDefault("DATABASE_URL", "postgresql://localhost:5432/schedula");
+    secretManager.getOrDefault("DATABASE_URL", "postgresql://localhost:5432/actio");
   console.log("[db:postgres] createConnectionWithRetry 開始");
   const client = await waitForPostgres(connectionString);
 

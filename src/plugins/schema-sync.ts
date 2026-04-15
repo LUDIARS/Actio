@@ -2,7 +2,7 @@
  * Cernere project schema 同期
  *
  * 各モジュールの manifest.userData を収集し、Cernere の
- * `managed_project.update_schema` で Schedula プロジェクトのカラム定義を
+ * `managed_project.update_schema` で Actio プロジェクトのカラム定義を
  * 更新する。起動時 + install/uninstall 時に呼ばれる。
  *
  * 重要: Cernere 側の DROP COLUMN 禁止ルールに従い、manifest から消えた
@@ -14,7 +14,7 @@ import { moduleRegistry } from "./registry.js";
 import { updateProjectSchema } from "../auth/cernere-client.js";
 import { secretManager } from "../config/secrets.js";
 
-const PROJECT_KEY = "schedula";
+const PROJECT_KEY = "actio";
 
 interface CernereColumn {
   type: string;
@@ -63,7 +63,7 @@ export async function syncProjectSchemaToCernere(): Promise<void> {
   }
 
   const definition = {
-    project: { key: PROJECT_KEY, name: "Schedula" },
+    project: { key: PROJECT_KEY, name: "Actio" },
     user_data: { columns },
   };
 

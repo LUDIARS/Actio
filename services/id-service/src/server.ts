@@ -77,7 +77,7 @@ app.route("/api/auth", authRoutes);
 
 app.get("/", (c) => {
   return c.json({
-    name: "@schedula/id-service",
+    name: "@actio/id-service",
     description: "Standalone Identity Service",
     version: "0.2.0",
     endpoints: {

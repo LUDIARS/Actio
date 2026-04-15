@@ -1,5 +1,5 @@
 /**
- * @schedula/auth — @schedula/id-service への互換レイヤー
+ * @actio/auth — @actio/id-service への互換レイヤー
  *
  * 全エクスポートを id-service パッケージに委譲する。
  */

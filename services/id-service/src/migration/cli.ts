@@ -20,7 +20,7 @@ function main() {
   const repoPath = args[0] || process.cwd();
 
   console.log("═══════════════════════════════════════════════════");
-  console.log("  @schedula/id-service — マイグレーションスキャナー");
+  console.log("  @actio/id-service — マイグレーションスキャナー");
   console.log("═══════════════════════════════════════════════════");
   console.log();
 

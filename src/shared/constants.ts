@@ -322,10 +322,10 @@ export const MACHINA_URGENCY_KEYWORDS = [
   "ブロッカー", "blocker", "critical", "障害",
 ] as const;
 
-// ─── Schedula Module Definitions ─────────────────────────────
+// ─── Actio Module Definitions ────────────────────────────────
 
 /** Selectable module IDs (グループごとに有効/無効を切り替え可能) */
-export const SCHEDULA_MODULES = [
+export const ACTIO_MODULES = [
   "calicula",
   "pm",
   "machina",
@@ -335,11 +335,11 @@ export const SCHEDULA_MODULES = [
   "facility-booking",
   "integrations",
 ] as const;
-export type SchulaModuleId = (typeof SCHEDULA_MODULES)[number];
+export type ActioModuleId = (typeof ACTIO_MODULES)[number];
 
 /** Module metadata for UI display */
-export interface SchulaModuleInfo {
-  id: SchulaModuleId;
+export interface ActioModuleInfo {
+  id: ActioModuleId;
   name: string;
   codename: string | null;
   description: string;
@@ -348,7 +348,7 @@ export interface SchulaModuleInfo {
 }
 
 /** All selectable modules with metadata */
-export const SCHEDULA_MODULE_INFO: SchulaModuleInfo[] = [
+export const ACTIO_MODULE_INFO: ActioModuleInfo[] = [
   {
     id: "calicula",
     name: "CALICULA",
@@ -427,7 +427,7 @@ export const CORE_MODULES = [
 ] as const;
 
 /** Default enabled modules for new groups */
-export const DEFAULT_ENABLED_MODULES: SchulaModuleId[] = [
+export const DEFAULT_ENABLED_MODULES: ActioModuleId[] = [
   "holiday",
   "voting",
   "notification",

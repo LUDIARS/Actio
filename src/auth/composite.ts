@@ -3,7 +3,7 @@
  *
  * Cernere のポップアップ/リダイレクトログインで得た auth_code を
  * Cernere の /api/auth/exchange で accessToken / user 情報に交換し、
- * Schedula 自身の service_token を発行する。
+ * Actio 自身の service_token を発行する。
  */
 
 import { secretManager } from "../config/secrets.js";
@@ -87,7 +87,7 @@ async function issueServiceToken(user: CernereUser): Promise<string> {
     role: user.role,
     iat: now,
     exp: now + TOKEN_EXPIRES_IN_SECONDS,
-    iss: "schedula",
+    iss: "actio",
   };
 
   const enc = (obj: unknown) =>

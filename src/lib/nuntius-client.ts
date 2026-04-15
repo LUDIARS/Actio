@@ -1,9 +1,9 @@
 /**
  * Nuntius クライアント
  *
- * Schedula backend が Nuntius (LUDIARS 統合通知基盤) を呼び出す。
+ * Actio backend が Nuntius (LUDIARS 統合通知基盤) を呼び出す。
  *
- * 認証: Schedula 自身の Cernere project credentials を Cernere の
+ * 認証: Actio 自身の Cernere project credentials を Cernere の
  * /api/auth/login で project_token に交換し、Nuntius API に Bearer で渡す。
  * Nuntius 側は Cernere /api/auth/verify で検証する。
  */
