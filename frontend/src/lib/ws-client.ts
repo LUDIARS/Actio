@@ -1,7 +1,7 @@
 /**
- * Schedula WebSocket クライアント
+ * Actio WebSocket クライアント
  *
- * Cernere の WS プロトコルに準拠し、Schedula バックエンドとの
+ * Cernere の WS プロトコルに準拠し、Actio バックエンドとの
  * 常時接続セッションを管理する。
  *
  * 破壊的操作は module_request 経由で送信し、
@@ -32,7 +32,7 @@ const REQUEST_TIMEOUT_MS = 30_000;
 const RECONNECT_BASE_MS = 1_000;
 const RECONNECT_MAX_MS = 30_000;
 
-class SchedulaWsClient {
+class ActioWsClient {
   private ws: WebSocket | null = null;
   private pendingRequests: PendingRequest[] = [];
   private listeners: Array<(msg: ServerMessage) => void> = [];
@@ -53,7 +53,7 @@ class SchedulaWsClient {
   }
 
   /**
-   * Schedula バックエンドに WS 接続する。
+   * Actio バックエンドに WS 接続する。
    */
   connect(token: string): Promise<void> {
     this.currentToken = token;
@@ -273,4 +273,4 @@ class SchedulaWsClient {
   }
 }
 
-export const wsClient = new SchedulaWsClient();
+export const wsClient = new ActioWsClient();

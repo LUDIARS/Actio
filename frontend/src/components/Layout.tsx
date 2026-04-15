@@ -10,8 +10,8 @@ const ROLE_LABELS: Record<string, string> = {
   general: "一般",
 };
 
-const HIDDEN_MODULES_KEY = "schedula_hidden_modules";
-const COLLAPSED_GROUPS_KEY = "schedula_collapsed_groups";
+const HIDDEN_MODULES_KEY = "actio_hidden_modules";
+const COLLAPSED_GROUPS_KEY = "actio_collapsed_groups";
 
 function getHiddenModules(): string[] {
   try {
@@ -269,7 +269,7 @@ export function Layout() {
             <span />
           </span>
         </button>
-        <span className="mobile-header-title">Schedula</span>
+        <span className="mobile-header-title">Actio</span>
       </div>
 
       {/* Overlay backdrop - mobile only */}
@@ -280,7 +280,7 @@ export function Layout() {
       <aside className={`sidebar ${sidebarOpen ? "sidebar--open" : ""}`}>
         <div className="sidebar-header">
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <h2 style={{ fontSize: "1rem", fontWeight: 700 }}>Schedula</h2>
+            <h2 style={{ fontSize: "1rem", fontWeight: 700 }}>Actio</h2>
             <button
               onClick={() => setEditMode((prev) => !prev)}
               style={{

@@ -1,6 +1,6 @@
-# Schedula セットアップガイド
+# Actio セットアップガイド
 
-Schedula は教育機関向けの授業スケジューリングシステムです。バックエンド (Hono + Node.js) とフロントエンド (React + Vite) で構成されています。
+Actio は教育機関向けの授業スケジューリングシステムです。バックエンド (Hono + Node.js) とフロントエンド (React + Vite) で構成されています。
 
 ## 前提条件
 
@@ -37,7 +37,7 @@ PORT=3000
 
 # データベース設定 (sqlite / postgres / mysql)
 DB_DIALECT=sqlite
-DATABASE_PATH=data/schedula.db
+DATABASE_PATH=data/actio.db
 
 # JWT 認証
 JWT_SECRET=your-secret-key-change-in-production
@@ -59,14 +59,14 @@ FRONTEND_URL=http://localhost:8080
 npm run db:init
 ```
 
-これにより `data/schedula.db` にデータベースファイルが作成されます。
+これにより `data/actio.db` にデータベースファイルが作成されます。
 
 ### PostgreSQL / MySQL を使用する場合
 
 ```bash
 # 環境変数を設定
 export DB_DIALECT=postgres
-export DATABASE_URL=postgresql://user:password@localhost:5432/schedula
+export DATABASE_URL=postgresql://user:password@localhost:5432/actio
 
 # マイグレーション実行
 npm run db:generate
@@ -142,7 +142,7 @@ npm run preview  # ビルド結果のプレビュー
 ## プロジェクト構成
 
 ```
-Schedula/
+Actio/
 ├── src/                    # バックエンド
 │   ├── index.ts            # エントリーポイント
 │   ├── auth/               # 認証ルート
@@ -179,7 +179,7 @@ PORT=3001 npm run dev
 
 ```bash
 # データベースを再作成
-rm -f data/schedula.db
+rm -f data/actio.db
 npm run db:init
 ```
 

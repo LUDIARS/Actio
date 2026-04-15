@@ -1,27 +1,83 @@
-# Schedula
+# Actio
 
-汎用スケジューリング & 予約プラットフォーム。
+プラグインベースの「予定 (Event)」 & 「タスク (Task)」管理プラットフォーム。
 
-リソース (部屋・設備・人) の予約管理、Webhook 通知、カレンダー統合をコアとして提供し、
-ドメイン固有のスケジューリングロジックは **モジュール** として追加できるプラグイン型の設計です。
+JIRA のように、**コアの 2 概念 (Event / Task)** を中心に各種プラグイン (カレンダー、プロジェクト管理、学校カリキュラム、日程調整、通知…) が機能を拡充する拡張可能なスケジューリング基盤です。
 
 ## 特徴
 
-- **予約システム** — 部屋・タイムスロットの予約、衝突検知、楽観的ロック
-- **Webhook & 通知** — イベント駆動の通知配信、HMAC 署名、リトライ、静寂時間
-- **認証** — Cernere 認証基盤 (JWT + OAuth)
+- **プラグインアーキテクチャ** — `@ludiars/schedula-sdk` の `defineModule()` で routes / WS commands / DB tables / user data columns を宣言し統合登録
+- **コア概念 2 つ**
+  - **予定 (Event)**: 時間拘束のある未来の事象 (MTG、講義、予約)
+  - **タスク (Task)**: 解決すべき現在の事象 (ToDo、Issue、納期あり要件付き)
+- **認証** — [Cernere](https://github.com/LUDIARS/Cernere) に委譲 (JWT + OAuth + opt-out)
 - **マルチDB対応** — SQLite / PostgreSQL / MySQL (Drizzle ORM)
-- **モジュール拡張** — ドメイン固有のスケジューリングロジックをモジュールとして追加可能
+- **WebSocket 常時接続** — 破壊的操作は `module_request` 経由、読み取りは REST
+- **モジュール有効/無効** — global / group / user の 3 スコープで制御
+- **通知プラットフォーム連携** — [Nuntius](https://github.com/LUDIARS/Nuntius) に shadow write
 
 ## 技術スタック
 
 | 分類 | 技術 |
 |------|------|
 | バックエンド | Hono + Node.js + TypeScript |
-| フロントエンド | React 19 + Vite |
+| フロントエンド | React 19 + Vite + React Router 7 |
 | ORM | Drizzle ORM (SQLite / PostgreSQL / MySQL) |
-| 認証 | Cernere (@ludiars/cernere-id-cache) |
+| 認証 | Cernere (`@ludiars/cernere-id-cache`, `@ludiars/cernere-composite`) |
 | セッション | Redis (ioredis) |
+| SDK | `@ludiars/schedula-sdk` (module declaration) |
+| シークレット管理 | Infisical / AWS SSM (via `@ludiars/cernere-env-cli`) |
+
+## プロジェクト構造
+
+```
+Actio/
+├── src/                  # バックエンド本体 (Hono + Node.js)
+│   ├── auth/             # 認証 (Cernere 連携)
+│   ├── db/               # Drizzle schema / repository / dialects
+│   ├── plugins/          # モジュールローダー / レジストリ / admin API
+│   ├── session/          # セッションストア
+│   ├── ws/               # WebSocket ハンドラ & commands
+│   ├── shared/           # 共有型 / 定数
+│   └── index.ts          # エントリーポイント
+├── modules/              # コア機能モジュール (Event / Task / Calendar など)
+│   ├── event/            # コア「予定」
+│   ├── task/             # コア「タスク」
+│   ├── calendar/         # Google Calendar 連携
+│   ├── group/            # グループ管理
+│   ├── pm/               # プロジェクト管理 (GitHub / Notion)
+│   ├── myplan/           # 週間ルーティーン
+│   ├── smart-scheduler/  # DP 自動配置
+│   ├── holiday/          # 休日・休業期間管理
+│   ├── notification/     # Webhook 通知
+│   ├── voting/           # 日程調整
+│   ├── reminder/         # リマインダー (Nuntius 経由)
+│   ├── school/           # M1 学校カリキュラム
+│   ├── schedule/         # カリキュラム配置
+│   ├── external-api/     # 外部 API (API Key 認証)
+│   ├── settings/         # アプリ設定
+│   ├── profile/          # プロフィール
+│   └── machina/          # (残置: 新規は Discutere へ)
+├── modules-ext/          # 動的ロード対象の外部モジュール (PoC)
+│   └── example/
+├── packages/             # ワークスペースパッケージ
+│   ├── sdk/              # @ludiars/schedula-sdk (公開)
+│   ├── auth/             # @actio/auth (内部)
+│   ├── id-service/       # @actio/id-service (内部)
+│   ├── id-cache/         # @ludiars/cernere-id-cache (参照)
+│   └── env-cli/          # @ludiars/cernere-env-cli (参照)
+├── services/
+│   └── id-service/       # スタンドアロン Identity Service
+├── frontend/             # React SPA
+│   ├── src/pages/        # 各機能ページ
+│   ├── src/components/   # Layout, UIBlockRenderer など
+│   └── src/lib/          # api, ws-client, module-registry など
+├── tests/                # Vitest テスト
+├── scripts/              # ci-check.sh, migrate-*, redis-*, setup.sh
+├── spec/                 # 仕様書
+├── docs/                 # 設計ドキュメント
+└── CLAUDE.md             # 開発ルール (AI エージェント向け)
+```
 
 ## セットアップ
 
@@ -29,34 +85,37 @@
 
 - Node.js v22+
 - Docker / Docker Compose
-- [Infisical](https://infisical.com/) アカウント (シークレット管理)
+- GitHub Packages アクセス (`@ludiars/*` モジュールパッケージ取得用)
+- [Infisical](https://infisical.com/) または AWS SSM (シークレット管理)
 
 ### 1. 依存インストール
 
 ```bash
 git clone https://github.com/LUDIARS/Schedula.git
 cd Schedula
+
+# GitHub Packages 認証 (@ludiars/schedula-module-* を取得するため)
+export NODE_AUTH_TOKEN=<your_gh_pat>
+
 npm install
 cd frontend && npm install && cd ..
 ```
 
-### 2. Infisical 設定（初回のみ）
+### 2. シークレット管理のセットアップ (初回)
 
 ```bash
-npm run secrets -- setup
+npm run env:setup
 ```
 
-対話形式で Infisical の認証情報（Site URL / Project ID / Client ID / Client Secret）を入力します。
-設定は `.env.secrets` に保存されます（gitignore 済み）。
+対話形式で Infisical または AWS SSM の認証情報を入力します。
 
-### 3. デフォルト値を Infisical に登録
+### 3. デフォルト値を登録
 
 ```bash
-npm run secrets -- initialize
+npm run env:initialize
 ```
 
-`env-cli.config.ts` で定義されたデフォルトの環境変数を Infisical に登録します。
-既に存在するキーはスキップされるため、安全に何度でも実行可能です。
+`env-cli.config.ts` で定義された環境変数のデフォルトをシークレット管理に登録します。
 
 ### 4. 開発環境の起動
 
@@ -77,7 +136,7 @@ npm run dev
 | Backend (tsx watch) | Hono API サーバー | 3000 |
 | Frontend (Vite) | React 開発サーバー | 5173 |
 
-個別に起動する場合:
+個別に起動:
 
 ```bash
 npm run dev:server   # バックエンドのみ
@@ -94,10 +153,7 @@ npm run env:up:standalone
 
 #### ローカル開発 (Docker なし / SQLite)
 
-Docker を使わずに SQLite で開発する場合:
-
 ```bash
-npm install
 npm run dev:server
 ```
 
@@ -105,28 +161,26 @@ npm run dev:server
 
 ```bash
 DB_DIALECT=sqlite
-DATABASE_PATH=data/schedula.db
+DATABASE_PATH=data/actio.db
 JWT_SECRET=dev-secret
 ```
 
 ## 環境変数管理
 
-環境変数は [Infisical](https://infisical.com/) で一元管理します。
-
-### secrets CLI
+環境変数は `@ludiars/cernere-env-cli` + Infisical / AWS SSM で一元管理します。
 
 | コマンド | 説明 |
 |---------|------|
-| `npm run secrets -- setup` | 対話形式で Infisical 認証を設定 |
-| `npm run secrets -- initialize` | config のデフォルト値を Infisical に登録 (未存在のみ) |
-| `npm run secrets -- test` | Infisical 接続テスト |
-| `npm run secrets -- list` | シークレット一覧 (値はマスク表示) |
-| `npm run secrets -- get <KEY>` | 指定キーの値を取得 |
-| `npm run secrets -- set <KEY> <VALUE>` | シークレットを作成/更新 |
-| `npm run secrets -- env` | Infisical → `.env` を生成 |
-| `npm run secrets -- up` | `.env` 一時生成 → Docker 起動 → `.env` 自動削除 |
+| `npm run env:setup` | 対話形式で認証を設定 |
+| `npm run env:initialize` | config のデフォルト値を登録 (未存在のみ) |
+| `npm run env:test` | 接続テスト |
+| `npm run env:list` | シークレット一覧 (値はマスク表示) |
+| `npm run env:get <KEY>` | 指定キーの値を取得 |
+| `npm run env:set <KEY> <VALUE>` | シークレットを作成/更新 |
+| `npm run env:env` | `.env` を生成 |
+| `npm run env:up` | `.env` 一時生成 → Docker 起動 |
 
-### Infisical を使わない場合
+### シークレットを使わない場合
 
 `.env.example` をコピーして手動設定:
 
@@ -140,9 +194,10 @@ docker compose up -d
 
 認証は [Cernere](https://github.com/LUDIARS/Cernere) に委譲しています。
 
-- ユーザー認証 (ログイン / 登録 / OAuth) は Cernere が担当
-- Schedula バックエンドは `@ludiars/cernere-id-cache` で JWT 検証のみ行う
-- `CERNERE_URL` が未設定の場合はローカル JWT 検証にフォールバック
+- フロント: `@ludiars/cernere-composite` で popup / redirect ログイン
+- バックエンド: `@ludiars/cernere-id-cache` で JWT 検証 (Redis cache)
+- `CERNERE_URL` が未設定時はローカル JWT 検証にフォールバック
+- 個人データ (name/email/role) は Cernere が単一情報源 (GDPR 対応)
 
 ## npm スクリプト
 
@@ -151,38 +206,65 @@ docker compose up -d
 | `npm run dev` | バックエンド + フロントエンド同時起動 (ホットリロード) |
 | `npm run dev:server` | バックエンドのみ (tsx watch) |
 | `npm run dev:front` | フロントエンドのみ (Vite) |
-| `npm run build` | TypeScript コンパイル |
+| `npm run build` | TypeScript 型チェック & コンパイル |
 | `npm start` | 本番サーバー |
-| `npm test` | テスト実行 |
+| `npm test` | Vitest テスト実行 |
 | `npm run env:up` | 共有インフラ前提でアプリ起動 (Docker) |
 | `npm run env:up:standalone` | DB/Redis 込みで単体起動 (Docker) |
-| `npm run secrets -- <cmd>` | Infisical シークレット管理 CLI |
-| `npm run ci-check` | CI チェック (ビルド + テスト + lint + フロントエンドビルド) |
+| `npm run ci-check` | CI チェック一式 (build + test + lint + frontend build) |
 | `npm run db:push` | Drizzle スキーマ同期 |
 | `npm run db:generate` | マイグレーション生成 |
 | `npm run db:migrate` | マイグレーション実行 |
+| `npm run id:service` | スタンドアロン Identity Service 起動 |
 
 ## モジュール開発
 
-新しいドメインモジュールを追加するには、`SchulaModule` インターフェースを実装します。
+モジュールは `@ludiars/schedula-sdk` の `defineModule()` で宣言します。
 
 ```typescript
-import { Hono } from "hono";
-import type { SchulaModule } from "./shared/types.js";
+import { defineModule } from "@ludiars/schedula-sdk";
 
-const myRouter = new Hono();
-myRouter.get("/status", (c) => c.json({ ok: true }));
+export default defineModule({
+  id: "my-module",
+  name: "My Module",
+  schedulaApiVersion: "^1.0.0",
+  scope: "per-group",
+  basePath: "/api/my-module",
 
-export const myModule: SchulaModule = {
-  name: "my-domain",
-  description: "カスタムドメインのスケジューリング",
-  routes: myRouter,
-  basePath: "/api/my-domain",
-  submodules: [],
-};
+  routes: (app, ctx) => {
+    app.get("/hello", (c) => c.json({ ok: true }));
+  },
+
+  wsCommands: {
+    action: async (userId, payload, ctx) => {
+      const user = await ctx.users.get(userId);
+      return { user: user.name };
+    },
+  },
+
+  userData: {
+    pref: { type: "json", description: "ユーザー設定" },
+  },
+});
 ```
 
-`src/index.ts` の `modules` 配列に追加するだけで有効化されます。
+`src/app.ts` の `installModule()` で登録。詳細は [packages/sdk/README.md](packages/sdk/README.md)。
+
+## CI / テスト
+
+CI (GitHub Actions) と pre-push hook は `scripts/ci-check.sh` を共有します。
+変更後は必ず以下を実行してください:
+
+```bash
+bash scripts/ci-check.sh
+```
+
+内容:
+1. SDK ビルド (`packages/sdk`)
+2. バックエンド型チェック & ビルド
+3. バックエンドテスト (Vitest)
+4. フロントエンド Lint (ESLint)
+5. フロントエンドビルド (Vite)
 
 ## ライセンス
 

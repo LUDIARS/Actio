@@ -7,12 +7,12 @@
 
 import { Hono } from "hono";
 import { pmRoutes } from "./routes.js";
-import type { SchulaModule } from "../../src/shared/types.js";
+import type { ActioModule } from "../../src/shared/types.js";
 
 const pmRouter = new Hono();
 pmRouter.route("/", pmRoutes);
 
-export const pmModule: SchulaModule = {
+export const pmModule: ActioModule = {
   name: "pm",
   description: "プロジェクト管理 — GitHub/Notion タスク同期・分析",
   routes: pmRouter,

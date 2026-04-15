@@ -2,7 +2,7 @@
  * リマインダー コアモジュール (Nuntius 完全移行版)
  *
  * 配信は LUDIARS Nuntius サービスに完全委譲する。
- * Schedula 側の reminders テーブルへの新規 INSERT は行わない。
+ * Actio 側の reminders テーブルへの新規 INSERT は行わない。
  *
  * エンドポイント:
  *   GET    /             — 過去の (移行前) リマインダー閲覧 (legacy / 読み取り専用)
@@ -81,7 +81,7 @@ reminderRoutes.post("/", async (c) => {
       title: body.title,
       description: body.description ?? "",
     },
-    source: "schedula.reminder",
+    source: "actio.reminder",
     idempotencyKey: id,
     recurrenceRule: repeatRule === "none" ? undefined : repeatRule,
   });
@@ -122,7 +122,7 @@ reminderRoutes.post("/parse", async (c) => {
       title: parsed.title,
       originalText: body.text.trim(),
     },
-    source: body.source || "schedula.reminder.parse",
+    source: body.source || "actio.reminder.parse",
     idempotencyKey: id,
   });
 

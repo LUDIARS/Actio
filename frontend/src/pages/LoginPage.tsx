@@ -8,11 +8,11 @@ import { API_BASE } from "../lib/constants";
  * モバイルでは <CompositeLogin> を同一ページ内に埋め込み (半SPA)、
  * デスクトップは従来のポップアップフローを継続する。
  *
- * CORS を避けるため、埋め込み時の認証通信は Schedula backend の
+ * CORS を避けるため、埋め込み時の認証通信は Actio backend の
  * /api/auth/cernere/* プロキシ (→ project WS → Cernere) を経由する。
  */
 
-// Schedula backend 経由で Cernere Composite の認証を呼ぶ authApi 実装
+// Actio backend 経由で Cernere Composite の認証を呼ぶ authApi 実装
 const authApi: CompositeAuthApi = {
   async login({ email, password }) {
     const res = await fetch(`${API_BASE}/api/auth/cernere/login`, {
@@ -93,7 +93,7 @@ export function LoginPage() {
         <div style={{ width: "100%", maxWidth: 400 }}>
           <div style={{ textAlign: "center", marginBottom: "1rem" }}>
             <h1 style={{ fontSize: "1.5rem", fontWeight: 700, marginBottom: "0.25rem" }}>
-              Schedula
+              Actio
             </h1>
             <p style={{ color: "var(--text-muted)", fontSize: "0.85rem" }}>
               Academic Scheduling System
@@ -143,7 +143,7 @@ export function LoginPage() {
       >
         <div style={{ textAlign: "center", marginBottom: "1.5rem" }}>
           <h1 style={{ fontSize: "1.5rem", fontWeight: 700, marginBottom: "0.25rem" }}>
-            Schedula
+            Actio
           </h1>
           <p style={{ color: "var(--text-muted)", fontSize: "0.85rem" }}>
             Academic Scheduling System

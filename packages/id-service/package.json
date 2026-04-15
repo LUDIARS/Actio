@@ -1,5 +1,5 @@
 {
-  "name": "@schedula/id-service",
+  "name": "@actio/id-service",
   "version": "0.1.0",
   "description": "Standalone Identity Service — JWT auth, session management, OAuth, plugin-based profile extensions",
   "type": "module",

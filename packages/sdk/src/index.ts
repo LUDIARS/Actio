@@ -1,7 +1,7 @@
 /**
  * @ludiars/schedula-sdk
  *
- * Schedula モジュール実装者向けの公開 API。
+ * Actio モジュール実装者向けの公開 API。
  *
  * 使い方:
  * ```ts

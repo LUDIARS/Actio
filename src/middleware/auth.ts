@@ -1,9 +1,9 @@
 /**
  * 認証ミドルウェア — Cookie または Bearer Token から認証情報を抽出
  *
- * Schedula は自身が発行した service_token を自分の JWT_SECRET で検証する。
+ * Actio は自身が発行した service_token を自分の JWT_SECRET で検証する。
  * Cernere は認証プロバイダであり、service_token の検証は行わない。
- * (Cernere と Schedula で JWT_SECRET を共有するのは設計上 NG)
+ * (Cernere と Actio で JWT_SECRET を共有するのは設計上 NG)
  */
 
 import { createMiddleware } from "hono/factory";
@@ -12,7 +12,7 @@ import jwt from "jsonwebtoken";
 import { secretManager } from "../config/secrets.js";
 import { getSessionUser, saveSessionUser } from "../auth/session-cache.js";
 
-const TOKEN_COOKIE = "schedula_token";
+const TOKEN_COOKIE = "actio_token";
 
 // ─── 設定 ─────────────────────────────────────────────────────
 

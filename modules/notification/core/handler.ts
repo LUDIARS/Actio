@@ -11,7 +11,7 @@ import { nuntiusClient } from "../../../src/lib/nuntius-client.js";
 
 /**
  * イベントを Nuntius topic に publish する。
- * topic 命名: "schedula.{event}"
+ * topic 命名: "actio.{event}"
  */
 export async function emitEvent(
   event: string,
@@ -23,9 +23,9 @@ export async function emitEvent(
   }
   try {
     await nuntiusClient.publish({
-      topic: `schedula.${event}`,
+      topic: `actio.${event}`,
       payload: data,
-      source: "schedula",
+      source: "actio",
     });
   } catch (err) {
     console.error(`[notification] Nuntius publish failed for ${event}:`, err instanceof Error ? err.message : err);

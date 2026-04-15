@@ -1,5 +1,5 @@
 /**
- * Task Module — Schedula コア「タスク (Task)」
+ * Task Module — Actio コア「タスク (Task)」
  *
  * 解決すべき現在の事象 (ToDo, Issue, レビュー依頼等) を管理する。
  * 要件 (requirements) を持ち、時間拘束はないが期限 (deadline) を

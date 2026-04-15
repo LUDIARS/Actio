@@ -1,6 +1,6 @@
 # @ludiars/schedula-sdk
 
-Schedula モジュール実装者向けの SDK。`defineModule()` でマニフェストと実装を宣言し、Schedula ホストに読み込ませる。
+Actio モジュール実装者向けの SDK。`defineModule()` でマニフェストと実装を宣言し、Actio ホストに読み込ませる。
 
 ## Install
 

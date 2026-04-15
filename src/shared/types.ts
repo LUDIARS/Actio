@@ -392,7 +392,7 @@ export interface CreateEventInput {
   pluginPayload?: Record<string, unknown>;
 }
 
-/** Event プラグイン: Schedula コアの「予定」を生成・拡張するモジュール */
+/** Event プラグイン: Actio コアの「予定」を生成・拡張するモジュール */
 export interface EventPlugin {
   /** プラグイン識別子 (例: "calendar", "voting") */
   id: string;
@@ -452,7 +452,7 @@ export interface CreateTaskInput {
   pluginPayload?: Record<string, unknown>;
 }
 
-/** Task プラグイン: Schedula コアの「タスク」を生成・拡張するモジュール */
+/** Task プラグイン: Actio コアの「タスク」を生成・拡張するモジュール */
 export interface TaskPlugin {
   id: string;
   name: string;
@@ -512,8 +512,8 @@ export interface ReservationPlugin {
 
 import type { Hono } from "hono";
 
-/** Schedula モジュールインターフェース */
-export interface SchulaModule {
+/** Actio モジュールインターフェース */
+export interface ActioModule {
   /** モジュール識別子 */
   name: string;
   /** 人間向け説明 */

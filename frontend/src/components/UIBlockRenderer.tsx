@@ -11,7 +11,7 @@ import { moduleRegistry } from "../lib/module-registry";
 import type { UIBlock, UIBlockSlot } from "../lib/module-registry";
 import { useAuth } from "../contexts/AuthContext";
 
-const HIDDEN_BLOCKS_KEY = "schedula_hidden_blocks";
+const HIDDEN_BLOCKS_KEY = "actio_hidden_blocks";
 
 function getHiddenBlocks(): string[] {
   try {

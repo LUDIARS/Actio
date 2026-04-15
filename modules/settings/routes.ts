@@ -23,7 +23,7 @@ settingsRoutes.use("*", requireRole("admin"));
 export const SETTING_DEFAULTS: Record<string, string> = {
   "session.refreshTokenDays": "30",
   "session.accessTokenMinutes": "60",
-  "app.name": "Schedula",
+  "app.name": "Actio",
 };
 
 /**
@@ -128,7 +128,7 @@ settingsRoutes.get("/export", async (c) => {
     c.header("Content-Type", "application/json");
     c.header(
       "Content-Disposition",
-      `attachment; filename="schedula-export-${new Date().toISOString().slice(0, 10)}.json"`
+      `attachment; filename="actio-export-${new Date().toISOString().slice(0, 10)}.json"`
     );
     return c.body(JSON.stringify(exportPayload, null, 2));
   } catch (err) {

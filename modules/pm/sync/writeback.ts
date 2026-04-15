@@ -1,5 +1,5 @@
 /**
- * Schedula → 外部ソースへの書き戻し
+ * Actio → 外部ソースへの書き戻し
  */
 
 import { updateGitHubIssue } from "./github-sync.js";

@@ -22,6 +22,6 @@ export default defineConfig({
   dialect: resolvedDialect,
   dbCredentials:
     resolvedDialect === "sqlite"
-      ? { url: process.env.DATABASE_PATH || "data/schedula.db" }
+      ? { url: process.env.DATABASE_PATH || "data/actio.db" }
       : { url: process.env.DATABASE_URL || "" },
 });

@@ -19,7 +19,7 @@ import { externalApi } from "../modules/external-api/routes.js";
 import { settingsRoutes } from "../modules/settings/routes.js";
 import { secretsRoutes } from "../modules/secrets/routes.js";
 import { DAY_LABELS, getPeriodTime, PERIODS_COUNT } from "./shared/constants.js";
-import type { SchulaModule } from "./shared/types.js";
+import type { ActioModule } from "./shared/types.js";
 import { getRecentLogs } from "./activity-logger.js";
 import { getReservationPlugins } from "./reservation-plugins.js";
 import { registerReservationPlugin } from "./reservation-plugins.js";
@@ -127,8 +127,8 @@ export function createApp() {
   // ─── Module: External API (外部API連携) ─────────────────────
   app.route("/api/external", externalApi);
 
-  // ─── PM (M2) — legacy SchulaModule (SDK 移行未) ────────────
-  const legacyModules: SchulaModule[] = [pmModule];
+  // ─── PM (M2) — legacy ActioModule (SDK 移行未) ─────────────
+  const legacyModules: ActioModule[] = [pmModule];
   for (const mod of legacyModules) {
     app.route(mod.basePath, mod.routes);
   }
@@ -138,11 +138,11 @@ export function createApp() {
   // アプリ起動時に reject するとログに載る。manifest の REST 登録は Hono が
   // Promise で mount できるため遅延登録で問題ない。
   installModule(app, exampleModule, {
-    packageName: "schedula-example-module",
+    packageName: "actio-example-module",
     packageVersion: "0.1.0",
   });
   installModule(app, votingModule, {
-    packageName: "schedula-voting-module",
+    packageName: "actio-voting-module",
     packageVersion: "0.1.0",
   });
   installModule(app, holidayModule, {
@@ -236,7 +236,7 @@ export function createApp() {
     }
 
     return c.json({
-      name: "Schedula",
+      name: "Actio",
       description: "プラグインベースの予定 (Event) & タスク (Task) 管理プラットフォーム",
       version: "1.0.0",
       core: {
@@ -282,7 +282,7 @@ export function createApp() {
   app.get("/api/health/live", (c) => {
     return c.json({
       status: "ok",
-      service: "schedula",
+      service: "actio",
       timestamp: new Date().toISOString(),
     });
   });
@@ -293,7 +293,7 @@ export function createApp() {
   const readinessHandler = async (c: Context) => {
     const health: Record<string, unknown> = {
       status: "ok",
-      service: "schedula",
+      service: "actio",
       timestamp: new Date().toISOString(),
     };
 

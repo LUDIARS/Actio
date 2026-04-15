@@ -1,4 +1,4 @@
-# Schedula 開発ルール
+# Actio 開発ルール
 
 ## 認証 (Cernere Composite)
 
@@ -7,13 +7,13 @@
 - **Popup モード**: `loginWithPopup()` で Cernere ログイン UI をポップアップ表示
 - **Redirect モード**: `loginWithRedirect()` で Cernere にリダイレクト → `/auth/callback` で復帰
 - 認証成功後、Cernere から受け取った auth_code を `/api/auth/exchange` でトークンに交換
-- トークンは `localStorage` に保存し、Schedula バックエンドの `/api/auth/me` でユーザー同期
+- トークンは `localStorage` に保存し、Actio バックエンドの `/api/auth/me` でユーザー同期
 
 バックエンドの JWT 検証は `@ludiars/cernere-id-cache` が担当する。
 
 ## モジュール SDK (プラグインアーキテクチャ)
 
-Schedula は `@ludiars/schedula-sdk` による **プラグイン駆動のモジュール構造** に
+Actio は `@ludiars/schedula-sdk` による **プラグイン駆動のモジュール構造** に
 移行中。各モジュールは manifest (`defineModule()`) で宣言し、REST routes /
 WS commands / DB tables / Cernere ユーザーデータカラム を統合登録する。
 
@@ -71,8 +71,8 @@ export default defineModule({
 
 ## 個人データの保管禁止
 
-**Schedula DB に個人データ (name, email, role, 認証トークン等) を保管してはいけません。**
-Cernere を単一情報源 (single source of truth) とし、Schedula 側は `id` を FK
+**Actio DB に個人データ (name, email, role, 認証トークン等) を保管してはいけません。**
+Cernere を単一情報源 (single source of truth) とし、Actio 側は `id` を FK
 アンカーとしてのみ保持する。
 
 ### なぜ？
@@ -108,10 +108,10 @@ const user = await userRepo.findById(userId);
 logActivity(userId, user.name, "アクション", "...");  // user.name は legacy
 ```
 
-### Schedula 固有フィールドは保持OK
+### Actio 固有フィールドは保持OK
 
-`major` (学科)、`calendar_access_id` (Calendar 連携 nonce) など Schedula
-ドメインに密接で Cernere に存在しないフィールドは引き続き Schedula DB
+`major` (学科)、`calendar_access_id` (Calendar 連携 nonce) など Actio
+ドメインに密接で Cernere に存在しないフィールドは引き続き Actio DB
 に保存してよい。
 
 ## 環境変数・シークレット管理
@@ -244,7 +244,7 @@ const roomMap = new Map(rooms.map((r: any) => [r.id, r.name]));
 
 ## アーキテクチャ
 
-Schedula は **プラグインベースの「予定 (Event)」 & 「タスク (Task)」管理プラットフォーム**。
+Actio は **プラグインベースの「予定 (Event)」 & 「タスク (Task)」管理プラットフォーム**。
 JIRA のように、コアの 2 概念を中心に各種プラグインが機能を拡充する。
 
 ### コア概念
@@ -343,7 +343,7 @@ registerTaskPlugin({
 `modules/pm/` — GitHub/Notion タスク同期・分析 (`/api/pm`)
 
 - プロジェクト作成 (GitHub Issues / Notion Database 接続)
-- 双方向タスク同期 (Pull: 外部→Schedula, Push: Schedula→外部)
+- 双方向タスク同期 (Pull: 外部→Actio, Push: Actio→外部)
 - 差分検知 & コンフリクト解決 (フィールドマージ / 外部優先)
 - タスク内容検証 (充実度スコア・改善提案)
 - リマインダー (納期警告・超過通知)
@@ -353,7 +353,7 @@ registerTaskPlugin({
 ### 旧 M3: MACHINA (別リポジトリに移行済み)
 
 Slack/Discord Chat-to-Task 機能は **Discutere** リポジトリに分離しました。
-Schedula 側には DB テーブル (`machina_*`) とフロントエンドページが残存していますが、
+Actio 側には DB テーブル (`machina_*`) とフロントエンドページが残存していますが、
 バックエンドモジュールは削除済みです。新規実装は Discutere を参照してください。
 
 ### その他モジュール
