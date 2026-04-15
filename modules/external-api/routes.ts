@@ -363,7 +363,7 @@ remindersApi.post("/reminders", async (c) => {
     channel: "webhook",
     sendAt: remindDate.toISOString(),
     payload: { title: body.title, description: body.description ?? "" },
-    source: "schedula.reminder.external",
+    source: "actio.reminder.external",
     idempotencyKey: id,
     recurrenceRule: repeatRule === "none" ? undefined : repeatRule,
   });

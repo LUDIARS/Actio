@@ -1,4 +1,4 @@
-# Schedula コードレビュー — 2026-03-21
+# Actio コードレビュー — 2026-03-21
 
 ## 概要
 
@@ -33,11 +33,11 @@ if (!userId) return c.json({ error: "Authentication required" }, 401);
 ### 2. ハードコードされた JWT シークレット
 
 - **場所**: `src/middleware/auth.ts:5`, `src/auth/routes.ts:11`
-- **内容**: デフォルト値 `"schedula-dev-secret-change-in-production"`
+- **内容**: デフォルト値 `"actio-dev-secret-change-in-production"`
 - **リスク**: 本番環境で `JWT_SECRET` 環境変数が未設定の場合、この既知の文字列で全トークンを偽造可能
 
 ```typescript
-const JWT_SECRET = process.env.JWT_SECRET || "schedula-dev-secret-change-in-production";
+const JWT_SECRET = process.env.JWT_SECRET || "actio-dev-secret-change-in-production";
 ```
 
 **対策**: 起動時に `JWT_SECRET` が未設定ならエラー終了させる。

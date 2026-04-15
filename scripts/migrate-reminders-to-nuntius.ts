@@ -1,5 +1,5 @@
 /**
- * 既存の Schedula reminder データを Nuntius に一括移行する。
+ * 既存の Actio reminder データを Nuntius に一括移行する。
  *
  * 使い方:
  *   npx tsx scripts/migrate-reminders-to-nuntius.ts
@@ -42,7 +42,7 @@ async function main(): Promise<void> {
           title: r.title,
           description: r.description ?? "",
         },
-        source: "schedula.reminder.migration",
+        source: "actio.reminder.migration",
         idempotencyKey: r.id,
       });
       ok++;

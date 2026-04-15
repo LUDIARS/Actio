@@ -20,11 +20,11 @@ export type NewUserProjectRole = typeof schema.userProjectRoles.$inferInsert;
 
 // ─── User Repository ───────────────────────────────────────
 // 個人データ (name/email/role/auth) は Cernere で管理 (AIFormat ルール)。
-// 本リポジトリは FK アンカー + Schedula 固有フィールド (major,
+// 本リポジトリは FK アンカー + Actio 固有フィールド (major,
 // calendarAccessId) のみを扱う。
 // 個人データの読み出しは src/auth/user-info.ts の getUserInfo() を使用。
 
-/** Schedula 固有フィールドのみで構成される作成データ (個人データを除外) */
+/** Actio 固有フィールドのみで構成される作成データ (個人データを除外) */
 export interface NewLocalUser {
   id: string;
   major?: string | null;
@@ -32,7 +32,7 @@ export interface NewLocalUser {
 }
 
 /**
- * 更新可能フィールド。新規コードは Schedula 固有フィールドのみ使用すること。
+ * 更新可能フィールド。新規コードは Actio 固有フィールドのみ使用すること。
  * legacy フィールド (google_*, password_hash 等) は Cernere 移管前の機能維持のため
  * 一時的に許容するが、新規コードからは使わないこと。
  */
@@ -1321,7 +1321,7 @@ export const appSettingsRepo = {
 
 // ─── User List Repository (admin/user list queries) ──────────
 // 個人データ (name/email/role) は Cernere 側で取得 (getUserInfos)。
-// このリポジトリは Schedula 固有フィールドのみを返す。
+// このリポジトリは Actio 固有フィールドのみを返す。
 
 export const userListRepo = {
   async findAllBasic() {
@@ -1740,7 +1740,7 @@ export const syncLogRepo = {
 
 // ─── User Project Role Repository ─────────────────────────────
 // ※ユーザープロファイル (bio/displayName/avatarUrl) は Cernere に委譲したので
-//   Schedula 側の userProfileRepo は廃止した。
+//   Actio 側の userProfileRepo は廃止した。
 //   cernere-client.fetchCernereProfile() / updateCernereProfile() を使うこと。
 
 export const userProjectRoleRepo = {
@@ -2230,7 +2230,7 @@ export const pmAnalyticsCacheRepo = {
 };
 
 // ─── Core: Event Repository (予定) ──────────────────────────
-// Schedula コア「予定」: 時間拘束のある未来の事象。
+// Actio コア「予定」: 時間拘束のある未来の事象。
 // 詳細仕様: docs / CLAUDE.md / modules/event/PLAN.md を参照。
 
 export type Event = typeof schema.events.$inferSelect;
@@ -2287,7 +2287,7 @@ export const eventRepo = {
 };
 
 // ─── Core: Task Repository (タスク) ─────────────────────────
-// Schedula コア「タスク」: 解決すべき現在の事象。
+// Actio コア「タスク」: 解決すべき現在の事象。
 
 export type Task = typeof schema.tasks.$inferSelect;
 export type NewTask = typeof schema.tasks.$inferInsert;

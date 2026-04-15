@@ -14,7 +14,7 @@ export { schema, curriculumSchema };
 export type SqliteDatabase = InstanceType<typeof Database>;
 
 export function createConnection(): { db: ReturnType<typeof drizzle>; sqlite: SqliteDatabase } {
-  const dbPath = secretManager.getOrDefault("DATABASE_PATH", resolve("data", "schedula.db"));
+  const dbPath = secretManager.getOrDefault("DATABASE_PATH", resolve("data", "actio.db"));
   mkdirSync(resolve("data"), { recursive: true });
 
   const sqlite: SqliteDatabase = new Database(dbPath);
@@ -191,7 +191,7 @@ export function createConnection(): { db: ReturnType<typeof drizzle>; sqlite: Sq
   `);
 
   // ─── Core: events / tasks (予定 / タスク) ──────────────────
-  // Schedula のコア概念。プラグインから利用される。
+  // Actio のコア概念。プラグインから利用される。
   sqlite.exec(`
     CREATE TABLE IF NOT EXISTS events (
       id TEXT PRIMARY KEY,

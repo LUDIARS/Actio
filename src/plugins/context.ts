@@ -49,7 +49,7 @@ export function buildModuleContext(moduleId: string): ModuleContext {
     },
   };
 
-  // userData: Cernere project_data_{schedula} を proxy する。
+  // userData: Cernere project_data_{actio} を proxy する。
   // カラム名は `${moduleId}:${snake_case(key)}` 形式で衝突回避。
   const userData: UserDataApi = {
     async get<T = unknown>(userId: string, key: string): Promise<T | null> {
@@ -89,7 +89,7 @@ export function buildModuleContext(moduleId: string): ModuleContext {
     },
     async relayToUser(_userId, _event, _payload) {
       // Phase 2: WS relay API は session-registry 経由
-      throw new Error("[schedula] ws.relayToUser() not implemented (Phase 2)");
+      throw new Error("[actio] ws.relayToUser() not implemented (Phase 2)");
     },
   };
 
@@ -108,19 +108,19 @@ export function buildModuleContext(moduleId: string): ModuleContext {
   const modules: ModulesApi = {
     async invoke() {
       // Phase 2: dispatcher 統合後に本実装
-      throw new Error("[schedula] modules.invoke() not implemented (Phase 2)");
+      throw new Error("[actio] modules.invoke() not implemented (Phase 2)");
     },
   };
 
   const permissions: PermissionsApi = {
     requireSystemAdmin() {
       return async () => {
-        throw new Error("[schedula] permissions.requireSystemAdmin() — use Hono middleware directly");
+        throw new Error("[actio] permissions.requireSystemAdmin() — use Hono middleware directly");
       };
     },
     requireGroupRole() {
       return async () => {
-        throw new Error("[schedula] permissions.requireGroupRole() — use group-role middleware directly");
+        throw new Error("[actio] permissions.requireGroupRole() — use group-role middleware directly");
       };
     },
   };

@@ -23,7 +23,7 @@ services:
       # ─ Infra (from .env) ─
       BACKEND_PORT: ${BACKEND_PORT:-3000}
       DB_DIALECT: ${DB_DIALECT:-postgres}
-      DATABASE_URL: ${DATABASE_URL:-postgresql://schedula_user:schedula@host.docker.internal:5432/schedula}
+      DATABASE_URL: ${DATABASE_URL:-postgresql://actio_user:actio@host.docker.internal:5432/actio}
       REDIS_URL: ${REDIS_URL:-redis://host.docker.internal:6379}
       FRONTEND_URL: ${FRONTEND_URL:-}
       # ─ Infisical bootstrap (バックエンドが SecretManager で残りを取得) ─

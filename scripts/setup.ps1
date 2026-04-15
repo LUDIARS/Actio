@@ -1,5 +1,5 @@
 # ═══════════════════════════════════════════════════════════════
-# Schedula — Docker 起動前セットアップスクリプト (Windows PowerShell)
+# Actio — Docker 起動前セットアップスクリプト (Windows PowerShell)
 #
 # フロー:
 #   1. secrets-cli setup  → Infisical 認証情報を .env.secrets に保存
@@ -30,7 +30,7 @@ $DotEnv = Join-Path $ProjectRoot ".env"
 function Write-Header {
     Write-Host ""
     Write-Host "  ╔══════════════════════════════════════════════╗" -ForegroundColor Cyan
-    Write-Host "  ║   Schedula — 初回セットアップ                ║" -ForegroundColor Cyan
+    Write-Host "  ║   Actio — 初回セットアップ                   ║" -ForegroundColor Cyan
     Write-Host "  ╚══════════════════════════════════════════════╝" -ForegroundColor Cyan
     Write-Host ""
 }

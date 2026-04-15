@@ -1,4 +1,4 @@
-# Schedula WS セッション対応 SPA 移行設計書
+# Actio WS セッション対応 SPA 移行設計書
 
 ## 1. 背景と目的
 
@@ -7,7 +7,7 @@
 Cernere を SPA 化し、WebSocket 常時接続セッション（Always-Connected Session）を導入した。
 これにより認証済みセッションの継続検証、破壊的操作の遮断、リアルタイム通信が可能になった。
 
-Schedula は既に React 19 + React Router 7 の SPA 構成だが、
+Actio は既に React 19 + React Router 7 の SPA 構成だが、
 通信は **HTTP REST のみ** であり、Cernere の WS セッション基盤を活用していない。
 
 ### 1.2 課題
@@ -23,7 +23,7 @@ Schedula は既に React 19 + React Router 7 の SPA 構成だが、
 
 Cernere と同等の WS セッション対応 SPA 構成に移行し、以下を実現する:
 
-1. **破壊的操作は WS セッション経由のみ** — フロントエンド REST API ではなく Schedula バックエンドとの WS で実行
+1. **破壊的操作は WS セッション経由のみ** — フロントエンド REST API ではなく Actio バックエンドとの WS で実行
 2. **Cernere とのセッション一本化** — service-adapter でセッションライフサイクルを統合（admission/revoke）
 3. **id-cache 3 点認証の活用** — 既存の本人保証を WS 接続時にも適用（独自認証は不要）
 4. **リアルタイム通信基盤** — サーバープッシュ通知、グループイベント同期
@@ -60,7 +60,7 @@ frontend/
 - `logout` 時に `wsClient.disconnect()`
 - `wsConnected` フラグを Context で公開
 
-### 2.2 Schedula 現在の構成
+### 2.2 Actio 現在の構成
 
 ```
 frontend/
@@ -84,12 +84,12 @@ frontend/
 - WS 接続: **なし**
 
 **Id Service プラグイン:**
-- `src/plugins/schedula.ts` — Cernere Id Service にプロフィールフィールドを登録
+- `src/plugins/actio.ts` — Cernere Id Service にプロフィールフィールドを登録
 - サービス固有: `major`, `calendarAccessId`
 
 ### 2.3 差分サマリ
 
-| 項目 | Cernere | Schedula (現状) | Schedula (目標) |
+| 項目 | Cernere | Actio (現状) | Actio (目標) |
 |------|---------|----------------|----------------|
 | SPA フレームワーク | React 19 + Router 7 | React 19 + Router 7 | 変更なし |
 | ユーザー認証 | JWT + WS セッション | JWT のみ (REST) | JWT + WS セッション |
@@ -111,16 +111,16 @@ frontend/
 
 #### 3.1.1 セッション一本化モデル
 
-Cernere がユーザーセッションを個別に持つのではなく、Schedula バックエンドと Cernere が
+Cernere がユーザーセッションを個別に持つのではなく、Actio バックエンドと Cernere が
 **サービス WS (`/ws/service`)** で常時接続し、セッションライフサイクルを一本化する。
 
 - **id-cache 3 点認証** でユーザー本人の保証は確立済み（JWT 署名検証 + キャッシュ + Cernere `/verify`）
-- **service-adapter** で Cernere ↔ Schedula 間のセッション状態を同期
-- **破壊的操作** はフロントエンドの REST API ではなく、Schedula バックエンドとの WS セッション経由でのみ実行
+- **service-adapter** で Cernere ↔ Actio 間のセッション状態を同期
+- **破壊的操作** はフロントエンドの REST API ではなく、Actio バックエンドとの WS セッション経由でのみ実行
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│  Schedula Frontend (React SPA)                              │
+│  Actio Frontend (React SPA)                              │
 │                                                             │
 │  ┌───────────┐  ┌──────────────┐  ┌──────────────────────┐  │
 │  │ AuthCtx   │  │ REST API     │  │ WsContext            │  │
@@ -133,7 +133,7 @@ Cernere がユーザーセッションを個別に持つのではなく、Schedu
          │         (Bearer JWT)           (/ws?token=jwt)
          │              │                     │
 ┌────────│──────────────│─────────────────────│────────────────┐
-│  Schedula Backend (Hono)                                     │
+│  Actio Backend (Hono)                                     │
 │        │              │                     │                │
 │        │     ┌────────▼─────────┐  ┌────────▼─────────────┐  │
 │        │     │ REST Routes     │  │ WS Handler           │  │
@@ -184,7 +184,7 @@ Cernere がユーザーセッションを個別に持つのではなく、Schedu
 ```
 [初回接続]
 1. ユーザーが Cernere でログイン → JWT (accessToken) 取得
-2. Schedula Frontend が JWT を localStorage に保存
+2. Actio Frontend が JWT を localStorage に保存
 
 [REST 読み取り]
 3. GET /api/* → Bearer JWT → id-cache 3 点認証 → レスポンス
@@ -197,12 +197,12 @@ Cernere がユーザーセッションを個別に持つのではなく、Schedu
 7. Backend → Frontend: { type: "connected", session_id, user }
 8. Frontend: module_request で破壊的操作を送信
 
-[セッション一本化 (Cernere ↔ Schedula)]
-9. Schedula 起動時: CernereServiceAdapter.connect() → /ws/service
-10. Cernere → Schedula: user_admission { user, ticket_id }
-    → Schedula: ユーザー DB upsert + service_token 発行 → admission_response
-11. Cernere → Schedula: user_revoke { user_id }
-    → Schedula: 該当ユーザーの WS セッション強制切断 + revoked リスト追加
+[セッション一本化 (Cernere ↔ Actio)]
+9. Actio 起動時: CernereServiceAdapter.connect() → /ws/service
+10. Cernere → Actio: user_admission { user, ticket_id }
+    → Actio: ユーザー DB upsert + service_token 発行 → admission_response
+11. Cernere → Actio: user_revoke { user_id }
+    → Actio: 該当ユーザーの WS セッション強制切断 + revoked リスト追加
 ```
 
 ### 3.2 フロントエンド変更
@@ -226,7 +226,7 @@ type ServerMessage = {
   ts?: number;
 };
 
-class SchedulaWsClient {
+class ActioWsClient {
   private ws: WebSocket | null = null;
   private pendingRequests: PendingRequest[] = [];
   private listeners: Array<(msg: ServerMessage) => void> = [];
@@ -243,15 +243,15 @@ class SchedulaWsClient {
   sendCommand<T>(module: string, action: string, payload?: unknown): Promise<T> { /* ... */ }
   onMessage(listener: (msg: ServerMessage) => void): () => void { /* ... */ }
 
-  // Schedula 固有: 自動再接続 (WS 切断時に指数バックオフで再接続)
+  // Actio 固有: 自動再接続 (WS 切断時に指数バックオフで再接続)
   private scheduleReconnect(token: string): void { /* ... */ }
 }
 
-export const wsClient = new SchedulaWsClient();
+export const wsClient = new ActioWsClient();
 ```
 
 **Cernere との差分:**
-- 自動再接続機能を追加（Cernere はブラウザリロード前提、Schedula は長時間操作が多いため）
+- 自動再接続機能を追加（Cernere はブラウザリロード前提、Actio は長時間操作が多いため）
 - WS エンドポイントは `/ws?token=<jwt>`（Cernere の `/auth` と区別）
 
 #### 3.2.2 AuthContext 拡張
@@ -367,7 +367,7 @@ server {
 #### 3.3.1 CernereServiceAdapter 統合（セッション一本化の核）
 
 `src/ws/cernere-bridge.ts` を新規作成。
-Schedula バックエンドと Cernere を `/ws/service` で常時接続し、セッションを一本化する。
+Actio バックエンドと Cernere を `/ws/service` で常時接続し、セッションを一本化する。
 
 ```typescript
 // src/ws/cernere-bridge.ts
@@ -384,7 +384,7 @@ export function getCernereAdapter(): CernereServiceAdapter | null {
 
 export function initCernereBridge(): void {
   const cernereWsUrl = secretManager.get("CERNERE_WS_URL");
-  const serviceCode = "schedula";
+  const serviceCode = "actio";
   const serviceSecret = secretManager.get("CERNERE_SERVICE_SECRET");
   const jwtSecret = secretManager.get("SERVICE_JWT_SECRET");
 
@@ -426,7 +426,7 @@ export function initCernereBridge(): void {
 
 **ポイント:**
 - `user_admission`: Cernere がユーザーをこのサービスに受け入れた際に呼ばれる。ローカル DB にユーザー情報を upsert し、`service_token` を発行して Cernere に返す（adapter が自動処理）
-- `user_revoke`: ユーザーのセッションが Cernere 側で無効化された際に呼ばれる。Schedula の WS セッションを強制切断し、以降のリクエストを拒否する
+- `user_revoke`: ユーザーのセッションが Cernere 側で無効化された際に呼ばれる。Actio の WS セッションを強制切断し、以降のリクエストを拒否する
 - 自動再接続: adapter が切断時に自動再接続（デフォルト 5 秒間隔）
 
 #### 3.3.2 WS ハンドラ追加
@@ -608,7 +608,7 @@ export function revokeUserSessions(userId: string): void {
 
 **Cernere との連携ポイント:**
 - `revokeUserSessions()` は `cernere-bridge.ts` の `onUserRevoke` から呼ばれる
-- Schedula 独自の Redis セッションストアは作らない — Cernere が権威セッションを持つ
+- Actio 独自の Redis セッションストアは作らない — Cernere が権威セッションを持つ
 - ローカルの `Map<sessionId, WsSession>` はあくまで WS 接続の管理用
 
 #### 3.3.5 app.ts への統合
@@ -637,7 +637,7 @@ export function revokeUserSessions(userId: string): void {
 +const { app, injectWebSocket } = createApp();
 
  const server = serve({ fetch: app.fetch, port: 3000 }, (info) => {
-   console.log(`Schedula listening on :${info.port}`);
+   console.log(`Actio listening on :${info.port}`);
  });
 +
 +injectWebSocket(server);
@@ -698,7 +698,7 @@ npm install @hono/node-ws @ludiars/cernere-service-adapter
 
 | ファイル | 内容 |
 |---------|------|
-| `frontend/src/lib/ws-client.ts` | SchedulaWsClient クラス |
+| `frontend/src/lib/ws-client.ts` | ActioWsClient クラス |
 | `frontend/src/lib/ws-commands.ts` | WS コマンドヘルパー |
 | `src/ws/handler.ts` | WS ハンドラ (Hono node-ws + id-cache 3 点認証) |
 | `src/ws/dispatcher.ts` | module_request コマンドディスパッチャ |
@@ -723,14 +723,14 @@ npm install @hono/node-ws @ludiars/cernere-service-adapter
 | `frontend/src/lib/api.ts` | REST API は Phase 1 では変更なし |
 | `frontend/src/App.tsx` | ルーティング構造は変更不要 |
 | `frontend/src/lib/module-registry.ts` | UI モジュールシステムは変更不要 |
-| `src/plugins/schedula.ts` | Id Service プラグインは変更不要 |
+| `src/plugins/actio.ts` | Id Service プラグインは変更不要 |
 | `modules/**` | Phase 1 ではモジュールの WS 対応は行わない |
 
 ---
 
 ## 5. WS メッセージプロトコル仕様
 
-Cernere 準拠。Schedula 固有の拡張なし。
+Cernere 準拠。Actio 固有の拡張なし。
 
 ### 5.1 接続
 

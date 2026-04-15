@@ -17,7 +17,7 @@ modules/pm/
 │   ├── notion-sync.ts          # Notion Database 双方向同期
 │   ├── diff-detector.ts        # タスク変更差分の比較ロジック
 │   ├── conflict-resolver.ts    # コンフリクト検知・解決 (Claude Code 連携)
-│   └── writeback.ts            # Schedula → 外部ソースへの書き戻し
+│   └── writeback.ts            # Actio → 外部ソースへの書き戻し
 ├── reminder/
 │   └── deadline-checker.ts     # 納期チェック & リマインダー発火
 ├── validation/
@@ -41,10 +41,10 @@ modules/pm/
 
 ### 1.2 同期フロー (双方向)
 
-同期は **外部 → Schedula** (Pull) と **Schedula → 外部** (Push) の双方向で動作する。
+同期は **外部 → Actio** (Pull) と **Actio → 外部** (Push) の双方向で動作する。
 マイルストーン・タスク情報は **連携先 DB の変更を正 (Source of Truth)** とし、コンフリクト時のみ特別処理を行う。
 
-#### Pull フロー (外部 → Schedula)
+#### Pull フロー (外部 → Actio)
 
 ```
 [Cron / 手動トリガー]
@@ -61,7 +61,7 @@ modules/pm/
 └──────────┬───────────┘
            ▼
 ┌──────────────────────┐
-│  conflict-resolver.ts │  Schedula側にも未同期の変更がある場合
+│  conflict-resolver.ts │  Actio側にも未同期の変更がある場合
 │  Conflict Check       │  → コンフリクト解決フローへ (§1.7)
 └──────────┬───────────┘
            ▼
@@ -76,12 +76,12 @@ modules/pm/
 └──────────────────────┘
 ```
 
-#### Push フロー (Schedula → 外部)
+#### Push フロー (Actio → 外部)
 
-Schedula 上でタスクを編集した場合、変更を外部ソースに書き戻す。
+Actio 上でタスクを編集した場合、変更を外部ソースに書き戻す。
 
 ```
-[Schedula UI / API でタスク更新]
+[Actio UI / API でタスク更新]
     │
     ▼
 ┌──────────────────────┐
@@ -175,9 +175,9 @@ POST   /api/pm/conflicts/:conflictId/auto-merge  # Claude Code マージ実行
 
 #### 正のデータソース (Source of Truth)
 
-- **外部 DB (GitHub / Notion) の変更を正とする。** Pull 時に外部データで Schedula を上書きするのが基本動作
+- **外部 DB (GitHub / Notion) の変更を正とする。** Pull 時に外部データで Actio を上書きするのが基本動作
 - マイルストーン (GitHub Milestones / Notion の期限プロパティ) も外部の値を常に優先する
-- Schedula 側でのみ保持するメタデータ (検証結果、分析キャッシュ等) は上書きしない
+- Actio 側でのみ保持するメタデータ (検証結果、分析キャッシュ等) は上書きしない
 
 #### コンフリクト検知条件
 
@@ -185,7 +185,7 @@ Pull 時に以下の **両方** が成立するとコンフリクトと判定す
 
 ```
 条件: localUpdatedAt > lastSyncedAt  AND  externalUpdatedAt > lastSyncedAt
-(= 前回同期以降に Schedula 側と外部側の両方で変更があった)
+(= 前回同期以降に Actio 側と外部側の両方で変更があった)
 ```
 
 #### コンフリクト解決戦略 (3段階)
@@ -196,7 +196,7 @@ type ConflictResolution = "auto_external" | "claude_merge" | "manual";
 interface ConflictRecord {
   id: string;
   taskId: string;
-  localVersion: TaskSnapshot;     // Schedula 側の状態
+  localVersion: TaskSnapshot;     // Actio 側の状態
   externalVersion: TaskSnapshot;  // 外部側の状態
   baseVersion: TaskSnapshot;      // 前回同期時点の状態 (3-way merge 用)
   resolution: ConflictResolution;
@@ -212,7 +212,7 @@ interface ConflictRecord {
 変更フィールドが重複しない場合、フィールド単位でマージする。
 
 ```
-例: 外部で title を変更 + Schedula で labels を変更
+例: 外部で title を変更 + Actio で labels を変更
 → 両方の変更を取り込み (フィールドレベルマージ)
 ```
 
@@ -247,7 +247,7 @@ function buildMergePrompt(
 ## ベース (前回同期時点)
 ${JSON.stringify(base, null, 2)}
 
-## ローカル (Schedula 側の変更)
+## ローカル (Actio 側の変更)
 ${JSON.stringify(local, null, 2)}
 
 ## 外部 (GitHub/Notion 側の変更)
@@ -296,7 +296,7 @@ function shouldForceExternal(conflict: ConflictRecord): boolean {
            ▼
 ┌─────────────────────────┐
 │  変更率 > 70%?           │──── Yes ──→ [外部を採用 (Stage 3)]
-│  (大幅な乖離チェック)     │            Schedula側変更は snapshot に保存
+│  (大幅な乖離チェック)     │            Actio側変更は snapshot に保存
 └──────────┬──────────────┘
            │ No
            ▼
@@ -318,9 +318,9 @@ function shouldForceExternal(conflict: ConflictRecord): boolean {
 └─────────────────────────┘
 ```
 
-#### 書き戻し (Schedula → 外部)
+#### 書き戻し (Actio → 外部)
 
-Schedula 上でタスクを編集すると、`pm_tasks.dirtyFlag = true` がセットされ、次回の同期サイクルまたは即時に外部に書き戻す。
+Actio 上でタスクを編集すると、`pm_tasks.dirtyFlag = true` がセットされ、次回の同期サイクルまたは即時に外部に書き戻す。
 
 ```typescript
 // writeback.ts
@@ -645,7 +645,7 @@ GET    /api/pm/projects/:id/analytics/report         # 総合レポート
 | `blockedBy` | TEXT (JSON) | 依存タスクID リスト |
 | `descriptionHash` | TEXT | 本文ハッシュ (差分検知用) |
 | `dirtyFlag` | INTEGER | `0` = 同期済み, `1` = 要書き戻し |
-| `localUpdatedAt` | TEXT | Schedula 側の最終更新日時 |
+| `localUpdatedAt` | TEXT | Actio 側の最終更新日時 |
 | `externalUpdatedAt` | TEXT | 外部側の最終更新日時 |
 | `lastSyncedAt` | TEXT | 最後に正常同期した日時 |
 | `createdAt` | TEXT | 作成日時 |
@@ -682,7 +682,7 @@ GET    /api/pm/projects/:id/analytics/report         # 総合レポート
 | `id` | TEXT PK | UUID |
 | `taskId` | TEXT FK | 対象タスクID |
 | `projectId` | TEXT FK | プロジェクトID |
-| `localVersion` | TEXT (JSON) | Schedula 側のスナップショット |
+| `localVersion` | TEXT (JSON) | Actio 側のスナップショット |
 | `externalVersion` | TEXT (JSON) | 外部側のスナップショット |
 | `baseVersion` | TEXT (JSON) | 前回同期時点のスナップショット (3-way merge 用) |
 | `resolution` | TEXT | `"auto_field_merge"` \| `"claude_merge"` \| `"force_external"` \| `"manual"` |
@@ -805,7 +805,7 @@ const modules: SchulaModule[] = [schoolModule, pmModule];
 
 ### Phase 2: 双方向同期 & コンフリクト解決
 1. DB スキーマ追加 (`pm_conflicts`), `pm_tasks` に同期カラム追加
-2. Schedula → 外部書き戻し (`writeback.ts`) — GitHub Issue / Notion Page 更新
+2. Actio → 外部書き戻し (`writeback.ts`) — GitHub Issue / Notion Page 更新
 3. コンフリクト検知 (`conflict-resolver.ts`) — Stage 1: フィールドマージ
 4. Claude Code SDK 連携 — Stage 2: セマンティックマージ
 5. 大幅乖離時の外部優先ロジック — Stage 3: 強制上書き

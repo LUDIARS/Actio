@@ -5,4 +5,4 @@
 
 import { secretManager } from "./secrets.js";
 
-export const JWT_SECRET = secretManager.getOrDefault("JWT_SECRET", "schedula-dev-secret-change-in-production");
+export const JWT_SECRET = secretManager.getOrDefault("JWT_SECRET", "actio-dev-secret-change-in-production");

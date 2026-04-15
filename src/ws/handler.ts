@@ -11,7 +11,7 @@ import { secretManager } from "../config/secrets.js";
 import { registerSession, removeSession, updatePong } from "./session.js";
 import { dispatch } from "./dispatcher.js";
 
-// ── JWT 検証 (Schedula 自身が発行した service_token をローカル検証) ──
+// ── JWT 検証 (Actio 自身が発行した service_token をローカル検証) ──
 // Cernere とは JWT_SECRET を共有しないため、id-cache は使わない。
 
 const jwtSecret = secretManager.get("JWT_SECRET");

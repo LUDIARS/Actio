@@ -1,5 +1,5 @@
 {
-  "name": "@schedula/id-service",
+  "name": "@actio/id-service",
   "version": "0.2.0",
   "description": "Standalone Identity Service — KVS-backed auth, YAML-defined user data, plugin profiles",
   "type": "module",

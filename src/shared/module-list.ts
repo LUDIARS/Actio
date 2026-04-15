@@ -1,7 +1,7 @@
 /**
  * Module List Format Definition — モジュール一覧フォーマット定義
  *
- * Schedula の全モジュールを統一フォーマットで定義する。
+ * Actio の全モジュールを統一フォーマットで定義する。
  * バックエンド (API 情報エンドポイント) とフロントエンド (モジュール管理UI) の
  * 両方から参照可能な Single Source of Truth。
  *

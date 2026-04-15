@@ -158,7 +158,7 @@ export function ApiKeysPage() {
       </div>
 
       <p style={{ fontSize: "0.8rem", color: "var(--text-muted)", marginBottom: "1rem" }}>
-        外部アプリケーションからSchedulaのカレンダー・リマインダー・予定設定を操作するためのAPIキーを管理します。
+        外部アプリケーションからActioのカレンダー・リマインダー・予定設定を操作するためのAPIキーを管理します。
       </p>
 
       {error && (

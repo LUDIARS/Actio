@@ -4,7 +4,7 @@
 
 | ファイル | 役割 |
 |---------|------|
-| `src/auth/routes.ts` | 認証 API ルート定義。@schedula/id-service に委譲し、JWT 発行・セッション管理を行う |
+| `src/auth/routes.ts` | 認証 API ルート定義。@actio/id-service に委譲し、JWT 発行・セッション管理を行う |
 
 ## 依存関係
 

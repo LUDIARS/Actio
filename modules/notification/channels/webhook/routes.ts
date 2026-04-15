@@ -131,7 +131,7 @@ webhookRoutes.delete("/:id", async (c) => {
 });
 
 // ─── POST /webhooks/:id/test (廃止) ─────────────────────────
-// 配信は Nuntius 側で実行される。Schedula 側のテスト配信は提供しない。
+// 配信は Nuntius 側で実行される。Actio 側のテスト配信は提供しない。
 webhookRoutes.post("/:id/test", (c) => {
   return c.json({
     error: "Webhook test send is no longer supported. Configure delivery via Nuntius topics.",

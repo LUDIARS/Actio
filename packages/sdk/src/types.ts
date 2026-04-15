@@ -1,5 +1,5 @@
 /**
- * Schedula Module SDK — 型定義
+ * Actio Module SDK — 型定義
  *
  * モジュール作者はこれらの型を実装し、`defineModule()` で統合する。
  */
@@ -42,7 +42,7 @@ export interface ModuleManifest {
   description?: string;
   /** パッケージバージョン (自動注入される、手動指定不要) */
   version?: string;
-  /** Schedula API 互換バージョン (semver range) */
+  /** Actio API 互換バージョン (semver range) */
   schedulaApiVersion: string;
   /** 他モジュールへの依存 (モジュールID 配列) */
   depends?: string[];

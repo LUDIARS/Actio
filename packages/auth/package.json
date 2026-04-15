@@ -1,7 +1,7 @@
 {
-  "name": "@schedula/auth",
+  "name": "@actio/auth",
   "version": "0.1.0",
-  "description": "Reusable authentication package for Schedula — JWT, session management, OAuth, middleware",
+  "description": "Reusable authentication package for Actio — JWT, session management, OAuth, middleware",
   "type": "module",
   "main": "src/index.ts",
   "types": "src/index.ts",

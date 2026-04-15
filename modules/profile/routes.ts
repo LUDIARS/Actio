@@ -2,8 +2,8 @@
  * ユーザープロフィール & プロジェクト別ロール API
  *
  * プロファイルデータ (displayName / bio / avatarUrl / roleTitle 等) は
- * Cernere に委譲し、Schedula 自身は保存しない。
- * プロジェクト別ロール (業務上の役割) は Schedula 固有なのでローカル保管。
+ * Cernere に委譲し、Actio 自身は保存しない。
+ * プロジェクト別ロール (業務上の役割) は Actio 固有なのでローカル保管。
  *
  * - GET  /api/profile/me          — 自分のプロフィール取得 (Cernere プロキシ)
  * - PUT  /api/profile/me          — 自分のプロフィール更新 (Cernere プロキシ)

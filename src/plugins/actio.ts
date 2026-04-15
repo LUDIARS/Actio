@@ -1,7 +1,7 @@
 /**
- * Schedula — Id Service プラグイン
+ * Actio — Id Service プラグイン
  *
- * Schedula 固有のユーザープロフィールフィールドを
+ * Actio 固有のユーザープロフィールフィールドを
  * Id Service のプラグインとして登録する。
  *
  * サービス固有フィールド:
@@ -11,10 +11,10 @@
 
 import type { PluginRegistry } from "@ludiars/cernere-id-service";
 
-export function registerSchedulaPlugin(registry: PluginRegistry): void {
+export function registerActioPlugin(registry: PluginRegistry): void {
   registry.register({
-    serviceId: "schedula",
-    serviceName: "Schedula",
+    serviceId: "actio",
+    serviceName: "Actio",
 
     profileFields: {
       major: {

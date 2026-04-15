@@ -1,13 +1,13 @@
-# Schedula 認証 Cernere 移行計画
+# Actio 認証 Cernere 移行計画
 
 ## 現状分析
 
 ### 現在のアーキテクチャ
 
-Schedula は `packages/id-service/`（`@schedula/id-service`）を使い、**認証を自前で完結**している。
+Actio は `packages/id-service/`（`@actio/id-service`）を使い、**認証を自前で完結**している。
 
 ```
-フロントエンド → Schedula バックエンド → ローカル DB (users / sessions)
+フロントエンド → Actio バックエンド → ローカル DB (users / sessions)
                     ├── JWT 発行・検証
                     ├── bcrypt パスワード認証
                     ├── Google OAuth
@@ -75,13 +75,13 @@ id, userId, groupId, roleName, createdAt, updatedAt
     │
     │ Authorization: Bearer <jwt>
     ▼
-Schedula バックエンド
+Actio バックエンド
     ├── @cernere/id-cache ミドルウェア (JWT 検証 + キャッシュ)
     │     ├── ローカル JWT 検証 (jwtSecret あり)
     │     ├── キャッシュヒット → ユーザー返却
     │     └── キャッシュミス → Cernere /api/auth/verify
     │
-    ├── Schedula 固有データ (groups, profiles, projectRoles, calendar)
+    ├── Actio 固有データ (groups, profiles, projectRoles, calendar)
     └── Cernere WebSocket セッション (破壊的操作時)
 ```
 
@@ -91,11 +91,11 @@ Schedula バックエンド
 
 ### Phase 1: バックエンド認証委譲
 
-**目的:** Schedula の認証処理を Cernere に委譲する。ユーザー管理は Cernere が担当し、Schedula はユーザー情報をキャッシュ経由で取得する。
+**目的:** Actio の認証処理を Cernere に委譲する。ユーザー管理は Cernere が担当し、Actio はユーザー情報をキャッシュ経由で取得する。
 
 #### 1.1 パッケージ入れ替え
 
-- `packages/id-service/` を削除（Schedula ローカルの認証 SDK）
+- `packages/id-service/` を削除（Actio ローカルの認証 SDK）
 - `packages/id-cache/` を削除（未使用のローカル版）
 - `@cernere/id-cache` を npm 依存に追加
 
@@ -103,7 +103,7 @@ Schedula バックエンド
 
 **現在** (`src/middleware/auth.ts`):
 ```typescript
-import { createUserContext, requireRole } from "@schedula/id-service";
+import { createUserContext, requireRole } from "@actio/id-service";
 ```
 
 **移行後:**
@@ -124,7 +124,7 @@ export const userContext = () => createIdCacheMiddleware({
 ```
 
 - `getUserId()` / `getUserRole()` は `c.get("userId")` / `c.get("userRole")` で取得（互換性あり）
-- `requireRole()` は Schedula 側で薄いラッパーとして維持
+- `requireRole()` は Actio 側で薄いラッパーとして維持
 
 #### 1.3 認証ルート削除
 
@@ -137,24 +137,24 @@ export const userContext = () => createIdCacheMiddleware({
 - `GET /api/auth/google/callback` → Cernere が担当
 - `PUT /api/auth/password` → Cernere が担当
 
-以下は Schedula 固有なので残す:
-- `GET /api/auth/me` → Schedula 固有データ（major, groups, projectRoles）を含むため維持。ただしユーザー基本情報は Cernere から取得
-- `GET /api/auth/users/list` → グループベースのユーザー一覧は Schedula 固有
-- `PUT /api/auth/users/:id/role` → Schedula のシステムロール管理
+以下は Actio 固有なので残す:
+- `GET /api/auth/me` → Actio 固有データ（major, groups, projectRoles）を含むため維持。ただしユーザー基本情報は Cernere から取得
+- `GET /api/auth/users/list` → グループベースのユーザー一覧は Actio 固有
+- `PUT /api/auth/users/:id/role` → Actio のシステムロール管理
 
 #### 1.4 app.ts の変更
 
 ```typescript
 // 削除: app.route("/api/auth", auth);
-// 追加: Schedula 固有の認証関連ルートのみマウント
-app.route("/api/auth", schedulaAuthRoutes);  // me, users/list, users/:id/role のみ
+// 追加: Actio 固有の認証関連ルートのみマウント
+app.route("/api/auth", actioAuthRoutes);  // me, users/list, users/:id/role のみ
 ```
 
 ### Phase 2: DB スキーマ変更
 
 #### 2.1 `users` テーブルの縮小
 
-Cernere がユーザーマスターを持つため、Schedula の `users` テーブルは **Schedula 固有フィールドのみ** に縮小する。
+Cernere がユーザーマスターを持つため、Actio の `users` テーブルは **Actio 固有フィールドのみ** に縮小する。
 
 **削除するカラム:**
 - `passwordHash` — Cernere が管理
@@ -163,18 +163,18 @@ Cernere がユーザーマスターを持つため、Schedula の `users` テー
 **残すカラム:**
 - `id` — Cernere の user.id と一致させる
 - `name`, `email` — キャッシュ / 表示用（Cernere から同期）
-- `role` — Schedula 固有のシステムロール（admin / group_leader / general）
-- `major` — Schedula 固有フィールド
-- `calendarAccessId` — Google Calendar 連携 ID（Schedula 固有）
+- `role` — Actio 固有のシステムロール（admin / group_leader / general）
+- `major` — Actio 固有フィールド
+- `calendarAccessId` — Google Calendar 連携 ID（Actio 固有）
 - `lastLoginAt`, `createdAt`, `updatedAt`
 
 #### 2.2 `sessions` テーブルの削除
 
-セッション管理は Cernere が担当するため、Schedula の `sessions` テーブルは不要になる。
+セッション管理は Cernere が担当するため、Actio の `sessions` テーブルは不要になる。
 
 #### 2.3 ユーザー自動同期
 
-Cernere 認証済みリクエストが初めて来た際に、Schedula の `users` テーブルにレコードがなければ自動作成する（プロビジョニング）。
+Cernere 認証済みリクエストが初めて来た際に、Actio の `users` テーブルにレコードがなければ自動作成する（プロビジョニング）。
 
 ```typescript
 // ミドルウェアまたは共通処理として
@@ -191,7 +191,7 @@ async function ensureLocalUser(userId: string, userRole: string) {
 
 #### 3.1 認証フロー変更
 
-**現在:** Schedula の LoginPage で直接ログイン/登録
+**現在:** Actio の LoginPage で直接ログイン/登録
 
 **移行後:** Cernere の認証 UI にリダイレクト
 
@@ -219,7 +219,7 @@ if (accessToken && refreshToken) {
 `frontend/src/lib/api.ts` の `auth` セクション:
 - `register()`, `login()` → 削除（Cernere が担当）
 - `logout()` → Cernere のエンドポイントを呼び出し
-- `me()` → Schedula の `/api/auth/me` を維持
+- `me()` → Actio の `/api/auth/me` を維持
 - リフレッシュ処理 → Cernere の `/api/auth/refresh` に変更
 
 #### 3.4 AuthContext 変更
@@ -230,15 +230,15 @@ if (accessToken && refreshToken) {
 
 ### Phase 4: ロール体系の整合
 
-| Cernere ロール | Schedula ロール | マッピング |
+| Cernere ロール | Actio ロール | マッピング |
 |----------------|-----------------|-----------|
 | `admin` (システム) | `admin` | 直接対応 |
 | `general` (システム) | `general` | 直接対応 |
-| — | `group_leader` | Schedula 固有。Cernere の組織ロールとは別に維持 |
+| — | `group_leader` | Actio 固有。Cernere の組織ロールとは別に維持 |
 
 - Cernere の `role` はシステムレベルの権限（admin / general）
-- Schedula の `group_leader` は Schedula 固有のロールとして維持
-- Cernere の組織 (Organization) ≠ Schedula のグループ (Group)。将来的な統合は別途検討
+- Actio の `group_leader` は Actio 固有のロールとして維持
+- Cernere の組織 (Organization) ≠ Actio のグループ (Group)。将来的な統合は別途検討
 
 ---
 
@@ -272,7 +272,7 @@ if (accessToken && refreshToken) {
 ## 移行手順（実行順序）
 
 ```
-Phase 1.1  パッケージ入れ替え (@schedula/id-service → @cernere/id-cache)
+Phase 1.1  パッケージ入れ替え (@actio/id-service → @cernere/id-cache)
 Phase 1.2  ミドルウェア置換 (auth.ts)
 Phase 1.3  認証ルート削除・整理 (auth/routes.ts)
 Phase 1.4  app.ts 更新
@@ -295,8 +295,8 @@ Phase 4    ロール体系整合・テスト
 
 | リスク | 対策 |
 |--------|------|
-| 既存ユーザーデータの移行 | Cernere にユーザーを事前登録し、Schedula の user.id を Cernere の user.id に揃える |
+| 既存ユーザーデータの移行 | Cernere にユーザーを事前登録し、Actio の user.id を Cernere の user.id に揃える |
 | Google Calendar 連携の OAuth トークン | Cernere 経由でスコープ付きトークンを取得する仕組みが必要 |
 | テスト環境での開発バイパス | `@cernere/id-cache` の `isDev` オプションで `X-User-Id` ヘッダーバイパスを維持 |
-| group_leader ロールの扱い | Cernere は `admin` / `general` のみ。Schedula 側で独自にロール管理を継続 |
-| `appSettings` のトークン TTL 設定 | Cernere 側の設定に統一。Schedula の `session.accessTokenMinutes` 等は不要に |
+| group_leader ロールの扱い | Cernere は `admin` / `general` のみ。Actio 側で独自にロール管理を継続 |
+| `appSettings` のトークン TTL 設定 | Cernere 側の設定に統一。Actio の `session.accessTokenMinutes` 等は不要に |

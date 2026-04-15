@@ -1,15 +1,15 @@
 {
-  "name": "Schedula",
+  "name": "Actio",
   "infraKeys": {
     "FRONTEND_PORT": "8080",
     "BACKEND_PORT": "3000",
     "DB_PORT": "5432",
     "REDIS_PORT": "6379",
     "DB_DIALECT": "postgres",
-    "POSTGRES_USER": "schedula",
-    "POSTGRES_PASSWORD": "schedula",
-    "POSTGRES_DB": "schedula",
-    "DATABASE_URL": "postgresql://schedula:schedula@db:5432/schedula",
+    "POSTGRES_USER": "actio",
+    "POSTGRES_PASSWORD": "actio",
+    "POSTGRES_DB": "actio",
+    "DATABASE_URL": "postgresql://actio:actio@db:5432/actio",
     "REDIS_URL": "redis://redis:6379"
   }
 }

@@ -1,5 +1,5 @@
 /**
- * Event Module — Schedula コア「予定 (Event)」
+ * Event Module — Actio コア「予定 (Event)」
  *
  * 時間拘束のある未来の事象 (MTG, 講義, 予約等) を管理する。
  * 要件は持たず、startTime / endTime で時間枠を確定的に保持する。

@@ -28,7 +28,7 @@ import type {
 } from "./api-types";
 
 // ─── Session Management ────────────────────────────────────
-// service_token は HttpOnly Cookie (schedula_token) で管理 (XSS対策)
+// service_token は HttpOnly Cookie (actio_token) で管理 (XSS対策)
 // user 情報のみ localStorage に保存 (UX のため)
 
 export function clearUserCache() {

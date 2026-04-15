@@ -8,7 +8,7 @@
 
 import { getRedis } from "../db/redis.js";
 
-const SESSION_KEY_PREFIX = "schedula:session:user:";
+const SESSION_KEY_PREFIX = "actio:session:user:";
 const DEFAULT_TTL = 3600; // 1時間 (service_token の有効期限に合わせる)
 
 export interface SessionUser {

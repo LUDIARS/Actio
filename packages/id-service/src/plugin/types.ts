@@ -21,7 +21,7 @@ export interface ProfileFieldDef {
 // ─── Profile Plugin ────────────────────────────────────────
 
 export interface ProfilePlugin {
-  /** サービスの一意識別子 (例: "schedula", "hr-system") */
+  /** サービスの一意識別子 (例: "actio", "hr-system") */
   serviceId: string;
 
   /** サービスの表示名 */

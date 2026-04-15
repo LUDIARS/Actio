@@ -1,7 +1,7 @@
 {
   "name": "@ludiars/schedula-sdk",
   "version": "0.1.0",
-  "description": "Schedula Module SDK — declare modules with routes, WS commands, tables, and user data columns (backed by Cernere)",
+  "description": "Actio Module SDK — declare modules with routes, WS commands, tables, and user data columns (backed by Cernere)",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",

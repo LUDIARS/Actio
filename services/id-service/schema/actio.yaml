@@ -1,6 +1,6 @@
-# Schedula — サービス固有ユーザーデータ
+# Actio — サービス固有ユーザーデータ
 #
-# Id Service のコアユーザーに紐づく Schedula 固有フィールド。
+# Id Service のコアユーザーに紐づく Actio 固有フィールド。
 # KVS キー: profile:{serviceId}:{userId}
 #
 # このファイルは npm run id:scan で自動生成可能。
@@ -8,9 +8,9 @@
 version: "1"
 
 service:
-  id: schedula
-  name: Schedula
-  description: 汎用スケジューリング & 予約プラットフォーム
+  id: actio
+  name: Actio
+  description: プラグインベースの予定 (Event) & タスク (Task) 管理プラットフォーム
 
 fields:
   major:

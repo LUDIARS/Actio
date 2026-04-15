@@ -412,8 +412,8 @@ registerCommand("group", "update_modules", async (userId, payload) => {
     throw new Error("enabledModules must be an array");
   }
 
-  const { SCHEDULA_MODULES } = await import("../../shared/constants.js");
-  const validIds = new Set<string>(SCHEDULA_MODULES);
+  const { ACTIO_MODULES } = await import("../../shared/constants.js");
+  const validIds = new Set<string>(ACTIO_MODULES);
   const invalid = body.enabledModules.filter((m: string) => !validIds.has(m));
   if (invalid.length > 0) {
     throw new Error(`Invalid module IDs: ${invalid.join(", ")}`);

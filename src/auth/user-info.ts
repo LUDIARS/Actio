@@ -1,7 +1,7 @@
 /**
  * ユーザー情報サービス
  *
- * Schedula は個人データ (name, email, role など) を DB に保管しない。
+ * Actio は個人データ (name, email, role など) を DB に保管しない。
  * すべて Cernere を単一情報源 (single source of truth) とし、Redis を
  * 揮発キャッシュとして利用する。
  *

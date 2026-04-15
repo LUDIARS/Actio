@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ═══════════════════════════════════════════════════════════════
-# Schedula — Docker 起動前セットアップスクリプト
+# Actio — Docker 起動前セットアップスクリプト
 #
 # フロー:
 #   1. secrets-cli setup  → Infisical 認証情報を .env.secrets に保存
@@ -34,7 +34,7 @@ fi
 header() {
   echo ""
   echo -e "${BOLD}${CYAN}╔══════════════════════════════════════════════╗${RESET}"
-  echo -e "${BOLD}${CYAN}║   Schedula — 初回セットアップ                ║${RESET}"
+  echo -e "${BOLD}${CYAN}║   Actio — 初回セットアップ                   ║${RESET}"
   echo -e "${BOLD}${CYAN}╚══════════════════════════════════════════════╝${RESET}"
   echo ""
 }

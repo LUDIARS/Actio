@@ -55,15 +55,15 @@ export const HELP_MODULES: HelpModule[] = [
   {
     id: "getting-started",
     title: "はじめに",
-    description: "Schedula の基本的な使い方を学びます",
+    description: "Actio の基本的な使い方を学びます",
     icon: "S",
     topics: [
       {
         id: "overview",
-        title: "Schedula とは",
+        title: "Actio とは",
         summary: "スケジュール管理プラットフォームの概要",
         content: [
-          "Schedula は、教育機関向けのスケジュール管理プラットフォームです。カリキュラムの配置管理、グループスケジュール、個人予定の管理、教室予約など、スケジュールに関わるあらゆる機能を統合的に提供します。",
+          "Actio は、教育機関向けのスケジュール管理プラットフォームです。カリキュラムの配置管理、グループスケジュール、個人予定の管理、教室予約など、スケジュールに関わるあらゆる機能を統合的に提供します。",
           "ダッシュボードから各機能にアクセスでき、サイドバーのメニューから必要なモジュールに移動できます。",
         ],
         tutorialId: "onboarding-overview",
@@ -88,7 +88,7 @@ export const HELP_MODULES: HelpModule[] = [
         title: "ユーザー権限について",
         summary: "管理者・グループリーダー・一般ユーザーの違い",
         content: [
-          "Schedula には3つのユーザー権限があります。",
+          "Actio には3つのユーザー権限があります。",
           "【管理者 (admin)】すべての機能にアクセスでき、カリキュラムの設定、ユーザー管理、システム設定の変更が可能です。",
           "【グループリーダー (group_leader)】グループの管理、メンバーの追加・削除、グループスケジュールの設定ができます。",
           "【一般 (general)】自分の予定管理、グループへの参加、カレンダーの閲覧が可能です。",

@@ -5,9 +5,9 @@
  */
 
 export const apiDocumentation = {
-  title: "Schedula External API",
+  title: "Actio External API",
   version: "1.0.0",
-  description: "Schedula の外部連携用API。APIクライアントキーで認証し、カレンダー・リマインダー・予定設定を操作できます。",
+  description: "Actio の外部連携用API。APIクライアントキーで認証し、カレンダー・リマインダー・予定設定を操作できます。",
 
   authentication: {
     description: "すべての外部APIリクエストには以下のヘッダーが必要です。",

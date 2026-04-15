@@ -1,7 +1,7 @@
 import type { EnvCliConfig } from "../Cernere/packages/env-cli/src/types.js";
 
 const config: EnvCliConfig = {
-  name: "Schedula",
+  name: "Actio",
 
   /**
    * Docker Compose / アプリケーションが .env から読むインフラキー。
@@ -13,9 +13,9 @@ const config: EnvCliConfig = {
     BACKEND_PORT: "3000",
 
     // ─── Standalone 用 (docker-compose.standalone.yaml) ────
-    POSTGRES_USER: "schedula",
-    POSTGRES_PASSWORD: "schedula",
-    POSTGRES_DB: "schedula",
+    POSTGRES_USER: "actio",
+    POSTGRES_PASSWORD: "actio",
+    POSTGRES_DB: "actio",
     DB_PORT: "5432",
     REDIS_PORT: "6379",
 
@@ -24,16 +24,16 @@ const config: EnvCliConfig = {
 
     // ─── Application ───────────────────────────────────────
     DB_DIALECT: "postgres",
-    DATABASE_URL: "postgresql://schedula_user:schedula@localhost:5432/schedula",
+    DATABASE_URL: "postgresql://actio_user:actio@localhost:5432/actio",
     REDIS_URL: "redis://127.0.0.1:6379",
     FRONTEND_URL: "http://localhost:5173",
     CERNERE_URL: "http://localhost:8080",
 
     // ─── JWT ───────────────────────────────────────────────
-    JWT_SECRET: "schedula-dev-secret-change-in-production",
+    JWT_SECRET: "actio-dev-secret-change-in-production",
 
     // ─── Cernere プロジェクト認証 (WS接続用) ──────────────
-    // Cernere で Schedula をプロジェクト登録した際の client_id / client_secret
+    // Cernere で Actio をプロジェクト登録した際の client_id / client_secret
     CERNERE_PROJECT_CLIENT_ID: "",
     CERNERE_PROJECT_CLIENT_SECRET: "",
 

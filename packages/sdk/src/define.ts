@@ -1,7 +1,7 @@
 /**
  * `defineModule()` — モジュール宣言ヘルパー
  *
- * manifest と実装を統合し、ホスト (Schedula 本体) が読み込める形の
+ * manifest と実装を統合し、ホスト (Actio 本体) が読み込める形の
  * `ModuleDefinition` を返す。型推論を強化するためのラッパ。
  */
 

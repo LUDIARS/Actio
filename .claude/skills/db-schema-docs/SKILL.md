@@ -1,6 +1,6 @@
 ---
 name: db-schema-docs
-description: Schedula の DB スキーマドキュメント (`spec/dblist.md` と `spec/dbs/*.md`) を `src/db/` の Drizzle スキーマから再生成する。スキーマファイル (`src/db/schema.ts`, `src/db/curriculum-schema.ts`, `src/db/pm-schema.ts`) を変更した直後、または DB ドキュメントを更新したい時に使用する。テーブルの追加・変更・削除を検知して `spec/dbs/` を同期する。
+description: Actio の DB スキーマドキュメント (`spec/dblist.md` と `spec/dbs/*.md`) を `src/db/` の Drizzle スキーマから再生成する。スキーマファイル (`src/db/schema.ts`, `src/db/curriculum-schema.ts`, `src/db/pm-schema.ts`) を変更した直後、または DB ドキュメントを更新したい時に使用する。テーブルの追加・変更・削除を検知して `spec/dbs/` を同期する。
 ---
 
 # DB Schema Docs Skill

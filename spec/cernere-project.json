@@ -1,15 +1,15 @@
 {
   "project": {
-    "key": "schedula",
-    "name": "Schedula",
-    "description": "汎用スケジューリング & 予約プラットフォーム"
+    "key": "actio",
+    "name": "Actio",
+    "description": "プラグインベースの予定 & タスク管理プラットフォーム"
   },
 
   "endpoint": {
     "url": "http://localhost:3000",
     "frontend_url": "http://localhost:5173",
     "same_server": false,
-    "bridge_path": "/schedula"
+    "bridge_path": "/actio"
   },
 
   "data_sharing": [

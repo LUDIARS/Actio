@@ -359,7 +359,7 @@ registerCommand("calendar", "regenerate_plan", async (userId, payload) => {
 
 // ── calendar.disconnect_google ──
 // Google OAuth トークンは Cernere 側で管理する (個人データ保管禁止ルール)。
-// Schedula 側では calendarAccessId のみクリアする。
+// Actio 側では calendarAccessId のみクリアする。
 
 registerCommand("calendar", "disconnect_google", async (userId) => {
   const info = await getUserInfo(userId);

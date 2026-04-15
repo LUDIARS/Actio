@@ -88,7 +88,7 @@ alexaRoutes.post("/webhook", async (c) => {
       title: parsed.title,
       originalText: body.text.trim(),
     },
-    source: "schedula.reminder.alexa",
+    source: "actio.reminder.alexa",
     idempotencyKey: id,
   });
 

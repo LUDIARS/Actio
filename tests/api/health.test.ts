@@ -14,7 +14,7 @@ describe("GET /", () => {
     const { status, json } = await request(app, "GET", "/");
 
     expect(status).toBe(200);
-    expect(json.name).toBe("Schedula");
+    expect(json.name).toBe("Actio");
     expect(json.version).toBe("1.0.0");
     expect(json.core).toBeDefined();
     expect(json.modules).toBeDefined();

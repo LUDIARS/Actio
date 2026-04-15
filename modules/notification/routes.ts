@@ -353,7 +353,7 @@ notification.post("/templates/preview", async (c) => {
 });
 
 // ─── POST /test-send (廃止) ──────────────────────────────────
-// 配信は Nuntius が担当する。Schedula 側のテスト配信は提供しない。
+// 配信は Nuntius が担当する。Actio 側のテスト配信は提供しない。
 notification.post("/test-send", (c) => {
   return c.json({
     error: "test-send is no longer supported. Configure delivery via Nuntius topics.",

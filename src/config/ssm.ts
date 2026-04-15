@@ -5,7 +5,7 @@
  * パスプレフィックス配下のパラメータを一括取得し、キャッシュする。
  *
  * Bootstrap 用環境変数 (process.env から読む):
- *   SSM_PATH_PREFIX   — パラメータのパスプレフィックス (例: /schedula/prod/)
+ *   SSM_PATH_PREFIX   — パラメータのパスプレフィックス (例: /actio/prod/)
  *   AWS_REGION        — AWS リージョン (デフォルト: ap-northeast-1)
  *   AWS_ACCESS_KEY_ID — (任意) 明示的な認証情報。未設定なら IAM ロール等を使用
  *   AWS_SECRET_ACCESS_KEY — (任意) 上記とペア
@@ -42,7 +42,7 @@ export class SsmParameterStoreClient {
   /**
    * パスプレフィックス配下の全パラメータを取得
    * パラメータ名からプレフィックスを除去してキーとする
-   * 例: /schedula/prod/JWT_SECRET → JWT_SECRET
+   * 例: /actio/prod/JWT_SECRET → JWT_SECRET
    */
   async getParameters(): Promise<Map<string, string>> {
     const result = new Map<string, string>();
@@ -63,8 +63,8 @@ export class SsmParameterStoreClient {
       for (const param of parameters) {
         if (param.Name && param.Value !== undefined) {
           // プレフィックスを除去してキー名にする
-          // /schedula/prod/JWT_SECRET → JWT_SECRET
-          // /schedula/prod/db/DATABASE_URL → db/DATABASE_URL (サブパスは保持)
+          // /actio/prod/JWT_SECRET → JWT_SECRET
+          // /actio/prod/db/DATABASE_URL → db/DATABASE_URL (サブパスは保持)
           const key = param.Name.startsWith(this.pathPrefix)
             ? param.Name.slice(this.pathPrefix.length)
             : param.Name;
@@ -86,7 +86,7 @@ export class SsmParameterStoreClient {
   /**
    * パラメータを書き込み (SecureString)
    * キー名にプレフィックスを付与して保存する
-   * 例: JWT_SECRET → /schedula/prod/JWT_SECRET
+   * 例: JWT_SECRET → /actio/prod/JWT_SECRET
    */
   async putParameter(key: string, value: string): Promise<void> {
     const name = this.pathPrefix + key;

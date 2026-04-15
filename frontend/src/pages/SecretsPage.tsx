@@ -194,7 +194,7 @@ export function SecretsPage() {
           }}>
 {`# ─── AWS SSM Parameter Store ───
 SECRETS_PROVIDER=ssm
-SSM_PATH_PREFIX=/schedula/prod/
+SSM_PATH_PREFIX=/actio/prod/
 AWS_REGION=ap-northeast-1
 
 # ─── または Infisical ───
