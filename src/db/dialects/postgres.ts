@@ -936,6 +936,8 @@ export const userProjectRoles = pgTable(
 
 export const schema = {
   users,
+  moduleInstallations,
+  moduleStates,
   sessions,
   rooms,
   scheduleEntries,
