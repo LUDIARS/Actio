@@ -18,7 +18,7 @@ import { UserManagementPage } from "./pages/UserManagementPage";
 import { DbViewerPage } from "./pages/DbViewerPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { ActivityLogsPage } from "./pages/ActivityLogsPage";
-import { ReminderPage } from "./pages/ReminderPage";
+import { TasksPage } from "./pages/TasksPage";
 import { HelpPage } from "./pages/HelpPage";
 import { IntegrationsPage } from "./pages/IntegrationsPage";
 import { SecretsPage } from "./pages/SecretsPage";
@@ -81,7 +81,7 @@ function AppRoutes() {
         <Route path="/voting" element={<VotingPage />} />
         <Route path="/machina" element={<MachinaPage />} />
         <Route path="/calendar" element={<CalendarPage />} />
-        <Route path="/reminders" element={<ReminderPage />} />
+        <Route path="/tasks" element={<TasksPage />} />
         <Route path="/profile" element={<ProfilePage />} />
         <Route path="/admin/users" element={<UserManagementPage />} />
         <Route path="/admin/modules" element={<ModuleManagementPage />} />

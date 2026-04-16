@@ -396,6 +396,26 @@ export function initTestDatabase() {
       UNIQUE(user_id, service)
     );
 
+    CREATE TABLE IF NOT EXISTS tasks (
+      id TEXT PRIMARY KEY,
+      owner_id TEXT NOT NULL,
+      assignee_id TEXT,
+      group_id TEXT,
+      title TEXT NOT NULL,
+      description TEXT,
+      requirements TEXT,
+      status TEXT NOT NULL DEFAULT 'open',
+      priority TEXT NOT NULL DEFAULT 'medium',
+      deadline INTEGER,
+      estimated_minutes INTEGER,
+      plugin_id TEXT,
+      plugin_ref TEXT,
+      plugin_payload TEXT,
+      completed_at INTEGER,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
+    );
+
     CREATE TABLE IF NOT EXISTS sync_logs (
       id TEXT PRIMARY KEY,
       user_id TEXT NOT NULL REFERENCES users(id),

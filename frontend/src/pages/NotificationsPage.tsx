@@ -39,13 +39,6 @@ const EVENT_MODULES = [
       { name: "sync.conflict", label: "予定競合" },
     ],
   },
-  {
-    module: "reminder",
-    label: "リマインダー",
-    events: [
-      { name: "reminder.morning", label: "朝の未完了タスク通知" },
-    ],
-  },
 ];
 
 const ALL_EVENTS = EVENT_MODULES.flatMap((m) => m.events);
@@ -422,22 +415,6 @@ export function NotificationsPage() {
       {/* Notifications Tab */}
       {tab === "notifications" && (
         <div>
-          <div className="toolbar" style={{ marginBottom: "0.75rem" }}>
-            <button
-              onClick={async () => {
-                try {
-                  const result = await m5.triggerMorningReminder();
-                  showMsg(result.message);
-                  if (result.sent) loadData();
-                } catch (e: unknown) {
-                  const err = e as Error;
-                  showMsg(`Error: ${err.message}`);
-                }
-              }}
-            >
-              朝の未完了タスク通知をテスト
-            </button>
-          </div>
           {notifications.length === 0 ? (
             <div className="empty-state">
               <p>通知履歴がありません</p>

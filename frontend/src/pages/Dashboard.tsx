@@ -1,8 +1,8 @@
 import { useState, useEffect, useCallback, useMemo, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 
-import { calendarApi, groupApi, myPlanApi, reminderApi, pmApi } from "../lib/api";
-import type { PersonalEvent, ReminderItem, PMProject } from "../lib/api-types";
+import { calendarApi, groupApi, myPlanApi, pmApi } from "../lib/api";
+import type { PersonalEvent, PMProject } from "../lib/api-types";
 import { HelpButton } from "../components/HelpOverlay";
 import { DAY_LABELS, getPeriodLabel } from "../lib/constants";
 import {
@@ -134,7 +134,6 @@ export function Dashboard() {
   const [googleEvents, setGoogleEvents] = useState<GoogleCalEvent[]>([]);
   const [groupSchedules, setGroupSchedules] = useState<GroupSchedule[]>([]);
   const [myPlans, setMyPlans] = useState<MyPlanEvent[]>([]);
-  const [reminders, setReminders] = useState<ReminderItem[]>([]);
   const [pmProjects, setPmProjects] = useState<PMProject[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -154,13 +153,12 @@ export function Dashboard() {
   const loadData = useCallback(async () => {
     try {
       const logErr = (label: string) => (err: Error) => { console.error(`[Dashboard] ${label}:`, err.message); };
-      const [statusRes, eventsRes, conflictsRes, groupsRes, myPlansRes, remindersRes, pmProjectsRes] = await Promise.all([
+      const [statusRes, eventsRes, conflictsRes, groupsRes, myPlansRes, pmProjectsRes] = await Promise.all([
         calendarApi.getStatus().catch((e: Error) => { logErr("status")(e); return { connected: false, email: "" }; }),
         calendarApi.getPersonalEvents().catch((e: Error) => { logErr("events")(e); return { events: [] }; }),
         calendarApi.getConflicts().catch((e: Error) => { logErr("conflicts")(e); return { conflicts: [] }; }),
         groupApi.listMyGroups().catch((e: Error) => { logErr("groups")(e); return { groups: [] }; }),
         myPlanApi.list().catch((e: Error) => { logErr("plans")(e); return { plans: [] }; }),
-        reminderApi.list("pending").catch((e: Error) => { logErr("reminders")(e); return { reminders: [] }; }),
         pmApi.listProjects().catch((e: Error) => { logErr("pm")(e); return { projects: [] }; }),
       ]);
       setConflicts(conflictsRes.conflicts || []);
@@ -168,7 +166,6 @@ export function Dashboard() {
       setGoogleEmail(statusRes.email || "");
       setEvents(eventsRes.events || []);
       setMyPlans((myPlansRes.plans || []).filter((p: MyPlanEvent) => p.isActive));
-      setReminders(remindersRes.reminders || []);
       setPmProjects(pmProjectsRes.projects || []);
 
       // グループの予定を取得
@@ -346,38 +343,7 @@ export function Dashboard() {
     return viewYear === today.getFullYear() && viewMonth === today.getMonth() && day === today.getDate();
   };
 
-  // タスクサマリー
-  // Date.now() は render pure でないため、useState の initializer で 1 度だけ
-  // 取得し、reminders 変化時に useEffect で更新する。
-  const oneDayMs = 24 * 60 * 60 * 1000;
-  const [now, setNow] = useState<number>(() => Date.now());
-  useEffect(() => {
-    setNow(Date.now());
-  }, [reminders]);
-  const upcomingReminders = useMemo(
-    () =>
-      [...reminders]
-        .filter((r) => r.status === "pending")
-        .sort((a, b) => a.remindAt.localeCompare(b.remindAt))
-        .slice(0, 5),
-    [reminders],
-  );
-  const overdueReminderCount = useMemo(
-    () =>
-      reminders.filter(
-        (r) => r.status === "pending" && new Date(r.remindAt).getTime() < now,
-      ).length,
-    [reminders, now],
-  );
-  const todayReminderCount = useMemo(
-    () =>
-      reminders.filter((r) => {
-        if (r.status !== "pending") return false;
-        const t = new Date(r.remindAt).getTime();
-        return t >= now && t < now + oneDayMs;
-      }).length,
-    [reminders, now, oneDayMs],
-  );
+  // リマインダーは Nuntius 移行予定のため、現時点ではダッシュボード表示なし
 
   // メニューレジストリから「予定 / タスク / その他」のモジュール一覧取得 (クイックリンク用)
   const groupsByCategory = useMemo(
@@ -793,103 +759,12 @@ export function Dashboard() {
       >
         <div className="card" style={{ padding: "0.75rem 1rem" }}>
           <div style={{ fontSize: "0.7rem", color: "var(--text-muted)", marginBottom: "0.2rem" }}>
-            期限切れリマインダー
-          </div>
-          <div
-            style={{
-              fontSize: "1.4rem",
-              fontWeight: 700,
-              color: overdueReminderCount > 0 ? "var(--red)" : "var(--text)",
-            }}
-          >
-            {overdueReminderCount}
-          </div>
-        </div>
-        <div className="card" style={{ padding: "0.75rem 1rem" }}>
-          <div style={{ fontSize: "0.7rem", color: "var(--text-muted)", marginBottom: "0.2rem" }}>
-            24時間以内
-          </div>
-          <div style={{ fontSize: "1.4rem", fontWeight: 700, color: "var(--text)" }}>
-            {todayReminderCount}
-          </div>
-        </div>
-        <div className="card" style={{ padding: "0.75rem 1rem" }}>
-          <div style={{ fontSize: "0.7rem", color: "var(--text-muted)", marginBottom: "0.2rem" }}>
             PM プロジェクト
           </div>
           <div style={{ fontSize: "1.4rem", fontWeight: 700, color: "var(--text)" }}>
             {pmProjects.length}
           </div>
         </div>
-      </div>
-
-      {/* 直近のリマインダー */}
-      <div className="card" style={{ marginBottom: "1rem" }}>
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            marginBottom: "0.5rem",
-          }}
-        >
-          <h3 style={{ fontSize: "0.9rem", fontWeight: 600 }}>直近のタスク</h3>
-          <Link to="/reminders" style={{ fontSize: "0.75rem", color: "var(--accent)" }}>
-            リマインダー一覧 &rarr;
-          </Link>
-        </div>
-        {loading ? (
-          <div style={{ color: "var(--text-muted)", fontSize: "0.85rem" }}>読み込み中...</div>
-        ) : upcomingReminders.length === 0 ? (
-          <div className="empty-state" style={{ padding: "1rem" }}>
-            <p>直近のタスクはありません</p>
-          </div>
-        ) : (
-          <div style={{ display: "flex", flexDirection: "column", gap: "0.4rem" }}>
-            {upcomingReminders.map((r) => {
-              const due = new Date(r.remindAt).getTime();
-              const isOverdue = due < now;
-              return (
-                <div
-                  key={r.id}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "0.5rem",
-                    padding: "0.4rem 0.5rem",
-                    background: "var(--bg-surface-2)",
-                    borderRadius: "var(--radius-sm)",
-                    fontSize: "0.8rem",
-                  }}
-                >
-                  <span
-                    style={{
-                      fontSize: "0.7rem",
-                      color: isOverdue ? "var(--red)" : "var(--text-muted)",
-                      minWidth: 110,
-                    }}
-                  >
-                    {new Date(r.remindAt).toLocaleString("ja-JP", {
-                      month: "short",
-                      day: "numeric",
-                      hour: "2-digit",
-                      minute: "2-digit",
-                    })}
-                  </span>
-                  <span style={{ fontWeight: 500 }}>{r.title}</span>
-                  {isOverdue && (
-                    <span
-                      className="badge red"
-                      style={{ fontSize: "0.65rem", marginLeft: "auto" }}
-                    >
-                      期限切れ
-                    </span>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        )}
       </div>
 
       {/* タスクモジュールのクイックリンク */}

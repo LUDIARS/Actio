@@ -95,7 +95,6 @@ export const EVENT_NAMES = {
   RESERVATION_CANCELLED: "reservation.cancelled",
   RESERVATION_REMINDER: "reservation.reminder",
   SYNC_CONFLICT: "sync.conflict",
-  REMINDER_MORNING: "reminder.morning",
   // PM モジュール
   PM_TASK_CREATED: "pm.task.created",
   PM_TASK_UPDATED: "pm.task.updated",
@@ -150,13 +149,6 @@ export const EVENT_MODULES: EventModuleDefinition[] = [
     label: "カレンダー",
     events: [
       { name: "sync.conflict", label: "予定競合" },
-    ],
-  },
-  {
-    module: "reminder",
-    label: "リマインダー",
-    events: [
-      { name: "reminder.morning", label: "朝の未完了タスク通知" },
     ],
   },
   {
@@ -422,7 +414,6 @@ export const CORE_MODULES = [
   "calendar",
   "myplan",
   "smart-scheduler",
-  "reminders",
   "profile",
 ] as const;
 
