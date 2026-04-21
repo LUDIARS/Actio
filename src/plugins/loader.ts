@@ -26,12 +26,17 @@ import {
   moduleInstallationRepo,
   moduleStateRepo,
 } from "./repository.js";
-import { buildModuleContext } from "./context.js";
+import { buildModuleContext, buildModuleContextFromDef } from "./context.js";
 import { registerCommandEntry } from "../ws/dispatcher.js";
 import {
   HOST_SCHEDULA_API_VERSION,
   satisfiesSemverRange,
 } from "./semver.js";
+import { customFieldRegistry } from "./custom-fields.js";
+import { workflowRegistry } from "./workflow.js";
+import { composePluginTablesSQL } from "./tables.js";
+import { db, dialect } from "../db/connection.js";
+import { sql as drizzleSql } from "drizzle-orm";
 
 // ── エラー / 予約 prefix ──────────────────────────────
 
@@ -191,7 +196,38 @@ export function installModule(
   assertCompatibleApiVersion(definition);
   assertDependenciesSatisfied(definition);
 
-  const ctx = buildModuleContext(definition.id, definition.tables);
+  const ctx = buildModuleContextFromDef(definition);
+
+  // 3b. customFields / workflow レジストリ登録 (D1 / D2)
+  if (definition.customFields) {
+    for (const [fieldId, fdef] of Object.entries(definition.customFields)) {
+      customFieldRegistry.register(definition.id, fieldId, fdef);
+    }
+  }
+  if (definition.workflow) {
+    workflowRegistry.register(definition.id, definition.workflow);
+  }
+
+  // 3c. plugin-owned tables の schema 合成 (D8).
+  //    SQLite dialect のみ自動実行. 他 dialect では WARN + spec/plan-for-migration.
+  if (definition.tables && Object.keys(definition.tables).length > 0) {
+    if (dialect === "sqlite") {
+      const composed = composePluginTablesSQL(definition);
+      for (const { sql } of composed) {
+        try {
+          (db as { run: (stmt: ReturnType<typeof drizzleSql.raw>) => unknown })
+            .run(drizzleSql.raw(sql));
+        } catch (err) {
+          console.warn(`[plugin ${definition.id}] table DDL failed: ${sql}`, err);
+        }
+      }
+    } else {
+      console.warn(
+        `[plugin ${definition.id}] plugin-owned tables auto-migrate is SQLite-only in this milestone (current dialect: ${dialect}). ` +
+        `Generate migrations via \`composePluginTablesSQL()\` and run them manually.`,
+      );
+    }
+  }
 
   // 2. REST routes wire (S5: basePath 衝突検出 + 予約 prefix 拒否)
   if (definition.routes && definition.basePath) {
@@ -377,7 +413,7 @@ export async function setModuleEnabled(
   // ライフサイクルフック
   const mod = moduleRegistry.get(moduleId);
   if (mod) {
-    const ctx = buildModuleContext(moduleId, mod.definition.tables);
+    const ctx = buildModuleContextFromDef(mod.definition);
     if (enabled && mod.definition.onEnable) {
       await mod.definition.onEnable(ctx, `${scopeType}:${scopeId ?? "*"}`);
     }
@@ -385,6 +421,39 @@ export async function setModuleEnabled(
       await mod.definition.onDisable(ctx, `${scopeType}:${scopeId ?? "*"}`);
     }
   }
+}
+
+/**
+ * モジュールをアンインストールする (Issue #111 D10).
+ *
+ *   1. `onUninstall` フック呼び出し
+ *   2. レジストリから除去
+ *   3. customFields / workflow / mountedBasePaths から除去
+ *   4. WS ハンドラは dispatcher のレジストリに残るため解除不能
+ *      (次回起動時にロードされなければ自然消滅 — 現状の制約を doc に明記)
+ *   5. `module_installations` と `module_states` の DB 行は残置
+ *      (監査/ロールバック目的). 完全削除は手動マイグレーションで.
+ */
+export async function uninstallModule(moduleId: string): Promise<void> {
+  const mod = moduleRegistry.get(moduleId);
+  if (!mod) return;
+  const ctx = buildModuleContextFromDef(mod.definition);
+
+  try { await mod.definition.onUninstall?.(ctx); }
+  catch (err) { console.warn(`[plugin ${moduleId}] onUninstall threw:`, err); }
+
+  moduleRegistry.unregister(moduleId);
+  customFieldRegistry.unregister(moduleId);
+  workflowRegistry.unregister(moduleId);
+  releaseBasePath(mod.definition.basePath);
+}
+
+function releaseBasePath(raw?: string): void {
+  if (!raw) return;
+  let out = raw.trim();
+  if (!out.startsWith("/")) out = `/${out}`;
+  if (out.length > 1 && out.endsWith("/")) out = out.slice(0, -1);
+  mountedBasePaths.delete(out);
 }
 
 // ModuleRegistryError を loader 利用側からも import できるよう再エクスポート.

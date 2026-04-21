@@ -13,7 +13,7 @@ import { getUserId, getUserRole } from "../middleware/getUserId.js";
 import { verifyRoleViaCernere } from "../auth/user-info.js";
 import { moduleInstallationRepo, moduleStateRepo } from "./repository.js";
 import { moduleRegistry } from "./registry.js";
-import { setModuleEnabled, isEnabled } from "./loader.js";
+import { setModuleEnabled, isEnabled, uninstallModule } from "./loader.js";
 
 const admin = new Hono();
 
@@ -136,6 +136,44 @@ admin.post("/modules/:id/disable", async (c) => {
 
   await setModuleEnabled(moduleId, scopeType, scopeId, false, auth.userId);
   return c.json({ ok: true, moduleId, scopeType, scopeId, enabled: false });
+});
+
+// ─── Issue #111 D10 — uninstall admin endpoint ────────────
+
+admin.post("/modules/:id/uninstall", async (c) => {
+  const auth = await requireAdmin(c);
+  if (auth instanceof Response) return auth;
+
+  const moduleId = c.req.param("id");
+  if (!moduleRegistry.has(moduleId)) {
+    return c.json({ error: `Module "${moduleId}" not installed` }, 404);
+  }
+
+  try { await uninstallModule(moduleId); }
+  catch (err) { return c.json({ error: (err as Error).message }, 500); }
+
+  return c.json({ ok: true, moduleId, uninstalled: true });
+});
+
+// ─── Issue #111 D6 — frontend module federation manifests ──
+
+admin.get("/modules/manifests", async (c) => {
+  // 認証必須だが admin 限定ではない (UI 読み込み用).
+  const userId = getUserId(c);
+  if (!userId) return c.json({ error: "Authentication required" }, 401);
+
+  // ロード済み module から client.remoteEntry を持つものだけ抽出.
+  const manifests = moduleRegistry.list()
+    .filter((m) => !!m.definition.client?.remoteEntry)
+    .map((m) => ({
+      moduleId:    m.definition.id,
+      name:        m.definition.name,
+      description: m.definition.description,
+      remoteEntry: m.definition.client!.remoteEntry,
+      basePath:    m.definition.basePath,
+    }));
+
+  return c.json({ manifests });
 });
 
 export { admin as moduleAdminRoutes };

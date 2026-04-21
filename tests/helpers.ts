@@ -427,6 +427,62 @@ export function initTestDatabase() {
       error_message TEXT,
       created_at INTEGER NOT NULL
     );
+
+    -- ── Issue #111 D1 / D2 / D3 / D4 plugin extensibility ──
+    CREATE TABLE IF NOT EXISTS issue_links (
+      id TEXT PRIMARY KEY,
+      from_type TEXT NOT NULL,
+      from_id TEXT NOT NULL,
+      to_type TEXT NOT NULL,
+      to_id TEXT NOT NULL,
+      link_type TEXT NOT NULL,
+      created_by TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      created_at INTEGER NOT NULL
+    );
+    CREATE UNIQUE INDEX IF NOT EXISTS uniq_link
+      ON issue_links(from_type, from_id, to_type, to_id, link_type);
+    CREATE INDEX IF NOT EXISTS idx_link_from ON issue_links(from_type, from_id);
+    CREATE INDEX IF NOT EXISTS idx_link_to   ON issue_links(to_type, to_id);
+
+    CREATE TABLE IF NOT EXISTS comments (
+      id TEXT PRIMARY KEY,
+      target_type TEXT NOT NULL,
+      target_id TEXT NOT NULL,
+      author_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      body TEXT NOT NULL,
+      reply_to TEXT,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_comment_target
+      ON comments(target_type, target_id, created_at);
+    CREATE INDEX IF NOT EXISTS idx_comment_author ON comments(author_id);
+
+    CREATE TABLE IF NOT EXISTS custom_field_values (
+      id TEXT PRIMARY KEY,
+      module_id TEXT NOT NULL,
+      field_id TEXT NOT NULL,
+      target_type TEXT NOT NULL,
+      target_id TEXT NOT NULL,
+      value TEXT,
+      updated_at INTEGER NOT NULL
+    );
+    CREATE UNIQUE INDEX IF NOT EXISTS uniq_cfv
+      ON custom_field_values(module_id, field_id, target_type, target_id);
+    CREATE INDEX IF NOT EXISTS idx_cfv_target
+      ON custom_field_values(target_type, target_id);
+
+    CREATE TABLE IF NOT EXISTS workflow_transitions (
+      id TEXT PRIMARY KEY,
+      target_type TEXT NOT NULL,
+      target_id TEXT NOT NULL,
+      from_state TEXT NOT NULL,
+      to_state TEXT NOT NULL,
+      performed_by TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      performed_at INTEGER NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_wf_target
+      ON workflow_transitions(target_type, target_id, performed_at);
   `);
 
   sqlite.close();
