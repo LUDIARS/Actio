@@ -10,31 +10,64 @@
 
 import { Hono } from "hono";
 import { getUserId, getUserRole } from "../middleware/getUserId.js";
+import { verifyRoleViaCernere } from "../auth/user-info.js";
 import { moduleInstallationRepo, moduleStateRepo } from "./repository.js";
 import { moduleRegistry } from "./registry.js";
 import { setModuleEnabled, isEnabled } from "./loader.js";
 
 const admin = new Hono();
 
-function requireAdmin(
+/**
+ * Issue #111 S2 — Admin role を **Cernere 側で再検証** する.
+ *
+ * 以前は JWT claim の `role` を素朴に信じていたため、改ざん JWT や
+ * id-cache の dev fallback を経由した admin 昇格が理論上可能だった.
+ * 修正:
+ *   - 本番 (`NODE_ENV === "production"`) では Cernere に問い合わせて
+ *     `role === "admin"` を確認. **Cernere が応答不能なら 403 で
+ *     fail-closed** (サイレントに通さない).
+ *   - 開発/テスト環境では Cernere 未接続時に JWT claim へフォールバック
+ *     を許す (従来挙動の維持 — ただし警告ログを出す).
+ */
+async function requireAdmin(
   c: import("hono").Context,
-): { userId: string } | Response {
+): Promise<{ userId: string } | Response> {
   const userId = getUserId(c);
   if (!userId) {
     return c.json({ error: "Authentication required" }, 401);
   }
-  // role は JWT から直接取得 (個人データ Cernere 経由の getUserInfo はテスト環境で
-  // Cernere 未接続時にプレースホルダになるため)。Cernere 発行の service_token の
-  // claim をそのまま信頼する。
-  const role = getUserRole(c);
-  if (role !== "admin") {
+
+  const isProd = (process.env.NODE_ENV ?? "development") === "production";
+  const verdict = await verifyRoleViaCernere(userId);
+
+  if (verdict.source === "cernere") {
+    if (verdict.role !== "admin") {
+      return c.json({ error: "Admin role required" }, 403);
+    }
+    return { userId };
+  }
+
+  // Cernere unreachable
+  if (isProd) {
+    console.warn(
+      `[admin] Cernere unreachable for ${userId}, refusing admin access (production fail-closed).`,
+    );
+    return c.json({ error: "Admin verification unavailable" }, 403);
+  }
+
+  // dev / test: JWT claim にフォールバック
+  const jwtRole = getUserRole(c);
+  if (jwtRole !== "admin") {
     return c.json({ error: "Admin role required" }, 403);
   }
+  console.warn(
+    `[admin] Cernere unreachable; falling back to JWT claim for ${userId} (NODE_ENV=${process.env.NODE_ENV ?? "development"})`,
+  );
   return { userId };
 }
 
 admin.get("/modules", async (c) => {
-  const auth = requireAdmin(c);
+  const auth = await requireAdmin(c);
   if (auth instanceof Response) return auth;
 
   const installations = await moduleInstallationRepo.findAll();
@@ -64,7 +97,7 @@ admin.get("/modules", async (c) => {
 });
 
 admin.post("/modules/:id/enable", async (c) => {
-  const auth = requireAdmin(c);
+  const auth = await requireAdmin(c);
   if (auth instanceof Response) return auth;
 
   const moduleId = c.req.param("id");
@@ -85,7 +118,7 @@ admin.post("/modules/:id/enable", async (c) => {
 });
 
 admin.post("/modules/:id/disable", async (c) => {
-  const auth = requireAdmin(c);
+  const auth = await requireAdmin(c);
   if (auth instanceof Response) return auth;
 
   const moduleId = c.req.param("id");

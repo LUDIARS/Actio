@@ -128,11 +128,48 @@ export interface ModulesApi {
   invoke<T = unknown>(moduleId: string, command: string, payload: unknown): Promise<T>;
 }
 
-/** DB アクセス (モジュールのテーブル所有権を enforce) */
+/** DB アクセス (モジュールのテーブル所有権を enforce)
+ *
+ *  **ホスト側の実装要件 (Issue #111 S3 / Actio 2026-04-21 以降)**:
+ *  - `definition.tables` に宣言されたテーブル **以外**に対して
+ *    `select/insert/update/delete` が呼ばれた時点で throw する。
+ *  - `definition.tables` が空の場合は raw 経由の CRUD を全拒否する。
+ *  - SQL template (`sql\`...\``) は引き続き使える (検知困難なため)
+ *    が、本番では module 毎に読み取り専用 role を割り当てる方針
+ *    (Phase 2)。
+ *
+ *  モジュール作者は `db.select().from(myTable)` 等の Drizzle 通常 API
+ *  をそのまま使える。型としては unknown のまま — 具体化は受け側で。
+ */
 export interface DbApi {
-  /** Drizzle ORM instance (type は host に委ねる) */
   readonly raw: unknown;
 }
+
+/** WS コマンドに課せる認可ロール (Issue #111 S1). */
+export type WsRequiredRole =
+  | "system_admin"
+  | "group_owner"
+  | "group_leader"
+  | "group_member";
+
+/** WS コマンド宣言 — 認証/認可を宣言的に指定する.
+ *
+ *  既存の `WsCommandHandler` 直代入も引き続きサポート (後方互換):
+ *    - `wsCommands: { action: async (u,p,c) => ... }`            → 認証必須で扱う
+ *    - `wsCommands: { action: { handler, requireAuth: false } }` → 匿名許可 (ログイン画面前のコマンド等)
+ *    - `wsCommands: { action: { handler, requireRole: "system_admin" } }` → admin のみ
+ */
+export interface WsCommandDefinition<P = unknown, R = unknown> {
+  handler: WsCommandHandler<P, R>;
+  /** 既定 `true`. `false` にすると dispatcher が空/匿名 userId を通す. */
+  requireAuth?: boolean;
+  /** 必要ロール. 指定時は userRole が一致しないと dispatcher が reject する. */
+  requireRole?: WsRequiredRole;
+}
+
+export type WsCommandEntry<P = unknown, R = unknown> =
+  | WsCommandHandler<P, R>
+  | WsCommandDefinition<P, R>;
 
 /** 権限チェック用 ミドルウェア群 */
 export interface PermissionsApi {
@@ -195,8 +232,11 @@ export interface ModuleDefinition extends ModuleManifest, Lifecycle {
   /** REST routes (`/api/{basePath}` にマウント) */
   basePath?: string;
   routes?: RoutesFactory;
-  /** WS commands (module 名は this.id で固定、action のみ指定) */
-  wsCommands?: Record<string, WsCommandHandler>;
+  /** WS commands (module 名は this.id で固定、action のみ指定).
+   *
+   *  値は bare handler もしくは `WsCommandDefinition` を受け付ける
+   *  (Issue #111 S1: requireAuth / requireRole の宣言的制御). */
+  wsCommands?: Record<string, WsCommandEntry>;
   /** フロントエンド module federation remote entry のパス (relative to package root) */
   client?: {
     remoteEntry: string;

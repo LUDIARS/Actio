@@ -73,3 +73,39 @@ export async function getUserInfos(userIds: string[]): Promise<Map<string, UserI
 
 /** Cernere 側で更新された場合に手動でキャッシュを破棄したいケース用 */
 export { invalidateSessionUser as invalidateUserInfo } from "./session-cache.js";
+
+/**
+ * Cernere **直接問い合わせ** による role 検証結果. Issue #111 S2 で
+ * 導入. `getUserInfo()` と違って placeholder を返さず、Cernere から
+ * 取れなかったら `source === "unreachable"` を返す (呼び出し側で
+ * fail-closed / fail-open を決める).
+ */
+export interface VerifiedRole {
+  userId: string;
+  role:   string;
+  /** どこから来た情報か. "unreachable" = Cernere が応答せず未確定. */
+  source: "cernere" | "unreachable";
+}
+
+/**
+ * Cernere に role 検証を投げ、プレースホルダを使わず事実だけを返す.
+ *
+ * 呼び出し側は `source === "unreachable"` を見て:
+ *   - production → 403 (fail-closed, RULE §1.2 / Issue #111 S2)
+ *   - development / test → JWT claim にフォールバック可
+ * を判断する.
+ */
+export async function verifyRoleViaCernere(userId: string): Promise<VerifiedRole> {
+  if (!userId) return { userId: "", role: "", source: "unreachable" };
+  try {
+    const profile = await fetchCernereProfile(userId);
+    return {
+      userId,
+      role:   profile.role || "general",
+      source: "cernere",
+    };
+  } catch (err) {
+    console.warn(`[user-info] verifyRoleViaCernere: ${userId}:`, err);
+    return { userId, role: "", source: "unreachable" };
+  }
+}

@@ -6,6 +6,7 @@
  */
 
 import type {
+  DrizzleTableLike,
   ModuleContext,
   UserIdentity,
   UserIdentityApi,
@@ -18,6 +19,7 @@ import type {
   PermissionsApi,
 } from "@ludiars/schedula-sdk";
 import { db } from "../db/connection.js";
+import { makeScopedDb } from "./db-scope.js";
 import { getUserInfo, getUserInfos } from "../auth/user-info.js";
 import {
   getProjectUserColumns,
@@ -38,7 +40,10 @@ function columnKey(moduleId: string, key: string): string {
   return `${moduleId}:${snake}`;
 }
 
-export function buildModuleContext(moduleId: string): ModuleContext {
+export function buildModuleContext(
+  moduleId: string,
+  tables?: Record<string, DrizzleTableLike>,
+): ModuleContext {
   const users: UserIdentityApi = {
     async get(userId) {
       const info = await getUserInfo(userId);
@@ -125,7 +130,15 @@ export function buildModuleContext(moduleId: string): ModuleContext {
     },
   };
 
-  const dbApi: DbApi = { raw: db };
+  // Issue #111 S3 — module-scoped DB proxy.
+  // Module が manifest で `tables: { ... }` を宣言した場合、その集合
+  // 以外のテーブルに触れた瞬間 DbScopeError を throw する.
+  const declaredTables = tables ? Object.values(tables) : [];
+  const dbApi: DbApi = {
+    raw: declaredTables.length > 0
+      ? makeScopedDb(db, moduleId, declaredTables)
+      : db,   // 旧挙動: tables 未宣言のモジュールは後方互換で素通し.
+  };
 
   return {
     moduleId,
