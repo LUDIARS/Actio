@@ -8,6 +8,14 @@
 import type { ModuleDefinition } from "@ludiars/schedula-sdk";
 import type { ScopeType } from "./repository.js";
 
+/** Issue #111 S4/S5 — register 衝突などを区別できるよう名前付きエラー. */
+export class ModuleRegistryError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "ModuleRegistryError";
+  }
+}
+
 export interface LoadedModule {
   definition: ModuleDefinition;
   packageName: string;
@@ -26,6 +34,14 @@ class ModuleRegistry {
   private enabledCache = new Map<string, boolean>();
 
   register(mod: LoadedModule): void {
+    // Issue #111 S4 — 重複登録を silent overwrite ではなく throw.
+    // モジュールを動的に差し替えたい場合は事前に unregister() を呼ぶ.
+    if (this.modules.has(mod.definition.id)) {
+      throw new ModuleRegistryError(
+        `Module "${mod.definition.id}" is already registered. ` +
+        `Call unregister() first if you intend to replace it.`,
+      );
+    }
     this.modules.set(mod.definition.id, mod);
   }
 

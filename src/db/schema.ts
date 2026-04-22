@@ -1120,3 +1120,99 @@ export const tasks = sqliteTable(
     index("idx_task_plugin").on(table.pluginId),
   ]
 );
+
+// ─── Issue #111 D3: Issue Link (双方向) ──────────────────────
+
+export const issueLinks = sqliteTable(
+  "issue_links",
+  {
+    id: text("id").primaryKey(),
+    fromType: text("from_type").notNull(),
+    fromId:   text("from_id").notNull(),
+    toType:   text("to_type").notNull(),
+    toId:     text("to_id").notNull(),
+    /** 代表値: "blocks" / "blocked_by" / "relates_to" / "duplicates" */
+    linkType: text("link_type").notNull(),
+    createdBy: text("created_by")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    createdAt: integer("created_at", { mode: "timestamp" })
+      .$defaultFn(() => new Date())
+      .notNull(),
+  },
+  (t) => [
+    unique("uniq_link").on(t.fromType, t.fromId, t.toType, t.toId, t.linkType),
+    index("idx_link_from").on(t.fromType, t.fromId),
+    index("idx_link_to").on(t.toType, t.toId),
+  ]
+);
+
+// ─── Issue #111 D4: Comments / Activity Stream ───────────────
+
+export const comments = sqliteTable(
+  "comments",
+  {
+    id: text("id").primaryKey(),
+    targetType: text("target_type").notNull(),
+    targetId:   text("target_id").notNull(),
+    authorId: text("author_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    body: text("body").notNull(),
+    /** 返信先 comment id (null = top-level) */
+    replyTo: text("reply_to"),
+    createdAt: integer("created_at", { mode: "timestamp" })
+      .$defaultFn(() => new Date())
+      .notNull(),
+    updatedAt: integer("updated_at", { mode: "timestamp" })
+      .$defaultFn(() => new Date())
+      .notNull(),
+  },
+  (t) => [
+    index("idx_comment_target").on(t.targetType, t.targetId, t.createdAt),
+    index("idx_comment_author").on(t.authorId),
+  ]
+);
+
+// ─── Issue #111 D1: Custom Field Values ──────────────────────
+
+export const customFieldValues = sqliteTable(
+  "custom_field_values",
+  {
+    id: text("id").primaryKey(),
+    moduleId: text("module_id").notNull(),
+    fieldId:  text("field_id").notNull(),
+    targetType: text("target_type").notNull(),
+    targetId:   text("target_id").notNull(),
+    value: text("value", { mode: "json" }).$type<unknown>(),
+    updatedAt: integer("updated_at", { mode: "timestamp" })
+      .$defaultFn(() => new Date())
+      .notNull(),
+  },
+  (t) => [
+    unique("uniq_cfv").on(t.moduleId, t.fieldId, t.targetType, t.targetId),
+    index("idx_cfv_target").on(t.targetType, t.targetId),
+  ]
+);
+
+// ─── Issue #111 D2: Workflow state history ──────────────────
+
+export const workflowTransitions = sqliteTable(
+  "workflow_transitions",
+  {
+    id: text("id").primaryKey(),
+    targetType: text("target_type").notNull(),
+    targetId:   text("target_id").notNull(),
+    fromState:  text("from_state").notNull(),
+    toState:    text("to_state").notNull(),
+    performedBy: text("performed_by")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    performedAt: integer("performed_at", { mode: "timestamp" })
+      .$defaultFn(() => new Date())
+      .notNull(),
+  },
+  (t) => [
+    index("idx_wf_target").on(t.targetType, t.targetId, t.performedAt),
+  ]
+);

@@ -29,6 +29,10 @@ import { profileRoutes } from "../modules/profile/routes.js";
 import { rateLimit } from "./middleware/rate-limit.js";
 import { moduleAdminRoutes } from "./plugins/admin-routes.js";
 import { installModule } from "./plugins/loader.js";
+import { issueLinkRoutes } from "./plugins/links-routes.js";
+import { commentRoutes } from "./plugins/comments-routes.js";
+import { customFieldRoutes } from "./plugins/custom-fields-routes.js";
+import { dynamicInstallRoutes } from "./plugins/dynamic-loader.js";
 import exampleModule from "../modules-ext/example/server.js";
 import votingModule from "@ludiars/schedula-module-voting";
 import holidayModule from "@ludiars/schedula-module-holiday";
@@ -94,6 +98,14 @@ export function createApp() {
 
   // ─── Module Admin API (プラグインモジュール管理) ─────────────
   app.route("/api/admin", moduleAdminRoutes);
+
+  // Issue #111 D1 / D3 / D4 — plugin 拡張 REST API
+  app.route("/api/links",         issueLinkRoutes);
+  app.route("/api/comments",      commentRoutes);
+  app.route("/api/custom-fields", customFieldRoutes);
+
+  // Issue #111 D10 — 外部パッケージの動的インストール
+  dynamicInstallRoutes(app);
 
   // ─── Auth Routes (認証) — コア ──────────────────────────────
   app.route("/api/auth", auth);

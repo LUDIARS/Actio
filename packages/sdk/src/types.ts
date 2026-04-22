@@ -65,11 +65,31 @@ export interface UserIdentityApi {
   getMany(userIds: string[]): Promise<Map<string, UserIdentity>>;
 }
 
-/** ユーザーデータアクセス (Cernere project_data proxy) */
+/** ユーザーデータアクセス (Cernere project_data proxy).
+ *
+ *  ## Issue #111 S7 — cross-user アクセスの扱い
+ *  - `get/set/delete(userId, key)` 生 API はコア内部・バックグラウンド
+ *    ジョブ向け。プラグイン route からはなるべく **`ctx.userDataAs(callerId)`**
+ *    を使い、key 指定だけの `CallerScopedUserDataApi` で扱う。
+ *  - `ctx.userDataAs(callerId)` で返る API は `get/set/delete(key)` の
+ *    1 引数版で、**読み書き対象は callerId 固定** なので `?userId=...`
+ *    を URL から受け取ったコードがうっかり他人のデータを舐める事故を
+ *    構造的に防ぐ。
+ *  - それでも他人のデータを触る必要があるモジュールは引き続き
+ *    `ctx.userData.get(userId, key)` を直接呼べる (監査ログが残る).
+ */
 export interface UserDataApi {
   get<T = unknown>(userId: string, key: string): Promise<T | null>;
   set(userId: string, key: string, value: unknown): Promise<void>;
   delete(userId: string, key: string): Promise<void>;
+}
+
+/** Caller-scoped userData API (Issue #111 S7).
+ *  `ctx.userDataAs(callerId)` が返す形。targetId 引数を取らない. */
+export interface CallerScopedUserDataApi {
+  get<T = unknown>(key: string): Promise<T | null>;
+  set(key: string, value: unknown): Promise<void>;
+  delete(key: string): Promise<void>;
 }
 
 /** OAuth トークンストレージ (Cernere project_oauth_tokens proxy)
@@ -100,10 +120,62 @@ export interface OAuthTokenInput {
 }
 
 export interface OAuthApi {
+  /** @remarks 監査ログは ctx 側で強制記録される (Issue #111 S8). */
   store(userId: string, input: OAuthTokenInput): Promise<{ ok: true; provider: string }>;
   get(userId: string, provider: string): Promise<OAuthToken | null>;
   list(userId: string): Promise<OAuthToken[]>;
   delete(userId: string, provider: string): Promise<{ ok: true; deleted: boolean }>;
+}
+
+// ─── Plugin event bus (Issue #111 D5) ────────────────────────
+
+export type EventHandler<P = unknown> = (payload: P, source: string) => Promise<void> | void;
+
+/** プラグイン間 Event Bus. 発火元モジュールと購読モジュールは
+ *  互いに depends を明示する必要はない (緩結合 pub/sub). */
+export interface EventBusApi {
+  /** イベントを全購読者に配信. 例外は各購読で独立に catch する. */
+  emit<P = unknown>(topic: string, payload: P): Promise<void>;
+  /** 解除用 dispose 関数を返す. */
+  subscribe<P = unknown>(topic: string, handler: EventHandler<P>): () => void;
+}
+
+// ─── Custom fields (Issue #111 D1) ───────────────────────────
+
+export type CustomFieldType = "text" | "number" | "boolean" | "date" | "select" | "multi_select" | "json";
+
+export interface CustomFieldDefinition {
+  id:          string;            // module-scoped 内で一意
+  label:       string;            // UI 表示名
+  type:        CustomFieldType;
+  /** 付与対象 ("event" / "task" / "both"). */
+  target:      "event" | "task" | "both";
+  /** select / multi_select のとき候補. */
+  options?:    Array<{ value: string; label: string }>;
+  /** 必須か. */
+  required?:   boolean;
+  /** JSON 型の zod 等 (手動検証はホストでは呼ばない). */
+  description?: string;
+}
+
+// ─── Workflow (Issue #111 D2) ────────────────────────────────
+
+export interface WorkflowTransition {
+  from:      string;
+  to:        string;
+  /** この遷移に必要な role. 未指定なら誰でも. */
+  requireRole?: WsRequiredRole;
+}
+
+export interface WorkflowDefinition {
+  /** 対象 ("task" / "event"). */
+  target:      "event" | "task";
+  /** 状態一覧 ("open", "in_progress", "done" 等). */
+  states:      string[];
+  /** 初期状態. states に含まれる値であること. */
+  initial:     string;
+  /** 遷移定義. 列挙されていない遷移は禁止される. */
+  transitions: WorkflowTransition[];
 }
 
 /** WebSocket ブロードキャスト */
@@ -123,18 +195,65 @@ export interface SecretsApi {
 /** 監査ログ */
 export type AuditLogFn = (userId: string, action: string, detail: string) => void;
 
-/** Module 間呼び出し (依存宣言済みのみ) */
+/** Module 間呼び出し (依存宣言済みのみ — Issue #111 D5). */
 export interface ModulesApi {
+  /** `definition.depends[]` に含まれる module のみ呼び出し可能.
+   *  呼び出しは dispatcher を経由し、**呼び出し元 module を caller 扱い**
+   *  (system_admin role なので role gate は通過する). */
   invoke<T = unknown>(moduleId: string, command: string, payload: unknown): Promise<T>;
 }
 
-/** DB アクセス (モジュールのテーブル所有権を enforce) */
+/** DB アクセス (モジュールのテーブル所有権を enforce)
+ *
+ *  **ホスト側の実装要件 (Issue #111 S3 / Actio 2026-04-21 以降)**:
+ *  - `definition.tables` に宣言されたテーブル **以外**に対して
+ *    `select/insert/update/delete` が呼ばれた時点で throw する。
+ *  - `definition.tables` が空の場合は raw 経由の CRUD を全拒否する。
+ *  - SQL template (`sql\`...\``) は引き続き使える (検知困難なため)
+ *    が、本番では module 毎に読み取り専用 role を割り当てる方針
+ *    (Phase 2)。
+ *
+ *  モジュール作者は `db.select().from(myTable)` 等の Drizzle 通常 API
+ *  をそのまま使える。型としては unknown のまま — 具体化は受け側で。
+ */
 export interface DbApi {
-  /** Drizzle ORM instance (type は host に委ねる) */
   readonly raw: unknown;
 }
 
-/** 権限チェック用 ミドルウェア群 */
+/** WS コマンドに課せる認可ロール (Issue #111 S1). */
+export type WsRequiredRole =
+  | "system_admin"
+  | "group_owner"
+  | "group_leader"
+  | "group_member";
+
+/** WS コマンド宣言 — 認証/認可を宣言的に指定する.
+ *
+ *  既存の `WsCommandHandler` 直代入も引き続きサポート (後方互換):
+ *    - `wsCommands: { action: async (u,p,c) => ... }`            → 認証必須で扱う
+ *    - `wsCommands: { action: { handler, requireAuth: false } }` → 匿名許可 (ログイン画面前のコマンド等)
+ *    - `wsCommands: { action: { handler, requireRole: "system_admin" } }` → admin のみ
+ */
+export interface WsCommandDefinition<P = unknown, R = unknown> {
+  handler: WsCommandHandler<P, R>;
+  /** 既定 `true`. `false` にすると dispatcher が空/匿名 userId を通す. */
+  requireAuth?: boolean;
+  /** 必要ロール. 指定時は userRole が一致しないと dispatcher が reject する. */
+  requireRole?: WsRequiredRole;
+}
+
+export type WsCommandEntry<P = unknown, R = unknown> =
+  | WsCommandHandler<P, R>
+  | WsCommandDefinition<P, R>;
+
+/** 権限チェック用 ミドルウェア群 (Issue #111 D7 で host 側実装済).
+ *
+ *  どちらも Hono の `MiddlewareHandler` として使える. 例:
+ *  ```ts
+ *  app.use("/admin/*", ctx.permissions.requireSystemAdmin());
+ *  app.use("/groups/:groupId/manage", ctx.permissions.requireGroupRole("leader"));
+ *  ```
+ */
 export interface PermissionsApi {
   requireSystemAdmin(): (c: unknown, next: () => Promise<unknown>) => Promise<unknown>;
   requireGroupRole(
@@ -147,11 +266,16 @@ export interface ModuleContext {
   readonly moduleId: string;
   /** ユーザー識別 (name, email, role) */
   readonly users: UserIdentityApi;
-  /** ユーザーデータ (Cernere proxy) */
+  /** ユーザーデータ (Cernere proxy) — 生 API.
+   *  プラグイン route からは `userDataAs(callerId)` の利用を強く推奨 (S7). */
   readonly userData: UserDataApi;
-  /** OAuth トークン (Cernere proxy) */
+  /** Caller-scoped userData API ファクトリ (Issue #111 S7).
+   *  callerId を閉じ込めた UserDataApi を返す。`get("pref")` のような
+   *  key だけのシグネチャで他人の userData を渡す事故を防ぐ. */
+  readonly userDataAs: (callerId: string) => CallerScopedUserDataApi;
+  /** OAuth トークン (Cernere proxy; 監査ログは強制, Issue #111 S8) */
   readonly oauth: OAuthApi;
-  /** DB */
+  /** DB (Issue #111 S3 で module-scoped proxy) */
   readonly db: DbApi;
   /** WS */
   readonly ws: WsApi;
@@ -159,9 +283,11 @@ export interface ModuleContext {
   readonly secrets: SecretsApi;
   /** 監査ログ */
   readonly audit: AuditLogFn;
-  /** 他モジュール呼び出し */
+  /** 他モジュール呼び出し (Issue #111 D5) */
   readonly modules: ModulesApi;
-  /** 権限 */
+  /** プラグイン間 Event Bus (Issue #111 D5) */
+  readonly events: EventBusApi;
+  /** 権限 (Issue #111 D7 で Hono middleware 実装済) */
   readonly permissions: PermissionsApi;
 }
 
@@ -195,8 +321,15 @@ export interface ModuleDefinition extends ModuleManifest, Lifecycle {
   /** REST routes (`/api/{basePath}` にマウント) */
   basePath?: string;
   routes?: RoutesFactory;
-  /** WS commands (module 名は this.id で固定、action のみ指定) */
-  wsCommands?: Record<string, WsCommandHandler>;
+  /** WS commands (module 名は this.id で固定、action のみ指定).
+   *
+   *  値は bare handler もしくは `WsCommandDefinition` を受け付ける
+   *  (Issue #111 S1: requireAuth / requireRole の宣言的制御). */
+  wsCommands?: Record<string, WsCommandEntry>;
+  /** Custom fields (Issue #111 D1). */
+  customFields?: Record<string, CustomFieldDefinition>;
+  /** Workflow / state machine (Issue #111 D2). */
+  workflow?: WorkflowDefinition;
   /** フロントエンド module federation remote entry のパス (relative to package root) */
   client?: {
     remoteEntry: string;

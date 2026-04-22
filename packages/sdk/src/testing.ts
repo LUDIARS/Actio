@@ -134,10 +134,22 @@ export function createMockContext(opts: MockContextOptions = {}): ModuleContext 
 
   const db: DbApi = { raw: opts.db };
 
+  // Issue #111 S7 / D5 — new context members for the mock.
+  const userDataAs = (callerId: string) => ({
+    get: <T = unknown>(k: string) => userData.get<T>(callerId, k),
+    set: (k: string, v: unknown) => userData.set(callerId, k, v),
+    delete: (k: string) => userData.delete(callerId, k),
+  });
+  const events = {
+    async emit() { /* no-op */ },
+    subscribe() { return () => { /* no-op */ }; },
+  };
+
   return {
     moduleId,
     users,
     userData,
+    userDataAs,
     oauth,
     db,
     ws,
@@ -146,6 +158,7 @@ export function createMockContext(opts: MockContextOptions = {}): ModuleContext 
       /* no-op */
     },
     modules,
+    events,
     permissions,
   };
 }

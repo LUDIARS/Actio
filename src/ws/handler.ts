@@ -142,7 +142,12 @@ export function setupWebSocket(app: Hono) {
               }
 
               try {
-                const result = await dispatch(msg.module, msg.action, userId, msg.payload);
+                const result = await dispatch(
+                  msg.module,
+                  msg.action,
+                  { userId: userId ?? "", userRole: userRole ?? "general" },
+                  msg.payload,
+                );
                 ws.send(JSON.stringify({
                   type: "module_response",
                   module: msg.module,
@@ -150,9 +155,16 @@ export function setupWebSocket(app: Hono) {
                   payload: result,
                 }));
               } catch (err) {
+                // DispatcherAuthError は auth_required / forbidden に
+                // マップして返す (S1 の宣言的 gate を WS レスポンスへ反映).
+                const isAuthErr = err !== null && typeof err === "object"
+                  && (err as { name?: string }).name === "DispatcherAuthError";
+                const code = isAuthErr
+                  ? ((err as { code?: string }).code ?? "auth_required")
+                  : "command_error";
                 ws.send(JSON.stringify({
                   type: "error",
-                  code: "command_error",
+                  code,
                   message: err instanceof Error ? err.message : "Unknown error",
                 }));
               }
