@@ -29,4 +29,10 @@ injectWebSocket(server);
 // ─── Cernere Composite ──────────────────────────────────────
 initComposite();
 
+// ─── Peer Service Adapter (backend-to-backend WS via Cernere) ─
+import { initServiceAdapter } from "./service-adapter.js";
+void initServiceAdapter().catch((err) => {
+  console.warn("[actio-sa] peer adapter 起動失敗 (user-facing API は継続):", err);
+});
+
 export { app };
