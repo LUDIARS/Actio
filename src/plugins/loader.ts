@@ -27,7 +27,7 @@ import {
   moduleStateRepo,
 } from "./repository.js";
 import { buildModuleContext, buildModuleContextFromDef } from "./context.js";
-import { registerCommandEntry } from "../ws/dispatcher.js";
+import { registerCommandEntry, unregisterCommandsForModule } from "../ws/dispatcher.js";
 import {
   HOST_SCHEDULA_API_VERSION,
   satisfiesSemverRange,
@@ -357,6 +357,13 @@ function extractUserId(c: import("hono").Context): string | null {
 
 export function moduleGateForScope(def: ModuleDefinition) {
   return async (c: import("hono").Context, next: () => Promise<void>) => {
+    // (0) uninstall 後のゾンビルート保護. `uninstallModule()` は registry
+    //     から外すが、Hono は mount を取り消せないのでルートそのものは
+    //     残る. ここで registry 失効を検出して 503 で shed する.
+    if (!moduleRegistry.has(def.id)) {
+      return c.json({ error: `Module ${def.id} is not installed` }, 503);
+    }
+
     // (1) global
     if (!(await isEnabled(def.id, "global", null))) {
       return c.json({ error: `Module ${def.id} is disabled` }, 503);
@@ -442,9 +449,14 @@ export async function uninstallModule(moduleId: string): Promise<void> {
   try { await mod.definition.onUninstall?.(ctx); }
   catch (err) { console.warn(`[plugin ${moduleId}] onUninstall threw:`, err); }
 
+  // レジストリとサブシステムから除去. Hono の `app.route()` で一度マウント
+  // された REST ルートは解除できないが、`moduleGateForScope` が registry 失
+  // 効を検出して 503 を返すので、プラグインが抜けた後のエンドポイントは
+  // fail-closed する (= 呼び出しはエラー).
   moduleRegistry.unregister(moduleId);
   customFieldRegistry.unregister(moduleId);
   workflowRegistry.unregister(moduleId);
+  unregisterCommandsForModule(moduleId);
   releaseBasePath(mod.definition.basePath);
 }
 

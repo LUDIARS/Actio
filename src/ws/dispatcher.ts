@@ -67,6 +67,15 @@ export function registerCommandEntry(
 }
 
 /**
+ * 指定 module のハンドラ全件を unregister する。`uninstallModule()` から
+ * 呼ばれ、Actio 稼働中にプラグインを外した後に同じ action が残存して
+ * しまう (= ゾンビハンドラ) 問題を防ぐ。
+ */
+export function unregisterCommandsForModule(module: string): void {
+  handlers.delete(module);
+}
+
+/**
  * 全ハンドラを消去 (テスト専用). production コードからは呼ばない。
  */
 export function __clearCommandsForTest(): void {
