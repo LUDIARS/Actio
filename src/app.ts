@@ -40,6 +40,7 @@ import myplanModule from "@ludiars/schedula-module-myplan";
 import smartSchedulerModule from "@ludiars/schedula-module-smart-scheduler";
 import schoolModule from "@ludiars/schedula-module-school";
 import integrationsModule from "@ludiars/schedula-module-integrations";
+import cocoiruModule from "@ludiars/schedula-module-cocoiru";
 
 export function createApp() {
   const app = new Hono();
@@ -171,6 +172,10 @@ export function createApp() {
   });
   installModule(app, integrationsModule, {
     packageName: "@ludiars/schedula-module-integrations",
+    packageVersion: "0.1.0",
+  });
+  installModule(app, cocoiruModule, {
+    packageName: "@ludiars/schedula-module-cocoiru",
     packageVersion: "0.1.0",
   });
 
