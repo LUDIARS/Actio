@@ -26,6 +26,15 @@ import type {
   SyncLog, NotionPage,
   CoreTask, CreateTaskInput, UpdateTaskInput,
   TaskResponse, TaskListResponse, TaskPluginListResponse,
+  CocoiruOptInResponse,
+  CocoiruReportListResponse,
+  CocoiruReportCreateResponse,
+  CocoiruVisitListResponse,
+  CocoiruVisitCreateResponse,
+  CocoiruFloorMapListResponse,
+  CocoiruScheduleLinkListResponse,
+  CocoiruScheduleLinkCreateResponse,
+  CocoiruReportSource,
 } from "./api-types";
 
 // ─── Session Management ────────────────────────────────────
@@ -1573,3 +1582,122 @@ export const tasksApi = {
 };
 
 export type { CoreTask };
+
+// ─── Cocoiru ───────────────────────────────────────────────
+
+export const cocoiruApi = {
+  // opt-in
+  getOptIn() {
+    return request<CocoiruOptInResponse>("/api/cocoiru/opt-in");
+  },
+  setOptIn(body: {
+    optIn: boolean;
+    defaultTtlSeconds?: number;
+    defaultVisibility?: "group";
+  }) {
+    return request<{ ok: boolean }>("/api/cocoiru/opt-in", {
+      method: "PUT",
+      body: JSON.stringify(body),
+    });
+  },
+
+  // reports
+  listReports() {
+    return request<CocoiruReportListResponse>("/api/cocoiru/reports");
+  },
+  postReport(body: {
+    source: CocoiruReportSource;
+    ssid?: string;
+    latitude?: number;
+    longitude?: number;
+    floorLabel?: string;
+    buildingLabel?: string;
+    comment?: string;
+    ttlSeconds?: number;
+  }) {
+    return request<CocoiruReportCreateResponse>("/api/cocoiru/reports", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  },
+  withdrawReport(id: string) {
+    return request<{ ok: boolean }>(`/api/cocoiru/reports/${id}`, {
+      method: "DELETE",
+    });
+  },
+
+  // visits
+  listVisits() {
+    return request<CocoiruVisitListResponse>("/api/cocoiru/visits");
+  },
+  postVisit(body: {
+    floorLabel?: string;
+    buildingLabel?: string;
+    startsAt: string;
+    endsAt: string;
+    comment?: string;
+  }) {
+    return request<CocoiruVisitCreateResponse>("/api/cocoiru/visits", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  },
+  cancelVisit(id: string) {
+    return request<{ ok: boolean }>(`/api/cocoiru/visits/${id}`, {
+      method: "DELETE",
+    });
+  },
+
+  // floor-map (admin)
+  listFloorMap() {
+    return request<CocoiruFloorMapListResponse>("/api/cocoiru/floor-map");
+  },
+  putFloorMap(entries: Array<{
+    ssidPattern: string;
+    floorLabel: string;
+    buildingLabel?: string;
+    sortOrder?: number;
+  }>) {
+    return request<{ ok: boolean; count: number }>("/api/cocoiru/floor-map", {
+      method: "PUT",
+      body: JSON.stringify({ entries }),
+    });
+  },
+
+  // schedule links (Phase 2.0)
+  listScheduleLinks() {
+    return request<CocoiruScheduleLinkListResponse>("/api/cocoiru/schedule-links");
+  },
+  createScheduleLink(body: {
+    myplanId: string;
+    day: number;
+    period: number;
+    floorLabel: string;
+    buildingLabel?: string;
+    commentTemplate?: string;
+    autoEmit?: boolean;
+    ttlSeconds?: number;
+  }) {
+    return request<CocoiruScheduleLinkCreateResponse>("/api/cocoiru/schedule-links", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  },
+  updateScheduleLink(id: string, body: {
+    floorLabel?: string;
+    buildingLabel?: string | null;
+    commentTemplate?: string;
+    autoEmit?: boolean;
+    ttlSeconds?: number | null;
+  }) {
+    return request<{ ok: boolean }>(`/api/cocoiru/schedule-links/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(body),
+    });
+  },
+  deleteScheduleLink(id: string) {
+    return request<{ ok: boolean }>(`/api/cocoiru/schedule-links/${id}`, {
+      method: "DELETE",
+    });
+  },
+};

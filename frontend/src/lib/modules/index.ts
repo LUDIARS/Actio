@@ -20,6 +20,7 @@ import { machinaModule } from "./machina";
 import { notificationModule } from "./notification";
 import { integrationModule } from "./integration";
 import { adminModule } from "./admin";
+import { cocoiruModule } from "./cocoiru";
 
 let registered = false;
 
@@ -38,4 +39,5 @@ export function registerAllModules(): void {
   moduleRegistry.registerModule(notificationModule);
   moduleRegistry.registerModule(integrationModule);
   moduleRegistry.registerModule(adminModule);
+  moduleRegistry.registerModule(cocoiruModule);
 }

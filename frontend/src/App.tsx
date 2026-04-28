@@ -30,6 +30,7 @@ import { PMDashboardPage } from "./pages/PMDashboardPage";
 import { PMProjectPage } from "./pages/PMProjectPage";
 import { PMAnalyticsPage } from "./pages/PMAnalyticsPage";
 import { ModuleManagementPage } from "./pages/ModuleManagementPage";
+import { CocoiruPage } from "./pages/CocoiruPage";
 import { setupApi } from "./lib/api";
 import { registerAllModules } from "./lib/modules";
 import "./global.css";
@@ -79,6 +80,7 @@ function AppRoutes() {
         <Route path="/reservations/new" element={<FacilityBookingPage />} />
         <Route path="/notifications" element={<NotificationsPage />} />
         <Route path="/voting" element={<VotingPage />} />
+        <Route path="/cocoiru" element={<CocoiruPage />} />
         <Route path="/machina" element={<MachinaPage />} />
         <Route path="/calendar" element={<CalendarPage />} />
         <Route path="/tasks" element={<TasksPage />} />
