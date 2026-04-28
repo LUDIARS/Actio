@@ -1115,6 +1115,27 @@ export async function createConnectionWithRetry() {
 
   // 新規テーブルの自動作成 (migrate.ts を手動実行しなくても動くように)
   try {
+    // users は他多数テーブルから FK 参照されるので最初に。
+    // 個人データ (name/email/role/auth) は legacy として残置のみ。新規コード読み書き禁止。
+    await client`
+      CREATE TABLE IF NOT EXISTS users (
+        id TEXT PRIMARY KEY,
+        major TEXT,
+        calendar_access_id TEXT,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        name TEXT,
+        email TEXT UNIQUE,
+        role TEXT DEFAULT 'general',
+        password_hash TEXT,
+        google_id TEXT UNIQUE,
+        google_access_token TEXT,
+        google_refresh_token TEXT,
+        google_token_expires_at BIGINT,
+        google_scopes JSONB,
+        last_login_at TIMESTAMP
+      )
+    `;
     await client`
       CREATE TABLE IF NOT EXISTS terms (
         id TEXT PRIMARY KEY,

@@ -67,14 +67,19 @@ compositeAuthRoutes.get("/login-url", (c) => {
 
 compositeAuthRoutes.post("/exchange", async (c) => {
   if (!isCompositeEnabled()) {
+    console.log(`[trace:actio-exchange] composite not configured`);
     return c.json({ error: "Cernere Composite is not configured" }, 503);
   }
   const body = await c.req.json<{ authCode: string }>();
+  const codeMask = body.authCode ? `${body.authCode.slice(0, 8)}…(${body.authCode.length})` : "(none)";
   if (!body.authCode) {
+    console.log(`[trace:actio-exchange] missing authCode`);
     return c.json({ error: "authCode is required" }, 400);
   }
+  console.log(`[trace:actio-exchange] step=incoming code=${codeMask}`);
   try {
     const result = await exchangeAuthCode(body.authCode);
+    console.log(`[trace:actio-exchange] step=cernere-ok userId=${result.user.id} hasServiceToken=${!!result.serviceToken}`);
     await ensureLocalUser(result.user.id);
     // Redis にセッションユーザー情報をキャッシュ
     await saveSessionUser({
@@ -85,9 +90,11 @@ compositeAuthRoutes.post("/exchange", async (c) => {
     });
     // HttpOnly Cookie にトークンを保存 (XSS対策)
     setTokenCookie(c, result.serviceToken);
+    console.log(`[trace:actio-exchange] step=done userId=${result.user.id}`);
     return c.json({ user: result.user });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Exchange failed";
+    console.log(`[trace:actio-exchange] step=error code=${codeMask} message=${message}`);
     return c.json({ error: message }, 401);
   }
 });

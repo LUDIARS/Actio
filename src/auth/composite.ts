@@ -49,14 +49,19 @@ export function getLoginUrl(origin: string): string | null {
 export async function exchangeAuthCode(authCode: string): Promise<ExchangeResult> {
   if (!cernereUrl) throw new Error("Cernere Composite is not configured");
 
-  const res = await fetch(`${cernereUrl}/api/auth/exchange`, {
+  const codeMask = `${authCode.slice(0, 8)}…(${authCode.length})`;
+  const url = `${cernereUrl}/api/auth/exchange`;
+  console.log(`[trace:cernere-exchange] step=request url=${url} code=${codeMask}`);
+  const res = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ code: authCode }),
   });
+  console.log(`[trace:cernere-exchange] step=response status=${res.status} ok=${res.ok}`);
 
   if (!res.ok) {
     const body = await res.text().catch(() => "");
+    console.log(`[trace:cernere-exchange] step=error status=${res.status} body=${body.slice(0, 200)}`);
     throw new Error(`Cernere exchange failed: ${res.status} ${body}`);
   }
 
@@ -65,6 +70,7 @@ export async function exchangeAuthCode(authCode: string): Promise<ExchangeResult
     refreshToken: string;
     user: CernereUser;
   };
+  console.log(`[trace:cernere-exchange] step=parsed userId=${data.user?.id ?? "(none)"} hasAccessToken=${!!data.accessToken} hasRefreshToken=${!!data.refreshToken}`);
 
   const serviceToken = await issueServiceToken(data.user);
   return { serviceToken, user: data.user };
