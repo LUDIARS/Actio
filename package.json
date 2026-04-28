@@ -60,6 +60,7 @@
     "@ludiars/schedula-module-smart-scheduler": "^0.1.0",
     "@ludiars/schedula-module-school": "^0.1.0",
     "@ludiars/schedula-module-integrations": "^0.1.0",
+    "@ludiars/schedula-module-cocoiru": "^0.1.0",
     "bcryptjs": "^3.0.3",
     "better-sqlite3": "^12.8.0",
     "csv-parse": "^6.1.0",
