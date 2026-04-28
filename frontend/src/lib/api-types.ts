@@ -1164,6 +1164,8 @@ export interface CocoiruOptInResponse {
 export interface CocoiruReport {
   id: string;
   userId: string;
+  /** Cernere 解決後の表示名。未解決時は `user-XXXXXXXX` の placeholder。 */
+  userName?: string;
   source: CocoiruReportSource;
   floorLabel: string | null;
   buildingLabel: string | null;
@@ -1172,6 +1174,21 @@ export interface CocoiruReport {
   comment: string;
   startedAt: string;
   expiresAt: string;
+}
+
+export interface CocoiruReportChangedEvent {
+  type: "added" | "removed";
+  report: {
+    id: string;
+    userId: string;
+    userName?: string;
+    source?: CocoiruReportSource;
+    floorLabel?: string | null;
+    buildingLabel?: string | null;
+    comment?: string;
+    startedAt?: string;
+    expiresAt?: string;
+  };
 }
 
 export interface CocoiruReportListResponse {
