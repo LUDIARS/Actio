@@ -10,11 +10,13 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { useAuth } from "../contexts/AuthContext";
 import { cocoiruApi } from "../lib/api";
+import { wsClient } from "../lib/ws-client";
 import type {
   CocoiruReport,
   CocoiruFloorMapEntry,
   CocoiruReportSource,
 } from "../lib/api-types";
+import { useWsEvent } from "../hooks/useWsEvent";
 
 type Source = CocoiruReportSource;
 
@@ -97,9 +99,39 @@ export function CocoiruPage() {
 
   useEffect(() => {
     void loadAll();
-    const interval = setInterval(loadAll, 30_000);
+    // WS push が来ない環境 (network glitch / WS 未接続) のため 5 分の保険
+    // ポーリングを残す。WS が動いていればここで loadAll しても差分は出ない
+    const interval = setInterval(loadAll, 5 * 60_000);
     return () => clearInterval(interval);
   }, [loadAll]);
+
+  // 接続後に subscribe_presence を 1 回送る (snapshot は loadAll で既に取得済み)
+  useEffect(() => {
+    void wsClient
+      .sendCommand("cocoiru", "subscribe_presence", {})
+      .catch(() => {
+        // 未接続 / タイムアウトは無視 (5 分の保険ポーリングが拾う)
+      });
+  }, []);
+
+  // 他クライアントの broadcast 投稿/撤回をリアルタイムで反映
+  useWsEvent("cocoiru.report_changed", (payload) => {
+    const evt = payload as unknown as {
+      type: "added" | "removed";
+      report: Partial<CocoiruReport> & { id: string; userId: string };
+    };
+    if (evt.type === "removed") {
+      setReports((prev) => prev.filter((r) => r.id !== evt.report.id));
+      return;
+    }
+    if (evt.type === "added") {
+      const incoming = evt.report as CocoiruReport;
+      setReports((prev) => {
+        if (prev.some((r) => r.id === incoming.id)) return prev;
+        return [incoming, ...prev];
+      });
+    }
+  });
 
   // ─── opt-in ───────────────────────────────────────────
   const toggleOptIn = async (next: boolean) => {
@@ -344,7 +376,7 @@ export function CocoiruPage() {
                     {r.floorLabel ?? "(不明)"}
                   </span>
                   <span style={{ color: "var(--text-muted)", fontSize: "0.9rem" }}>
-                    user-{r.userId.slice(0, 8)}
+                    {r.userName ?? `user-${r.userId.slice(0, 8)}`}
                   </span>
                   {r.comment && (
                     <span style={{ color: "var(--text)", fontSize: "0.9rem" }}>
