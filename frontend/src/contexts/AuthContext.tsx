@@ -25,7 +25,14 @@ const AuthContext = createContext<AuthContextType | null>(null);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(getStoredUser);
   const [wsConnected, setWsConnected] = useState(false);
-  const [loading, setLoading] = useState(() => !!getStoredUser());
+  // 初期 loading は「保存済セッションあり」OR「URL に ?code= がある」(Cernere からの open_url 着地)
+  // のとき true。loading=false で AppRoutes が描画されると RequireAuth が
+  // /login へ Navigate replace してしまい、?code= が URL から消える。
+  const [loading, setLoading] = useState(() => {
+    if (getStoredUser()) return true;
+    const params = new URLSearchParams(window.location.search);
+    return params.has("code");
+  });
 
   // WS 接続 — Cookie から短期トークンを取得してWS URLに埋め込む
   const connectWs = useCallback(async () => {
@@ -68,8 +75,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return unsubscribe;
   }, []);
 
-  // 初期化: 保存済みトークンでセッション検証
+  // 初期化: 保存済みトークン or URL ?code= (Cernere からの open_url リダイレクト) でセッション確立
   useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const incomingCode = params.get("code");
+
+    // Cernere の open_url 経由で来た場合は authCode 交換を最優先
+    if (incomingCode) {
+      const codeMask = `${incomingCode.slice(0, 8)}…(${incomingCode.length})`;
+      console.log(`[AuthContext] incoming ?code= detected: ${codeMask}`);
+
+      // URL から code を消す (履歴・他ブックマーク用)
+      params.delete("code");
+      const cleanQuery = params.toString();
+      const cleanUrl = window.location.pathname + (cleanQuery ? `?${cleanQuery}` : "") + window.location.hash;
+      window.history.replaceState({}, "", cleanUrl);
+
+      completeLogin(incomingCode)
+        .then(() => console.log(`[AuthContext] code exchange ok`))
+        .catch((err) => {
+          console.warn("[AuthContext] code 交換失敗:", (err as Error).message);
+          // 失敗時は既存セッション (もしあれば) で再開を試みる
+        })
+        .finally(() => setLoading(false));
+      return;
+    }
+
     const stored = getStoredUser();
     if (!stored) {
       setLoading(false);
@@ -87,6 +118,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser(null);
       })
       .finally(() => setLoading(false));
+    // completeLogin は useCallback で stable. dep 配列空でよい。
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   /**
