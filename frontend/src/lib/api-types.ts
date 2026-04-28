@@ -1149,3 +1149,91 @@ export interface TaskPluginInfo {
 export interface TaskPluginListResponse {
   plugins: TaskPluginInfo[];
 }
+
+// ─── Cocoiru ────────────────────────────────────────────────────
+
+export type CocoiruReportSource = "wifi" | "gps" | "manual" | "schedule";
+
+export interface CocoiruOptInResponse {
+  optIn: boolean;
+  defaultTtlSeconds: number;
+  defaultVisibility: "group";
+  updatedAt: string | null;
+}
+
+export interface CocoiruReport {
+  id: string;
+  userId: string;
+  source: CocoiruReportSource;
+  floorLabel: string | null;
+  buildingLabel: string | null;
+  latitude: string | null;
+  longitude: string | null;
+  comment: string;
+  startedAt: string;
+  expiresAt: string;
+}
+
+export interface CocoiruReportListResponse {
+  reports: CocoiruReport[];
+}
+
+export interface CocoiruReportCreateResponse {
+  id: string;
+  expiresAt: string;
+}
+
+export interface CocoiruVisit {
+  id: string;
+  userId: string;
+  floorLabel: string | null;
+  buildingLabel: string | null;
+  startsAt: string;
+  endsAt: string;
+  comment: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CocoiruVisitListResponse {
+  visits: CocoiruVisit[];
+}
+
+export interface CocoiruVisitCreateResponse {
+  id: string;
+}
+
+export interface CocoiruFloorMapEntry {
+  id: string;
+  ssidPattern: string;
+  floorLabel: string;
+  buildingLabel: string | null;
+  sortOrder: number;
+}
+
+export interface CocoiruFloorMapListResponse {
+  entries: CocoiruFloorMapEntry[];
+}
+
+export interface CocoiruScheduleLink {
+  id: string;
+  userId: string;
+  myplanId: string;
+  day: number;
+  period: number;
+  floorLabel: string;
+  buildingLabel: string | null;
+  commentTemplate: string;
+  autoEmit: number;
+  ttlSeconds: number | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CocoiruScheduleLinkListResponse {
+  links: CocoiruScheduleLink[];
+}
+
+export interface CocoiruScheduleLinkCreateResponse {
+  id: string;
+}
