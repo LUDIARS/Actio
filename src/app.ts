@@ -10,6 +10,7 @@ import { groupRoutes } from "../modules/group/routes.js";
 import { calendar } from "../modules/calendar/routes.js";
 import { eventRoutes } from "../modules/event/routes.js";
 import { taskRoutes } from "../modules/task/routes.js";
+import { placementRoutes } from "../modules/placement/routes.js";
 // myPlan / smart-scheduler / school / schedule(m1) / integrations は SDK module に移行
 import { pmModule } from "../modules/pm/index.js";
 import { dbViewer } from "./admin/db-viewer.js";
@@ -153,6 +154,11 @@ export function createApp() {
 
   // ─── Core: Calendar (Google Calendar + 手動予定 + プラン) ────
   app.route("/api/calendar", calendar);
+
+  // ─── Module: Placement (GPS 場所登録 + enter/leave トリガー) ──
+  // Imperativus が OwnTracks 経由で受信した位置を /api/placement/locations
+  // に POST して、 ここで place 比較 + hook 発火する。
+  app.route("/api/placement", placementRoutes);
 
   // ─── SDK module 経由: MyPlan / Smart-Scheduler / School / Integrations / Holiday / Voting ──
 

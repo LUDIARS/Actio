@@ -246,6 +246,52 @@ export function createConnection(): { db: ReturnType<typeof drizzle>; sqlite: Sq
   try { sqlite.exec(`ALTER TABLE group_schedules ADD COLUMN label TEXT`); } catch { /* already exists */ }
   try { sqlite.exec(`ALTER TABLE curricula ADD COLUMN term_id TEXT REFERENCES terms(id)`); } catch { /* already exists */ }
 
+  // ─── Placement Module (GPS 場所登録 + enter/leave トリガー) ──
+  sqlite.exec(`
+    CREATE TABLE IF NOT EXISTS places (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      name TEXT NOT NULL,
+      lat REAL NOT NULL,
+      lon REAL NOT NULL,
+      radius_m INTEGER NOT NULL DEFAULT 100,
+      created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+      updated_at INTEGER NOT NULL DEFAULT (unixepoch())
+    );
+    CREATE INDEX IF NOT EXISTS idx_places_user ON places(user_id);
+
+    CREATE TABLE IF NOT EXISTS place_visits (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      place_id TEXT NOT NULL REFERENCES places(id) ON DELETE CASCADE,
+      entered_at INTEGER NOT NULL,
+      left_at INTEGER
+    );
+    CREATE INDEX IF NOT EXISTS idx_place_visits_user_entered
+      ON place_visits(user_id, entered_at);
+
+    CREATE TABLE IF NOT EXISTS place_hooks (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      place_id TEXT NOT NULL REFERENCES places(id) ON DELETE CASCADE,
+      event TEXT NOT NULL CHECK (event IN ('enter','leave')),
+      action_type TEXT NOT NULL,
+      action_config TEXT NOT NULL DEFAULT '{}',
+      enabled INTEGER NOT NULL DEFAULT 1,
+      created_at INTEGER NOT NULL DEFAULT (unixepoch())
+    );
+    CREATE INDEX IF NOT EXISTS idx_place_hooks_place ON place_hooks(place_id);
+
+    CREATE TABLE IF NOT EXISTS placement_state (
+      user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+      current_place_id TEXT REFERENCES places(id) ON DELETE SET NULL,
+      last_lat REAL,
+      last_lon REAL,
+      last_seen_at INTEGER,
+      updated_at INTEGER NOT NULL DEFAULT (unixepoch())
+    );
+  `);
+
   const db = drizzle(sqlite, {
     schema: { ...schema, ...curriculumSchema },
   });
