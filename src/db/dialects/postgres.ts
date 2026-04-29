@@ -6,6 +6,7 @@ import {
   boolean,
   timestamp,
   jsonb,
+  doublePrecision,
   unique,
   index,
 } from "drizzle-orm/pg-core";
@@ -932,6 +933,78 @@ export const userProjectRoles = pgTable(
   ]
 );
 
+// ─── Placement Module (GPS 場所登録 + enter/leave トリガー) ──
+// 端末位置 (Imperativus → Actio) を Place (lat/lon/radius) と照合して
+// enter/leave を検知し、 hook で外部に通知する。 個人データ非保管。
+
+export const places = pgTable(
+  "places",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    lat: doublePrecision("lat").notNull(),
+    lon: doublePrecision("lon").notNull(),
+    radiusM: integer("radius_m").notNull().default(100),
+    createdAt: timestamp("created_at").$defaultFn(() => new Date()).notNull(),
+    updatedAt: timestamp("updated_at").$defaultFn(() => new Date()).notNull(),
+  },
+  (t) => [index("idx_places_user").on(t.userId)],
+);
+
+export const placeVisits = pgTable(
+  "place_visits",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    placeId: text("place_id")
+      .notNull()
+      .references(() => places.id, { onDelete: "cascade" }),
+    enteredAt: timestamp("entered_at").notNull(),
+    leftAt: timestamp("left_at"),
+  },
+  (t) => [index("idx_place_visits_user_entered").on(t.userId, t.enteredAt)],
+);
+
+export const placeHooks = pgTable(
+  "place_hooks",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    placeId: text("place_id")
+      .notNull()
+      .references(() => places.id, { onDelete: "cascade" }),
+    event: text("event", { enum: ["enter", "leave"] }).notNull(),
+    actionType: text("action_type").notNull(),
+    actionConfig: jsonb("action_config")
+      .$type<Record<string, unknown>>()
+      .notNull()
+      .default({}),
+    enabled: boolean("enabled").notNull().default(true),
+    createdAt: timestamp("created_at").$defaultFn(() => new Date()).notNull(),
+  },
+  (t) => [index("idx_place_hooks_place").on(t.placeId)],
+);
+
+export const placementState = pgTable("placement_state", {
+  userId: text("user_id")
+    .primaryKey()
+    .references(() => users.id, { onDelete: "cascade" }),
+  currentPlaceId: text("current_place_id").references(() => places.id, {
+    onDelete: "set null",
+  }),
+  lastLat: doublePrecision("last_lat"),
+  lastLon: doublePrecision("last_lon"),
+  lastSeenAt: timestamp("last_seen_at"),
+  updatedAt: timestamp("updated_at").$defaultFn(() => new Date()).notNull(),
+});
+
 // ─── Schema Exports ──────────────────────────────────────────
 
 export const schema = {
@@ -971,6 +1044,10 @@ export const schema = {
   machinaChannelMonitors,
   machinaTasks,
   machinaTaskLogs,
+  places,
+  placeVisits,
+  placeHooks,
+  placementState,
 };
 
 export const curriculumSchema = {
@@ -1599,6 +1676,57 @@ export async function createConnectionWithRetry() {
       )
     `;
     await client`CREATE INDEX IF NOT EXISTS idx_machina_log_task ON machina_task_logs(task_id)`;
+
+    // ─── Placement Module ──────────────────────────────────
+    await client`
+      CREATE TABLE IF NOT EXISTS places (
+        id          TEXT PRIMARY KEY,
+        user_id     TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        name        TEXT NOT NULL,
+        lat         DOUBLE PRECISION NOT NULL,
+        lon         DOUBLE PRECISION NOT NULL,
+        radius_m    INTEGER NOT NULL DEFAULT 100,
+        created_at  TIMESTAMP NOT NULL DEFAULT NOW(),
+        updated_at  TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `;
+    await client`CREATE INDEX IF NOT EXISTS idx_places_user ON places(user_id)`;
+
+    await client`
+      CREATE TABLE IF NOT EXISTS place_visits (
+        id          TEXT PRIMARY KEY,
+        user_id     TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        place_id    TEXT NOT NULL REFERENCES places(id) ON DELETE CASCADE,
+        entered_at  TIMESTAMP NOT NULL,
+        left_at     TIMESTAMP
+      )
+    `;
+    await client`CREATE INDEX IF NOT EXISTS idx_place_visits_user_entered ON place_visits(user_id, entered_at DESC)`;
+
+    await client`
+      CREATE TABLE IF NOT EXISTS place_hooks (
+        id             TEXT PRIMARY KEY,
+        user_id        TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        place_id       TEXT NOT NULL REFERENCES places(id) ON DELETE CASCADE,
+        event          TEXT NOT NULL CHECK (event IN ('enter','leave')),
+        action_type    TEXT NOT NULL,
+        action_config  JSONB NOT NULL DEFAULT '{}',
+        enabled        BOOLEAN NOT NULL DEFAULT TRUE,
+        created_at     TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `;
+    await client`CREATE INDEX IF NOT EXISTS idx_place_hooks_place ON place_hooks(place_id)`;
+
+    await client`
+      CREATE TABLE IF NOT EXISTS placement_state (
+        user_id           TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+        current_place_id  TEXT REFERENCES places(id) ON DELETE SET NULL,
+        last_lat          DOUBLE PRECISION,
+        last_lon          DOUBLE PRECISION,
+        last_seen_at      TIMESTAMP,
+        updated_at        TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `;
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     if (!msg.includes("already exists")) {
