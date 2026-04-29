@@ -1,4 +1,4 @@
-import { sqliteTable, text, integer, unique, index } from "drizzle-orm/sqlite-core";
+import { sqliteTable, text, integer, real, unique, index } from "drizzle-orm/sqlite-core";
 
 // ─── Users (FK アンカー + Actio 固有フィールド) ─────────────
 // 個人データ (name, email, role, password, OAuth トークン等) は
@@ -1216,3 +1216,84 @@ export const workflowTransitions = sqliteTable(
     index("idx_wf_target").on(t.targetType, t.targetId, t.performedAt),
   ]
 );
+
+// ─── Placement Module (GPS 場所登録 + enter/leave トリガー) ──
+// 端末からの位置情報を Imperativus → Actio で受け、登録された Place
+// (lat/lon/radius) との距離で enter / leave を判定。 hooks (現在は
+// webhook のみ) で外部に通知する。 個人データは保管しない (id のみ FK)。
+
+export const places = sqliteTable(
+  "places",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    lat: real("lat").notNull(),
+    lon: real("lon").notNull(),
+    radiusM: integer("radius_m").notNull().default(100),
+    createdAt: integer("created_at", { mode: "timestamp" })
+      .$defaultFn(() => new Date())
+      .notNull(),
+    updatedAt: integer("updated_at", { mode: "timestamp" })
+      .$defaultFn(() => new Date())
+      .notNull(),
+  },
+  (t) => [index("idx_places_user").on(t.userId)],
+);
+
+export const placeVisits = sqliteTable(
+  "place_visits",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    placeId: text("place_id")
+      .notNull()
+      .references(() => places.id, { onDelete: "cascade" }),
+    enteredAt: integer("entered_at", { mode: "timestamp" }).notNull(),
+    leftAt: integer("left_at", { mode: "timestamp" }),
+  },
+  (t) => [index("idx_place_visits_user_entered").on(t.userId, t.enteredAt)],
+);
+
+export const placeHooks = sqliteTable(
+  "place_hooks",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    placeId: text("place_id")
+      .notNull()
+      .references(() => places.id, { onDelete: "cascade" }),
+    event: text("event", { enum: ["enter", "leave"] }).notNull(),
+    actionType: text("action_type").notNull(),
+    actionConfig: text("action_config", { mode: "json" })
+      .$type<Record<string, unknown>>()
+      .notNull()
+      .default({}),
+    enabled: integer("enabled", { mode: "boolean" }).notNull().default(true),
+    createdAt: integer("created_at", { mode: "timestamp" })
+      .$defaultFn(() => new Date())
+      .notNull(),
+  },
+  (t) => [index("idx_place_hooks_place").on(t.placeId)],
+);
+
+export const placementState = sqliteTable("placement_state", {
+  userId: text("user_id")
+    .primaryKey()
+    .references(() => users.id, { onDelete: "cascade" }),
+  currentPlaceId: text("current_place_id").references(() => places.id, {
+    onDelete: "set null",
+  }),
+  lastLat: real("last_lat"),
+  lastLon: real("last_lon"),
+  lastSeenAt: integer("last_seen_at", { mode: "timestamp" }),
+  updatedAt: integer("updated_at", { mode: "timestamp" })
+    .$defaultFn(() => new Date())
+    .notNull(),
+});
