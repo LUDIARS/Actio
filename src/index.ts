@@ -35,10 +35,4 @@ void initServiceAdapter().catch((err) => {
   console.warn("[actio-sa] peer adapter 起動失敗 (user-facing API は継続):", err);
 });
 
-// ─── Cocoiru schedule sweep cron ──────────────────────────────
-// myplan の weekly slot に紐づけた cocoiru_schedule_links を分単位で見て、
-// アクティブな slot に対して `source: "schedule"` の broadcast を投入する。
-import { startCocoiruScheduleSweep } from "./cron/cocoiru-sweep.js";
-startCocoiruScheduleSweep();
-
 export { app };
