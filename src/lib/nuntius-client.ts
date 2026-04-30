@@ -133,6 +133,42 @@ class NuntiusClient {
     return this.request("DELETE", `/api/topics/${encodeURIComponent(topic)}/subscribe?${qs}`);
   }
 
+  // ── WebPush ───────────────────────────────────────────
+
+  async getVapidPublicKey(): Promise<{ publicKey: string }> {
+    // VAPID 公開鍵は認証不要なので request() を経由しない
+    const res = await fetch(`${this.getNuntiusUrl()}/api/push/vapid-public-key`);
+    if (!res.ok) {
+      throw new Error(`Nuntius vapid-public-key ${res.status}`);
+    }
+    return res.json() as Promise<{ publicKey: string }>;
+  }
+
+  async savePushSubscription(params: {
+    userId: string;
+    endpoint: string;
+    p256dh: string;
+    auth: string;
+    label?: string | null;
+  }): Promise<{ id: string; status: "created" | "updated" }> {
+    return this.request("POST", "/api/push/subscriptions", {
+      userId: params.userId,
+      endpoint: params.endpoint,
+      keys: { p256dh: params.p256dh, auth: params.auth },
+      label: params.label ?? undefined,
+    });
+  }
+
+  async listPushSubscriptions(userId: string): Promise<{
+    items: Array<{ id: string; label: string | null; userAgent: string | null; createdAt: string; revokedAt: string | null }>;
+  }> {
+    return this.request("GET", `/api/push/subscriptions?userId=${encodeURIComponent(userId)}`);
+  }
+
+  async deletePushSubscription(id: string): Promise<{ ok: boolean }> {
+    return this.request("DELETE", `/api/push/subscriptions/${encodeURIComponent(id)}`);
+  }
+
   /** Nuntius が利用可能かを軽く確認 (NUNTIUS_URL + 認証情報があるか) */
   isConfigured(): boolean {
     const url = secretManager.getOrDefault("NUNTIUS_URL", "");

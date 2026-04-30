@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useAuth } from "../contexts/AuthContext";
 import { settingsApi, groupApi } from "../lib/api";
 import { API_BASE } from "../lib/constants";
+import { PushSettings } from "../components/PushSettings";
 
 interface SettingField {
   key: string;
@@ -282,6 +283,9 @@ export function SettingsPage() {
           </button>
         )}
       </div>
+
+      {/* WebPush */}
+      <PushSettings />
 
       {/* DBエクスポート */}
       <div style={{ ...styles.card, marginTop: "1.5rem" }}>
