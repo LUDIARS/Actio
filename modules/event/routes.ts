@@ -15,6 +15,7 @@ import { getUserId } from "../../src/middleware/getUserId.js";
 import { eventRepo, type EventListFilter } from "../../src/db/repository.js";
 import { getEventPlugins } from "../../src/event-plugins.js";
 import type { CreateEventInput, EventVisibility } from "../../src/shared/types.js";
+import { scheduleEventReminders, cancelEventReminders } from "../../src/lib/event-reminders.js";
 
 export const eventRoutes = new Hono();
 
@@ -106,6 +107,20 @@ eventRoutes.post("/", async (c) => {
     pluginPayload: body.pluginPayload ?? null,
   });
 
+  // Nuntius へ事前通知を予約 (notifyMinutesBefore が指定されていれば)
+  // 失敗しても event 作成自体は成功扱い (通知は best-effort)
+  await scheduleEventReminders({
+    eventId: id,
+    userId,
+    title: body.title,
+    description: body.description ?? null,
+    startTime: start,
+    minutesBefore: body.notifyMinutesBefore,
+    notifyMessage: body.notifyMessage,
+  }).catch((err) => {
+    console.warn(`[event] failed to schedule reminders for ${id}:`, err);
+  });
+
   const created = await eventRepo.findById(id);
   return c.json({ event: created }, 201);
 });
@@ -160,5 +175,7 @@ eventRoutes.delete("/:id", async (c) => {
   }
 
   await eventRepo.deleteById(id);
+  // 予約済みの Nuntius reminders もキャンセル
+  await cancelEventReminders(id).catch(() => {});
   return c.json({ ok: true });
 });

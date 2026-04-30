@@ -390,6 +390,14 @@ export interface CreateEventInput {
   pluginId?: string;
   pluginRef?: string;
   pluginPayload?: Record<string, unknown>;
+  /**
+   * 予定開始の N 分前に通知を送る (Nuntius 経由、 channel-agnostic)。
+   * 配列で複数指定可能 (例: [60, 10] = 1 時間前と 10 分前)。
+   * 0 / 負値 / 過去 / NUNTIUS 未設定の場合は黙ってスキップ。
+   */
+  notifyMinutesBefore?: number | number[];
+  /** 通知本文に追加するメモ (省略時は description 抜粋) */
+  notifyMessage?: string;
 }
 
 /** Event プラグイン: Actio コアの「予定」を生成・拡張するモジュール */
