@@ -1,16 +1,16 @@
 /**
- * Event の事前通知 (Nuntius reminders) ヘルパ
+ * Event / Task の事前通知 (Nuntius reminders) ヘルパ
  *
  * Actio の event / task / personalEvent などで「N 分前に通知して」を統一的に
  * 扱うラッパ。 Nuntius の `/api/notify/user` (channel-agnostic) を呼ぶので、
  * 受信 channel はユーザの notification_preferences で決まる。
  *
- * idempotencyKey に `actio.event.<id>.reminder.<minutes>` を使うことで、
- * 同じ event を 2 回保存しても reminder は重複しない。
+ * idempotencyKey に `actio.event.<id>.reminder.<minutes>` または
+ * `actio.task.<id>.reminder.<minutes>` を使うことで、 同じ event/task を
+ * 2 回保存しても reminder は重複しない。
  *
- * cancel は対応する idempotencyKey を Nuntius 側で resolve できないため、
- * 現状は best-effort で「event id を含む source の予約を全部消す」 API が
- * 必要。 暫定として scheduledMessages.source を使った検索ベースで実装。
+ * cancel は Nuntius `DELETE /api/messages/by-source` の sourcePrefix 検索で
+ * 該当 event/task の全 reminders を一括 cancel する。
  */
 
 import { secretManager } from "../config/secrets.js";
@@ -33,6 +33,19 @@ interface ScheduleEventReminderInput {
   title: string;
   description?: string | null;
   startTime: Date;
+  /** N 分前 (単数 or 配列)。 0 / 負値 / 過去過ぎは無視。 */
+  minutesBefore?: number | number[];
+  /** 通知本文 (省略時は description 抜粋) */
+  notifyMessage?: string;
+}
+
+interface ScheduleTaskReminderInput {
+  taskId: string;
+  userId: string;
+  title: string;
+  description?: string | null;
+  /** deadline (期限)。 null/undefined なら何もしない。 */
+  deadline: Date | null;
   /** N 分前 (単数 or 配列)。 0 / 負値 / 過去過ぎは無視。 */
   minutesBefore?: number | number[];
   /** 通知本文 (省略時は description 抜粋) */
@@ -87,6 +100,31 @@ async function postNotify(body: NuntiusNotifyBody): Promise<void> {
   }
 }
 
+/** Nuntius `DELETE /api/messages/by-source` を sourcePrefix で叩く共通処理 */
+async function cancelBySourcePrefix(sourcePrefix: string): Promise<{ count: number } | null> {
+  const url = nuntiusUrl();
+  if (!url) return null;
+  const token = await getProjectToken();
+  if (!token) return null;
+  const res = await fetch(`${url}/api/messages/by-source`, {
+    method: "DELETE",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ sourcePrefix }),
+  });
+  if (!res.ok) {
+    // 404 (ルート未実装) は古い Nuntius を黙認、それ以外は warn
+    if (res.status !== 404) {
+      const text = await res.text().catch(() => "");
+      console.warn(`[reminders] cancel-by-source ${res.status}: ${text}`);
+    }
+    return null;
+  }
+  return (await res.json().catch(() => null)) as { count: number } | null;
+}
+
 /**
  * Event 開始の N 分前に通知を予約する。 minutesBefore が無指定なら何もしない。
  * 既に過去の時刻になる場合は、 「それでも 5 秒以上未来」 なら予約、 そうでなければ skip。
@@ -119,18 +157,50 @@ export async function scheduleEventReminders(input: ScheduleEventReminderInput):
 }
 
 /**
- * Event 削除時に対応する reminders をキャンセルする。
- * Nuntius 側に「source 検索で一括 cancel」 API が無いので、 idempotencyKey の
- * 慣例に基づいた DELETE を試みる。 `idempotencyKey` ベースの cancel が
- * Nuntius 側で実装されたらここを置き換える。
- *
- * 現状は best-effort で、 source プレフィックスを含む scheduled_messages を
- * Nuntius worker が将来削除する想定 (実装は別 PR)。
+ * Task 期限の N 分前に通知を予約する。 deadline 未設定 / minutesBefore 無指定
+ * なら何もしない。 既に過去の時刻になる場合は、 「それでも 5 秒以上未来」 なら
+ * 予約、 そうでなければ skip。
  */
-export async function cancelEventReminders(_eventId: string): Promise<void> {
-  // TODO: Nuntius に source-based bulk cancel API を追加してから実装
-  // (現状は worker 側で過去予約を放置しても dispatcher が「対象 event 不在」を
-  //  検知できないので、 通知が出る可能性あり — 別 PR で対処)
+export async function scheduleTaskReminders(input: ScheduleTaskReminderInput): Promise<void> {
+  if (!input.deadline) return;
+  const minutes = normalizeMinutes(input.minutesBefore);
+  if (minutes.length === 0) return;
+  if (!nuntiusUrl()) return;
+
+  const body = (input.notifyMessage ?? input.description ?? "").trim();
+  const deadlineMs = input.deadline.getTime();
+  const now = Date.now();
+
+  for (const m of minutes) {
+    const sendAtMs = deadlineMs - m * 60 * 1000;
+    if (sendAtMs < now - TOLERANCE_MS) continue;
+    const sendAt = new Date(Math.max(sendAtMs, now)).toISOString();
+    const title = m === 0
+      ? `タスク期限: ${input.title}`
+      : `${input.title} の期限まで ${m} 分`;
+    await postNotify({
+      userId: input.userId,
+      title,
+      body: body || formatDeadlineLine(input.deadline),
+      sendAt,
+      source: `actio.task.${input.taskId}.reminder`,
+      idempotencyKey: `actio.task.${input.taskId}.reminder.${m}`,
+    });
+  }
+}
+
+/**
+ * Event 削除時に対応する reminders をキャンセルする。
+ * Nuntius `DELETE /api/messages/by-source?sourcePrefix=actio.event.<id>.reminder`
+ * で pending 状態の予約をすべて cancelled にする。
+ */
+export async function cancelEventReminders(eventId: string): Promise<void> {
+  await cancelBySourcePrefix(`actio.event.${eventId}.reminder`);
+}
+
+/** Task 削除時に対応する reminders をキャンセルする。 */
+export async function cancelTaskReminders(taskId: string): Promise<void> {
+  await cancelBySourcePrefix(`actio.task.${taskId}.reminder`);
 }
 
 function normalizeMinutes(input: number | number[] | undefined): number[] {
@@ -146,4 +216,13 @@ function formatStartLine(start: Date): string {
   const hh = String(start.getHours()).padStart(2, "0");
   const mm = String(start.getMinutes()).padStart(2, "0");
   return `開始: ${hh}:${mm}`;
+}
+
+function formatDeadlineLine(deadline: Date): string {
+  const yyyy = deadline.getFullYear();
+  const mo = String(deadline.getMonth() + 1).padStart(2, "0");
+  const dd = String(deadline.getDate()).padStart(2, "0");
+  const hh = String(deadline.getHours()).padStart(2, "0");
+  const mm = String(deadline.getMinutes()).padStart(2, "0");
+  return `期限: ${yyyy}-${mo}-${dd} ${hh}:${mm}`;
 }

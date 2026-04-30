@@ -19,6 +19,7 @@ import type {
   TaskPriority,
   TaskStatus,
 } from "../../src/shared/types.js";
+import { scheduleTaskReminders, cancelTaskReminders } from "../../src/lib/event-reminders.js";
 
 export const taskRoutes = new Hono();
 
@@ -126,6 +127,20 @@ taskRoutes.post("/", async (c) => {
     completedAt: null,
   });
 
+  // Nuntius へ deadline N 分前通知を予約 (assignee 優先、 fallback owner)
+  // 失敗しても task 作成自体は成功扱い (通知は best-effort)
+  await scheduleTaskReminders({
+    taskId: id,
+    userId: body.assigneeId ?? userId,
+    title: body.title,
+    description: body.description ?? null,
+    deadline,
+    minutesBefore: body.notifyMinutesBefore,
+    notifyMessage: body.notifyMessage,
+  }).catch((err) => {
+    console.warn(`[task] failed to schedule reminders for ${id}:`, err);
+  });
+
   const created = await taskRepo.findById(id);
   return c.json({ task: created }, 201);
 });
@@ -197,5 +212,7 @@ taskRoutes.delete("/:id", async (c) => {
   }
 
   await taskRepo.deleteById(id);
+  // 予約済みの Nuntius reminders もキャンセル (best-effort)
+  await cancelTaskReminders(id).catch(() => {});
   return c.json({ ok: true });
 });
