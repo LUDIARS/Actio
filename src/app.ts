@@ -27,6 +27,7 @@ import { getTaskPlugins } from "./task-plugins.js";
 import { secretManager } from "./config/secrets.js";
 import { setupRoutes } from "../modules/setup/routes.js";
 import { profileRoutes } from "../modules/profile/routes.js";
+import { pushRoutes } from "../modules/push/routes.js";
 import { rateLimit } from "./middleware/rate-limit.js";
 import { moduleAdminRoutes } from "./plugins/admin-routes.js";
 import { installModule } from "./plugins/loader.js";
@@ -163,6 +164,10 @@ export function createApp() {
 
   // ─── Module: Webhooks & Notifications ───────────────────────
   app.route("/api/webhooks", notification);
+
+  // ─── Module: WebPush (Nuntius プロキシ) ─────────────────────
+  // PWA フロントの PushManager.subscribe() の結果を Nuntius に保存する。
+  app.route("/api/push", pushRoutes);
 
   // ─── リマインダーは Nuntius に移行予定 (modules/reminder 撤去済) ─
 
