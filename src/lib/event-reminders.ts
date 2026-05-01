@@ -13,19 +13,9 @@
  * 該当 event/task の全 reminders を一括 cancel する。
  */
 
-import { secretManager } from "../config/secrets.js";
+import { nuntiusUrl, postNotify, cancelBySourcePrefix } from "./nuntius-notify.js";
 
 const TOLERANCE_MS = 5_000; // 過去 5 秒以内なら現在時刻に丸めて即時送る
-
-interface NuntiusNotifyBody {
-  userId: string;
-  title: string;
-  body: string;
-  url?: string;
-  sendAt?: string;
-  source?: string;
-  idempotencyKey?: string;
-}
 
 interface ScheduleEventReminderInput {
   eventId: string;
@@ -50,79 +40,6 @@ interface ScheduleTaskReminderInput {
   minutesBefore?: number | number[];
   /** 通知本文 (省略時は description 抜粋) */
   notifyMessage?: string;
-}
-
-function nuntiusUrl(): string | null {
-  const url = secretManager.getOrDefault("NUNTIUS_URL", "");
-  return url ? url.replace(/\/$/, "") : null;
-}
-
-/** Cernere project_token を取得 (nuntius-client.ts と同じ仕組み、 簡略版) */
-const tokenCache: { value: string; expiresAt: number } = { value: "", expiresAt: 0 };
-async function getProjectToken(): Promise<string | null> {
-  if (tokenCache.value && tokenCache.expiresAt > Date.now()) return tokenCache.value;
-  const cernereUrl = secretManager.getOrDefault("CERNERE_URL", "");
-  const clientId = secretManager.getOrDefault("CERNERE_PROJECT_CLIENT_ID", "");
-  const clientSecret = secretManager.getOrDefault("CERNERE_PROJECT_CLIENT_SECRET", "");
-  if (!cernereUrl || !clientId || !clientSecret) return null;
-  const res = await fetch(`${cernereUrl}/api/auth/login`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      grant_type: "project_credentials",
-      client_id: clientId,
-      client_secret: clientSecret,
-    }),
-  });
-  if (!res.ok) return null;
-  const data = (await res.json()) as { accessToken: string; expiresIn?: number };
-  tokenCache.value = data.accessToken;
-  tokenCache.expiresAt = Date.now() + ((data.expiresIn ?? 3600) - 300) * 1000;
-  return data.accessToken;
-}
-
-async function postNotify(body: NuntiusNotifyBody): Promise<void> {
-  const url = nuntiusUrl();
-  if (!url) return; // 未設定なら no-op
-  const token = await getProjectToken();
-  if (!token) return;
-  const res = await fetch(`${url}/api/notify/user`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
-    },
-    body: JSON.stringify(body),
-  });
-  if (!res.ok && res.status !== 409 /* 既存 idempotency key */) {
-    const text = await res.text().catch(() => "");
-    throw new Error(`Nuntius /api/notify/user ${res.status}: ${text}`);
-  }
-}
-
-/** Nuntius `DELETE /api/messages/by-source` を sourcePrefix で叩く共通処理 */
-async function cancelBySourcePrefix(sourcePrefix: string): Promise<{ count: number } | null> {
-  const url = nuntiusUrl();
-  if (!url) return null;
-  const token = await getProjectToken();
-  if (!token) return null;
-  const res = await fetch(`${url}/api/messages/by-source`, {
-    method: "DELETE",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
-    },
-    body: JSON.stringify({ sourcePrefix }),
-  });
-  if (!res.ok) {
-    // 404 (ルート未実装) は古い Nuntius を黙認、それ以外は warn
-    if (res.status !== 404) {
-      const text = await res.text().catch(() => "");
-      console.warn(`[reminders] cancel-by-source ${res.status}: ${text}`);
-    }
-    return null;
-  }
-  return (await res.json().catch(() => null)) as { count: number } | null;
 }
 
 /**

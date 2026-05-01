@@ -20,6 +20,11 @@ import type {
   TaskStatus,
 } from "../../src/shared/types.js";
 import { scheduleTaskReminders, cancelTaskReminders } from "../../src/lib/event-reminders.js";
+import {
+  notifyTaskAssigned,
+  notifyTaskCompleted,
+  notifyTaskPriorityRaised,
+} from "../../src/lib/task-notifications.js";
 
 export const taskRoutes = new Hono();
 
@@ -141,6 +146,19 @@ taskRoutes.post("/", async (c) => {
     console.warn(`[task] failed to schedule reminders for ${id}:`, err);
   });
 
+  // 別人にアサインされたら新 assignee へ即時 push
+  if (body.assigneeId && body.assigneeId !== userId) {
+    await notifyTaskAssigned({
+      taskId: id,
+      taskTitle: body.title,
+      newAssigneeId: body.assigneeId,
+      ownerId: userId,
+      assignedById: userId,
+    }).catch((err) => {
+      console.warn(`[task] notifyTaskAssigned failed for ${id}:`, err);
+    });
+  }
+
   const created = await taskRepo.findById(id);
   return c.json({ task: created }, 201);
 });
@@ -196,6 +214,62 @@ taskRoutes.put("/:id", async (c) => {
 
   await taskRepo.update(id, updates);
   const updated = await taskRepo.findById(id);
+
+  // 状態変化 push (best-effort)
+  // - status: !done → done → owner に完了通知
+  // - assigneeId 変更 (別人へ) → 新 assignee に push
+  // - priority 上昇 (low/medium → high) → assignee (or owner) に push
+  if (updated) {
+    const completedNow =
+      body.status === "done" && existing.status !== "done";
+    if (completedNow) {
+      await notifyTaskCompleted({
+        taskId: id,
+        taskTitle: updated.title,
+        ownerId: updated.ownerId,
+        assigneeId: updated.assigneeId,
+        completedById: userId,
+      }).catch((err) => {
+        console.warn(`[task] notifyTaskCompleted failed for ${id}:`, err);
+      });
+    }
+
+    const newAssignee = updated.assigneeId;
+    const oldAssignee = existing.assigneeId;
+    if (
+      body.assigneeId !== undefined &&
+      newAssignee &&
+      newAssignee !== oldAssignee
+    ) {
+      await notifyTaskAssigned({
+        taskId: id,
+        taskTitle: updated.title,
+        newAssigneeId: newAssignee,
+        ownerId: updated.ownerId,
+        assignedById: userId,
+      }).catch((err) => {
+        console.warn(`[task] notifyTaskAssigned failed for ${id}:`, err);
+      });
+    }
+
+    if (
+      body.priority !== undefined &&
+      updated.priority !== existing.priority
+    ) {
+      await notifyTaskPriorityRaised({
+        taskId: id,
+        taskTitle: updated.title,
+        ownerId: updated.ownerId,
+        assigneeId: updated.assigneeId,
+        oldPriority: existing.priority as TaskPriority,
+        newPriority: updated.priority as TaskPriority,
+        raisedById: userId,
+      }).catch((err) => {
+        console.warn(`[task] notifyTaskPriorityRaised failed for ${id}:`, err);
+      });
+    }
+  }
+
   return c.json({ task: updated });
 });
 
