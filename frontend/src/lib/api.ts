@@ -1735,3 +1735,27 @@ export const pushApi = {
     });
   },
 };
+
+// ─── User Preferences (汎用 user-scoped KV) ────────────────────
+
+export const userPrefsApi = {
+  list() {
+    return request<{ preferences: Record<string, string> }>(`/api/user-prefs`);
+  },
+  get(key: string) {
+    return request<{ key: string; value: string | null }>(
+      `/api/user-prefs/${encodeURIComponent(key)}`,
+    );
+  },
+  update(preferences: Record<string, string>) {
+    return request<{ preferences: Record<string, string> }>(`/api/user-prefs`, {
+      method: "PUT",
+      body: JSON.stringify({ preferences }),
+    });
+  },
+  remove(key: string) {
+    return request<{ ok: boolean }>(`/api/user-prefs/${encodeURIComponent(key)}`, {
+      method: "DELETE",
+    });
+  },
+};
