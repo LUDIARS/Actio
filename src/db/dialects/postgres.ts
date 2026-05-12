@@ -1005,6 +1005,21 @@ export const placementState = pgTable("placement_state", {
   updatedAt: timestamp("updated_at").$defaultFn(() => new Date()).notNull(),
 });
 
+// ─── User Preferences (汎用 user-scoped KV) ──────────────────
+
+export const userPreferences = pgTable(
+  "user_preferences",
+  {
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    key: text("key").notNull(),
+    value: text("value").notNull(),
+    updatedAt: timestamp("updated_at").$defaultFn(() => new Date()).notNull(),
+  },
+  (t) => [unique("unique_user_pref").on(t.userId, t.key)],
+);
+
 // ─── Schema Exports ──────────────────────────────────────────
 
 export const schema = {
@@ -1048,6 +1063,7 @@ export const schema = {
   placeVisits,
   placeHooks,
   placementState,
+  userPreferences,
 };
 
 export const curriculumSchema = {
@@ -1725,6 +1741,16 @@ export async function createConnectionWithRetry() {
         last_lon          DOUBLE PRECISION,
         last_seen_at      TIMESTAMP,
         updated_at        TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `;
+
+    await client`
+      CREATE TABLE IF NOT EXISTS user_preferences (
+        user_id     TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        key         TEXT NOT NULL,
+        value       TEXT NOT NULL,
+        updated_at  TIMESTAMP NOT NULL DEFAULT NOW(),
+        CONSTRAINT unique_user_pref UNIQUE (user_id, key)
       )
     `;
   } catch (err) {

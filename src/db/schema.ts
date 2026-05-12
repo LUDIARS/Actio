@@ -1297,3 +1297,22 @@ export const placementState = sqliteTable("placement_state", {
     .$defaultFn(() => new Date())
     .notNull(),
 });
+
+// ─── User Preferences (汎用 user-scoped KV) ──────────────────
+// dot-key 形式 (例: "notify.task.self_completion") で個人設定を保持。
+// 個人データ非保管ルール対象外 (toggle 値のみ、 個人識別情報は持たない)。
+
+export const userPreferences = sqliteTable(
+  "user_preferences",
+  {
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    key: text("key").notNull(),
+    value: text("value").notNull(),
+    updatedAt: integer("updated_at", { mode: "timestamp" })
+      .$defaultFn(() => new Date())
+      .notNull(),
+  },
+  (t) => [unique("unique_user_pref").on(t.userId, t.key)],
+);

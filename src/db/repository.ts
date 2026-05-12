@@ -1319,6 +1319,53 @@ export const appSettingsRepo = {
   },
 };
 
+// ─── User Preferences Repository (per-user KV) ───────────────
+// dot-key 形式で個人設定を保持。 toggle 値のみを置く想定なので
+// 個人データ非保管ルール対象外 (識別情報なし)。
+
+export interface UserPreferenceEntry {
+  key: string;
+  value: string;
+}
+
+export const userPreferenceRepo = {
+  async get(userId: string, key: string): Promise<string | undefined> {
+    const [row] = await db
+      .select()
+      .from(schema.userPreferences)
+      .where(and(eq(schema.userPreferences.userId, userId), eq(schema.userPreferences.key, key)));
+    return row?.value;
+  },
+
+  async listByUser(userId: string): Promise<UserPreferenceEntry[]> {
+    const rows = await db
+      .select()
+      .from(schema.userPreferences)
+      .where(eq(schema.userPreferences.userId, userId));
+    return rows.map((r: { key: string; value: string }) => ({ key: r.key, value: r.value }));
+  },
+
+  async upsert(userId: string, key: string, value: string): Promise<void> {
+    const existing = await this.get(userId, key);
+    if (existing !== undefined) {
+      await db
+        .update(schema.userPreferences)
+        .set({ value, updatedAt: new Date() })
+        .where(and(eq(schema.userPreferences.userId, userId), eq(schema.userPreferences.key, key)));
+    } else {
+      await db
+        .insert(schema.userPreferences)
+        .values({ userId, key, value, updatedAt: new Date() });
+    }
+  },
+
+  async delete(userId: string, key: string): Promise<void> {
+    await db
+      .delete(schema.userPreferences)
+      .where(and(eq(schema.userPreferences.userId, userId), eq(schema.userPreferences.key, key)));
+  },
+};
+
 // ─── User List Repository (admin/user list queries) ──────────
 // 個人データ (name/email/role) は Cernere 側で取得 (getUserInfos)。
 // このリポジトリは Actio 固有フィールドのみを返す。

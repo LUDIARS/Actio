@@ -718,6 +718,19 @@ export const tasks = mysqlTable(
   ]
 );
 
+// ─── User Preferences (汎用 user-scoped KV) ──────────────────
+
+export const userPreferences = mysqlTable(
+  "user_preferences",
+  {
+    userId: varchar("user_id", { length: 255 }).notNull(),
+    key: varchar("key", { length: 255 }).notNull(),
+    value: text("value").notNull(),
+    updatedAt: timestamp("updated_at").$defaultFn(() => new Date()).notNull(),
+  },
+  (t) => [unique("unique_user_pref").on(t.userId, t.key)],
+);
+
 // ─── Schema Exports ─────────────────────────────────────────
 
 export const schema = {
@@ -746,6 +759,7 @@ export const schema = {
   appSettings,
   events,
   tasks,
+  userPreferences,
 };
 
 export const curriculumSchema = {
@@ -791,6 +805,7 @@ const allTables = {
   curriculumPlacements,
   events,
   tasks,
+  userPreferences,
 };
 
 export function createConnection() {

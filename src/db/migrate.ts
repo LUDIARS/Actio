@@ -549,6 +549,14 @@ sqlite.exec(`
     last_seen_at INTEGER,
     updated_at INTEGER NOT NULL
   );
+
+  CREATE TABLE IF NOT EXISTS user_preferences (
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    key TEXT NOT NULL,
+    value TEXT NOT NULL,
+    updated_at INTEGER NOT NULL,
+    UNIQUE(user_id, key)
+  );
 `);
 
 console.log("Database tables initialized successfully.");
