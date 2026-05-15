@@ -1,0 +1,63 @@
+{
+  "date": "2026-05-13",
+  "repo": "LUDIARS/Actio",
+  "head": "cbcb692",
+  "weighted_score": "B-",
+  "scores": {
+    "D1_design_robustness": "B",
+    "D2_design_consistency": "B",
+    "D3_modularity": "A",
+    "V1_vulnerability": "C",
+    "V2_zero_trust": "C",
+    "V3_security_posture": "B",
+    "I1_code_quality": "B",
+    "I2_data_schema": "B",
+    "I3_sre": "B",
+    "M1_feature_improvement": "B",
+    "M2_missing_features": "B",
+    "Q1_test_strategy": "B",
+    "Q2_performance": "C",
+    "Q3_license": "B",
+    "Q4_cross_platform": "B",
+    "Q5_documentation": "B"
+  },
+  "critical_count": 0,
+  "high_count": 2,
+  "medium_count": 3,
+  "low_count": 1,
+  "autofix_count": 0,
+  "autofix_categories": {
+    "security": 0,
+    "reliability": 0,
+    "docs": 0,
+    "lint_cleanup": 0,
+    "schema": 0,
+    "performance": 0,
+    "testing": 0
+  },
+  "autofix_candidates_total": 16,
+  "fix_pr": null,
+  "top_findings": [
+    {
+      "id": "V1-01",
+      "severity": "High",
+      "category": "security",
+      "file": "modules/placement/routes.ts:29-34",
+      "summary": "PLACEMENT_SERVICE_KEY empty -> auth check skipped (fail-open ingestion of GPS data)"
+    },
+    {
+      "id": "V1-02",
+      "severity": "High",
+      "category": "security",
+      "file": "modules/placement/forwarder.ts:30-54",
+      "summary": "Webhook URL has no SSRF check (allows 127.0.0.1, AWS IMDS 169.254.169.254, private CIDR)"
+    },
+    {
+      "id": "V1-03",
+      "severity": "Medium",
+      "category": "security",
+      "file": "src/middleware/auth.ts:58-66",
+      "summary": "JWT payload name/email/role baked into session, violates Cernere single-source-of-truth rule"
+    }
+  ]
+}
