@@ -11,16 +11,14 @@
  */
 import { moduleRegistry } from "../module-registry";
 import { coreModule } from "./core";
-import { scheduleModule } from "./schedule";
+import { tasksModule } from "./tasks";
 import { groupModule } from "./group";
-import { m1SchoolModule } from "./m1-school";
-import { reservationModule } from "./reservation";
+// m1-school / reservation / integration / cocoiru は Schedula / Aedilis に分離
+// (2026-05-20 split-task-only)
 import { pmModule } from "./pm";
 import { machinaModule } from "./machina";
 import { notificationModule } from "./notification";
-import { integrationModule } from "./integration";
 import { adminModule } from "./admin";
-import { cocoiruModule } from "./cocoiru";
 
 let registered = false;
 
@@ -30,14 +28,10 @@ export function registerAllModules(): void {
   registered = true;
 
   moduleRegistry.registerModule(coreModule);
-  moduleRegistry.registerModule(scheduleModule);
+  moduleRegistry.registerModule(tasksModule);
   moduleRegistry.registerModule(groupModule);
-  moduleRegistry.registerModule(m1SchoolModule);
-  moduleRegistry.registerModule(reservationModule);
   moduleRegistry.registerModule(pmModule);
   moduleRegistry.registerModule(machinaModule);
   moduleRegistry.registerModule(notificationModule);
-  moduleRegistry.registerModule(integrationModule);
   moduleRegistry.registerModule(adminModule);
-  moduleRegistry.registerModule(cocoiruModule);
 }
