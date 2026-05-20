@@ -7,11 +7,9 @@ import "./ws/commands/index.js";
 import { auth, compositeAuthRoutes } from "./auth/routes.js";
 import { notification } from "../modules/notification/routes.js";
 import { groupRoutes } from "../modules/group/routes.js";
-import { calendar } from "../modules/calendar/routes.js";
-import { eventRoutes } from "../modules/event/routes.js";
 import { taskRoutes } from "../modules/task/routes.js";
-import { placementRoutes } from "../modules/placement/routes.js";
-// myPlan / smart-scheduler / school / schedule(m1) / integrations は SDK module に移行
+// event / calendar / placement / 予定系 SDK モジュールは Schedula に分離
+// (2026-05-20 split-task-only)
 import { pmModule } from "../modules/pm/index.js";
 import { dbViewer } from "./admin/db-viewer.js";
 import { externalApi } from "../modules/external-api/routes.js";
@@ -20,9 +18,6 @@ import { secretsRoutes } from "../modules/secrets/routes.js";
 import { DAY_LABELS, getPeriodTime, PERIODS_COUNT } from "./shared/constants.js";
 import type { ActioModule } from "./shared/types.js";
 import { getRecentLogs } from "./activity-logger.js";
-import { getReservationPlugins } from "./reservation-plugins.js";
-import { registerReservationPlugin } from "./reservation-plugins.js";
-import { getEventPlugins } from "./event-plugins.js";
 import { getTaskPlugins } from "./task-plugins.js";
 import { secretManager } from "./config/secrets.js";
 import { setupRoutes } from "../modules/setup/routes.js";
@@ -36,12 +31,6 @@ import { commentRoutes } from "./plugins/comments-routes.js";
 import { customFieldRoutes } from "./plugins/custom-fields-routes.js";
 import { dynamicInstallRoutes } from "./plugins/dynamic-loader.js";
 import exampleModule from "../modules-ext/example/server.js";
-import votingModule from "@ludiars/schedula-module-voting";
-import holidayModule from "@ludiars/schedula-module-holiday";
-import myplanModule from "@ludiars/schedula-module-myplan";
-import smartSchedulerModule from "@ludiars/schedula-module-smart-scheduler";
-import schoolModule from "@ludiars/schedula-module-school";
-import integrationsModule from "@ludiars/schedula-module-integrations";
 
 export function createApp() {
   const app = new Hono();
@@ -146,21 +135,11 @@ export function createApp() {
   // ─── Core: Groups (グループ管理) ────────────────────────────
   app.route("/api/groups", groupRoutes);
 
-  // ─── Core: Events (予定: 時間拘束のある未来の事象) ─────────
-  app.route("/api/events", eventRoutes);
-
   // ─── Core: Tasks (タスク: 解決すべき現在の事象) ────────────
   app.route("/api/tasks", taskRoutes);
 
-  // ─── Core: Calendar (Google Calendar + 手動予定 + プラン) ────
-  app.route("/api/calendar", calendar);
-
-  // ─── Module: Placement (GPS 場所登録 + enter/leave トリガー) ──
-  // Imperativus が OwnTracks 経由で受信した位置を /api/placement/locations
-  // に POST して、 ここで place 比較 + hook 発火する。
-  app.route("/api/placement", placementRoutes);
-
-  // ─── SDK module 経由: MyPlan / Smart-Scheduler / School / Integrations / Holiday / Voting ──
+  // ─── event / calendar / placement / 予定系 SDK モジュールは
+  //     Schedula に分離 (2026-05-20 split-task-only) ──
 
   // ─── Module: Webhooks & Notifications ───────────────────────
   app.route("/api/webhooks", notification);
@@ -181,35 +160,10 @@ export function createApp() {
   }
 
   // ─── SDK-based plugin modules (Phase 1: 静的登録) ────────────
-  // installModule() は Promise を返すが createApp() 内では await しない (同期構築)。
-  // アプリ起動時に reject するとログに載る。manifest の REST 登録は Hono が
-  // Promise で mount できるため遅延登録で問題ない。
+  // 予定系 SDK モジュール (voting/holiday/myplan/smart-scheduler/school/
+  // integrations) は Schedula に分離 (2026-05-20 split-task-only)。
   installModule(app, exampleModule, {
     packageName: "actio-example-module",
-    packageVersion: "0.1.0",
-  });
-  installModule(app, votingModule, {
-    packageName: "actio-voting-module",
-    packageVersion: "0.1.0",
-  });
-  installModule(app, holidayModule, {
-    packageName: "@ludiars/schedula-module-holiday",
-    packageVersion: "0.1.0",
-  });
-  installModule(app, myplanModule, {
-    packageName: "@ludiars/schedula-module-myplan",
-    packageVersion: "0.1.0",
-  });
-  installModule(app, smartSchedulerModule, {
-    packageName: "@ludiars/schedula-module-smart-scheduler",
-    packageVersion: "0.1.0",
-  });
-  installModule(app, schoolModule, {
-    packageName: "@ludiars/schedula-module-school",
-    packageVersion: "0.1.0",
-  });
-  installModule(app, integrationsModule, {
-    packageName: "@ludiars/schedula-module-integrations",
     packageVersion: "0.1.0",
   });
 
@@ -224,26 +178,8 @@ export function createApp() {
   app.route("/api/m5", notification);
   // /api/m6 は voting SDK モジュールに移行、/api/voting のみ提供
 
-  // ─── Reservation Plugin Registry ──────────────────────────
-  // 日程調整 (Voting) をプラグイン登録
-  registerReservationPlugin({
-    id: "voting",
-    name: "日程調整",
-    description: "投票で日程を決定",
-    icon: "CalendarCheck",
-    apiBasePath: "/api/voting",
-    frontendPath: "/voting",
-    operations: {
-      list: "/events",
-      create: "/events",
-      cancel: "/events",
-    },
-  });
-
-  // ─── Reservation Plugins API ──────────────────────────────
-  app.get("/api/reservations/plugins", (c) => {
-    return c.json({ plugins: getReservationPlugins() });
-  });
+  // ─── Reservation Plugin / 予約系は Aedilis に分離 ───────────
+  // (2026-05-20 split-task-only)
 
   // ─── Timetable ─────────────────────────────────────────────
   app.get("/api/timetable", (c) => {
@@ -284,41 +220,24 @@ export function createApp() {
 
     return c.json({
       name: "Actio",
-      description: "プラグインベースの予定 (Event) & タスク (Task) 管理プラットフォーム",
+      description: "プラグインベースのタスク (Task) 管理プラットフォーム",
       version: "1.0.0",
       core: {
         auth: "認証 - /api/auth",
         profile: "プロフィール & プロジェクトロール - /api/profile",
         groups: "グループ管理 - /api/groups",
-        events: "予定 (時間拘束のある未来の事象) - /api/events",
         tasks: "タスク (解決すべき現在の事象) - /api/tasks",
-        calendar: "カレンダー & 手動予定 - /api/calendar",
-        myplans: "マイプラン - /api/myplans",
-        smartScheduler: "自動配置スケジューラ - /api/smart-scheduler",
       },
       modules: {
         ...registeredModules,
         webhooks: "Webhook・リマインド通知 - /api/webhooks",
-        voting: "日程調整Voting - /api/voting",
-        integrations: "外部サービス連携 (Google Calendar同期・Notion) - /api/integrations",
-        externalApi: "外部API連携 (カレンダー・リマインダー・予定設定) - /api/external",
+        externalApi: "外部API連携 - /api/external",
       },
-      eventPlugins: getEventPlugins().map((p) => ({
-        id: p.id,
-        name: p.name,
-        path: p.frontendPath,
-        managed: p.managed,
-      })),
       taskPlugins: getTaskPlugins().map((p) => ({
         id: p.id,
         name: p.name,
         path: p.frontendPath,
         managed: p.managed,
-      })),
-      reservationPlugins: getReservationPlugins().map((p) => ({
-        id: p.id,
-        name: p.name,
-        path: p.frontendPath,
       })),
     });
   });
