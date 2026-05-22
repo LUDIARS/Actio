@@ -5,10 +5,10 @@
  * dispatcher に登録される。
  */
 
-import "./calendar.js";
+// calendar.ts は Schedula に分離 (2026-05-20 split-task-only)
 import "./group.js";
 // myplan.ts は @ludiars/schedula-module-myplan に移行
 // voting.ts は @ludiars/schedula-module-voting に移行
-import "./facility.js";
+// facility.ts は Aedilis に分離 (2026-05-20 split-task-only)
 import "./pm.js";
 import "./admin.js";

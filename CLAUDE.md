@@ -1,5 +1,27 @@
 # Actio 開発ルール
 
+## ⚠️ 進行中の方針転換: Actio はタスク管理専用へ (2026-05-20 決定)
+
+Actio は当初「予定 (Event) + タスク (Task)」 の 2 コア概念を 1 サービスに
+同居させていたが、肥大化したため **予定 / カレンダー軸を Schedula
+(`E:\Document\Ars\Schedula`) として再分離** することが決定した。
+
+- **Actio の最終的な責務** = タスク管理 (`modules/task/` + `modules/pm/` +
+  `src/task-plugins.ts` + 共通基盤)
+- **Schedula へ移植** = event / calendar / myplan / smart-scheduler / holiday /
+  schedule / school (facility-booking 除く) / voting / placement +
+  `src/event-plugins.ts`
+- **Aedilis へ移植** = `modules/school/facility-booking/`、
+  `modules/reservation/` は破棄
+- 実コード移植は段階実行 (未着手)。 計画は `../Schedula/DESIGN.md` §6
+
+### この方針が実装に与える影響
+
+- **予定 / カレンダー系の新機能を Actio に追加しない** — 該当機能は Schedula
+  側で実装する。 既存の予定系コードのバグ修正は当面 Actio で続けてよい
+- タスク系 (`modules/task`, `modules/pm`) の改修は通常どおり Actio で行う
+- 予定系コードの大規模リファクタは移植時に行うので、 移植前は最小限に留める
+
 ## 認証 (Cernere Composite)
 
 フロントエンドの認証は `@ludiars/cernere-composite` パッケージに委譲する。
