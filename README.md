@@ -4,6 +4,12 @@
 
 JIRA のように、**コアの 2 概念 (Event / Task)** を中心に各種プラグイン (カレンダー、プロジェクト管理、学校カリキュラム、日程調整、通知…) が機能を拡充する拡張可能なスケジューリング基盤です。
 
+> **方針転換 (2026-05-20)**: Actio は **タスク管理専用** に絞り込む途中です。
+> 予定 (Event) / カレンダー軸は [Schedula](https://github.com/LUDIARS/Schedula)
+> として再分離、施設予約は [Aedilis](https://github.com/LUDIARS/Aedilis) に移ります。
+> 詳細・移行計画は Schedula リポの `DESIGN.md`。実コード移植は段階実行中で、
+> 現状の README は移植前の全体像を記載しています。
+
 ## 特徴
 
 - **プラグインアーキテクチャ** — `@ludiars/schedula-sdk` の `defineModule()` で routes / WS commands / DB tables / user data columns を宣言し統合登録

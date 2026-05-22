@@ -4,23 +4,14 @@ import { AuthProvider, useAuth } from "./contexts/AuthContext";
 import { Layout } from "./components/Layout";
 import { LoginPage } from "./pages/LoginPage";
 import { Dashboard } from "./pages/Dashboard";
-import { DataManagementPage } from "./pages/DataManagementPage";
-import { ReservationsPage } from "./pages/ReservationsPage";
-import { FacilityBookingPage } from "./pages/FacilityBookingPage";
 import { NotificationsPage } from "./pages/NotificationsPage";
-
-import { VotingPage } from "./pages/VotingPage";
-import { CalendarPage } from "./pages/CalendarPage";
 import { GroupsPage } from "./pages/GroupsPage";
-import { MyPlanPage } from "./pages/MyPlanPage";
-import { SchemaManagementPage } from "./pages/SchemaManagementPage";
 import { UserManagementPage } from "./pages/UserManagementPage";
 import { DbViewerPage } from "./pages/DbViewerPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { ActivityLogsPage } from "./pages/ActivityLogsPage";
 import { TasksPage } from "./pages/TasksPage";
 import { HelpPage } from "./pages/HelpPage";
-import { IntegrationsPage } from "./pages/IntegrationsPage";
 import { SecretsPage } from "./pages/SecretsPage";
 import { InfisicalSetupPage } from "./pages/InfisicalSetupPage";
 import { ApiKeysPage } from "./pages/ApiKeysPage";
@@ -30,7 +21,6 @@ import { PMDashboardPage } from "./pages/PMDashboardPage";
 import { PMProjectPage } from "./pages/PMProjectPage";
 import { PMAnalyticsPage } from "./pages/PMAnalyticsPage";
 import { ModuleManagementPage } from "./pages/ModuleManagementPage";
-import { CocoiruPage } from "./pages/CocoiruPage";
 import { setupApi } from "./lib/api";
 import { registerAllModules } from "./lib/modules";
 import "./global.css";
@@ -67,22 +57,11 @@ function AppRoutes() {
       <Route path="/login" element={user ? <Navigate to="/" replace /> : <LoginPage />} />
       <Route element={<RequireAuth><Layout /></RequireAuth>}>
         <Route index element={<Dashboard />} />
-        <Route path="/data-management" element={<DataManagementPage />} />
-        <Route path="/schema-management" element={<SchemaManagementPage />} />
-        <Route path="/schedule" element={<DataManagementPage />} />
-        {/* M2カリキュラムプランは廃止 — M1データ管理に統合 */}
+        {/* event/calendar/schedule/curriculum/voting/reservation 系の route は
+            Schedula / Aedilis に分離 (2026-05-20 split-task-only) */}
         <Route path="/groups" element={<GroupsPage />} />
-        <Route path="/my-plan" element={<MyPlanPage />} />
-        <Route path="/scheduler" element={<Navigate to="/reservations" replace />} />
-        <Route path="/smart-scheduler" element={<Navigate to="/reservations" replace />} />
-        <Route path="/reservations" element={<ReservationsPage />} />
-        <Route path="/reservations/facility" element={<FacilityBookingPage />} />
-        <Route path="/reservations/new" element={<FacilityBookingPage />} />
         <Route path="/notifications" element={<NotificationsPage />} />
-        <Route path="/voting" element={<VotingPage />} />
-        <Route path="/cocoiru" element={<CocoiruPage />} />
         <Route path="/machina" element={<MachinaPage />} />
-        <Route path="/calendar" element={<CalendarPage />} />
         <Route path="/tasks" element={<TasksPage />} />
         <Route path="/profile" element={<ProfilePage />} />
         <Route path="/admin/users" element={<UserManagementPage />} />
@@ -94,7 +73,6 @@ function AppRoutes() {
         <Route path="/pm" element={<PMDashboardPage />} />
         <Route path="/pm/:projectId" element={<PMProjectPage />} />
         <Route path="/pm/:projectId/analytics" element={<PMAnalyticsPage />} />
-        <Route path="/integrations" element={<IntegrationsPage />} />
         <Route path="/api-keys" element={<ApiKeysPage />} />
         <Route path="/help" element={<HelpPage />} />
       </Route>
