@@ -1,5 +1,6 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
+import { resolve } from 'path'
 
 const frontendPort = parseInt(process.env.FRONTEND_PORT || '5173', 10)
 const backendPort = process.env.BACKEND_PORT || '3000'
@@ -31,6 +32,18 @@ function silenceProxyErrors(proxy: unknown) {
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react()],
+  // Multi-entry build (Corpus DESIGN.md §13 — declarative UI β)。
+  // declarative.html は React Router の外側で独立 mount し、
+  // corpus-renderer + taskPanel descriptor だけで描画する。
+  // main.tsx (既存 React 全面 UI) は無改変で共存する。
+  build: {
+    rollupOptions: {
+      input: {
+        main:        resolve(__dirname, 'index.html'),
+        declarative: resolve(__dirname, 'declarative.html'),
+      },
+    },
+  },
   server: {
     host: '0.0.0.0',
     port: frontendPort,
@@ -47,6 +60,12 @@ export default defineConfig({
       '/ws': {
         target: `http://localhost:${backendPort}`,
         ws: true,
+        configure: silenceProxyErrors,
+      },
+      // declarative.ts が backend の corpus manifest を fetch するため。
+      '/.well-known': {
+        target: `http://localhost:${backendPort}`,
+        changeOrigin: true,
         configure: silenceProxyErrors,
       },
     },
