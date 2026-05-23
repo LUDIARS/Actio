@@ -29,6 +29,11 @@ const config: EnvCliConfig = {
     FRONTEND_URL: "http://localhost:5173",
     CERNERE_URL: "http://localhost:8080",
 
+    // ─── PASETO V4 audience (= Hub から渡される hub_url と一致させる) ────
+    // Cernere が user_for_project token に乗せる aud claim を検証する。
+    // ローカルは 8888、 本番は actio-d.vtn-game.com 等。
+    ACTIO_PUBLIC_URL: "http://localhost:8888",
+
     // ─── JWT ───────────────────────────────────────────────
     JWT_SECRET: "actio-dev-secret-change-in-production",
 
