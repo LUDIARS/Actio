@@ -3,6 +3,7 @@ import { logger } from "hono/logger";
 import { secretManager, initSecrets } from "./config/secrets.js";
 import { createApp } from "./app.js";
 import { initComposite } from "./auth/composite.js";
+import { startPasetoVerify } from "./auth/paseto-verify.js";
 
 // シークレット初期化 (Infisical / env フォールバック)
 await initSecrets();
@@ -28,6 +29,15 @@ injectWebSocket(server);
 
 // ─── Cernere Composite ──────────────────────────────────────
 initComposite();
+
+// ─── Cernere PASETO V4 verify (Hub 経由の user_for_project token 受理) ─
+startPasetoVerify({
+  cernereBaseUrl: secretManager.getOrDefault("CERNERE_URL", ""),
+  audience: secretManager.getOrDefault(
+    "ACTIO_PUBLIC_URL",
+    `http://localhost:${port}`,
+  ),
+});
 
 // ─── Peer Service Adapter (backend-to-backend WS via Cernere) ─
 import { initServiceAdapter } from "./service-adapter.js";
