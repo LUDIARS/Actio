@@ -5,6 +5,7 @@ import { requestId } from "./middleware/request-id.js";
 import { setupWebSocket } from "./ws/handler.js";
 import "./ws/commands/index.js";
 import { auth, compositeAuthRoutes } from "./auth/routes.js";
+import { corpusManifest, CORPUS_MANIFEST_PATH } from "./corpus.js";
 import { notification } from "../modules/notification/routes.js";
 import { groupRoutes } from "../modules/group/routes.js";
 import { taskRoutes } from "../modules/task/routes.js";
@@ -110,6 +111,10 @@ export function createApp() {
 
   // ─── Setup Routes (認証不要: 初回セットアップ) ──────────────
   app.route("/api/setup", setupRoutes);
+
+  // ─── Corpus hub サービスマニフェスト (認証不要、 Corpus DESIGN.md §13) ──
+  // declarative panel の UI descriptor を公開する。 中身は src/corpus.ts。
+  app.get(CORPUS_MANIFEST_PATH, (c) => c.json(corpusManifest));
 
   // ─── Composite Auth (認証不要: ログイン前のユーザーが呼ぶ) ──
   app.route("/api/auth", compositeAuthRoutes);
