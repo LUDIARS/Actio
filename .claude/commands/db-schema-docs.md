@@ -1,12 +1,12 @@
 ---
-description: spec/dblist.md と spec/dbs/*.md を src/db/ の最新スキーマから再生成する
+description: spec/data/dblist.md と spec/data/dbs/*.md を src/db/ の最新スキーマから再生成する
 allowed-tools: Read, Write, Edit, Glob, Grep, Bash
 ---
 
 # /db-schema-docs — DB スキーマドキュメント再生成
 
-`src/db/` 配下の Drizzle スキーマ定義から `spec/dblist.md` および
-`spec/dbs/*.md` を再生成する。
+`src/db/` 配下の Drizzle スキーマ定義から `spec/data/dblist.md` および
+`spec/data/dbs/*.md` を再生成する。
 
 ## 入力ソース
 
@@ -16,8 +16,8 @@ allowed-tools: Read, Write, Edit, Glob, Grep, Bash
 
 ## 出力
 
-- `spec/dblist.md` — 全テーブル一覧 (カテゴリ別)。各テーブルから `dbs/<table>.md` へリンク。
-- `spec/dbs/<table_name>.md` — テーブルごとのスキーマ詳細 (1ファイル/テーブル)。
+- `spec/data/dblist.md` — 全テーブル一覧 (カテゴリ別)。各テーブルから `dbs/<table>.md` へリンク。
+- `spec/data/dbs/<table_name>.md` — テーブルごとのスキーマ詳細 (1ファイル/テーブル)。
   - 物理テーブル名 (例: `user_project_roles`) をファイル名にする (Drizzle の export 名ではない)。
 
 ## 手順
@@ -30,15 +30,15 @@ allowed-tools: Read, Write, Edit, Glob, Grep, Bash
    - カラム: 物理名、型 (`text` / `integer` / `real`)、`{ mode: "boolean" | "timestamp" | "json" }` 等のモディファイア、`.notNull()`、`.unique()`、`.primaryKey()`、`.references(() => other.col, { onDelete: ... })`、`.default(...)` / `.$defaultFn(...)`、`$type<...>()` の TS 型
    - 第3引数のコールバックから `index(...)`, `unique(...)` 制約 (名前と対象カラム)
    - JSDoc コメント (`/** ... */`) はカラムの説明にそのまま使う
-3. **`spec/dbs/<table>.md` を出力**
+3. **`spec/data/dbs/<table>.md` を出力**
    - 既存ファイルがあれば `Write` で上書き、新規なら作成
    - フォーマットは下記テンプレートに従う (表示名、ソース、モジュール、カラム表、インデックス表、関連)
    - モジュール分類はソースのコメントセクション (`// ─── M1: Rooms ─` 等) から推測する
-4. **`spec/dblist.md` を再生成**
+4. **`spec/data/dblist.md` を再生成**
    - カテゴリ別にテーブルを列挙し、各テーブルから `dbs/<table>.md` にリンクを貼る
    - カテゴリは下記の分類に沿う
 5. **古いファイルの削除**
-   - `spec/dbs/*.md` のうち、現在のスキーマに存在しないテーブルがあれば削除する
+   - `spec/data/dbs/*.md` のうち、現在のスキーマに存在しないテーブルがあれば削除する
 6. **テーブル数集計の更新**
    - `dblist.md` の最後の集計表 (カテゴリごとの件数) を再計算する
 
@@ -60,7 +60,7 @@ allowed-tools: Read, Write, Edit, Glob, Grep, Bash
 
 新規テーブルが既存カテゴリに当てはまらない場合は、適切な新カテゴリを追加する。
 
-## テーブルファイルのテンプレート (`spec/dbs/<table>.md`)
+## テーブルファイルのテンプレート (`spec/data/dbs/<table>.md`)
 
 ```markdown
 # <table_name>
@@ -95,6 +95,6 @@ allowed-tools: Read, Write, Edit, Glob, Grep, Bash
 ## 注意
 
 - 物理テーブル名 (snake_case) でファイル名と表示を統一する。Drizzle の TS export 名 (`userProjectRoles` 等) はファイル名に使わない。
-- スキーマ変更時は **必ずこのコマンドを再実行する**。さもなくば `spec/dblist.md` が古くなる。
+- スキーマ変更時は **必ずこのコマンドを再実行する**。さもなくば `spec/data/dblist.md` が古くなる。
 - このコマンドはドキュメントのみ更新する。マイグレーション生成 (`drizzle-kit generate`) や DB 操作はしない。
-- 完了後、`spec/dbs/` 配下のファイル数と `spec/dblist.md` の集計が一致することを確認する。
+- 完了後、`spec/data/dbs/` 配下のファイル数と `spec/data/dblist.md` の集計が一致することを確認する。

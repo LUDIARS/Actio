@@ -1,6 +1,6 @@
 ---
 name: db-schema-docs
-description: Actio の DB スキーマドキュメント (`spec/dblist.md` と `spec/dbs/*.md`) を `src/db/` の Drizzle スキーマから再生成する。スキーマファイル (`src/db/schema.ts`, `src/db/curriculum-schema.ts`, `src/db/pm-schema.ts`) を変更した直後、または DB ドキュメントを更新したい時に使用する。テーブルの追加・変更・削除を検知して `spec/dbs/` を同期する。
+description: Actio の DB スキーマドキュメント (`spec/data/dblist.md` と `spec/data/dbs/*.md`) を `src/db/` の Drizzle スキーマから再生成する。スキーマファイル (`src/db/schema.ts`, `src/db/curriculum-schema.ts`, `src/db/pm-schema.ts`) を変更した直後、または DB ドキュメントを更新したい時に使用する。テーブルの追加・変更・削除を検知して `spec/data/dbs/` を同期する。
 ---
 
 # DB Schema Docs Skill
@@ -13,7 +13,7 @@ description: Actio の DB スキーマドキュメント (`spec/dblist.md` と `
 - `src/db/schema.ts`, `src/db/curriculum-schema.ts`, `src/db/pm-schema.ts` のいずれかを変更した直後
 - 新しいテーブル/カラム/インデックスを追加した時
 - ユーザーが「DB スキーマドキュメントを更新して」と依頼した時
-- `spec/dblist.md` が古い、または `spec/dbs/` の内容と乖離している時
+- `spec/data/dblist.md` が古い、または `spec/data/dbs/` の内容と乖離している時
 
 ## 入出力
 
@@ -29,8 +29,8 @@ description: Actio の DB スキーマドキュメント (`spec/dblist.md` と `
 
 | ファイル | 内容 |
 |---------|------|
-| `spec/dblist.md` | カテゴリ別の全テーブル一覧。各テーブルへリンクを貼る |
-| `spec/dbs/<table_name>.md` | 1テーブル/1ファイルの詳細スキーマ |
+| `spec/data/dblist.md` | カテゴリ別の全テーブル一覧。各テーブルへリンクを貼る |
+| `spec/data/dbs/<table_name>.md` | 1テーブル/1ファイルの詳細スキーマ |
 
 物理テーブル名 (snake_case, 例: `user_project_roles`) をファイル名にする。
 Drizzle の TS export 名 (例: `userProjectRoles`) は使わない。
@@ -53,17 +53,17 @@ Drizzle の TS export 名 (例: `userProjectRoles`) は使わない。
 5. **モジュール分類**
    - ソースファイル内のセクションコメント (`// ─── M1: Rooms ─` など) からカテゴリを推定
    - 下記のカテゴリリストに沿って分類する
-6. **`spec/dbs/<table>.md` の出力**
+6. **`spec/data/dbs/<table>.md` の出力**
    - 既存ファイルがあれば Write で上書き、新規なら作成
    - テンプレート (下記) に従う
-7. **`spec/dblist.md` の再生成**
+7. **`spec/data/dblist.md` の再生成**
    - カテゴリ別にテーブルを列挙
    - 各テーブルから `dbs/<table>.md` へリンクを貼る
    - 末尾の集計表 (カテゴリごとの件数) を再計算
 8. **古いファイルの削除**
-   - `spec/dbs/` 配下の `.md` ファイルのうち、現スキーマに存在しないテーブルがあれば削除
+   - `spec/data/dbs/` 配下の `.md` ファイルのうち、現スキーマに存在しないテーブルがあれば削除
 9. **検証**
-   - `spec/dbs/*.md` の数と `spec/dblist.md` の集計合計が一致することを確認
+   - `spec/data/dbs/*.md` の数と `spec/data/dblist.md` の集計合計が一致することを確認
 
 ## カテゴリ分類
 
@@ -83,7 +83,7 @@ Drizzle の TS export 名 (例: `userProjectRoles`) は使わない。
 
 新しいカテゴリが必要な場合は適切な分類を追加する。
 
-## 出力テンプレート: `spec/dbs/<table>.md`
+## 出力テンプレート: `spec/data/dbs/<table>.md`
 
 ```markdown
 # <table_name>
