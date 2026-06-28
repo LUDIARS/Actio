@@ -424,6 +424,10 @@ export interface EventPlugin {
 
 export type TaskStatus = "open" | "in_progress" | "blocked" | "done" | "cancelled";
 export type TaskPriority = "low" | "medium" | "high" | "critical";
+/** タスク種別: task(通常) / goal(長期目標)。 Memoria 個人タスク移植 */
+export type TaskKind = "task" | "goal";
+/** 作成主体: human / ai(エージェント委譲)。 Memoria 個人タスク移植 */
+export type TaskCreatorType = "human" | "ai";
 
 export interface CoreTask {
   id: string;
@@ -434,6 +438,12 @@ export interface CoreTask {
   description: string | null;
   requirements: string | null;
   status: TaskStatus;
+  /** 種別: task / goal */
+  kind: TaskKind;
+  /** 作成主体: human / ai */
+  creatorType: TaskCreatorType;
+  /** カテゴリ (カンマ区切り複数可) */
+  category: string | null;
   priority: TaskPriority;
   deadline: Date | null;
   estimatedMinutes: number | null;
@@ -448,12 +458,23 @@ export interface CoreTask {
 export interface CreateTaskInput {
   title: string;
   description?: string;
+  /** Memoria 互換エイリアス: details → description */
+  details?: string;
   requirements?: string;
   assigneeId?: string;
   groupId?: string;
-  status?: TaskStatus;
+  /** open/in_progress/blocked/done/cancelled。 todo/doing/done エイリアスも受理 */
+  status?: TaskStatus | "todo" | "doing";
+  /** 種別: task(既定) / goal */
+  kind?: TaskKind;
+  /** 作成主体: human(既定) / ai */
+  creatorType?: TaskCreatorType;
+  /** カテゴリ (カンマ区切り複数可) */
+  category?: string | null;
   priority?: TaskPriority;
   deadline?: string | Date;
+  /** Memoria 互換エイリアス: due_at → deadline */
+  due_at?: string | null;
   estimatedMinutes?: number;
   pluginId?: string;
   pluginRef?: string;

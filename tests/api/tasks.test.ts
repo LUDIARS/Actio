@@ -30,9 +30,12 @@ describe("GET /api/tasks", () => {
     expect(json.tasks).toEqual([]);
   });
 
-  it("should require authentication", async () => {
-    const { status } = await request(app, "GET", "/api/tasks");
-    expect(status).toBe(401);
+  // 認証は当面未配線 (ユーザ指示)。 無認証アクセスは既定の個人ユーザ
+  // (PERSONAL_USER_ID) にフォールバックし、 その owner のタスクを返す。
+  it("falls back to the personal user when unauthenticated", async () => {
+    const { status, json } = await request(app, "GET", "/api/tasks");
+    expect(status).toBe(200);
+    expect(Array.isArray(json.tasks)).toBe(true);
   });
 });
 
@@ -215,5 +218,122 @@ describe("GET /api/tasks/plugins", () => {
     const { status, json } = await request(app, "GET", "/api/tasks/plugins", { token });
     expect(status).toBe(200);
     expect(Array.isArray(json.plugins)).toBe(true);
+  });
+});
+
+// ─── Memoria 個人タスク移植 (kind / category / 互換エイリアス) ──
+describe("Personal task fields (Memoria port)", () => {
+  it("creates a goal with category, accepts details/due_at aliases", async () => {
+    const { status, json } = await request(app, "POST", "/api/tasks", {
+      token,
+      body: {
+        title: "年間目標",
+        kind: "goal",
+        category: "学習, 開発",
+        details: "詳細メモ",
+        due_at: "2026-12-31T23:59",
+      },
+    });
+    expect(status).toBe(201);
+    expect(json.task.kind).toBe("goal");
+    expect(json.task.category).toBe("学習, 開発");
+    expect(json.task.description).toBe("詳細メモ");
+    expect(json.task.deadline).toBeTruthy();
+    expect(json.task.creatorType).toBe("human");
+  });
+
+  it("normalizes todo/doing status aliases to open/in_progress", async () => {
+    const todo = await request(app, "POST", "/api/tasks", {
+      token,
+      body: { title: "t1", status: "todo" },
+    });
+    expect(todo.json.task.status).toBe("open");
+    const doing = await request(app, "POST", "/api/tasks", {
+      token,
+      body: { title: "t2", status: "doing" },
+    });
+    expect(doing.json.task.status).toBe("in_progress");
+  });
+
+  it("filters by kind and supports all", async () => {
+    await request(app, "POST", "/api/tasks", { token, body: { title: "task-a", kind: "task" } });
+    await request(app, "POST", "/api/tasks", { token, body: { title: "goal-a", kind: "goal" } });
+
+    const goals = await request(app, "GET", "/api/tasks?kind=goal", { token });
+    expect(goals.json.tasks.length).toBe(1);
+    expect(goals.json.tasks[0].title).toBe("goal-a");
+
+    const all = await request(app, "GET", "/api/tasks?kind=all", { token });
+    expect(all.json.tasks.length).toBe(2);
+  });
+
+  it("flips ai creator to human when user edits due_at", async () => {
+    const create = await request(app, "POST", "/api/tasks", {
+      token,
+      body: { title: "ai-task", creatorType: "ai" },
+    });
+    expect(create.json.task.creatorType).toBe("ai");
+    const upd = await request(app, "PUT", `/api/tasks/${create.json.task.id}`, {
+      token,
+      body: { due_at: "2026-07-01T10:00" },
+    });
+    expect(upd.json.task.creatorType).toBe("human");
+  });
+});
+
+// ─── Memoria 互換シム (ハブ移行期) ───────────────────────
+describe("Memoria compat shim", () => {
+  it("accepts snake_case creator_type and returns {items} memoria shape", async () => {
+    await request(app, "POST", "/api/tasks", {
+      token,
+      body: { title: "compat", creator_type: "ai", status: "doing", details: "メモ", category: "Mm" },
+    });
+    const res = await request(app, "GET", "/api/tasks?format=memoria", { token });
+    expect(res.status).toBe(200);
+    expect(Array.isArray(res.json.items)).toBe(true);
+    const item = res.json.items.find((t: { title: string }) => t.title === "compat");
+    expect(item).toBeTruthy();
+    expect(item.status).toBe("doing"); // in_progress → doing
+    expect(item.details).toBe("メモ"); // description → details
+    expect(item.creator_type).toBe("ai");
+    expect(item.category).toBe("Mm");
+  });
+
+  it("supports PATCH /:id {status} like Memoria", async () => {
+    const create = await request(app, "POST", "/api/tasks", {
+      token,
+      body: { title: "patch-me" },
+    });
+    const id = create.json.task.id;
+    const patched = await request(app, "PATCH", `/api/tasks/${id}`, {
+      token,
+      body: { status: "done" },
+    });
+    expect(patched.status).toBe(200);
+    expect(patched.json.task.status).toBe("done");
+    expect(patched.json.task.completedAt).toBeTruthy();
+  });
+});
+
+describe("Task categories (Memoria port)", () => {
+  it("registers, lists, and unregisters categories", async () => {
+    const reg = await request(app, "POST", "/api/tasks/categories", {
+      token,
+      body: { name: "開発" },
+    });
+    expect(reg.status).toBe(201);
+    expect(reg.json.items).toContain("開発");
+
+    // 未完了タスクのカテゴリも union される
+    await request(app, "POST", "/api/tasks", {
+      token,
+      body: { title: "c1", category: "学習" },
+    });
+    const list = await request(app, "GET", "/api/tasks/categories", { token });
+    expect(list.json.items).toContain("開発");
+    expect(list.json.items).toContain("学習");
+
+    const del = await request(app, "DELETE", "/api/tasks/categories/開発", { token });
+    expect(del.json.items).not.toContain("開発");
   });
 });
