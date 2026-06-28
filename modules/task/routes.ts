@@ -28,7 +28,13 @@ import {
   normalizeStatus,
   normalizeKind,
   normalizeCreatorType,
+  toMemoriaShape,
 } from "./personal.js";
+
+/** body から creator_type(snake) / creatorType(camel) を取り出す */
+function readCreatorType(body: { creatorType?: unknown }): unknown {
+  return body.creatorType ?? (body as { creator_type?: unknown }).creator_type;
+}
 
 export const taskRoutes = new Hono();
 
@@ -78,6 +84,10 @@ taskRoutes.get("/", async (c) => {
   }
 
   const tasks = await taskRepo.list(filter);
+  // format=memoria: 既存 Memoria 消費者向け互換 shape ({items}, todo/doing/done)
+  if (c.req.query("format") === "memoria") {
+    return c.json({ items: tasks.map(toMemoriaShape) });
+  }
   return c.json({ tasks });
 });
 
@@ -158,7 +168,7 @@ taskRoutes.post("/", async (c) => {
     requirements: body.requirements ?? null,
     status,
     kind: normalizeKind(body.kind),
-    creatorType: normalizeCreatorType(body.creatorType),
+    creatorType: normalizeCreatorType(readCreatorType(body)),
     category,
     priority: body.priority ?? "medium",
     deadline,
@@ -200,8 +210,9 @@ taskRoutes.post("/", async (c) => {
   return c.json({ task: created }, 201);
 });
 
-// ─── PUT /api/tasks/:id ───────────────────────────────────
-taskRoutes.put("/:id", async (c) => {
+// ─── PUT / PATCH /api/tasks/:id ───────────────────────────
+// PATCH は Memoria 互換 (既存 skill が PATCH {status} を投げる)
+taskRoutes.on(["PUT", "PATCH"], "/:id", async (c) => {
   const userId = resolveUserId(c);
 
   const id = c.req.param("id");
@@ -264,7 +275,8 @@ taskRoutes.put("/:id", async (c) => {
       updates.creatorType = "human";
     }
   }
-  if (body.creatorType !== undefined) updates.creatorType = normalizeCreatorType(body.creatorType);
+  const creatorTypeInput = readCreatorType(body);
+  if (creatorTypeInput !== undefined) updates.creatorType = normalizeCreatorType(creatorTypeInput);
   if (body.estimatedMinutes !== undefined) updates.estimatedMinutes = body.estimatedMinutes;
   if (body.pluginPayload !== undefined) updates.pluginPayload = body.pluginPayload;
 
