@@ -25,7 +25,7 @@ import type {
   PMReminderSettings, PMReminderTestResult,
   SyncLog, NotionPage,
   CoreTask, CreateTaskInput, UpdateTaskInput,
-  TaskResponse, TaskListResponse, TaskPluginListResponse,
+  TaskResponse, TaskListResponse, TaskPluginListResponse, TaskCategoryListResponse,
   CocoiruOptInResponse,
   CocoiruReportListResponse,
   CocoiruReportCreateResponse,
@@ -1537,7 +1537,11 @@ export interface TaskListQuery {
   scope?: "owned" | "assigned" | "group" | "all";
   groupId?: string;
   status?: string;
+  /** "task" | "goal" | "all"。 Memoria 個人タスク移植 */
+  kind?: string;
   pluginId?: string;
+  /** "personal" で個人タスクボード順 (status→期限→作成) */
+  sort?: "personal";
   /** ISO 8601 string */
   dueBefore?: string;
 }
@@ -1548,7 +1552,9 @@ export const tasksApi = {
     if (query.scope) params.set("scope", query.scope);
     if (query.groupId) params.set("groupId", query.groupId);
     if (query.status) params.set("status", query.status);
+    if (query.kind) params.set("kind", query.kind);
     if (query.pluginId) params.set("pluginId", query.pluginId);
+    if (query.sort) params.set("sort", query.sort);
     if (query.dueBefore) params.set("dueBefore", query.dueBefore);
     const qs = params.toString();
     return request<TaskListResponse>(`/api/tasks${qs ? `?${qs}` : ""}`);
@@ -1578,6 +1584,25 @@ export const tasksApi = {
 
   plugins() {
     return request<TaskPluginListResponse>("/api/tasks/plugins");
+  },
+
+  // ─── カテゴリ (Memoria 個人タスク移植) ───────────────────
+  listCategories() {
+    return request<TaskCategoryListResponse>("/api/tasks/categories");
+  },
+
+  registerCategory(name: string) {
+    return request<TaskCategoryListResponse>("/api/tasks/categories", {
+      method: "POST",
+      body: JSON.stringify({ name }),
+    });
+  },
+
+  unregisterCategory(name: string) {
+    return request<TaskCategoryListResponse>(
+      `/api/tasks/categories/${encodeURIComponent(name)}`,
+      { method: "DELETE" },
+    );
   },
 };
 

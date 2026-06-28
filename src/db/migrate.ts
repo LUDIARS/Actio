@@ -342,6 +342,11 @@ try { sqlite.exec(`ALTER TABLE curricula ADD COLUMN valid_from TEXT`); } catch {
 try { sqlite.exec(`ALTER TABLE curricula ADD COLUMN valid_until TEXT`); } catch { /* column already exists */ }
 try { sqlite.exec(`ALTER TABLE users ADD COLUMN last_login_at INTEGER`); } catch { /* column already exists */ }
 try { sqlite.exec(`ALTER TABLE "groups" ADD COLUMN enabled_modules TEXT`); } catch { /* column already exists */ }
+// Memoria 個人タスク移植: tasks に kind / creator_type / category を追加
+try { sqlite.exec(`ALTER TABLE tasks ADD COLUMN kind TEXT NOT NULL DEFAULT 'task'`); } catch { /* column already exists */ }
+try { sqlite.exec(`ALTER TABLE tasks ADD COLUMN creator_type TEXT NOT NULL DEFAULT 'human'`); } catch { /* column already exists */ }
+try { sqlite.exec(`ALTER TABLE tasks ADD COLUMN category TEXT`); } catch { /* column already exists */ }
+try { sqlite.exec(`CREATE INDEX IF NOT EXISTS idx_task_kind ON tasks(kind)`); } catch { /* index already exists */ }
 
 // M1: Terms table
 sqlite.exec(`
