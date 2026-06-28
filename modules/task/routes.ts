@@ -11,13 +11,11 @@
 
 import { Hono } from "hono";
 import { v4 as uuidv4 } from "uuid";
-import { getUserId } from "../../src/middleware/getUserId.js";
-import { taskRepo, type TaskListFilter } from "../../src/db/repository.js";
+import { taskRepo, taskCategoryRepo, type TaskListFilter } from "../../src/db/repository.js";
 import { getTaskPlugins } from "../../src/task-plugins.js";
 import type {
   CreateTaskInput,
   TaskPriority,
-  TaskStatus,
 } from "../../src/shared/types.js";
 import { scheduleTaskReminders, cancelTaskReminders } from "../../src/lib/event-reminders.js";
 import {
@@ -25,16 +23,15 @@ import {
   notifyTaskCompleted,
   notifyTaskPriorityRaised,
 } from "../../src/lib/task-notifications.js";
+import {
+  resolveUserId,
+  normalizeStatus,
+  normalizeKind,
+  normalizeCreatorType,
+} from "./personal.js";
 
 export const taskRoutes = new Hono();
 
-const VALID_STATUSES: TaskStatus[] = [
-  "open",
-  "in_progress",
-  "blocked",
-  "done",
-  "cancelled",
-];
 const VALID_PRIORITIES: TaskPriority[] = ["low", "medium", "high", "critical"];
 
 function parseDate(value: string | Date): Date | null {
@@ -49,17 +46,19 @@ taskRoutes.get("/plugins", (c) => {
 });
 
 // ─── GET /api/tasks ───────────────────────────────────────
-// 一覧取得 (filter: ownerId / assigneeId / groupId / status / pluginId)
+// 一覧取得 (filter: ownerId / assigneeId / groupId / status / kind / pluginId)
 // scope: owned (default) | assigned | group | all
+// kind: task / goal / all。 sort=personal で個人タスクボード順 (status→期限→作成)
 taskRoutes.get("/", async (c) => {
-  const userId = getUserId(c);
-  if (!userId) return c.json({ error: "Authentication required" }, 401);
+  const userId = resolveUserId(c);
 
   const filter: TaskListFilter = {};
   const groupId = c.req.query("groupId");
   const status = c.req.query("status");
+  const kind = c.req.query("kind");
   const pluginId = c.req.query("pluginId");
   const dueBefore = c.req.query("dueBefore");
+  const sort = c.req.query("sort");
   const scope = c.req.query("scope") ?? "owned"; // owned | assigned | group | all
 
   if (groupId) {
@@ -69,8 +68,10 @@ taskRoutes.get("/", async (c) => {
   } else if (scope === "owned") {
     filter.ownerId = userId;
   }
-  if (status) filter.status = status;
+  if (status) filter.status = normalizeStatus(status) ?? status;
+  if (kind) filter.kind = kind; // "task" | "goal" | "all"
   if (pluginId) filter.pluginId = pluginId;
+  if (sort === "personal") filter.sort = "personal";
   if (dueBefore) {
     const d = parseDate(dueBefore);
     if (d) filter.dueBefore = d;
@@ -80,11 +81,33 @@ taskRoutes.get("/", async (c) => {
   return c.json({ tasks });
 });
 
+// ─── Task Categories (Memoria 個人タスク移植) ───────────────
+// 注意: /:id より前に定義する (Hono 静的優先だが明示的に並べる)
+taskRoutes.get("/categories", async (c) => {
+  const userId = resolveUserId(c);
+  const items = await taskCategoryRepo.list(userId);
+  return c.json({ items });
+});
+
+taskRoutes.post("/categories", async (c) => {
+  const userId = resolveUserId(c);
+  const body = await c.req.json<{ name?: unknown }>().catch(() => ({ name: undefined }));
+  const name = String(body.name ?? "").trim();
+  if (!name) return c.json({ error: "name required" }, 400);
+  await taskCategoryRepo.register(userId, name);
+  return c.json({ items: await taskCategoryRepo.list(userId) }, 201);
+});
+
+taskRoutes.delete("/categories/:name", async (c) => {
+  const userId = resolveUserId(c);
+  const name = decodeURIComponent(c.req.param("name") ?? "");
+  await taskCategoryRepo.unregister(userId, name);
+  return c.json({ items: await taskCategoryRepo.list(userId) });
+});
+
 // ─── GET /api/tasks/:id ───────────────────────────────────
 taskRoutes.get("/:id", async (c) => {
-  const userId = getUserId(c);
-  if (!userId) return c.json({ error: "Authentication required" }, 401);
-
+  resolveUserId(c);
   const task = await taskRepo.findById(c.req.param("id"));
   if (!task) return c.json({ error: "Task not found" }, 404);
   return c.json({ task });
@@ -92,26 +115,37 @@ taskRoutes.get("/:id", async (c) => {
 
 // ─── POST /api/tasks ──────────────────────────────────────
 taskRoutes.post("/", async (c) => {
-  const userId = getUserId(c);
-  if (!userId) return c.json({ error: "Authentication required" }, 401);
+  const userId = resolveUserId(c);
 
   const body = await c.req.json<CreateTaskInput>();
   if (!body.title) {
     return c.json({ error: "title is required" }, 400);
   }
-  if (body.status && !VALID_STATUSES.includes(body.status)) {
-    return c.json({ error: `status must be one of ${VALID_STATUSES.join(", ")}` }, 400);
+  // status: todo/doing/done エイリアスも受理 (Memoria 互換)
+  let status: string = "open";
+  if (body.status !== undefined) {
+    const normalized = normalizeStatus(body.status);
+    if (!normalized) {
+      return c.json({ error: "status must be one of open, in_progress, blocked, done, cancelled (todo/doing 可)" }, 400);
+    }
+    status = normalized;
   }
   if (body.priority && !VALID_PRIORITIES.includes(body.priority)) {
     return c.json({ error: `priority must be one of ${VALID_PRIORITIES.join(", ")}` }, 400);
   }
 
+  // deadline: deadline / due_at(Memoria 互換) を受理
+  const deadlineInput = body.deadline ?? body.due_at ?? null;
   let deadline: Date | null = null;
-  if (body.deadline) {
-    const d = parseDate(body.deadline);
+  if (deadlineInput) {
+    const d = parseDate(deadlineInput);
     if (!d) return c.json({ error: "Invalid deadline" }, 400);
     deadline = d;
   }
+
+  // description: description / details(Memoria 互換) を受理
+  const description = body.description ?? body.details ?? null;
+  const category = typeof body.category === "string" ? body.category.trim() || null : null;
 
   const id = uuidv4();
   await taskRepo.create({
@@ -120,16 +154,19 @@ taskRoutes.post("/", async (c) => {
     assigneeId: body.assigneeId ?? null,
     groupId: body.groupId ?? null,
     title: body.title,
-    description: body.description ?? null,
+    description,
     requirements: body.requirements ?? null,
-    status: body.status ?? "open",
+    status,
+    kind: normalizeKind(body.kind),
+    creatorType: normalizeCreatorType(body.creatorType),
+    category,
     priority: body.priority ?? "medium",
     deadline,
     estimatedMinutes: body.estimatedMinutes ?? null,
     pluginId: body.pluginId ?? null,
     pluginRef: body.pluginRef ?? null,
     pluginPayload: body.pluginPayload ?? null,
-    completedAt: null,
+    completedAt: status === "done" ? new Date() : null,
   });
 
   // Nuntius へ deadline N 分前通知を予約 (assignee 優先、 fallback owner)
@@ -165,8 +202,7 @@ taskRoutes.post("/", async (c) => {
 
 // ─── PUT /api/tasks/:id ───────────────────────────────────
 taskRoutes.put("/:id", async (c) => {
-  const userId = getUserId(c);
-  if (!userId) return c.json({ error: "Authentication required" }, 401);
+  const userId = resolveUserId(c);
 
   const id = c.req.param("id");
   const existing = await taskRepo.findById(id);
@@ -179,36 +215,56 @@ taskRoutes.put("/:id", async (c) => {
   const body = await c.req.json<Partial<CreateTaskInput>>();
   const updates: Record<string, unknown> = {};
   if (body.title !== undefined) updates.title = body.title;
+  // description: description / details(Memoria 互換)
   if (body.description !== undefined) updates.description = body.description;
+  else if (body.details !== undefined) updates.description = body.details;
   if (body.requirements !== undefined) updates.requirements = body.requirements;
   if (body.assigneeId !== undefined) updates.assigneeId = body.assigneeId;
   if (body.groupId !== undefined) updates.groupId = body.groupId;
+  if (body.kind !== undefined) updates.kind = normalizeKind(body.kind);
+  if (body.category !== undefined) {
+    updates.category =
+      typeof body.category === "string" ? body.category.trim() || null : null;
+  }
   if (body.priority !== undefined) {
     if (!VALID_PRIORITIES.includes(body.priority)) {
       return c.json({ error: `priority must be one of ${VALID_PRIORITIES.join(", ")}` }, 400);
     }
     updates.priority = body.priority;
   }
+  // status: todo/doing/done エイリアスも受理
+  const normalizedStatus =
+    body.status !== undefined ? normalizeStatus(body.status) : undefined;
   if (body.status !== undefined) {
-    if (!VALID_STATUSES.includes(body.status)) {
-      return c.json({ error: `status must be one of ${VALID_STATUSES.join(", ")}` }, 400);
+    if (!normalizedStatus) {
+      return c.json({ error: "status must be one of open, in_progress, blocked, done, cancelled (todo/doing 可)" }, 400);
     }
-    updates.status = body.status;
-    if (body.status === "done" && !existing.completedAt) {
+    updates.status = normalizedStatus;
+    if (normalizedStatus === "done" && !existing.completedAt) {
       updates.completedAt = new Date();
-    } else if (body.status !== "done" && existing.completedAt) {
+    } else if (normalizedStatus !== "done" && existing.completedAt) {
       updates.completedAt = null;
     }
   }
-  if (body.deadline !== undefined) {
-    if (body.deadline === null) {
+  // deadline: deadline / due_at(Memoria 互換)
+  const deadlineInput =
+    body.deadline !== undefined ? body.deadline : body.due_at;
+  if (deadlineInput !== undefined) {
+    if (deadlineInput === null) {
       updates.deadline = null;
     } else {
-      const d = parseDate(body.deadline);
+      const d = parseDate(deadlineInput);
       if (!d) return c.json({ error: "Invalid deadline" }, 400);
       updates.deadline = d;
     }
+    // Memoria 挙動: AI 作成タスクをユーザが期日変更したら human 化 (採用扱い)
+    const newDeadlineMs = updates.deadline instanceof Date ? updates.deadline.getTime() : null;
+    const oldDeadlineMs = existing.deadline ? existing.deadline.getTime() : null;
+    if (existing.creatorType === "ai" && newDeadlineMs !== oldDeadlineMs) {
+      updates.creatorType = "human";
+    }
   }
+  if (body.creatorType !== undefined) updates.creatorType = normalizeCreatorType(body.creatorType);
   if (body.estimatedMinutes !== undefined) updates.estimatedMinutes = body.estimatedMinutes;
   if (body.pluginPayload !== undefined) updates.pluginPayload = body.pluginPayload;
 
@@ -221,7 +277,7 @@ taskRoutes.put("/:id", async (c) => {
   // - priority 上昇 (low/medium → high) → assignee (or owner) に push
   if (updated) {
     const completedNow =
-      body.status === "done" && existing.status !== "done";
+      normalizedStatus === "done" && existing.status !== "done";
     if (completedNow) {
       await notifyTaskCompleted({
         taskId: id,
@@ -275,9 +331,7 @@ taskRoutes.put("/:id", async (c) => {
 
 // ─── DELETE /api/tasks/:id ────────────────────────────────
 taskRoutes.delete("/:id", async (c) => {
-  const userId = getUserId(c);
-  if (!userId) return c.json({ error: "Authentication required" }, 401);
-
+  const userId = resolveUserId(c);
   const id = c.req.param("id");
   const existing = await taskRepo.findById(id);
   if (!existing) return c.json({ error: "Task not found" }, 404);

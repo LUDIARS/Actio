@@ -5,7 +5,7 @@
  * ルートハンドラが直接 Drizzle クエリを書かなくて済むようにする。
  */
 
-import { eq, and, count, inArray, desc, like, gte, lte, or, isNull } from "drizzle-orm";
+import { eq, and, count, inArray, desc, like, gte, lte, or, isNull, sql } from "drizzle-orm";
 import type { SQL } from "drizzle-orm";
 import { db, schema, curriculumSchema, pmSchema } from "./connection.js";
 
@@ -2345,9 +2345,25 @@ export interface TaskListFilter {
   groupId?: string;
   status?: string;
   pluginId?: string;
+  /** 種別フィルタ: "task" / "goal" / "all"(両方)。 省略時は全件 (互換) */
+  kind?: string;
   /** deadline <= dueBefore */
   dueBefore?: Date;
+  /**
+   * 並び順。 "personal" = 個人タスクボード用
+   * (status todo→doing→done, 次に期限 昇順 nulls last, 次に作成日時 降順)。
+   * 省略時は従来どおり作成日時 降順。
+   */
+  sort?: "personal";
 }
+
+// 個人タスクボードの並び: open/todo→0, in_progress/doing→1, done→2, その他→3。
+// 次に期限 (null は最後)、 次に作成日時 降順。
+const PERSONAL_STATUS_ORDER = sql`CASE ${schema.tasks.status}
+  WHEN 'open' THEN 0 WHEN 'todo' THEN 0
+  WHEN 'in_progress' THEN 1 WHEN 'doing' THEN 1
+  WHEN 'done' THEN 2 ELSE 3 END`;
+const PERSONAL_DEADLINE_ORDER = sql`COALESCE(${schema.tasks.deadline}, 99999999999999)`;
 
 export const taskRepo = {
   async findById(id: string): Promise<Task | undefined> {
@@ -2365,12 +2381,18 @@ export const taskRepo = {
     if (filter.groupId) conditions.push(eq(schema.tasks.groupId, filter.groupId));
     if (filter.status) conditions.push(eq(schema.tasks.status, filter.status));
     if (filter.pluginId) conditions.push(eq(schema.tasks.pluginId, filter.pluginId));
+    if (filter.kind && filter.kind !== "all") conditions.push(eq(schema.tasks.kind, filter.kind));
     if (filter.dueBefore) conditions.push(lte(schema.tasks.deadline, filter.dueBefore));
+
+    const order =
+      filter.sort === "personal"
+        ? [PERSONAL_STATUS_ORDER, PERSONAL_DEADLINE_ORDER, desc(schema.tasks.createdAt)]
+        : [desc(schema.tasks.createdAt)];
 
     const query = db.select().from(schema.tasks);
     const rows = conditions.length
-      ? await query.where(and(...conditions)).orderBy(desc(schema.tasks.createdAt))
-      : await query.orderBy(desc(schema.tasks.createdAt));
+      ? await query.where(and(...conditions)).orderBy(...order)
+      : await query.orderBy(...order);
     return rows;
   },
 
@@ -2387,5 +2409,68 @@ export const taskRepo = {
 
   async deleteById(id: string): Promise<void> {
     await db.delete(schema.tasks).where(eq(schema.tasks.id, id));
+  },
+};
+
+// ─── Task Category Repository (Memoria 個人タスク移植) ────────
+// 1 タスクは複数カテゴリを持てる (tasks.category にカンマ区切り保存)。
+// 「未完了タスクに付いているカテゴリ」 + 「user_preferences に手動登録した
+// カテゴリ (0 件でも残す)」 を union + 重複排除 + 昇順ソートで返す。
+const TASK_CATEGORIES_PREF_KEY = "task.categories.registered";
+
+function splitCategoryField(value: string | null | undefined): string[] {
+  return String(value ?? "")
+    .split(",")
+    .map((c) => c.trim())
+    .filter((c) => c.length > 0);
+}
+
+export const taskCategoryRepo = {
+  async listRegistered(userId: string): Promise<string[]> {
+    const raw = await userPreferenceRepo.get(userId, TASK_CATEGORIES_PREF_KEY);
+    if (!raw) return [];
+    try {
+      const parsed = JSON.parse(raw) as unknown;
+      return Array.isArray(parsed) ? parsed.filter((c): c is string => typeof c === "string") : [];
+    } catch {
+      return [];
+    }
+  },
+
+  /** 未完了タスクのカテゴリ + 手動登録カテゴリを union して返す */
+  async list(userId: string): Promise<string[]> {
+    const rows = await db
+      .select({ category: schema.tasks.category })
+      .from(schema.tasks)
+      .where(
+        and(
+          eq(schema.tasks.ownerId, userId),
+          inArray(schema.tasks.status, ["open", "in_progress", "todo", "doing"]),
+        ),
+      );
+    const all = new Set<string>();
+    for (const row of rows) {
+      for (const c of splitCategoryField(row.category)) all.add(c);
+    }
+    for (const c of await this.listRegistered(userId)) all.add(c);
+    return [...all].sort((a, b) => a.localeCompare(b));
+  },
+
+  async register(userId: string, name: string): Promise<void> {
+    const n = name.trim();
+    if (!n) return;
+    const registered = await this.listRegistered(userId);
+    if (!registered.includes(n)) {
+      registered.push(n);
+      await userPreferenceRepo.upsert(userId, TASK_CATEGORIES_PREF_KEY, JSON.stringify(registered));
+    }
+  },
+
+  async unregister(userId: string, name: string): Promise<void> {
+    const n = name.trim();
+    if (!n) return;
+    const registered = await this.listRegistered(userId);
+    const next = registered.filter((c) => c !== n);
+    await userPreferenceRepo.upsert(userId, TASK_CATEGORIES_PREF_KEY, JSON.stringify(next));
   },
 };

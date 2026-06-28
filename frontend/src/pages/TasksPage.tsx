@@ -3,6 +3,7 @@ import { tasksApi } from "../lib/api";
 import type {
   CoreTask,
   CreateTaskInput,
+  TaskKind,
   TaskPriority,
   TaskStatus,
 } from "../lib/api-types";
@@ -38,16 +39,34 @@ const PRIORITY_COLORS: Record<TaskPriority, string> = {
 };
 
 type Scope = "owned" | "assigned" | "all";
+type KindFilter = "task" | "goal" | "all";
+
+const KIND_LABELS: Record<TaskKind, string> = {
+  task: "タスク",
+  goal: "目標",
+};
 
 const EMPTY_FORM: CreateTaskInput = {
   title: "",
   description: "",
   requirements: "",
   status: "open",
+  kind: "task",
+  category: "",
   priority: "medium",
   deadline: null,
   estimatedMinutes: null,
 };
+
+/** "今日" / "明日" / "今週末(土)" の datetime-local 値を返す */
+function dueShortcut(which: "today" | "tomorrow" | "weekend"): string {
+  const d = new Date();
+  d.setHours(23, 59, 0, 0);
+  if (which === "tomorrow") d.setDate(d.getDate() + 1);
+  if (which === "weekend") d.setDate(d.getDate() + ((6 - d.getDay() + 7) % 7));
+  const pad = (n: number) => n.toString().padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
 
 function formatDeadline(iso: string | null): string {
   if (!iso) return "—";
@@ -76,6 +95,8 @@ export function TasksPage() {
   const [form, setForm] = useState<CreateTaskInput>(EMPTY_FORM);
   const [scope, setScope] = useState<Scope>("owned");
   const [statusFilter, setStatusFilter] = useState<TaskStatus | "">("");
+  const [kindFilter, setKindFilter] = useState<KindFilter>("task");
+  const [categories, setCategories] = useState<string[]>([]);
 
   const showMsg = (msg: string) => {
     setMessage(msg);
@@ -88,6 +109,8 @@ export function TasksPage() {
       const res = await tasksApi.list({
         scope,
         status: statusFilter || undefined,
+        kind: kindFilter,
+        sort: "personal",
       });
       setTasks(res.tasks);
     } catch (e: unknown) {
@@ -95,11 +118,24 @@ export function TasksPage() {
     } finally {
       setLoading(false);
     }
-  }, [scope, statusFilter]);
+  }, [scope, statusFilter, kindFilter]);
+
+  const fetchCategories = useCallback(async () => {
+    try {
+      const res = await tasksApi.listCategories();
+      setCategories(res.items);
+    } catch {
+      /* カテゴリ取得失敗は無視 (UI 劣化のみ) */
+    }
+  }, []);
 
   useEffect(() => {
     fetchTasks();
   }, [fetchTasks]);
+
+  useEffect(() => {
+    fetchCategories();
+  }, [fetchCategories]);
 
   const resetForm = () => {
     setForm(EMPTY_FORM);
@@ -113,6 +149,8 @@ export function TasksPage() {
       description: task.description ?? "",
       requirements: task.requirements ?? "",
       status: task.status,
+      kind: task.kind,
+      category: task.category ?? "",
       priority: task.priority,
       deadline: task.deadline,
       estimatedMinutes: task.estimatedMinutes,
@@ -133,6 +171,8 @@ export function TasksPage() {
       description: form.description?.toString().trim() || null,
       requirements: form.requirements?.toString().trim() || null,
       status: form.status,
+      kind: form.kind ?? "task",
+      category: form.category?.toString().trim() || null,
       priority: form.priority,
       deadline: form.deadline ? new Date(form.deadline).toISOString() : null,
       estimatedMinutes: form.estimatedMinutes ?? null,
@@ -149,6 +189,7 @@ export function TasksPage() {
       }
       resetForm();
       await fetchTasks();
+      await fetchCategories();
     } catch (e: unknown) {
       showMsg(`Error: ${(e as Error).message}`);
     } finally {
@@ -279,6 +320,36 @@ export function TasksPage() {
             style={{ ...inputStyle, resize: "vertical" }}
           />
           <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+            <label style={{ display: "flex", flexDirection: "column", gap: "0.2rem", flex: 1, minWidth: 100 }}>
+              <span style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>種別</span>
+              <select
+                value={form.kind ?? "task"}
+                onChange={(e) => setForm({ ...form, kind: e.target.value as TaskKind })}
+                style={inputStyle}
+              >
+                {Object.entries(KIND_LABELS).map(([k, v]) => (
+                  <option key={k} value={k}>
+                    {v}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label style={{ display: "flex", flexDirection: "column", gap: "0.2rem", flex: 1, minWidth: 140 }}>
+              <span style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>カテゴリ (カンマ区切り)</span>
+              <input
+                type="text"
+                list="task-category-list"
+                placeholder="開発, 学習"
+                value={form.category ?? ""}
+                onChange={(e) => setForm({ ...form, category: e.target.value })}
+                style={inputStyle}
+              />
+              <datalist id="task-category-list">
+                {categories.map((c) => (
+                  <option key={c} value={c} />
+                ))}
+              </datalist>
+            </label>
             <label style={{ display: "flex", flexDirection: "column", gap: "0.2rem", flex: 1, minWidth: 120 }}>
               <span style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>ステータス</span>
               <select
@@ -320,6 +391,32 @@ export function TasksPage() {
                 }
                 style={inputStyle}
               />
+              <div style={{ display: "flex", gap: "0.25rem", marginTop: "0.2rem" }}>
+                {([
+                  ["today", "今日"],
+                  ["tomorrow", "明日"],
+                  ["weekend", "今週末"],
+                ] as const).map(([k, label]) => (
+                  <button
+                    key={k}
+                    type="button"
+                    onClick={() =>
+                      setForm({ ...form, deadline: new Date(dueShortcut(k)).toISOString() })
+                    }
+                    style={{
+                      padding: "0.15rem 0.4rem",
+                      background: "var(--bg-surface-2)",
+                      color: "var(--text-muted)",
+                      border: "1px solid var(--border)",
+                      borderRadius: "var(--radius-sm)",
+                      cursor: "pointer",
+                      fontSize: "0.7rem",
+                    }}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
             </label>
             <label style={{ display: "flex", flexDirection: "column", gap: "0.2rem", minWidth: 120 }}>
               <span style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>見積(分)</span>
@@ -356,6 +453,32 @@ export function TasksPage() {
           </div>
         </div>
       )}
+
+      {/* 種別フィルタ (タスク / 目標 / 全て) */}
+      <div style={{ display: "flex", gap: "0.5rem", marginBottom: "0.5rem", flexWrap: "wrap" }}>
+        {([
+          ["task", "タスク"],
+          ["goal", "目標"],
+          ["all", "全て"],
+        ] as const).map(([k, label]) => (
+          <button
+            key={k}
+            onClick={() => setKindFilter(k)}
+            style={{
+              padding: "0.25rem 0.7rem",
+              background: kindFilter === k ? "var(--accent)" : "var(--bg-surface-2)",
+              color: kindFilter === k ? "#000" : "var(--text-muted)",
+              border: "1px solid var(--border)",
+              borderRadius: "var(--radius-sm)",
+              cursor: "pointer",
+              fontSize: "0.75rem",
+              fontWeight: 600,
+            }}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
 
       {/* フィルタ */}
       <div style={{ display: "flex", gap: "0.5rem", marginBottom: "0.5rem", flexWrap: "wrap" }}>
@@ -442,11 +565,56 @@ export function TasksPage() {
                 >
                   {PRIORITY_LABELS[task.priority]}
                 </span>
+                {task.kind === "goal" && (
+                  <span
+                    style={{
+                      padding: "0.1rem 0.4rem",
+                      background: "var(--accent)",
+                      color: "#000",
+                      borderRadius: "var(--radius-sm)",
+                      fontSize: "0.7rem",
+                      fontWeight: 600,
+                    }}
+                  >
+                    目標
+                  </span>
+                )}
+                {task.creatorType === "ai" && (
+                  <span
+                    style={{
+                      padding: "0.1rem 0.4rem",
+                      border: "1px solid var(--border)",
+                      color: "var(--text-muted)",
+                      borderRadius: "var(--radius-sm)",
+                      fontSize: "0.7rem",
+                    }}
+                  >
+                    AI
+                  </span>
+                )}
                 <span style={{ fontWeight: 600, fontSize: "0.95rem", flex: 1 }}>{task.title}</span>
                 <span style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>
                   期限: {formatDeadline(task.deadline)}
                 </span>
               </div>
+              {task.category && (
+                <div style={{ display: "flex", gap: "0.3rem", flexWrap: "wrap" }}>
+                  {task.category.split(",").map((c) => c.trim()).filter(Boolean).map((c) => (
+                    <span
+                      key={c}
+                      style={{
+                        padding: "0.1rem 0.4rem",
+                        background: "var(--bg-surface-2)",
+                        color: "var(--text-muted)",
+                        borderRadius: "var(--radius-sm)",
+                        fontSize: "0.7rem",
+                      }}
+                    >
+                      {c}
+                    </span>
+                  ))}
+                </div>
+              )}
               {task.description && (
                 <div style={{ fontSize: "0.8rem", color: "var(--text-muted)", whiteSpace: "pre-wrap" }}>
                   {task.description}
