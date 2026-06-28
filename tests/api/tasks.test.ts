@@ -281,6 +281,40 @@ describe("Personal task fields (Memoria port)", () => {
   });
 });
 
+// ─── Memoria 互換シム (ハブ移行期) ───────────────────────
+describe("Memoria compat shim", () => {
+  it("accepts snake_case creator_type and returns {items} memoria shape", async () => {
+    await request(app, "POST", "/api/tasks", {
+      token,
+      body: { title: "compat", creator_type: "ai", status: "doing", details: "メモ", category: "Mm" },
+    });
+    const res = await request(app, "GET", "/api/tasks?format=memoria", { token });
+    expect(res.status).toBe(200);
+    expect(Array.isArray(res.json.items)).toBe(true);
+    const item = res.json.items.find((t: { title: string }) => t.title === "compat");
+    expect(item).toBeTruthy();
+    expect(item.status).toBe("doing"); // in_progress → doing
+    expect(item.details).toBe("メモ"); // description → details
+    expect(item.creator_type).toBe("ai");
+    expect(item.category).toBe("Mm");
+  });
+
+  it("supports PATCH /:id {status} like Memoria", async () => {
+    const create = await request(app, "POST", "/api/tasks", {
+      token,
+      body: { title: "patch-me" },
+    });
+    const id = create.json.task.id;
+    const patched = await request(app, "PATCH", `/api/tasks/${id}`, {
+      token,
+      body: { status: "done" },
+    });
+    expect(patched.status).toBe(200);
+    expect(patched.json.task.status).toBe("done");
+    expect(patched.json.task.completedAt).toBeTruthy();
+  });
+});
+
 describe("Task categories (Memoria port)", () => {
   it("registers, lists, and unregisters categories", async () => {
     const reg = await request(app, "POST", "/api/tasks/categories", {
