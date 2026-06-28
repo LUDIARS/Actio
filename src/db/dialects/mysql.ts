@@ -698,6 +698,12 @@ export const tasks = mysqlTable(
     description: text("description"),
     requirements: text("requirements"),
     status: varchar("status", { length: 32 }).notNull().default("open"),
+    /** 種別: task(通常) / goal(長期目標)。 Memoria 個人タスク移植 */
+    kind: varchar("kind", { length: 32 }).notNull().default("task"),
+    /** 作成主体: human / ai(エージェント委譲)。 Memoria 個人タスク移植 */
+    creatorType: varchar("creator_type", { length: 32 }).notNull().default("human"),
+    /** カテゴリ (カンマ区切り複数可)。 Memoria 個人タスク移植 */
+    category: text("category"),
     priority: varchar("priority", { length: 32 }).notNull().default("medium"),
     deadline: timestamp("deadline"),
     estimatedMinutes: int("estimated_minutes"),
@@ -713,6 +719,7 @@ export const tasks = mysqlTable(
     index("idx_task_assignee").on(t.assigneeId),
     index("idx_task_group").on(t.groupId),
     index("idx_task_status").on(t.status),
+    index("idx_task_kind").on(t.kind),
     index("idx_task_deadline").on(t.deadline),
     index("idx_task_plugin").on(t.pluginId),
   ]
