@@ -1090,6 +1090,10 @@ export type TaskStatus =
   | "done"
   | "cancelled";
 export type TaskPriority = "low" | "medium" | "high" | "critical";
+/** タスク種別: task(通常) / goal(長期目標)。 Memoria 個人タスク移植 */
+export type TaskKind = "task" | "goal";
+/** 作成主体: human / ai(エージェント委譲)。 Memoria 個人タスク移植 */
+export type TaskCreatorType = "human" | "ai";
 
 export interface CoreTask {
   id: string;
@@ -1100,6 +1104,9 @@ export interface CoreTask {
   description: string | null;
   requirements: string | null;
   status: TaskStatus;
+  kind: TaskKind;
+  creatorType: TaskCreatorType;
+  category: string | null;
   priority: TaskPriority;
   deadline: string | null;
   estimatedMinutes: number | null;
@@ -1114,12 +1121,20 @@ export interface CoreTask {
 export interface CreateTaskInput {
   title: string;
   description?: string | null;
+  /** Memoria 互換エイリアス: details → description */
+  details?: string | null;
   requirements?: string | null;
   assigneeId?: string | null;
   groupId?: string | null;
-  status?: TaskStatus;
+  /** todo/doing/done エイリアスも受理 */
+  status?: TaskStatus | "todo" | "doing";
+  kind?: TaskKind;
+  creatorType?: TaskCreatorType;
+  category?: string | null;
   priority?: TaskPriority;
   deadline?: string | null;
+  /** Memoria 互換エイリアス: due_at → deadline */
+  due_at?: string | null;
   estimatedMinutes?: number | null;
   pluginId?: string;
   pluginRef?: string;
@@ -1127,6 +1142,10 @@ export interface CreateTaskInput {
 }
 
 export type UpdateTaskInput = Partial<CreateTaskInput>;
+
+export interface TaskCategoryListResponse {
+  items: string[];
+}
 
 export interface TaskResponse {
   task: CoreTask;

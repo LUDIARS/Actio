@@ -1089,6 +1089,12 @@ export const tasks = sqliteTable(
     requirements: text("requirements"),
     /** ステータス: open / in_progress / blocked / done / cancelled */
     status: text("status").notNull().default("open"),
+    /** 種別: task(通常) / goal(長期目標)。 Memoria 個人タスク移植 */
+    kind: text("kind").notNull().default("task"),
+    /** 作成主体: human / ai(エージェント委譲)。 Memoria 個人タスク移植 */
+    creatorType: text("creator_type").notNull().default("human"),
+    /** カテゴリ (カンマ区切り複数可, 例 "開発, 学習")。 Memoria 個人タスク移植 */
+    category: text("category"),
     /** 優先度: low / medium / high / critical */
     priority: text("priority").notNull().default("medium"),
     /** 期限 (UTC, null = 期限なし) */
@@ -1116,6 +1122,7 @@ export const tasks = sqliteTable(
     index("idx_task_assignee").on(table.assigneeId),
     index("idx_task_group").on(table.groupId),
     index("idx_task_status").on(table.status),
+    index("idx_task_kind").on(table.kind),
     index("idx_task_deadline").on(table.deadline),
     index("idx_task_plugin").on(table.pluginId),
   ]
