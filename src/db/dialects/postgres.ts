@@ -738,6 +738,12 @@ export const tasks = pgTable(
     description: text("description"),
     requirements: text("requirements"),
     status: text("status").notNull().default("open"),
+    /** 種別: task(通常) / goal(長期目標)。 Memoria 個人タスク移植 */
+    kind: text("kind").notNull().default("task"),
+    /** 作成主体: human / ai(エージェント委譲)。 Memoria 個人タスク移植 */
+    creatorType: text("creator_type").notNull().default("human"),
+    /** カテゴリ (カンマ区切り複数可)。 Memoria 個人タスク移植 */
+    category: text("category"),
     priority: text("priority").notNull().default("medium"),
     deadline: timestamp("deadline"),
     estimatedMinutes: integer("estimated_minutes"),
@@ -753,6 +759,7 @@ export const tasks = pgTable(
     index("idx_task_assignee").on(t.assigneeId),
     index("idx_task_group").on(t.groupId),
     index("idx_task_status").on(t.status),
+    index("idx_task_kind").on(t.kind),
     index("idx_task_deadline").on(t.deadline),
     index("idx_task_plugin").on(t.pluginId),
   ]
