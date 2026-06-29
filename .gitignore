@@ -7,3 +7,6 @@ dist/
 /data/
 logs/
 id-service.config.json
+
+# ローカル依存ライブラリ (git submodule update --init でセットアップ)
+/lib/
