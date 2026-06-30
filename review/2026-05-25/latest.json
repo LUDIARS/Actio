@@ -1,0 +1,47 @@
+{
+  "date": "2026-05-25",
+  "commit": "857bdac66e7f3f9030a76b22ea20b21b810869ee",
+  "author": "k.mitarai <65850380+nyangame@users.noreply.github.com>",
+  "message": "test(paseto-verify): unit tests for V4 token verification (Actio-D2) (#132)",
+  "files_modified": 1,
+  "lines_added": 332,
+  "lines_removed": 0,
+  "overall_rating": "A",
+  "critical_issues": 0,
+  "high_issues": 0,
+  "medium_issues": 0,
+  "low_issues": 0,
+  "autofix_count": 0,
+  "review_docs": [
+    "REVIEW.md",
+    "REVIEW_DESIGN.md",
+    "REVIEW_CODE_QUALITY.md",
+    "REVIEW_VULNERABILITY.md",
+    "REVIEW_VULNERABILITY_WEB.md",
+    "REVIEW_IMPLEMENTATION_WEB.md",
+    "REVIEW_QUALITY.md",
+    "REVIEW_QUALITY_WEB.md",
+    "REVIEW_MISSING_FEATURES.md"
+  ],
+  "test_coverage": {
+    "total_cases": 11,
+    "passed": 11,
+    "execution_time_ms": 1060,
+    "target_module": "src/auth/paseto-verify.ts",
+    "coverage_gaps_resolved": "security-critical PASETO V4 verification (0 → 11 cases)"
+  },
+  "highlights": {
+    "strengths": [
+      "11 cases covering attack surface + resilience",
+      "vi.resetModules() module isolation",
+      "fetch mock + async synchronization helpers",
+      "TypeScript type safety (no any)",
+      "Production-quality test code"
+    ],
+    "carry_forward": [
+      "Medium: src/app.ts global rate-limit enforcement",
+      "Medium: frontend/src/declarative.ts innerHTML XSS fix",
+      "Low: npm audit CI integration"
+    ]
+  }
+}
