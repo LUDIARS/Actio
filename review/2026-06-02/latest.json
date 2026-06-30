@@ -1,0 +1,16 @@
+{
+  "date": "2026-06-02",
+  "weighted_score": "B",
+  "scores": {
+    "design": "A",
+    "vulnerability": "A",
+    "implementation": "A",
+    "missing_features": "B",
+    "quality": "A"
+  },
+  "critical_count": 0,
+  "high_count": 0,
+  "autofix_count": 0,
+  "autofix_categories": { "lint": 0, "typo": 0, "unused_import": 0, "dead_code": 0, "gitignore": 0, "toc": 0, "critical_high": 0 },
+  "fix_pr": null
+}
