@@ -347,6 +347,12 @@ try { sqlite.exec(`ALTER TABLE tasks ADD COLUMN kind TEXT NOT NULL DEFAULT 'task
 try { sqlite.exec(`ALTER TABLE tasks ADD COLUMN creator_type TEXT NOT NULL DEFAULT 'human'`); } catch { /* column already exists */ }
 try { sqlite.exec(`ALTER TABLE tasks ADD COLUMN category TEXT`); } catch { /* column already exists */ }
 try { sqlite.exec(`CREATE INDEX IF NOT EXISTS idx_task_kind ON tasks(kind)`); } catch { /* index already exists */ }
+// tasks.project_id 新設 (GLAB×Calliope PM 連携。2026-07-17 neco 最終裁定)
+// 値は GLAB glab_project.id の不透明参照 (FK なし、Actio 側に project マスタは作らない)
+try { sqlite.exec(`ALTER TABLE tasks ADD COLUMN project_id TEXT`); } catch { /* column already exists */ }
+try { sqlite.exec(`CREATE INDEX IF NOT EXISTS idx_task_project ON tasks(project_id)`); } catch { /* index already exists */ }
+// completedAt 単体 INDEX (velocity Θ_p 集計のフルスキャン回避)
+try { sqlite.exec(`CREATE INDEX IF NOT EXISTS idx_task_completed_at ON tasks(completed_at)`); } catch { /* index already exists */ }
 
 // M1: Terms table
 sqlite.exec(`

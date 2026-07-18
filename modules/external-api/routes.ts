@@ -2,7 +2,7 @@
  * 外部API ルート
  *
  * APIキー (X-API-Client-ID / X-API-Client-Secret) で認証される外部向けAPI。
- * カレンダー・リマインダー・予定設定 の3モジュールを公開。
+ * カレンダー・リマインダー・予定設定・タスク (project scope) の4モジュールを公開。
  */
 
 import { Hono } from "hono";
@@ -18,10 +18,14 @@ import {
   notificationRepo,
   webhookEndpointRepo,
   reminderRepo,
+  taskRepo,
 } from "../../src/db/repository.js";
 import { randomUUID } from "crypto";
 import { apiDocumentation } from "./docs.js";
 import { nuntiusClient } from "../../src/lib/nuntius-client.js";
+import { normalizeStatus } from "../task/personal.js";
+import { VALID_PRIORITIES, parseDate } from "../task/routes.js";
+import type { TaskPriority } from "../../src/shared/types.js";
 
 const externalApi = new Hono();
 
@@ -577,9 +581,146 @@ schedulesApi.delete("/myplans/:id", async (c) => {
   return c.json({ message: "MyPlan and associated events deleted" });
 });
 
+// ═══════════════════════════════════════════════════════════════
+// 外部API: タスク (project scope) (APIキー認証)
+//
+// GLAB×Calliope PM 連携 (2026-07-17 neco 最終裁定)。 学生 PJ のタスク正本を
+// Actio core tasks に置き、project_id (GLAB glab_project.id の不透明参照) 経由で
+// 外部サービスが read/write できる正規経路。 "tasks" スコープは project_id が
+// 設定されたタスクにのみ及ぶ (個人タスクへの越権アクセスを避ける)。
+// ═══════════════════════════════════════════════════════════════
+
+const tasksApi = new Hono();
+tasksApi.use("*", requireApiKey("tasks"));
+
+// ─── GET / - project 配下タスク一覧 (project は必須) ─────────
+
+tasksApi.get("/", async (c) => {
+  const project = c.req.query("project");
+  if (!project) return c.json({ error: "project is required" }, 400);
+
+  const tasks = await taskRepo.list({ projectId: project });
+  return c.json({ tasks });
+});
+
+// ─── GET /:id - project 配下タスク詳細 ────────────────────────
+
+tasksApi.get("/:id", async (c) => {
+  const id = c.req.param("id");
+  const task = await taskRepo.findById(id);
+  if (!task || !task.projectId) return c.json({ error: "Task not found" }, 404);
+  return c.json({ task });
+});
+
+// ─── POST / - project 配下タスク作成 ──────────────────────────
+
+tasksApi.post("/", async (c) => {
+  const body = await c.req.json<{
+    projectId?: string;
+    project_id?: string;
+    ownerId?: string;
+    title?: string;
+    description?: string;
+    priority?: TaskPriority;
+    deadline?: string;
+    estimatedMinutes?: number;
+  }>();
+
+  const projectId = body.projectId ?? body.project_id;
+  if (!projectId) return c.json({ error: "projectId is required" }, 400);
+  if (!body.title) return c.json({ error: "title is required" }, 400);
+  if (!body.ownerId) return c.json({ error: "ownerId is required" }, 400);
+
+  if (body.priority && !VALID_PRIORITIES.includes(body.priority)) {
+    return c.json({ error: `priority must be one of ${VALID_PRIORITIES.join(", ")}` }, 400);
+  }
+
+  let deadline: Date | null = null;
+  if (body.deadline) {
+    const d = parseDate(body.deadline);
+    if (!d) return c.json({ error: "Invalid deadline" }, 400);
+    deadline = d;
+  }
+
+  const id = uuidv4();
+  await taskRepo.create({
+    id,
+    ownerId: body.ownerId,
+    assigneeId: null,
+    groupId: null,
+    projectId,
+    title: body.title,
+    description: body.description ?? null,
+    requirements: null,
+    status: "open",
+    kind: "task",
+    creatorType: "human",
+    category: null,
+    priority: body.priority ?? "medium",
+    deadline,
+    estimatedMinutes: body.estimatedMinutes ?? null,
+    pluginId: null,
+    pluginRef: null,
+    pluginPayload: null,
+    completedAt: null,
+  });
+
+  const created = await taskRepo.findById(id);
+  return c.json({ task: created }, 201);
+});
+
+// ─── PUT /:id - status / priority / estimatedMinutes 更新 ─────
+
+tasksApi.put("/:id", async (c) => {
+  const id = c.req.param("id");
+  const existing = await taskRepo.findById(id);
+  if (!existing || !existing.projectId) return c.json({ error: "Task not found" }, 404);
+
+  const body = await c.req.json<{
+    status?: string;
+    priority?: TaskPriority;
+    estimatedMinutes?: number;
+  }>();
+
+  const updates: Record<string, unknown> = {};
+
+  if (body.status !== undefined) {
+    const normalized = normalizeStatus(body.status);
+    if (!normalized) {
+      return c.json({ error: "status must be one of open, in_progress, blocked, done, cancelled" }, 400);
+    }
+    updates.status = normalized;
+    if (normalized === "done" && !existing.completedAt) {
+      updates.completedAt = new Date();
+    } else if (normalized !== "done" && existing.completedAt) {
+      updates.completedAt = null;
+    }
+  }
+
+  if (body.priority !== undefined) {
+    if (!VALID_PRIORITIES.includes(body.priority)) {
+      return c.json({ error: `priority must be one of ${VALID_PRIORITIES.join(", ")}` }, 400);
+    }
+    updates.priority = body.priority;
+  }
+
+  if (body.estimatedMinutes !== undefined) {
+    updates.estimatedMinutes = body.estimatedMinutes;
+  }
+
+  if (Object.keys(updates).length === 0) {
+    return c.json({ error: "at least one of status, priority, estimatedMinutes is required" }, 400);
+  }
+
+  await taskRepo.update(id, updates);
+  const updated = await taskRepo.findById(id);
+  return c.json({ task: updated });
+});
+
 // ─── Mount sub-routers ───────────────────────────────────────
 externalApi.route("/calendar", calendarApi);
 externalApi.route("/reminders", remindersApi);
 externalApi.route("/schedules", schedulesApi);
+externalApi.route("/tasks", tasksApi);
 
 export { externalApi };

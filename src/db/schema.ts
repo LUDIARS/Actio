@@ -1083,6 +1083,12 @@ export const tasks = sqliteTable(
     assigneeId: text("assignee_id"),
     /** グループタスクの場合のグループID */
     groupId: text("group_id"),
+    /**
+     * 外部プロジェクトの不透明参照 (例: GLAB `glab_project.id`)。
+     * Actio 側に project マスタは持たない (FK なし)。
+     * GLAB×Calliope PM 連携 (2026-07-17 neco 最終裁定)。
+     */
+    projectId: text("project_id"),
     title: text("title").notNull(),
     description: text("description"),
     /** 要件 (Markdown / freeform) */
@@ -1121,10 +1127,12 @@ export const tasks = sqliteTable(
     index("idx_task_owner").on(table.ownerId),
     index("idx_task_assignee").on(table.assigneeId),
     index("idx_task_group").on(table.groupId),
+    index("idx_task_project").on(table.projectId),
     index("idx_task_status").on(table.status),
     index("idx_task_kind").on(table.kind),
     index("idx_task_deadline").on(table.deadline),
     index("idx_task_plugin").on(table.pluginId),
+    index("idx_task_completed_at").on(table.completedAt),
   ]
 );
 

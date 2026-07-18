@@ -734,6 +734,12 @@ export const tasks = pgTable(
     ownerId: text("owner_id").notNull(),
     assigneeId: text("assignee_id"),
     groupId: text("group_id"),
+    /**
+     * 外部プロジェクトの不透明参照 (例: GLAB `glab_project.id`)。
+     * Actio 側に project マスタは持たない (FK なし)。
+     * GLAB×Calliope PM 連携 (2026-07-17 neco 最終裁定)。
+     */
+    projectId: text("project_id"),
     title: text("title").notNull(),
     description: text("description"),
     requirements: text("requirements"),
@@ -758,10 +764,12 @@ export const tasks = pgTable(
     index("idx_task_owner").on(t.ownerId),
     index("idx_task_assignee").on(t.assigneeId),
     index("idx_task_group").on(t.groupId),
+    index("idx_task_project").on(t.projectId),
     index("idx_task_status").on(t.status),
     index("idx_task_kind").on(t.kind),
     index("idx_task_deadline").on(t.deadline),
     index("idx_task_plugin").on(t.pluginId),
+    index("idx_task_completed_at").on(t.completedAt),
   ]
 );
 
@@ -1346,6 +1354,7 @@ export async function createConnectionWithRetry() {
         owner_id TEXT NOT NULL,
         assignee_id TEXT,
         group_id TEXT,
+        project_id TEXT,
         title TEXT NOT NULL,
         description TEXT,
         requirements TEXT,
@@ -1364,9 +1373,11 @@ export async function createConnectionWithRetry() {
     await client`CREATE INDEX IF NOT EXISTS idx_task_owner ON tasks(owner_id)`;
     await client`CREATE INDEX IF NOT EXISTS idx_task_assignee ON tasks(assignee_id)`;
     await client`CREATE INDEX IF NOT EXISTS idx_task_group ON tasks(group_id)`;
+    await client`CREATE INDEX IF NOT EXISTS idx_task_project ON tasks(project_id)`;
     await client`CREATE INDEX IF NOT EXISTS idx_task_status ON tasks(status)`;
     await client`CREATE INDEX IF NOT EXISTS idx_task_deadline ON tasks(deadline)`;
     await client`CREATE INDEX IF NOT EXISTS idx_task_plugin ON tasks(plugin_id)`;
+    await client`CREATE INDEX IF NOT EXISTS idx_task_completed_at ON tasks(completed_at)`;
     console.log("[db:postgres] events/tasks テーブル確認完了");
   } catch (err) {
     const msg3 = err instanceof Error ? err.message : String(err);
@@ -1534,6 +1545,12 @@ export async function createConnectionWithRetry() {
   try { await client`ALTER TABLE group_schedules ADD COLUMN IF NOT EXISTS label TEXT`; } catch { /* ignore */ }
   try { await client`ALTER TABLE curricula ADD COLUMN IF NOT EXISTS term_id TEXT REFERENCES terms(id)`; } catch { /* ignore */ }
   try { await client`ALTER TABLE users ADD COLUMN IF NOT EXISTS last_login_at TIMESTAMP`; } catch { /* ignore */ }
+  // tasks.project_id 新設 (GLAB×Calliope PM 連携。2026-07-17 neco 最終裁定)
+  // 値は GLAB glab_project.id の不透明参照 (FK なし、Actio 側に project マスタは作らない)
+  try { await client`ALTER TABLE tasks ADD COLUMN IF NOT EXISTS project_id TEXT`; } catch { /* ignore */ }
+  try { await client`CREATE INDEX IF NOT EXISTS idx_task_project ON tasks(project_id)`; } catch { /* ignore */ }
+  // completedAt 単体 INDEX (velocity Θ_p 集計のフルスキャン回避)
+  try { await client`CREATE INDEX IF NOT EXISTS idx_task_completed_at ON tasks(completed_at)`; } catch { /* ignore */ }
 
   // プロジェクト別ロール (業務ロール)
   // ※ ユーザープロファイル (bio / displayName / avatarUrl 等) は Cernere 側で管理

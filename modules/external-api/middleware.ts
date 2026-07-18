@@ -9,7 +9,7 @@ import { createMiddleware } from "hono/factory";
 import bcrypt from "bcryptjs";
 import { apiClientRepo } from "../../src/db/repository.js";
 
-type ApiScope = "calendar" | "reminders" | "schedules";
+type ApiScope = "calendar" | "reminders" | "schedules" | "tasks";
 
 /**
  * APIキー認証ミドルウェア

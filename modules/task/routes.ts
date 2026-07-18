@@ -36,11 +36,22 @@ function readCreatorType(body: { creatorType?: unknown }): unknown {
   return body.creatorType ?? (body as { creator_type?: unknown }).creator_type;
 }
 
+/**
+ * body から project_id(snake) / projectId(camel) を取り出す。
+ * projectId は nullable (明示的な null = 解除) なので `??` は使わず、
+ * どちらのキーが「渡されたか (undefined でないか)」で判定する。
+ */
+function readProjectId(body: { projectId?: unknown; project_id?: unknown }): unknown {
+  if (body.projectId !== undefined) return body.projectId;
+  if (body.project_id !== undefined) return body.project_id;
+  return undefined;
+}
+
 export const taskRoutes = new Hono();
 
-const VALID_PRIORITIES: TaskPriority[] = ["low", "medium", "high", "critical"];
+export const VALID_PRIORITIES: TaskPriority[] = ["low", "medium", "high", "critical"];
 
-function parseDate(value: string | Date): Date | null {
+export function parseDate(value: string | Date): Date | null {
   if (value instanceof Date) return isNaN(value.getTime()) ? null : value;
   const d = new Date(value);
   return isNaN(d.getTime()) ? null : d;
@@ -60,6 +71,7 @@ taskRoutes.get("/", async (c) => {
 
   const filter: TaskListFilter = {};
   const groupId = c.req.query("groupId");
+  const project = c.req.query("project");
   const status = c.req.query("status");
   const kind = c.req.query("kind");
   const pluginId = c.req.query("pluginId");
@@ -74,6 +86,9 @@ taskRoutes.get("/", async (c) => {
   } else if (scope === "owned") {
     filter.ownerId = userId;
   }
+  // project は既存 owned/assigned/group スコープと併用可能な追加フィルタ
+  // (GLAB×Calliope PM 連携。 project_id 指定でプロジェクト単位のタスクを引く)
+  if (project) filter.projectId = project;
   if (status) filter.status = normalizeStatus(status) ?? status;
   if (kind) filter.kind = kind; // "task" | "goal" | "all"
   if (pluginId) filter.pluginId = pluginId;
@@ -157,12 +172,16 @@ taskRoutes.post("/", async (c) => {
   const description = body.description ?? body.details ?? null;
   const category = typeof body.category === "string" ? body.category.trim() || null : null;
 
+  const projectIdInput = readProjectId(body);
+  const projectId = typeof projectIdInput === "string" ? projectIdInput : null;
+
   const id = uuidv4();
   await taskRepo.create({
     id,
     ownerId: userId,
     assigneeId: body.assigneeId ?? null,
     groupId: body.groupId ?? null,
+    projectId,
     title: body.title,
     description,
     requirements: body.requirements ?? null,
@@ -232,6 +251,10 @@ taskRoutes.on(["PUT", "PATCH"], "/:id", async (c) => {
   if (body.requirements !== undefined) updates.requirements = body.requirements;
   if (body.assigneeId !== undefined) updates.assigneeId = body.assigneeId;
   if (body.groupId !== undefined) updates.groupId = body.groupId;
+  const projectIdInput = readProjectId(body);
+  if (projectIdInput !== undefined) {
+    updates.projectId = typeof projectIdInput === "string" ? projectIdInput : null;
+  }
   if (body.kind !== undefined) updates.kind = normalizeKind(body.kind);
   if (body.category !== undefined) {
     updates.category =

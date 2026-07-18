@@ -434,6 +434,8 @@ export interface CoreTask {
   ownerId: string;
   assigneeId: string | null;
   groupId: string | null;
+  /** 外部プロジェクトの不透明参照 (例: GLAB `glab_project.id`)。 FK なし */
+  projectId: string | null;
   title: string;
   description: string | null;
   requirements: string | null;
@@ -463,6 +465,8 @@ export interface CreateTaskInput {
   requirements?: string;
   assigneeId?: string;
   groupId?: string;
+  /** 外部プロジェクトの不透明参照 (例: GLAB `glab_project.id`)。 FK なし */
+  projectId?: string | null;
   /** open/in_progress/blocked/done/cancelled。 todo/doing/done エイリアスも受理 */
   status?: TaskStatus | "todo" | "doing";
   /** 種別: task(既定) / goal */

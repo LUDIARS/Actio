@@ -213,6 +213,91 @@ describe("GET /api/tasks?status=", () => {
   });
 });
 
+// ─── project_id (GLAB×Calliope PM 連携。2026-07-17 neco 最終裁定) ──
+describe("tasks.project_id (GLAB project scope)", () => {
+  it("accepts projectId on create and returns it", async () => {
+    const { status, json } = await request(app, "POST", "/api/tasks", {
+      token,
+      body: { title: "GLAB task", projectId: "glab-proj-1" },
+    });
+    expect(status).toBe(201);
+    expect(json.task.projectId).toBe("glab-proj-1");
+  });
+
+  it("accepts snake_case project_id alias on create", async () => {
+    const { status, json } = await request(app, "POST", "/api/tasks", {
+      token,
+      body: { title: "GLAB task snake", project_id: "glab-proj-snake" },
+    });
+    expect(status).toBe(201);
+    expect(json.task.projectId).toBe("glab-proj-snake");
+  });
+
+  it("defaults projectId to null when omitted", async () => {
+    const { json } = await request(app, "POST", "/api/tasks", {
+      token,
+      body: { title: "no project" },
+    });
+    expect(json.task.projectId).toBeNull();
+  });
+
+  it("filters GET /api/tasks by ?project=<id>", async () => {
+    await request(app, "POST", "/api/tasks", {
+      token,
+      body: { title: "in project A", projectId: "proj-a" },
+    });
+    await request(app, "POST", "/api/tasks", {
+      token,
+      body: { title: "in project B", projectId: "proj-b" },
+    });
+    await request(app, "POST", "/api/tasks", { token, body: { title: "no project task" } });
+
+    const resA = await request(app, "GET", "/api/tasks?project=proj-a", { token });
+    expect(resA.json.tasks.length).toBe(1);
+    expect(resA.json.tasks[0].title).toBe("in project A");
+
+    const resB = await request(app, "GET", "/api/tasks?project=proj-b", { token });
+    expect(resB.json.tasks.length).toBe(1);
+    expect(resB.json.tasks[0].title).toBe("in project B");
+  });
+
+  it("keeps existing owned/assigned/group scope behavior unchanged when no project filter is given", async () => {
+    await request(app, "POST", "/api/tasks", { token, body: { title: "owned task" } });
+    const otherToken = generateTestToken("user-2");
+    await request(app, "POST", "/api/tasks", { token: otherToken, body: { title: "other user task" } });
+
+    const owned = await request(app, "GET", "/api/tasks", { token });
+    expect(owned.json.tasks.length).toBe(1);
+    expect(owned.json.tasks[0].title).toBe("owned task");
+  });
+
+  it("updates projectId via PUT", async () => {
+    const create = await request(app, "POST", "/api/tasks", { token, body: { title: "reassign" } });
+    const id = create.json.task.id;
+
+    const { status, json } = await request(app, "PUT", `/api/tasks/${id}`, {
+      token,
+      body: { projectId: "proj-new" },
+    });
+    expect(status).toBe(200);
+    expect(json.task.projectId).toBe("proj-new");
+  });
+
+  it("clears projectId when explicitly set to null", async () => {
+    const create = await request(app, "POST", "/api/tasks", {
+      token,
+      body: { title: "unassign", projectId: "proj-x" },
+    });
+    const id = create.json.task.id;
+
+    const { json } = await request(app, "PUT", `/api/tasks/${id}`, {
+      token,
+      body: { projectId: null },
+    });
+    expect(json.task.projectId).toBeNull();
+  });
+});
+
 describe("GET /api/tasks/plugins", () => {
   it("should return registered task plugins", async () => {
     const { status, json } = await request(app, "GET", "/api/tasks/plugins", { token });

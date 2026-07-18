@@ -2343,6 +2343,8 @@ export interface TaskListFilter {
   ownerId?: string;
   assigneeId?: string;
   groupId?: string;
+  /** 外部プロジェクトの不透明参照 (GLAB glab_project.id 等)。 ?project=<id> フィルタ用 */
+  projectId?: string;
   status?: string;
   pluginId?: string;
   /** 種別フィルタ: "task" / "goal" / "all"(両方)。 省略時は全件 (互換) */
@@ -2379,6 +2381,7 @@ export const taskRepo = {
     if (filter.ownerId) conditions.push(eq(schema.tasks.ownerId, filter.ownerId));
     if (filter.assigneeId) conditions.push(eq(schema.tasks.assigneeId, filter.assigneeId));
     if (filter.groupId) conditions.push(eq(schema.tasks.groupId, filter.groupId));
+    if (filter.projectId) conditions.push(eq(schema.tasks.projectId, filter.projectId));
     if (filter.status) conditions.push(eq(schema.tasks.status, filter.status));
     if (filter.pluginId) conditions.push(eq(schema.tasks.pluginId, filter.pluginId));
     if (filter.kind && filter.kind !== "all") conditions.push(eq(schema.tasks.kind, filter.kind));
