@@ -62,8 +62,11 @@ keyManagement.post("/", async (c) => {
     return c.json({ error: "name is required" }, 400);
   }
 
-  const validScopes = ["calendar", "reminders", "schedules"];
-  const scopes = body.scopes || validScopes;
+  const validScopes = ["calendar", "reminders", "schedules", "tasks"];
+  // "tasks" は project_id 経由で他ユーザのタスクにも read/write できる
+  // 強い権限のため、 scopes 省略時の既定セットには含めない (opt-in のみ)。
+  const defaultScopes = ["calendar", "reminders", "schedules"];
+  const scopes = body.scopes || defaultScopes;
   for (const s of scopes) {
     if (!validScopes.includes(s)) {
       return c.json({ error: `Invalid scope: ${s}. Valid scopes: ${validScopes.join(", ")}` }, 400);
@@ -160,7 +163,7 @@ keyManagement.put("/:id", async (c) => {
     isActive?: boolean;
   }>();
 
-  const validScopes = ["calendar", "reminders", "schedules"];
+  const validScopes = ["calendar", "reminders", "schedules", "tasks"];
   if (body.scopes) {
     for (const s of body.scopes) {
       if (!validScopes.includes(s)) {

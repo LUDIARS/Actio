@@ -4,6 +4,7 @@
 import Database from "better-sqlite3";
 import { resolve } from "path";
 import jwt from "jsonwebtoken";
+import bcrypt from "bcryptjs";
 
 const JWT_SECRET = process.env.JWT_SECRET || "test-secret-key-for-testing";
 
@@ -401,6 +402,7 @@ export function initTestDatabase() {
       owner_id TEXT NOT NULL,
       assignee_id TEXT,
       group_id TEXT,
+      project_id TEXT,
       title TEXT NOT NULL,
       description TEXT,
       requirements TEXT,
@@ -418,6 +420,23 @@ export function initTestDatabase() {
       created_at INTEGER NOT NULL,
       updated_at INTEGER NOT NULL
     );
+    CREATE INDEX IF NOT EXISTS idx_task_project ON tasks(project_id);
+    CREATE INDEX IF NOT EXISTS idx_task_completed_at ON tasks(completed_at);
+
+    CREATE TABLE IF NOT EXISTS api_clients (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL REFERENCES users(id),
+      client_id TEXT NOT NULL UNIQUE,
+      client_secret_hash TEXT NOT NULL,
+      name TEXT NOT NULL,
+      scopes TEXT NOT NULL DEFAULT '["calendar","reminders","schedules"]',
+      is_active INTEGER NOT NULL DEFAULT 1,
+      last_used_at INTEGER,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_api_client_user ON api_clients(user_id);
+    CREATE INDEX IF NOT EXISTS idx_api_client_client_id ON api_clients(client_id);
 
     CREATE TABLE IF NOT EXISTS sync_logs (
       id TEXT PRIMARY KEY,
@@ -563,6 +582,44 @@ export function insertTestRoom(data: { id: string; name: string; capacity: numbe
     )
     .run(data.id, data.name, data.capacity, data.type, now);
   sqlite.close();
+}
+
+/**
+ * テスト用 API クライアント (外部API認証) をDBに直接挿入する。
+ * 平文シークレットを返すので、テストの X-API-Client-Secret ヘッダーに使う。
+ */
+export function insertTestApiClient(data: {
+  id: string;
+  userId: string;
+  clientId: string;
+  name?: string;
+  scopes?: string[];
+  isActive?: boolean;
+}): { clientSecret: string } {
+  const dbPath = process.env.DATABASE_PATH || resolve("data", "test.db");
+  const sqlite = new Database(dbPath);
+  const now = Date.now();
+  const clientSecret = `test-secret-${data.clientId}`;
+  const clientSecretHash = bcrypt.hashSync(clientSecret, 4);
+  sqlite
+    .prepare(
+      `INSERT INTO api_clients
+        (id, user_id, client_id, client_secret_hash, name, scopes, is_active, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    )
+    .run(
+      data.id,
+      data.userId,
+      data.clientId,
+      clientSecretHash,
+      data.name ?? "Test Client",
+      JSON.stringify(data.scopes ?? ["calendar", "reminders", "schedules"]),
+      data.isActive === false ? 0 : 1,
+      now,
+      now
+    );
+  sqlite.close();
+  return { clientSecret };
 }
 
 /** Hono アプリにリクエストを送るヘルパー */
