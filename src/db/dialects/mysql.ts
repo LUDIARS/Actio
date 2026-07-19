@@ -694,6 +694,12 @@ export const tasks = mysqlTable(
     ownerId: varchar("owner_id", { length: 255 }).notNull(),
     assigneeId: varchar("assignee_id", { length: 255 }),
     groupId: varchar("group_id", { length: 255 }),
+    /**
+     * 外部プロジェクトの不透明参照 (例: GLAB `glab_project.id`)。
+     * Actio 側に project マスタは持たない (FK なし)。
+     * GLAB×Calliope PM 連携 (2026-07-17 neco 最終裁定)。
+     */
+    projectId: varchar("project_id", { length: 255 }),
     title: varchar("title", { length: 512 }).notNull(),
     description: text("description"),
     requirements: text("requirements"),
@@ -718,10 +724,12 @@ export const tasks = mysqlTable(
     index("idx_task_owner").on(t.ownerId),
     index("idx_task_assignee").on(t.assigneeId),
     index("idx_task_group").on(t.groupId),
+    index("idx_task_project").on(t.projectId),
     index("idx_task_status").on(t.status),
     index("idx_task_kind").on(t.kind),
     index("idx_task_deadline").on(t.deadline),
     index("idx_task_plugin").on(t.pluginId),
+    index("idx_task_completed_at").on(t.completedAt),
   ]
 );
 

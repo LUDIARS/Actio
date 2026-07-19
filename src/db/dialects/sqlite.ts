@@ -220,6 +220,7 @@ export function createConnection(): { db: ReturnType<typeof drizzle>; sqlite: Sq
       owner_id TEXT NOT NULL,
       assignee_id TEXT,
       group_id TEXT,
+      project_id TEXT,
       title TEXT NOT NULL,
       description TEXT,
       requirements TEXT,
@@ -245,6 +246,11 @@ export function createConnection(): { db: ReturnType<typeof drizzle>; sqlite: Sq
   // カラム追加マイグレーション (既存DBとの互換)
   try { sqlite.exec(`ALTER TABLE group_schedules ADD COLUMN label TEXT`); } catch { /* already exists */ }
   try { sqlite.exec(`ALTER TABLE curricula ADD COLUMN term_id TEXT REFERENCES terms(id)`); } catch { /* already exists */ }
+  // tasks.project_id 新設 (GLAB×Calliope PM 連携。2026-07-17 neco 最終裁定)
+  try { sqlite.exec(`ALTER TABLE tasks ADD COLUMN project_id TEXT`); } catch { /* already exists */ }
+  sqlite.exec(`CREATE INDEX IF NOT EXISTS idx_task_project ON tasks(project_id)`);
+  // completedAt 単体 INDEX (velocity Θ_p 集計のフルスキャン回避)
+  sqlite.exec(`CREATE INDEX IF NOT EXISTS idx_task_completed_at ON tasks(completed_at)`);
 
   // ─── Placement Module (GPS 場所登録 + enter/leave トリガー) ──
   sqlite.exec(`

@@ -19,6 +19,7 @@ export const apiDocumentation = {
       calendar: "カレンダー予定の読み取り・作成・更新・削除",
       reminders: "リマインダー設定・通知履歴の操作",
       schedules: "プラン・マイプランの操作",
+      tasks: "project_id 指定タスクの読み取り・作成・状態/優先度/見積り更新 (GLAB×Calliope PM 連携用。既定スコープには含まれず opt-in)",
     },
     keyManagement: {
       description: "APIキーの管理にはJWTトークン認証 (通常のログイン) が必要です。",
@@ -33,6 +34,72 @@ export const apiDocumentation = {
   },
 
   modules: {
+    tasks: {
+      description:
+        "project_id (GLAB glab_project.id 等の不透明参照) 指定タスクの操作 (scope: tasks)。" +
+        " GLAB×Calliope PM 連携用 (2026-07-17 neco 最終裁定)。 project は必須パラメータ。",
+      basePath: "/api/external/tasks",
+      endpoints: [
+        {
+          method: "GET",
+          path: "/?project=<id>",
+          description: "指定 project_id のタスク一覧を取得 (project は必須)",
+          response: {
+            tasks: [
+              {
+                id: "string",
+                ownerId: "string (Cernere user id)",
+                assigneeId: "string | null",
+                projectId: "string",
+                title: "string",
+                description: "string | null",
+                status: "string (open | in_progress | blocked | done | cancelled)",
+                priority: "string (low | medium | high | critical)",
+                deadline: "string | null (ISO 8601)",
+                estimatedMinutes: "number | null",
+                completedAt: "string | null (ISO 8601)",
+                createdAt: "string (ISO 8601)",
+                updatedAt: "string (ISO 8601)",
+              },
+            ],
+          },
+        },
+        {
+          method: "GET",
+          path: "/:id",
+          description: "project_id が設定されたタスクの詳細を取得",
+          params: { id: "タスクID" },
+        },
+        {
+          method: "POST",
+          path: "/",
+          description: "project 配下にタスクを作成",
+          body: {
+            projectId: "string (必須, GLAB glab_project.id 等)",
+            title: "string (必須)",
+            ownerId: "string (必須, Cernere user id)",
+            description: "string (任意)",
+            priority: "string (任意, low | medium | high | critical, デフォルト: medium)",
+            deadline: "string (任意, ISO 8601)",
+            estimatedMinutes: "number (任意)",
+          },
+          response: { task: "作成されたタスクオブジェクト" },
+          statusCode: 201,
+        },
+        {
+          method: "PUT",
+          path: "/:id",
+          description: "project 配下タスクの status / priority / estimatedMinutes を更新",
+          params: { id: "タスクID" },
+          body: {
+            status: "string (任意, open | in_progress | blocked | done | cancelled)",
+            priority: "string (任意, low | medium | high | critical)",
+            estimatedMinutes: "number (任意)",
+          },
+        },
+      ],
+    },
+
     calendar: {
       description: "カレンダー予定の操作 (scope: calendar)",
       basePath: "/api/external/calendar",
