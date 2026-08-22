@@ -11,6 +11,10 @@ import { resolve } from "path";
 const testDbPath = resolve("data", `test-${process.pid}.db`);
 mkdirSync(resolve("data"), { recursive: true });
 
+// テスト実行環境を明示 (外部で NODE_ENV=production が設定されていると
+// 認証ヘッダフォールバックや admin fail-closed が有効化され、テストが落ちる)
+process.env.NODE_ENV = "test";
+
 process.env.DATABASE_PATH = testDbPath;
 process.env.DB_DIALECT = "sqlite";
 process.env.JWT_SECRET = "test-secret-key-for-testing";

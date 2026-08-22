@@ -1,0 +1,11 @@
+{
+  "name": "session-management",
+  "description": "利用者セッションの管理。 参加状態と進行の保持。",
+  "presetRules": [],
+  "templateRules": [],
+  "membership": [
+    {
+      "pathPattern": "^src/session/(?:.*/)?[^/]+$"
+    }
+  ]
+}

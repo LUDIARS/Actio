@@ -1,0 +1,14 @@
+{
+  "name": "identity-sdk",
+  "description": "別配布される共有パッケージ群。 Cernere Identity Service の SDK (認証ルート・トークン・キャッシュ) と、 モジュール SDK・env-cli を含む packages/ / services/。",
+  "presetRules": [],
+  "templateRules": [],
+  "membership": [
+    {
+      "pathPattern": "^packages/(?:.*/)?[^/]+$"
+    },
+    {
+      "pathPattern": "^services/(?:.*/)?[^/]+$"
+    }
+  ]
+}

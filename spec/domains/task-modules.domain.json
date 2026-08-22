@@ -1,0 +1,14 @@
+{
+  "name": "task-modules",
+  "description": "プラグイン基盤。 モジュールのロード・レジストリ・権限・スキーマ同期と、 タスクプラグインの登録。",
+  "presetRules": [],
+  "templateRules": [],
+  "membership": [
+    {
+      "pathPattern": "^src/plugins/(?:.*/)?[^/]+$"
+    },
+    {
+      "pathPattern": "^src/task-plugins\\.ts$"
+    }
+  ]
+}

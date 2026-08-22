@@ -1,0 +1,11 @@
+{
+  "name": "realtime-channel",
+  "description": "常時接続の経路。 WebSocket による状態配信。",
+  "presetRules": [],
+  "templateRules": [],
+  "membership": [
+    {
+      "pathPattern": "^src/ws/(?:.*/)?[^/]+$"
+    }
+  ]
+}

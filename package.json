@@ -35,6 +35,7 @@
     "env:up:standalone": "npx tsx ../Cernere/packages/env-cli/src/cli.ts env && docker compose -f docker-compose.yaml -f docker-compose.standalone.yaml up -d",
     "setup": "bash scripts/setup.sh",
     "ci-check": "bash scripts/ci-check.sh",
+    "pretest": "npm run sdk:build",
     "test": "vitest run",
     "test:watch": "vitest",
     "id:scan": "tsx services/id-service/src/migration/cli.ts",

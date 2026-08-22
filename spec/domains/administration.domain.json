@@ -1,0 +1,14 @@
+{
+  "name": "administration",
+  "description": "運用管理面。 設定と管理者向け操作。",
+  "presetRules": [],
+  "templateRules": [],
+  "membership": [
+    {
+      "pathPattern": "^src/admin/(?:.*/)?[^/]+$"
+    },
+    {
+      "pathPattern": "^src/config/(?:.*/)?[^/]+$"
+    }
+  ]
+}

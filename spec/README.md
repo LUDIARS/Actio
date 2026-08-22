@@ -13,6 +13,7 @@ spec/
 ├── data/        # データスキーマ（<module>/dbschema.md + dbs/*.md + dblist.md + data-scheme.md）
 ├── interface/   # 外部連携（cernere-project.json）
 ├── plan/        # 実装計画書（cernere-migration.md）
+├── domains/     # ドメイン定義の正本（<domain>.domain.json / Anatomia が参照）
 └── README.md    # 本ファイル
 ```
 

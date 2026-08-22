@@ -1,0 +1,14 @@
+{
+  "name": "external-modules",
+  "description": "モジュール単位で閉じた機能実装。 本体同梱のモジュール群 (modules/) と、 外部配布モジュールの実装例 (modules-ext/)。",
+  "presetRules": [],
+  "templateRules": [],
+  "membership": [
+    {
+      "pathPattern": "^modules/(?:.*/)?[^/]+$"
+    },
+    {
+      "pathPattern": "^modules-ext/(?:.*/)?[^/]+$"
+    }
+  ]
+}

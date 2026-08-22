@@ -1,0 +1,35 @@
+{
+  "name": "service-runtime",
+  "description": "プロセスとしての Actio。 起動と配線、 ミドルウェア、 共有ユーティリティ、 活動ログ。",
+  "presetRules": [],
+  "templateRules": [],
+  "membership": [
+    {
+      "pathPattern": "^src/lib/(?:.*/)?[^/]+$"
+    },
+    {
+      "pathPattern": "^src/middleware/(?:.*/)?[^/]+$"
+    },
+    {
+      "pathPattern": "^src/shared/(?:.*/)?[^/]+$"
+    },
+    {
+      "pathPattern": "^src/(?:index|app|bootstrap|activity-logger|service-adapter)\\.ts$"
+    },
+    {
+      "pathPattern": "^tests?/(?:.*/)?[^/]+$"
+    },
+    {
+      "pathPattern": "^web/(?:.*/)?[^/]+$"
+    },
+    {
+      "pathPattern": "^public/(?:.*/)?[^/]+$"
+    },
+    {
+      "pathPattern": "^scripts/(?:.*/)?[^/]+$"
+    },
+    {
+      "pathPattern": "^[^/]+\\.config\\.(?:ts|js|mjs|cjs)$"
+    }
+  ]
+}

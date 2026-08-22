@@ -1,0 +1,14 @@
+{
+  "name": "identity-access",
+  "description": "認証と権限。 Cernere / Corpus を情報源とする本人性と操作の許可。",
+  "presetRules": [],
+  "templateRules": [],
+  "membership": [
+    {
+      "pathPattern": "^src/auth/(?:.*/)?[^/]+$"
+    },
+    {
+      "pathPattern": "^src/corpus\\.ts$"
+    }
+  ]
+}
