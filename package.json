@@ -65,7 +65,7 @@
     "@ludiars/schedula-module-voting": "^0.1.0",
     "@ludiars/schedula-sdk": "^0.1.0",
     "bcryptjs": "^3.0.3",
-    "better-sqlite3": "^12.8.0",
+    "better-sqlite3": "13.0.3",
     "csv-parse": "^6.1.0",
     "drizzle-orm": "^0.45.1",
     "hono": "^4.12.8",
