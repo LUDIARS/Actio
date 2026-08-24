@@ -5,31 +5,31 @@
   "templateRules": [],
   "membership": [
     {
-      "pathPattern": "^src/lib/(?:.*/)?[^/]+$"
+      "pathPattern": "(^|/)src/lib/(?:.*/)?[^/]+$"
     },
     {
-      "pathPattern": "^src/middleware/(?:.*/)?[^/]+$"
+      "pathPattern": "(^|/)src/middleware/(?:.*/)?[^/]+$"
     },
     {
-      "pathPattern": "^src/shared/(?:.*/)?[^/]+$"
+      "pathPattern": "(^|/)src/shared/(?:.*/)?[^/]+$"
     },
     {
-      "pathPattern": "^src/(?:index|app|bootstrap|activity-logger|service-adapter)\\.ts$"
+      "pathPattern": "(^|/)src/(?:index|app|bootstrap|activity-logger|service-adapter)\\.ts$"
     },
     {
-      "pathPattern": "^tests?/(?:.*/)?[^/]+$"
+      "pathPattern": "(^|/)tests?/(?:.*/)?[^/]+$"
     },
     {
-      "pathPattern": "^web/(?:.*/)?[^/]+$"
+      "pathPattern": "(^|/)web/(?:.*/)?[^/]+$"
     },
     {
-      "pathPattern": "^public/(?:.*/)?[^/]+$"
+      "pathPattern": "(^|/)public/(?:.*/)?[^/]+$"
     },
     {
-      "pathPattern": "^scripts/(?:.*/)?[^/]+$"
+      "pathPattern": "(^|/)scripts/(?:.*/)?[^/]+$"
     },
     {
-      "pathPattern": "^[^/]+\\.config\\.(?:ts|js|mjs|cjs)$"
+      "pathPattern": "(^|/)[^/]+\\.config\\.(?:ts|js|mjs|cjs)$"
     }
   ]
 }

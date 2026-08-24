@@ -13,6 +13,7 @@
     "dev:front": "npx dotenv-cli -- npm run dev --prefix frontend",
     "prebuild": "npm run sdk:build",
     "build": "tsc",
+    "typecheck": "tsc --noEmit",
     "start": "node dist/index.js",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",

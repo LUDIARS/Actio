@@ -30,6 +30,9 @@ import {
   normalizeCreatorType,
   toMemoriaShape,
 } from "./personal.js";
+import { teamTaskRoutes } from "./team-routes.js";
+import { validateTeamTask } from "./validation/team-task.js";
+import { readTeamTaskRequestFields, validateTeamTaskMetadata } from "./validation/team-task-request.js";
 
 /** body から creator_type(snake) / creatorType(camel) を取り出す */
 function readCreatorType(body: { creatorType?: unknown }): unknown {
@@ -48,6 +51,7 @@ function readProjectId(body: { projectId?: unknown; project_id?: unknown }): unk
 }
 
 export const taskRoutes = new Hono();
+taskRoutes.route("/", teamTaskRoutes);
 
 export const VALID_PRIORITIES: TaskPriority[] = ["low", "medium", "high", "critical"];
 
@@ -78,8 +82,12 @@ taskRoutes.get("/", async (c) => {
   const dueBefore = c.req.query("dueBefore");
   const sort = c.req.query("sort");
   const scope = c.req.query("scope") ?? "owned"; // owned | assigned | group | all
+  const teamId = c.req.query("team_id");
 
-  if (groupId) {
+  if (teamId) {
+    if (!await taskRepo.isTeamMember(teamId, userId)) return c.json({ error: "Forbidden" }, 403);
+    filter.teamId = teamId;
+  } else if (groupId) {
     filter.groupId = groupId;
   } else if (scope === "assigned") {
     filter.assigneeId = userId;
@@ -89,6 +97,11 @@ taskRoutes.get("/", async (c) => {
   // project は既存 owned/assigned/group スコープと併用可能な追加フィルタ
   // (EducationLab×Calliope PM 連携。 project_id 指定でプロジェクト単位のタスクを引く)
   if (project) filter.projectId = project;
+  const lane = c.req.query("lane");
+  const sprintId = c.req.query("sprint_id");
+  if (lane && lane !== "daily" && lane !== "backlog") return c.json({ error: "lane must be daily or backlog" }, 400);
+  if (lane) filter.lane = lane;
+  if (sprintId) filter.sprintId = sprintId;
   if (status) filter.status = normalizeStatus(status) ?? status;
   if (kind) filter.kind = kind; // "task" | "goal" | "all"
   if (pluginId) filter.pluginId = pluginId;
@@ -143,6 +156,7 @@ taskRoutes.post("/", async (c) => {
   const userId = resolveUserId(c);
 
   const body = await c.req.json<CreateTaskInput>();
+  const teamFields = readTeamTaskRequestFields(body);
   if (!body.title) {
     return c.json({ error: "title is required" }, 400);
   }
@@ -174,6 +188,25 @@ taskRoutes.post("/", async (c) => {
 
   const projectIdInput = readProjectId(body);
   const projectId = typeof projectIdInput === "string" ? projectIdInput : null;
+  const metadataError = validateTeamTaskMetadata(teamFields);
+  if (metadataError) return c.json({ error: metadataError }, 400);
+  const teamValidation = await validateTeamTask({
+    teamId: teamFields.teamId ?? null, assigneeId: body.assigneeId ?? null, lane: teamFields.lane,
+    sprintId: teamFields.sprintId ?? null, deadline, durationDays: teamFields.durationDays ?? null, blockedBy: teamFields.blockedBy,
+  }, "minimal", { isMember: (teamId, userId) => taskRepo.isTeamMember(teamId, userId), isTaskInTeam: async (teamId, taskId) => (await taskRepo.findById(taskId))?.teamId === teamId });
+  if (teamValidation.error) return c.json({ error: teamValidation.error }, 400);
+  if (teamValidation.value.teamId && !await taskRepo.isTeamMember(teamValidation.value.teamId, userId)) {
+    return c.json({ error: "Forbidden" }, 403);
+  }
+  if (teamFields.source && teamFields.sourceRef) {
+    const duplicate = await taskRepo.findBySource(teamFields.source, teamFields.sourceRef);
+    if (duplicate) {
+      if (duplicate.ownerId !== userId && duplicate.assigneeId !== userId) {
+        return c.json({ error: "source/source_ref already exists" }, 409);
+      }
+      return c.json({ task: duplicate }, 200);
+    }
+  }
 
   const id = uuidv4();
   await taskRepo.create({
@@ -182,6 +215,14 @@ taskRoutes.post("/", async (c) => {
     assigneeId: body.assigneeId ?? null,
     groupId: body.groupId ?? null,
     projectId,
+    teamId: teamFields.teamId ?? null,
+    lane: teamValidation.value.lane,
+    sprintId: teamFields.sprintId ?? null,
+    durationDays: teamFields.durationDays ?? null,
+    source: teamFields.source ?? null,
+    sourceRef: teamFields.sourceRef ?? null,
+    blockedBy: teamFields.blockedBy ?? [],
+    storyPoints: teamFields.storyPoints ?? null,
     title: body.title,
     description,
     requirements: body.requirements ?? null,
@@ -243,6 +284,7 @@ taskRoutes.on(["PUT", "PATCH"], "/:id", async (c) => {
   }
 
   const body = await c.req.json<Partial<CreateTaskInput>>();
+  const teamFields = readTeamTaskRequestFields(body);
   const updates: Record<string, unknown> = {};
   if (body.title !== undefined) updates.title = body.title;
   // description: description / details(Memoria 互換)
@@ -301,6 +343,50 @@ taskRoutes.on(["PUT", "PATCH"], "/:id", async (c) => {
   const creatorTypeInput = readCreatorType(body);
   if (creatorTypeInput !== undefined) updates.creatorType = normalizeCreatorType(creatorTypeInput);
   if (body.estimatedMinutes !== undefined) updates.estimatedMinutes = body.estimatedMinutes;
+  const nextTeamFields = {
+    ...teamFields,
+    source: teamFields.source !== undefined ? teamFields.source : existing.source,
+    sourceRef: teamFields.sourceRef !== undefined ? teamFields.sourceRef : existing.sourceRef,
+  };
+  const metadataError = validateTeamTaskMetadata(nextTeamFields);
+  if (metadataError) return c.json({ error: metadataError }, 400);
+  if (teamFields.source !== undefined || teamFields.sourceRef !== undefined) {
+    const source = nextTeamFields.source;
+    const sourceRef = nextTeamFields.sourceRef;
+    if (source && sourceRef) {
+      const duplicate = await taskRepo.findBySource(source, sourceRef);
+      if (duplicate && duplicate.id !== id) return c.json({ error: "source/source_ref already exists" }, 409);
+    }
+  }
+  const teamValidation = await validateTeamTask({
+    id,
+    teamId: teamFields.teamId !== undefined ? teamFields.teamId ?? null : existing.teamId,
+    assigneeId: body.assigneeId !== undefined ? body.assigneeId ?? null : existing.assigneeId,
+    lane: teamFields.lane !== undefined
+      ? teamFields.lane
+      : teamFields.durationDays !== undefined && existing.lane === "daily"
+        ? undefined
+        : existing.lane as "daily" | "backlog",
+    sprintId: teamFields.sprintId !== undefined ? teamFields.sprintId ?? null : existing.sprintId,
+    deadline: deadlineInput !== undefined ? updates.deadline as Date | null : existing.deadline,
+    durationDays: teamFields.durationDays !== undefined ? teamFields.durationDays : existing.durationDays,
+    blockedBy: teamFields.blockedBy !== undefined ? teamFields.blockedBy : existing.blockedBy,
+  }, "minimal", {
+    isMember: (teamId, memberId) => taskRepo.isTeamMember(teamId, memberId),
+    isTaskInTeam: async (teamId, taskId) => (await taskRepo.findById(taskId))?.teamId === teamId,
+  });
+  if (teamValidation.error) return c.json({ error: teamValidation.error }, 400);
+  if (teamValidation.value.teamId && !await taskRepo.isTeamMember(teamValidation.value.teamId, userId)) {
+    return c.json({ error: "Forbidden" }, 403);
+  }
+  if (teamFields.teamId !== undefined) updates.teamId = teamFields.teamId;
+  if (teamFields.lane !== undefined || teamFields.durationDays !== undefined) updates.lane = teamValidation.value.lane;
+  if (teamFields.sprintId !== undefined) updates.sprintId = teamFields.sprintId;
+  if (teamFields.durationDays !== undefined) updates.durationDays = teamFields.durationDays;
+  if (teamFields.source !== undefined) updates.source = teamFields.source;
+  if (teamFields.sourceRef !== undefined) updates.sourceRef = teamFields.sourceRef;
+  if (teamFields.blockedBy !== undefined) updates.blockedBy = teamFields.blockedBy;
+  if (teamFields.storyPoints !== undefined) updates.storyPoints = teamFields.storyPoints;
   if (body.pluginPayload !== undefined) updates.pluginPayload = body.pluginPayload;
 
   await taskRepo.update(id, updates);

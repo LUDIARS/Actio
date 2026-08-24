@@ -5,10 +5,10 @@
   "templateRules": [],
   "membership": [
     {
-      "pathPattern": "^src/admin/(?:.*/)?[^/]+$"
+      "pathPattern": "(^|/)src/admin/(?:.*/)?[^/]+$"
     },
     {
-      "pathPattern": "^src/config/(?:.*/)?[^/]+$"
+      "pathPattern": "(^|/)src/config/(?:.*/)?[^/]+$"
     }
   ]
 }

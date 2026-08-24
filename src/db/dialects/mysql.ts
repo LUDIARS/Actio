@@ -2,6 +2,7 @@ import {
   mysqlTable,
   varchar,
   int,
+  double,
   bigint,
   boolean,
   timestamp,
@@ -9,6 +10,7 @@ import {
   text,
   unique,
   index,
+  primaryKey,
 } from "drizzle-orm/mysql-core";
 import { drizzle } from "drizzle-orm/mysql2";
 import mysql from "mysql2/promise";
@@ -700,6 +702,11 @@ export const tasks = mysqlTable(
      * EducationLab×Calliope PM 連携 (2026-07-17 neco 最終裁定)。
      */
     projectId: varchar("project_id", { length: 255 }),
+    teamId: varchar("team_id", { length: 255 }), lane: varchar("lane", { length: 32 }).notNull().default("daily"), sprintId: varchar("sprint_id", { length: 255 }),
+    source: varchar("source", { length: 128 }), sourceRef: varchar("source_ref", { length: 512 }), completionScore: double("completion_score"),
+    completionEvidence: json("completion_evidence").$type<Record<string, unknown>>(), completedBy: varchar("completed_by", { length: 255 }),
+    durationDays: int("duration_days"), estimateSource: varchar("estimate_source", { length: 32 }), deadlineSource: varchar("deadline_source", { length: 32 }), storyPoints: int("story_points"),
+    blockedBy: json("blocked_by").$type<string[]>().notNull().default([]), carriedFromSprintId: varchar("carried_from_sprint_id", { length: 255 }), actualMinutes: int("actual_minutes").notNull().default(0),
     title: varchar("title", { length: 512 }).notNull(),
     description: text("description"),
     requirements: text("requirements"),
@@ -725,6 +732,8 @@ export const tasks = mysqlTable(
     index("idx_task_assignee").on(t.assigneeId),
     index("idx_task_group").on(t.groupId),
     index("idx_task_project").on(t.projectId),
+    index("idx_task_team").on(t.teamId), index("idx_task_sprint").on(t.sprintId),
+    unique("uniq_task_source_ref").on(t.source, t.sourceRef),
     index("idx_task_status").on(t.status),
     index("idx_task_kind").on(t.kind),
     index("idx_task_deadline").on(t.deadline),
@@ -732,6 +741,21 @@ export const tasks = mysqlTable(
     index("idx_task_completed_at").on(t.completedAt),
   ]
 );
+
+export const teamRefs = mysqlTable("team_refs", {
+  id: varchar("id", { length: 255 }).primaryKey(),
+  slug: varchar("slug", { length: 255 }).notNull(),
+  name: varchar("name", { length: 255 }).notNull(),
+  ccSettings: json("cc_settings").$type<Record<string, unknown>>().notNull(),
+  settings: json("settings").$type<Record<string, unknown>>().notNull(),
+  syncedAt: timestamp("synced_at").notNull(),
+});
+
+export const teamMembers = mysqlTable("team_members", {
+  teamId: varchar("team_id", { length: 255 }).notNull(),
+  userId: varchar("user_id", { length: 255 }).notNull(),
+  role: varchar("role", { length: 64 }).notNull(),
+}, (t) => [primaryKey({ columns: [t.teamId, t.userId] })]);
 
 // ─── User Preferences (汎用 user-scoped KV) ──────────────────
 
@@ -774,6 +798,8 @@ export const schema = {
   appSettings,
   events,
   tasks,
+  teamRefs,
+  teamMembers,
   userPreferences,
 };
 
@@ -820,6 +846,8 @@ const allTables = {
   curriculumPlacements,
   events,
   tasks,
+  teamRefs,
+  teamMembers,
   userPreferences,
 };
 

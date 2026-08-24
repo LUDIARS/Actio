@@ -5,10 +5,10 @@
   "templateRules": [],
   "membership": [
     {
-      "pathPattern": "^src/auth/(?:.*/)?[^/]+$"
+      "pathPattern": "(^|/)src/auth/(?:.*/)?[^/]+$"
     },
     {
-      "pathPattern": "^src/corpus\\.ts$"
+      "pathPattern": "(^|/)src/corpus\\.ts$"
     }
   ]
 }

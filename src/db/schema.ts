@@ -1,4 +1,5 @@
 import { sqliteTable, text, integer, real, unique, index } from "drizzle-orm/sqlite-core";
+export * from "./team-task-schema.js";
 
 // ─── Users (FK アンカー + Actio 固有フィールド) ─────────────
 // 個人データ (name, email, role, password, OAuth トークン等) は
@@ -1089,6 +1090,22 @@ export const tasks = sqliteTable(
      * EducationLab×Calliope PM 連携 (2026-07-17 neco 最終裁定)。
      */
     projectId: text("project_id"),
+    /** Cc team の不透明参照。null は従来の個人タスク。 */
+    teamId: text("team_id"),
+    lane: text("lane").notNull().default("daily"),
+    sprintId: text("sprint_id"),
+    source: text("source"),
+    sourceRef: text("source_ref"),
+    completionScore: real("completion_score"),
+    completionEvidence: text("completion_evidence", { mode: "json" }).$type<Record<string, unknown>>(),
+    completedBy: text("completed_by"),
+    durationDays: integer("duration_days"),
+    estimateSource: text("estimate_source"),
+    deadlineSource: text("deadline_source"),
+    storyPoints: integer("story_points"),
+    blockedBy: text("blocked_by", { mode: "json" }).$type<string[]>().notNull().default([]),
+    carriedFromSprintId: text("carried_from_sprint_id"),
+    actualMinutes: integer("actual_minutes").notNull().default(0),
     title: text("title").notNull(),
     description: text("description"),
     /** 要件 (Markdown / freeform) */
@@ -1128,6 +1145,9 @@ export const tasks = sqliteTable(
     index("idx_task_assignee").on(table.assigneeId),
     index("idx_task_group").on(table.groupId),
     index("idx_task_project").on(table.projectId),
+    index("idx_task_team").on(table.teamId),
+    index("idx_task_sprint").on(table.sprintId),
+    unique("uniq_task_source_ref").on(table.source, table.sourceRef),
     index("idx_task_status").on(table.status),
     index("idx_task_kind").on(table.kind),
     index("idx_task_deadline").on(table.deadline),

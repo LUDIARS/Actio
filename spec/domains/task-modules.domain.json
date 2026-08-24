@@ -5,10 +5,16 @@
   "templateRules": [],
   "membership": [
     {
-      "pathPattern": "^src/plugins/(?:.*/)?[^/]+$"
+      "pathPattern": "(^|/)src/plugins/(?:.*/)?[^/]+$"
     },
     {
-      "pathPattern": "^src/task-plugins\\.ts$"
+      "pathPattern": "(^|/)src/task-plugins\\.ts$"
+    },
+    {
+      "pathPattern": "(^|/)modules/task/(?:team|validation)/.*$"
+    },
+    {
+      "pathPattern": "(^|/)src/db/team-task-schema\\.ts$"
     }
   ]
 }

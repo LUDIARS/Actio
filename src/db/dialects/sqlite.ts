@@ -251,6 +251,16 @@ export function createConnection(): { db: ReturnType<typeof drizzle>; sqlite: Sq
   sqlite.exec(`CREATE INDEX IF NOT EXISTS idx_task_project ON tasks(project_id)`);
   // completedAt 単体 INDEX (velocity Θ_p 集計のフルスキャン回避)
   sqlite.exec(`CREATE INDEX IF NOT EXISTS idx_task_completed_at ON tasks(completed_at)`);
+  for (const statement of ["team_id TEXT", "lane TEXT NOT NULL DEFAULT 'daily'", "sprint_id TEXT", "source TEXT", "source_ref TEXT", "completion_score REAL", "completion_evidence TEXT", "completed_by TEXT", "duration_days INTEGER", "estimate_source TEXT", "deadline_source TEXT", "story_points INTEGER", "blocked_by TEXT NOT NULL DEFAULT '[]'", "carried_from_sprint_id TEXT", "actual_minutes INTEGER NOT NULL DEFAULT 0"]) {
+    try { sqlite.exec(`ALTER TABLE tasks ADD COLUMN ${statement}`); } catch { /* already exists */ }
+  }
+  sqlite.exec(`
+    CREATE INDEX IF NOT EXISTS idx_task_team ON tasks(team_id);
+    CREATE INDEX IF NOT EXISTS idx_task_sprint ON tasks(sprint_id);
+    CREATE UNIQUE INDEX IF NOT EXISTS uniq_task_source_ref ON tasks(source, source_ref) WHERE source IS NOT NULL AND source_ref IS NOT NULL;
+    CREATE TABLE IF NOT EXISTS team_refs (id TEXT PRIMARY KEY, slug TEXT NOT NULL, name TEXT NOT NULL, cc_settings TEXT NOT NULL, settings TEXT NOT NULL, synced_at INTEGER NOT NULL);
+    CREATE TABLE IF NOT EXISTS team_members (team_id TEXT NOT NULL, user_id TEXT NOT NULL, role TEXT NOT NULL, PRIMARY KEY (team_id, user_id));
+  `);
 
   // ─── Placement Module (GPS 場所登録 + enter/leave トリガー) ──
   sqlite.exec(`

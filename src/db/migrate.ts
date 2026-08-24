@@ -516,6 +516,26 @@ sqlite.exec(`
     ON workflow_transitions(target_type, target_id, performed_at);
 `);
 
+// ─── Team task T1 ───────────────────────────────────────────
+sqlite.exec(`
+  CREATE TABLE IF NOT EXISTS team_refs (id TEXT PRIMARY KEY, slug TEXT NOT NULL, name TEXT NOT NULL, cc_settings TEXT NOT NULL, settings TEXT NOT NULL, synced_at INTEGER NOT NULL);
+  CREATE TABLE IF NOT EXISTS team_members (team_id TEXT NOT NULL, user_id TEXT NOT NULL, role TEXT NOT NULL, PRIMARY KEY (team_id, user_id));
+  CREATE TABLE IF NOT EXISTS sprints (id TEXT PRIMARY KEY, team_id TEXT NOT NULL, name TEXT NOT NULL, goal TEXT, starts_on TEXT NOT NULL, ends_on TEXT NOT NULL, status TEXT NOT NULL, capacity_minutes INTEGER, approved_by TEXT, approved_at INTEGER, created_by TEXT NOT NULL, created_at INTEGER, updated_at INTEGER);
+  CREATE TABLE IF NOT EXISTS sprint_plans (id TEXT PRIMARY KEY, team_id TEXT NOT NULL, sprint_id TEXT, kind TEXT NOT NULL, prompt_input TEXT NOT NULL, proposal TEXT NOT NULL, human_edits TEXT, status TEXT NOT NULL, decided_by TEXT, decided_at INTEGER, created_at INTEGER);
+  CREATE TABLE IF NOT EXISTS task_reviews (id TEXT PRIMARY KEY, team_id TEXT NOT NULL, review_date TEXT NOT NULL, ran_at INTEGER NOT NULL, slot TEXT NOT NULL, status TEXT NOT NULL, finished_at INTEGER, summary TEXT NOT NULL, UNIQUE(team_id, review_date, slot));
+  CREATE TABLE IF NOT EXISTS task_review_items (id TEXT PRIMARY KEY, review_id TEXT NOT NULL, task_id TEXT NOT NULL, score REAL NOT NULL, evidence TEXT NOT NULL, evidence_fingerprint TEXT NOT NULL, verdict TEXT NOT NULL, decision TEXT, decided_by TEXT, decided_at INTEGER);
+  CREATE TABLE IF NOT EXISTS task_delays (task_id TEXT NOT NULL, detected_on TEXT NOT NULL, days_late INTEGER NOT NULL, reported_at INTEGER, PRIMARY KEY(task_id, detected_on));
+  CREATE TABLE IF NOT EXISTS member_availability (id TEXT PRIMARY KEY, team_id TEXT NOT NULL, user_id TEXT NOT NULL, date TEXT NOT NULL, available_minutes INTEGER NOT NULL, note TEXT);
+  CREATE TABLE IF NOT EXISTS work_logs (id TEXT PRIMARY KEY, task_id TEXT NOT NULL, user_id TEXT NOT NULL, minutes INTEGER NOT NULL, logged_at INTEGER NOT NULL, note TEXT);
+  CREATE TABLE IF NOT EXISTS sprint_retros (id TEXT PRIMARY KEY, sprint_id TEXT NOT NULL, team_id TEXT NOT NULL, summary TEXT NOT NULL, created_at INTEGER NOT NULL);
+  CREATE TABLE IF NOT EXISTS team_metrics_daily (team_id TEXT NOT NULL, date TEXT NOT NULL, metrics TEXT NOT NULL, PRIMARY KEY(team_id, date));
+  CREATE TABLE IF NOT EXISTS sprint_metrics (sprint_id TEXT PRIMARY KEY, metrics TEXT NOT NULL, updated_at INTEGER NOT NULL);
+  CREATE TABLE IF NOT EXISTS adjustment_proposals (id TEXT PRIMARY KEY, team_id TEXT NOT NULL, proposal TEXT NOT NULL, status TEXT NOT NULL, created_at INTEGER NOT NULL);
+  CREATE TABLE IF NOT EXISTS gantt_snapshots (id TEXT PRIMARY KEY, team_id TEXT NOT NULL, data TEXT NOT NULL, created_at INTEGER NOT NULL);
+`);
+for (const statement of ["team_id TEXT", "lane TEXT NOT NULL DEFAULT 'daily'", "sprint_id TEXT", "source TEXT", "source_ref TEXT", "completion_score REAL", "completion_evidence TEXT", "completed_by TEXT", "duration_days INTEGER", "estimate_source TEXT", "deadline_source TEXT", "story_points INTEGER", "blocked_by TEXT NOT NULL DEFAULT '[]'", "carried_from_sprint_id TEXT", "actual_minutes INTEGER NOT NULL DEFAULT 0"]) { try { sqlite.exec(`ALTER TABLE tasks ADD COLUMN ${statement}`); } catch { /* already exists */ } }
+sqlite.exec(`CREATE INDEX IF NOT EXISTS idx_task_team ON tasks(team_id); CREATE INDEX IF NOT EXISTS idx_task_sprint ON tasks(sprint_id); CREATE UNIQUE INDEX IF NOT EXISTS uniq_task_source_ref ON tasks(source, source_ref) WHERE source IS NOT NULL AND source_ref IS NOT NULL;`);
+
 // ─── Placement Module (GPS 場所登録 + enter/leave トリガー) ──
 sqlite.exec(`
   CREATE TABLE IF NOT EXISTS places (

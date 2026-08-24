@@ -9,6 +9,7 @@ import {
   doublePrecision,
   unique,
   index,
+  primaryKey,
 } from "drizzle-orm/pg-core";
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
@@ -740,6 +741,11 @@ export const tasks = pgTable(
      * EducationLab×Calliope PM 連携 (2026-07-17 neco 最終裁定)。
      */
     projectId: text("project_id"),
+    teamId: text("team_id"), lane: text("lane").notNull().default("daily"), sprintId: text("sprint_id"),
+    source: text("source"), sourceRef: text("source_ref"), completionScore: doublePrecision("completion_score"),
+    completionEvidence: jsonb("completion_evidence").$type<Record<string, unknown>>(), completedBy: text("completed_by"),
+    durationDays: integer("duration_days"), estimateSource: text("estimate_source"), deadlineSource: text("deadline_source"), storyPoints: integer("story_points"),
+    blockedBy: jsonb("blocked_by").$type<string[]>().notNull().default([]), carriedFromSprintId: text("carried_from_sprint_id"), actualMinutes: integer("actual_minutes").notNull().default(0),
     title: text("title").notNull(),
     description: text("description"),
     requirements: text("requirements"),
@@ -765,6 +771,8 @@ export const tasks = pgTable(
     index("idx_task_assignee").on(t.assigneeId),
     index("idx_task_group").on(t.groupId),
     index("idx_task_project").on(t.projectId),
+    index("idx_task_team").on(t.teamId), index("idx_task_sprint").on(t.sprintId),
+    unique("uniq_task_source_ref").on(t.source, t.sourceRef),
     index("idx_task_status").on(t.status),
     index("idx_task_kind").on(t.kind),
     index("idx_task_deadline").on(t.deadline),
@@ -772,6 +780,21 @@ export const tasks = pgTable(
     index("idx_task_completed_at").on(t.completedAt),
   ]
 );
+
+export const teamRefs = pgTable("team_refs", {
+  id: text("id").primaryKey(),
+  slug: text("slug").notNull(),
+  name: text("name").notNull(),
+  ccSettings: jsonb("cc_settings").$type<Record<string, unknown>>().notNull(),
+  settings: jsonb("settings").$type<Record<string, unknown>>().notNull(),
+  syncedAt: timestamp("synced_at").notNull(),
+});
+
+export const teamMembers = pgTable("team_members", {
+  teamId: text("team_id").notNull(),
+  userId: text("user_id").notNull(),
+  role: text("role").notNull(),
+}, (t) => [primaryKey({ columns: [t.teamId, t.userId] })]);
 
 // ─── Group Events ──────────────────────────────────────────
 
@@ -1067,6 +1090,8 @@ export const schema = {
   groupEvents,
   events,
   tasks,
+  teamRefs,
+  teamMembers,
   integrationSettings,
   syncLogs,
   apiClients,
@@ -1128,6 +1153,8 @@ const DB_SCHEMA = {
   groupEvents,
   events,
   tasks,
+  teamRefs,
+  teamMembers,
   integrationSettings,
   syncLogs,
   apiClients,
@@ -1378,6 +1405,24 @@ export async function createConnectionWithRetry() {
     await client`CREATE INDEX IF NOT EXISTS idx_task_deadline ON tasks(deadline)`;
     await client`CREATE INDEX IF NOT EXISTS idx_task_plugin ON tasks(plugin_id)`;
     await client`CREATE INDEX IF NOT EXISTS idx_task_completed_at ON tasks(completed_at)`;
+    await client`
+      CREATE TABLE IF NOT EXISTS team_refs (
+        id TEXT PRIMARY KEY,
+        slug TEXT NOT NULL,
+        name TEXT NOT NULL,
+        cc_settings JSONB NOT NULL,
+        settings JSONB NOT NULL,
+        synced_at TIMESTAMP NOT NULL
+      )
+    `;
+    await client`
+      CREATE TABLE IF NOT EXISTS team_members (
+        team_id TEXT NOT NULL,
+        user_id TEXT NOT NULL,
+        role TEXT NOT NULL,
+        PRIMARY KEY (team_id, user_id)
+      )
+    `;
     console.log("[db:postgres] events/tasks テーブル確認完了");
   } catch (err) {
     const msg3 = err instanceof Error ? err.message : String(err);
@@ -1549,6 +1594,24 @@ export async function createConnectionWithRetry() {
   // 値は EducationLab glab_project.id の不透明参照 (FK なし、Actio 側に project マスタは作らない)
   try { await client`ALTER TABLE tasks ADD COLUMN IF NOT EXISTS project_id TEXT`; } catch { /* ignore */ }
   try { await client`CREATE INDEX IF NOT EXISTS idx_task_project ON tasks(project_id)`; } catch { /* ignore */ }
+  try { await client`ALTER TABLE tasks ADD COLUMN IF NOT EXISTS team_id TEXT`; } catch { /* ignore */ }
+  try { await client`ALTER TABLE tasks ADD COLUMN IF NOT EXISTS lane TEXT NOT NULL DEFAULT 'daily'`; } catch { /* ignore */ }
+  try { await client`ALTER TABLE tasks ADD COLUMN IF NOT EXISTS sprint_id TEXT`; } catch { /* ignore */ }
+  try { await client`ALTER TABLE tasks ADD COLUMN IF NOT EXISTS source TEXT`; } catch { /* ignore */ }
+  try { await client`ALTER TABLE tasks ADD COLUMN IF NOT EXISTS source_ref TEXT`; } catch { /* ignore */ }
+  try { await client`ALTER TABLE tasks ADD COLUMN IF NOT EXISTS completion_score DOUBLE PRECISION`; } catch { /* ignore */ }
+  try { await client`ALTER TABLE tasks ADD COLUMN IF NOT EXISTS completion_evidence JSONB`; } catch { /* ignore */ }
+  try { await client`ALTER TABLE tasks ADD COLUMN IF NOT EXISTS completed_by TEXT`; } catch { /* ignore */ }
+  try { await client`ALTER TABLE tasks ADD COLUMN IF NOT EXISTS duration_days INTEGER`; } catch { /* ignore */ }
+  try { await client`ALTER TABLE tasks ADD COLUMN IF NOT EXISTS estimate_source TEXT`; } catch { /* ignore */ }
+  try { await client`ALTER TABLE tasks ADD COLUMN IF NOT EXISTS deadline_source TEXT`; } catch { /* ignore */ }
+  try { await client`ALTER TABLE tasks ADD COLUMN IF NOT EXISTS story_points INTEGER`; } catch { /* ignore */ }
+  try { await client`ALTER TABLE tasks ADD COLUMN IF NOT EXISTS blocked_by JSONB NOT NULL DEFAULT '[]'::jsonb`; } catch { /* ignore */ }
+  try { await client`ALTER TABLE tasks ADD COLUMN IF NOT EXISTS carried_from_sprint_id TEXT`; } catch { /* ignore */ }
+  try { await client`ALTER TABLE tasks ADD COLUMN IF NOT EXISTS actual_minutes INTEGER NOT NULL DEFAULT 0`; } catch { /* ignore */ }
+  try { await client`CREATE INDEX IF NOT EXISTS idx_task_team ON tasks(team_id)`; } catch { /* ignore */ }
+  try { await client`CREATE INDEX IF NOT EXISTS idx_task_sprint ON tasks(sprint_id)`; } catch { /* ignore */ }
+  try { await client`CREATE UNIQUE INDEX IF NOT EXISTS uniq_task_source_ref ON tasks(source, source_ref) WHERE source IS NOT NULL AND source_ref IS NOT NULL`; } catch { /* ignore */ }
   // completedAt 単体 INDEX (velocity Θ_p 集計のフルスキャン回避)
   try { await client`CREATE INDEX IF NOT EXISTS idx_task_completed_at ON tasks(completed_at)`; } catch { /* ignore */ }
 

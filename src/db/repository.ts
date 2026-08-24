@@ -2345,6 +2345,9 @@ export interface TaskListFilter {
   groupId?: string;
   /** 外部プロジェクトの不透明参照 (EducationLab glab_project.id 等)。 ?project=<id> フィルタ用 */
   projectId?: string;
+  teamId?: string;
+  lane?: string;
+  sprintId?: string;
   status?: string;
   pluginId?: string;
   /** 種別フィルタ: "task" / "goal" / "all"(両方)。 省略時は全件 (互換) */
@@ -2382,6 +2385,9 @@ export const taskRepo = {
     if (filter.assigneeId) conditions.push(eq(schema.tasks.assigneeId, filter.assigneeId));
     if (filter.groupId) conditions.push(eq(schema.tasks.groupId, filter.groupId));
     if (filter.projectId) conditions.push(eq(schema.tasks.projectId, filter.projectId));
+    if (filter.teamId) conditions.push(eq(schema.tasks.teamId, filter.teamId));
+    if (filter.lane) conditions.push(eq(schema.tasks.lane, filter.lane));
+    if (filter.sprintId) conditions.push(eq(schema.tasks.sprintId, filter.sprintId));
     if (filter.status) conditions.push(eq(schema.tasks.status, filter.status));
     if (filter.pluginId) conditions.push(eq(schema.tasks.pluginId, filter.pluginId));
     if (filter.kind && filter.kind !== "all") conditions.push(eq(schema.tasks.kind, filter.kind));
@@ -2401,6 +2407,16 @@ export const taskRepo = {
 
   async create(data: NewTask): Promise<void> {
     await db.insert(schema.tasks).values(data);
+  },
+
+  async findBySource(source: string, sourceRef: string): Promise<Task | undefined> {
+    const [row] = await db.select().from(schema.tasks).where(and(eq(schema.tasks.source, source), eq(schema.tasks.sourceRef, sourceRef)));
+    return row;
+  },
+
+  async isTeamMember(teamId: string, userId: string): Promise<boolean> {
+    const [row] = await db.select({ userId: schema.teamMembers.userId }).from(schema.teamMembers).where(and(eq(schema.teamMembers.teamId, teamId), eq(schema.teamMembers.userId, userId)));
+    return row !== undefined;
   },
 
   async update(id: string, data: Partial<Omit<NewTask, "id">>): Promise<void> {

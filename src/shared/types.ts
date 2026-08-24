@@ -467,6 +467,20 @@ export interface CreateTaskInput {
   groupId?: string;
   /** 外部プロジェクトの不透明参照 (例: EducationLab `glab_project.id`)。 FK なし */
   projectId?: string | null;
+  teamId?: string | null;
+  team_id?: string | null;
+  lane?: "daily" | "backlog";
+  sprintId?: string | null;
+  sprint_id?: string | null;
+  durationDays?: number | null;
+  duration_days?: number | null;
+  source?: string | null;
+  sourceRef?: string | null;
+  source_ref?: string | null;
+  blockedBy?: string[] | null;
+  blocked_by?: string[] | null;
+  storyPoints?: number | null;
+  story_points?: number | null;
   /** open/in_progress/blocked/done/cancelled。 todo/doing/done エイリアスも受理 */
   status?: TaskStatus | "todo" | "doing";
   /** 種別: task(既定) / goal */
