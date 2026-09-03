@@ -3,9 +3,14 @@ task: 01-team-task-t1-schema-lanes
 project: Actio
 kind: 実装
 status: delegated
+delegation_run_id: bd9f8d59-06fb-4693-ae5e-7514cace1f0e
 created: 2026-08-24T00:00:00.000Z
+source_session: lictor-5a34ec20-90a3-4dfc-9224-f88ea88137d4
 memoria_task_id: null
 actio_task_id: null
+memory_links:
+  - ../feature/team-task/spec.md
+  - ../../../Concordia/spec/feature/teams.md
 ---
 # チーム別タスク管理 T1 — schema / チーム参照 / 2 レーン / 最小入力バリデーション
 
