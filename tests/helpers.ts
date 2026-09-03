@@ -600,6 +600,31 @@ export function insertTestTeamMember(data: { teamId: string; userId: string; rol
   sqlite.close();
 }
 
+/** テスト用チーム参照 (Cc 同期キャッシュ行) をDBに直接挿入 */
+export function insertTestTeamRef(data: {
+  id: string;
+  slug?: string;
+  name?: string;
+  ccSettings?: Record<string, unknown>;
+  settings?: Record<string, unknown>;
+}) {
+  const dbPath = process.env.DATABASE_PATH || resolve("data", "test.db");
+  const sqlite = new Database(dbPath);
+  sqlite
+    .prepare(
+      "INSERT INTO team_refs (id, slug, name, cc_settings, settings, synced_at) VALUES (?, ?, ?, ?, ?, ?)"
+    )
+    .run(
+      data.id,
+      data.slug ?? data.id,
+      data.name ?? data.id,
+      JSON.stringify(data.ccSettings ?? {}),
+      JSON.stringify(data.settings ?? {}),
+      Date.now()
+    );
+  sqlite.close();
+}
+
 /** テスト用グループをDBに直接挿入 */
 export function insertTestGroup(data: { id: string; name: string; createdBy: string }) {
   const dbPath = process.env.DATABASE_PATH || resolve("data", "test.db");

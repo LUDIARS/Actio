@@ -2493,3 +2493,81 @@ export const taskCategoryRepo = {
     await userPreferenceRepo.upsert(userId, TASK_CATEGORIES_PREF_KEY, JSON.stringify(next));
   },
 };
+
+// ─── Team Ref Repository (Cc teams キャッシュ + Actio 固有設定) ────
+// Cc 由来フィールド (slug / name / cc_settings) は同期で上書きし、
+// Actio 固有 `settings` は既存行を保持する (spec/feature/team-task §8.2)。
+
+export type TeamRef = typeof schema.teamRefs.$inferSelect;
+
+export const teamRefRepo = {
+  async findById(id: string): Promise<TeamRef | undefined> {
+    const [row] = await db.select().from(schema.teamRefs).where(eq(schema.teamRefs.id, id));
+    return row;
+  },
+
+  async findByIds(ids: string[]): Promise<TeamRef[]> {
+    if (ids.length === 0) return [];
+    return db.select().from(schema.teamRefs).where(inArray(schema.teamRefs.id, ids));
+  },
+
+  /** Cc 同期の upsert。新規行だけ initialSettings で Actio 固有設定を初期化する。 */
+  async upsertFromCc(
+    data: { id: string; slug: string; name: string; ccSettings: Record<string, unknown>; syncedAt: Date },
+    initialSettings: Record<string, unknown>,
+  ): Promise<void> {
+    const existing = await this.findById(data.id);
+    if (existing) {
+      await db
+        .update(schema.teamRefs)
+        .set({ slug: data.slug, name: data.name, ccSettings: data.ccSettings, syncedAt: data.syncedAt })
+        .where(eq(schema.teamRefs.id, data.id));
+    } else {
+      await db.insert(schema.teamRefs).values({ ...data, settings: initialSettings });
+    }
+  },
+
+  async updateSettings(id: string, settings: Record<string, unknown>): Promise<void> {
+    await db.update(schema.teamRefs).set({ settings }).where(eq(schema.teamRefs.id, id));
+  },
+};
+
+// ─── Team Member Repository (メンバーとロールは Actio 正本) ────────
+
+export type TeamMember = typeof schema.teamMembers.$inferSelect;
+
+export const teamMemberRepo = {
+  async listByTeam(teamId: string): Promise<TeamMember[]> {
+    return db.select().from(schema.teamMembers).where(eq(schema.teamMembers.teamId, teamId));
+  },
+
+  async listByUser(userId: string): Promise<TeamMember[]> {
+    return db.select().from(schema.teamMembers).where(eq(schema.teamMembers.userId, userId));
+  },
+
+  async findRole(teamId: string, userId: string): Promise<string | undefined> {
+    const [row] = await db
+      .select({ role: schema.teamMembers.role })
+      .from(schema.teamMembers)
+      .where(and(eq(schema.teamMembers.teamId, teamId), eq(schema.teamMembers.userId, userId)));
+    return row?.role;
+  },
+
+  async upsert(teamId: string, userId: string, role: string): Promise<void> {
+    const existing = await this.findRole(teamId, userId);
+    if (existing === undefined) {
+      await db.insert(schema.teamMembers).values({ teamId, userId, role });
+    } else {
+      await db
+        .update(schema.teamMembers)
+        .set({ role })
+        .where(and(eq(schema.teamMembers.teamId, teamId), eq(schema.teamMembers.userId, userId)));
+    }
+  },
+
+  async remove(teamId: string, userId: string): Promise<void> {
+    await db
+      .delete(schema.teamMembers)
+      .where(and(eq(schema.teamMembers.teamId, teamId), eq(schema.teamMembers.userId, userId)));
+  },
+};

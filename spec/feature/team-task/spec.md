@@ -90,14 +90,15 @@ Cc / Memoria 由来の再送で同じタスクを増殖させないため、`sou
 |---|---|---|
 | `assignee_id` (だれが) | 必須 | 必須 |
 | `title` (なにを) | 必須 | 必須 |
-| `deadline` (いつまでに) | **禁止** (null 固定。 付いていれば 400) | **必須** |
+| `deadline` (いつまでに) | **禁止** (null 固定。 付いていれば 400) | `input_mode=full` では必須。`minimal` ではスケジューラが自動導出するため入力時は任意 |
 | `team_id` | 必須 (チームタスクの場合) | 必須 |
 
 `team_id=null` の個人タスクは既存どおり、未割当や期日付きも許可する。これにより、追加列の
 `lane=default daily` が既存個人タスクの更新を拒否しないようにする。
 
 `assignee_id` は `team_members` に属する user でなければならない。 レーン変更
-(`daily → backlog`) は期日を同時に付けることを要求し、 `backlog → daily` は期日を落とす。
+(`daily → backlog`) は `full` では期日、`minimal` では期日または `duration_days` を同時に要求し、
+`backlog → daily` は期日を落とす。
 
 ### 2.2 新規テーブル
 
@@ -186,6 +187,8 @@ Cc `teams.settings` (A 層 typed settings) は `team_refs.cc_settings` へ同期
 
 ```jsonc
 {
+  "input_mode": "minimal",              // minimal / full (§19)
+  "default_daily_minutes": 120,          // minimal 入力の見積り導出 (§19.2)
   "sprint_length_days": 7,
   "review_slots": ["09:00", "18:00"],      // JST。 朝礼 (09:30) より前に朝スロットを置く
   "completion_threshold": 0.8,            // これ以上で自動完了
@@ -498,8 +501,9 @@ Cc 側に必要な変更 (Cc リポの task md として別途起こす):
 
 ## 13. 受け入れ基準
 
-- [ ] `team_id` 付きタスクでは、`lane=daily` に期日を付けると 400、 `lane=backlog` で期日なしは
-  400、担当なしはどちらも 400。`team_id=null` の既存個人タスクは従来どおり更新できる。
+- [ ] `team_id` 付きタスクでは、`lane=daily` に期日を付けると 400、`input_mode=full` の
+  `lane=backlog` で期日なしは 400、担当なしはどちらも 400。`minimal` では `duration_days` から
+  backlog を導出できる。`team_id=null` の既存個人タスクは従来どおり更新できる。
 - [ ] スプリント案は LLM が生成しても、 leader の承認操作なしにタスクが作られない。
 - [ ] 完了レビューが 1 日 2 回チームごとに冪等に走り、合成スコアが閾値以上のタスクは自動 done、
   根拠が `completion_evidence` に残る。マージ済み PR だけで閾値未満なら判定キューに残る。

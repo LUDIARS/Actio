@@ -55,7 +55,8 @@ export function validateLaneTransition(current: TeamTaskInput, next: Pick<TeamTa
   if (current.lane === "daily" && next.lane === "backlog" && !next.deadline && !next.durationDays) return { deadline: next.deadline, error: "daily to backlog requires deadline or duration_days" };
   if (current.lane === "backlog" && next.lane === "daily") {
     if (current.sprintId) return { deadline: next.deadline, error: "backlog tasks in a sprint cannot move to daily" };
-    return { deadline: current.deadlineSource === "auto" ? null : next.deadline };
+    return { deadline: null };
   }
+  if (next.lane === "daily" && next.deadline) return { deadline: next.deadline, error: "daily tasks cannot have a deadline" };
   return { deadline: next.deadline };
 }

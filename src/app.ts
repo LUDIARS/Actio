@@ -9,6 +9,7 @@ import { corpusManifest, CORPUS_MANIFEST_PATH } from "./corpus.js";
 import { notification } from "../modules/notification/routes.js";
 import { groupRoutes } from "../modules/group/routes.js";
 import { taskRoutes } from "../modules/task/routes.js";
+import { teamMemberRoutes } from "../modules/task/team-member-routes.js";
 // event / calendar / placement / 予定系 SDK モジュールは Schedula に分離
 // (2026-05-20 split-task-only)
 import { pmModule } from "../modules/pm/index.js";
@@ -143,6 +144,9 @@ export function createApp() {
 
   // ─── Core: Tasks (タスク: 解決すべき現在の事象) ────────────
   app.route("/api/tasks", taskRoutes);
+
+  // ─── Core: Teams (チーム別タスク管理: メンバー / 設定) ──────
+  app.route("/api/teams", teamMemberRoutes);
 
   // ─── event / calendar / placement / 予定系 SDK モジュールは
   //     Schedula に分離 (2026-05-20 split-task-only) ──

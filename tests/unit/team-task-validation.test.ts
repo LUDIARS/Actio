@@ -12,8 +12,8 @@ describe("team task validation", () => {
     const result = await validateTeamTask({ teamId: "team", assigneeId: "user", lane: "backlog" }, "full", deps);
     expect(result.error).toContain("deadline");
   });
-  it("drops auto deadline when moving back to daily", () => {
-    expect(validateLaneTransition({ teamId: "team", lane: "backlog", sprintId: null, deadlineSource: "auto" }, { lane: "daily" }).deadline).toBeNull();
+  it("drops the deadline when moving back to daily", () => {
+    expect(validateLaneTransition({ teamId: "team", lane: "backlog", sprintId: null }, { lane: "daily" }).deadline).toBeNull();
   });
   it("rejects invalid duration and blocked_by shapes", async () => {
     const duration = await validateTeamTask({ teamId: "team", assigneeId: "user", durationDays: 0 }, "minimal", deps);

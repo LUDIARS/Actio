@@ -12,7 +12,7 @@ installVestigium({
   pinoTransport: false,
 });
 
-// シークレチE��初期匁E(Infisical / env フォールバック)
+// シークレチE��初期匁E(Infisical / env フォールバック)
 await initSecrets();
 
 const { app, injectWebSocket } = createApp();
@@ -23,10 +23,10 @@ app.use("*", logger());
 // ─── Server ─────────────────────────────────────────────────
 const port = parseInt(process.env.BACKEND_PORT || process.env.PORT || "3000", 10);
 
-console.log(`[server] 起動中... ポ�EチE${port}`);
+console.log(`[server] 起動中... ポ�EチE${port}`);
 console.log(`[server] FRONTEND_URL = ${secretManager.getOrDefault("FRONTEND_URL", "http://localhost:8080")}`);
 console.log(`[server] GOOGLE_REDIRECT_URI = ${secretManager.getOrDefault("GOOGLE_REDIRECT_URI", "http://localhost:8080/api/auth/google/callback")}`);
-console.log(`[server] Infisical = ${secretManager.isInfisicalEnabled() ? "有効" : "無効 (環墁E��数フォールバック)"}`);
+console.log(`[server] Infisical = ${secretManager.isInfisicalEnabled() ? "有効" : "無効 (環墁E��数フォールバック)"}`);
 const server = serve({ fetch: app.fetch, port }, (info) => {
   console.log(`[server] Actio server running on http://localhost:${info.port}`);
 });
@@ -45,6 +45,10 @@ startPasetoVerify({
     `http://localhost:${port}`,
   ),
 });
+
+// ─── Cc チーム同期 (起動時 + 10 分 tick, team-task §8.2) ──────
+import { startTeamSyncTick } from "../modules/task/team/cc-sync.js";
+startTeamSyncTick();
 
 // ─── Peer Service Adapter (backend-to-backend WS via Cernere) ─
 import { initServiceAdapter } from "./service-adapter.js";
