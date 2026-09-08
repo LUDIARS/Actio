@@ -1,6 +1,8 @@
 {
   "name": "Actio",
   "infraKeys": {
+    "ACTIO_LOCAL_MODE": "0",
+    "ACTIO_CLOUDFLARE_ENABLED": "0",
     "FRONTEND_PORT": "8080",
     "BACKEND_PORT": "3000",
     "DB_PORT": "5432",

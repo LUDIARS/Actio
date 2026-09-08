@@ -16,6 +16,8 @@ import jwt from "jsonwebtoken";
 import { secretManager } from "../config/secrets.js";
 import { getSessionUser, saveSessionUser } from "../auth/session-cache.js";
 import { verifyPasetoToken } from "../auth/paseto-verify.js";
+import { isLocalModeRequest, LOCAL_USER } from "../auth/local-mode.js";
+import { ensureLocalModeUser } from "../auth/local-user-anchor.js";
 
 const TOKEN_COOKIE = "actio_token";
 
@@ -41,9 +43,15 @@ function setAnonymous(c: Parameters<Parameters<typeof createMiddleware>[0]>[0]) 
 // ─── ミドルウェアエクスポート ──────────────────────────────────
 
 export function userContext() {
-  const isDev = secretManager.getOrDefault("NODE_ENV", "") !== "production";
-
   return createMiddleware(async (c, next) => {
+    if (isLocalModeRequest(c)) {
+      await ensureLocalModeUser();
+      c.set("userId" as never, LOCAL_USER.id as never);
+      c.set("userRole" as never, LOCAL_USER.role as never);
+      c.set("user" as never, LOCAL_USER as never);
+      await next();
+      return;
+    }
     const token = extractToken(c);
 
     if (token) {
@@ -98,16 +106,6 @@ export function userContext() {
         } catch {
           setAnonymous(c);
         }
-      } else {
-        setAnonymous(c);
-      }
-    } else if (isDev && !token) {
-      // 開発環境: ヘッダーフォールバック
-      const headerUserId = c.req.header("X-User-Id");
-      const headerRole = c.req.header("X-User-Role");
-      if (headerUserId) {
-        c.set("userId" as never, headerUserId as never);
-        c.set("userRole" as never, (headerRole ?? "general") as never);
       } else {
         setAnonymous(c);
       }

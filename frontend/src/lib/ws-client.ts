@@ -68,7 +68,8 @@ class ActioWsClient {
 
     this.connectPromise = new Promise((resolve, reject) => {
       const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-      const url = `${protocol}//${window.location.host}/ws?token=${encodeURIComponent(token)}`;
+      // ローカルモードでは token が空文字。 upgrade 側が socket で判定する。
+      const url = `${protocol}//${window.location.host}/ws${token ? `?token=${encodeURIComponent(token)}` : ""}`;
 
       this.ws = new WebSocket(url);
 
@@ -107,7 +108,7 @@ class ActioWsClient {
         this._sessionId = null;
         this.connectPromise = null;
 
-        if (!this.intentionalClose && this.currentToken) {
+        if (!this.intentionalClose && this.currentToken !== null) {
           this.scheduleReconnect();
         }
       };
@@ -264,7 +265,7 @@ class ActioWsClient {
 
     this.reconnectTimer = setTimeout(() => {
       this.reconnectTimer = null;
-      if (this.currentToken && !this.intentionalClose) {
+      if (this.currentToken !== null && !this.intentionalClose) {
         this.connect(this.currentToken).catch(() => {
           // onclose で再度 scheduleReconnect が呼ばれる
         });

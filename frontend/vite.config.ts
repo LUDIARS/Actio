@@ -4,6 +4,7 @@ import { resolve } from 'path'
 
 const frontendPort = parseInt(process.env.FRONTEND_PORT || '5173', 10)
 const backendPort = process.env.BACKEND_PORT || '3000'
+const backendHost = process.env.ACTIO_LOCAL_MODE === '1' ? '127.0.0.1' : 'localhost'
 const extraHosts = [
   ...(process.env.VITE_ALLOWED_HOSTS?.split(',').filter(Boolean) ?? []),
   ...(process.env.LUDIARS_ALLOWED_HOSTS?.split(',').map(s => s.trim()).filter(Boolean) ?? []),
@@ -48,7 +49,7 @@ export default defineConfig({
     },
   },
   server: {
-    host: '0.0.0.0',
+    host: process.env.ACTIO_LOCAL_MODE === '1' ? '127.0.0.1' : '0.0.0.0',
     port: frontendPort,
     allowedHosts: [...extraHosts],
     watch: {
@@ -56,19 +57,19 @@ export default defineConfig({
     },
     proxy: {
       '/api': {
-        target: `http://localhost:${backendPort}`,
-        changeOrigin: true,
+        target: `http://${backendHost}:${backendPort}`,
+        changeOrigin: process.env.ACTIO_LOCAL_MODE !== '1',
         configure: silenceProxyErrors,
       },
       '/ws': {
-        target: `http://localhost:${backendPort}`,
+        target: `http://${backendHost}:${backendPort}`,
         ws: true,
         configure: silenceProxyErrors,
       },
       // declarative.ts が backend の corpus manifest を fetch するため。
       '/.well-known': {
-        target: `http://localhost:${backendPort}`,
-        changeOrigin: true,
+        target: `http://${backendHost}:${backendPort}`,
+        changeOrigin: process.env.ACTIO_LOCAL_MODE !== '1',
         configure: silenceProxyErrors,
       },
     },

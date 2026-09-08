@@ -1,9 +1,10 @@
 import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from "react";
-import { auth as authApi, getStoredUser, setStoredUser, clearTokens } from "../lib/api";
+import { auth as authApi, setStoredUser, clearTokens } from "../lib/api";
 import { API_BASE } from "../lib/constants";
 import { wsClient } from "../lib/ws-client";
 
 interface User {
+  localMode?: boolean;
   id: string;
   name: string;
   email: string;
@@ -23,16 +24,10 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(getStoredUser);
+  const [user, setUser] = useState<User | null>(null);
   const [wsConnected, setWsConnected] = useState(false);
-  // 初期 loading は「保存済セッションあり」OR「URL に ?code= がある」(Cernere からの open_url 着地)
-  // のとき true。loading=false で AppRoutes が描画されると RequireAuth が
-  // /login へ Navigate replace してしまい、?code= が URL から消える。
-  const [loading, setLoading] = useState(() => {
-    if (getStoredUser()) return true;
-    const params = new URLSearchParams(window.location.search);
-    return params.has("code");
-  });
+  // Resolve the server identity before redirects, including first local-mode visits.
+  const [loading, setLoading] = useState(true);
 
   // WS 接続 — Cookie から短期トークンを取得してWS URLに埋め込む
   const connectWs = useCallback(async () => {
@@ -101,15 +96,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    const stored = getStoredUser();
-    if (!stored) {
-      setLoading(false);
-      return;
-    }
-
+    // The server decides local mode; never infer authentication from browser hostname.
     authApi.me()
       .then((me) => {
-        const u = { id: me.id, name: me.name, email: me.email, role: me.role };
+        const u = { id: me.id, name: me.name, email: me.email, role: me.role, localMode: me.localMode === true };
         setUser(u);
         setStoredUser(u);
       })

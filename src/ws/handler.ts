@@ -10,6 +10,8 @@ import type { Hono } from "hono";
 import { secretManager } from "../config/secrets.js";
 import { registerSession, removeSession, updatePong } from "./session.js";
 import { dispatch } from "./dispatcher.js";
+import { isLocalModeRequest, LOCAL_USER } from "../auth/local-mode.js";
+import { ensureLocalModeUser } from "../auth/local-user-anchor.js";
 
 // ── JWT 検証 (Actio 自身が発行した service_token をローカル検証) ──
 // Cernere とは JWT_SECRET を共有しないため、id-cache は使わない。
@@ -35,6 +37,7 @@ export function setupWebSocket(app: Hono) {
     "/ws",
     upgradeWebSocket((c) => {
       const token = c.req.query("token");
+      const localAccess = isLocalModeRequest(c);
 
       // 認証は onOpen 前に解決する必要があるため、クロージャで userId を保持
       let userId: string | null = null;
@@ -45,7 +48,7 @@ export function setupWebSocket(app: Hono) {
       return {
         async onOpen(_evt, ws) {
           // ── id-cache 3 点認証 ──────────────────
-          if (!token) {
+          if (!token && !localAccess) {
             ws.send(JSON.stringify({
               type: "error",
               code: "auth_required",
@@ -55,8 +58,15 @@ export function setupWebSocket(app: Hono) {
             return;
           }
 
-          let user: { id: string; name: string; email: string; role: string } | null = null;
-          if (jwtSecret) {
+          let user: { id: string; name: string; email: string; role: string } | null = localAccess ? LOCAL_USER : null;
+          if (localAccess) {
+            try { await ensureLocalModeUser(); }
+            catch {
+              ws.close(1011, "Local identity unavailable");
+              return;
+            }
+          }
+          if (!localAccess && jwtSecret && token) {
             try {
               const jwt = await import("jsonwebtoken");
               const payload = jwt.default.verify(token, jwtSecret) as {

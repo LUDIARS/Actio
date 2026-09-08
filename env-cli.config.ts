@@ -8,6 +8,8 @@ const config: EnvCliConfig = {
    * Infisical に同名キーがあればそちらを優先し、なければデフォルト値を使用。
    */
   infraKeys: {
+    ACTIO_LOCAL_MODE: "0",
+    ACTIO_CLOUDFLARE_ENABLED: "0",
     // ─── Docker Compose (Ports) ────────────────────────────
     FRONTEND_PORT: "8080",
     BACKEND_PORT: "3000",

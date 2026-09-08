@@ -18,6 +18,7 @@ export interface DeletedResponse {
 // ─── Auth ───────────────────────────────────────────────────
 
 export interface UserProfile {
+  localMode?: boolean;
   id: string;
   name: string;
   email: string;

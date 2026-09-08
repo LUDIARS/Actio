@@ -2,6 +2,7 @@ import { Hono, type Context } from "hono";
 import { cors } from "hono/cors";
 import { userContext, requireRole } from "./middleware/auth.js";
 import { requestId } from "./middleware/request-id.js";
+import { localModeBoundary } from "./auth/local-mode.js";
 import { setupWebSocket } from "./ws/handler.js";
 import "./ws/commands/index.js";
 import { auth, compositeAuthRoutes } from "./auth/routes.js";
@@ -37,6 +38,8 @@ import exampleModule from "../modules-ext/example/server.js";
 
 export function createApp() {
   const app = new Hono();
+  // Must precede both the WS upgrade route and public/composite HTTP routes.
+  app.use("*", localModeBoundary());
 
   // ─── WebSocket Handler (/ws) ───────────────────────────────
   const { injectWebSocket } = setupWebSocket(app);

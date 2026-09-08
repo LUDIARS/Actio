@@ -20,7 +20,7 @@ notification.route("/webhooks", webhookRoutes);
 notification.get("/notifications/preferences", async (c) => {
   const userId = getUserId(c);
   if (!userId) {
-    return c.json({ error: "X-User-Id header required" }, 400);
+    return c.json({ error: "Authentication required" }, 400);
   }
 
   const prefs = await notificationPreferenceRepo.findByUserId(userId);
@@ -48,7 +48,7 @@ notification.get("/notifications/preferences", async (c) => {
 notification.put("/notifications/preferences", async (c) => {
   const userId = getUserId(c);
   if (!userId) {
-    return c.json({ error: "X-User-Id header required" }, 400);
+    return c.json({ error: "Authentication required" }, 400);
   }
 
   const body = await c.req.json<{
@@ -120,7 +120,7 @@ notification.put("/notifications/preferences", async (c) => {
 notification.get("/notifications/history", async (c) => {
   const userId = getUserId(c);
   if (!userId) {
-    return c.json({ error: "X-User-Id header required" }, 400);
+    return c.json({ error: "Authentication required" }, 400);
   }
 
   const history = await notificationRepo.findByUserId(userId);
@@ -143,7 +143,7 @@ notification.post("/notifications/:id/read", async (c) => {
 notification.delete("/notifications/:id", async (c) => {
   const userId = getUserId(c);
   if (!userId) {
-    return c.json({ error: "X-User-Id header required" }, 400);
+    return c.json({ error: "Authentication required" }, 400);
   }
 
   const id = c.req.param("id");
@@ -192,7 +192,7 @@ notification.get("/templates/:id", async (c) => {
 notification.post("/templates", async (c) => {
   const userId = getUserId(c);
   if (!userId) {
-    return c.json({ error: "X-User-Id header required" }, 400);
+    return c.json({ error: "Authentication required" }, 400);
   }
 
   const body = await c.req.json<{
@@ -226,7 +226,7 @@ notification.post("/templates", async (c) => {
 notification.put("/templates/:id", async (c) => {
   const userId = getUserId(c);
   if (!userId) {
-    return c.json({ error: "X-User-Id header required" }, 400);
+    return c.json({ error: "Authentication required" }, 400);
   }
 
   const id = c.req.param("id");
@@ -264,7 +264,7 @@ notification.put("/templates/:id", async (c) => {
 notification.delete("/templates/:id", async (c) => {
   const userId = getUserId(c);
   if (!userId) {
-    return c.json({ error: "X-User-Id header required" }, 400);
+    return c.json({ error: "Authentication required" }, 400);
   }
 
   const id = c.req.param("id");

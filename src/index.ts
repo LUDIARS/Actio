@@ -5,6 +5,7 @@ import { secretManager, initSecrets } from "./config/secrets.js";
 import { createApp } from "./app.js";
 import { initComposite } from "./auth/composite.js";
 import { startPasetoVerify } from "./auth/paseto-verify.js";
+import { localModeEnabled } from "./auth/local-mode.js";
 
 installVestigium({
   serviceCode: "actio",
@@ -27,7 +28,7 @@ console.log(`[server] 起動中... ポ�EチE${port}`);
 console.log(`[server] FRONTEND_URL = ${secretManager.getOrDefault("FRONTEND_URL", "http://localhost:8080")}`);
 console.log(`[server] GOOGLE_REDIRECT_URI = ${secretManager.getOrDefault("GOOGLE_REDIRECT_URI", "http://localhost:8080/api/auth/google/callback")}`);
 console.log(`[server] Infisical = ${secretManager.isInfisicalEnabled() ? "有効" : "無効 (環墁E��数フォールバック)"}`);
-const server = serve({ fetch: app.fetch, port }, (info) => {
+const server = serve({ fetch: app.fetch, port, ...(localModeEnabled() ? { hostname: "127.0.0.1" } : {}) }, (info) => {
   console.log(`[server] Actio server running on http://localhost:${info.port}`);
 });
 

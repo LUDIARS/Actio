@@ -1,6 +1,6 @@
 {
   "name": "identity-access",
-  "description": "認証と権限。 Cernere / Corpus を情報源とする本人性と操作の許可。",
+  "description": "認証と権限。 Cernere / Corpus による本人性と、明示した loopback 専用ローカルモードの接続境界。",
   "presetRules": [],
   "templateRules": [],
   "membership": [

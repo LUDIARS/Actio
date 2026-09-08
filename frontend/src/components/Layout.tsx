@@ -536,21 +536,28 @@ export function Layout() {
             <div style={{ fontSize: "0.7rem", color: "var(--text-muted)", marginBottom: "0.5rem" }}>
               {user.email}
             </div>
-            <button
-              onClick={() => logout()}
-              style={{
-                width: "100%",
-                padding: "0.35rem",
-                fontSize: "0.75rem",
-                background: "var(--bg-surface-2)",
-                border: "1px solid var(--border)",
-                borderRadius: "var(--radius-sm)",
-                color: "var(--text-muted)",
-                cursor: "pointer",
-              }}
-            >
-              ログアウト
-            </button>
+            {/* ローカルモードは Cernere セッションを持たないのでログアウト不能 */}
+            {user.localMode ? (
+              <div style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>
+                ローカルモード
+              </div>
+            ) : (
+              <button
+                onClick={() => logout()}
+                style={{
+                  width: "100%",
+                  padding: "0.35rem",
+                  fontSize: "0.75rem",
+                  background: "var(--bg-surface-2)",
+                  border: "1px solid var(--border)",
+                  borderRadius: "var(--radius-sm)",
+                  color: "var(--text-muted)",
+                  cursor: "pointer",
+                }}
+              >
+                ログアウト
+              </button>
+            )}
           </div>
         )}
       </aside>

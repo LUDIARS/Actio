@@ -24,6 +24,7 @@ import {
 import { logActivity } from "../activity-logger.js";
 import { isCompositeEnabled, getLoginUrl, exchangeAuthCode } from "./composite.js";
 import { saveSessionUser, invalidateSessionUser } from "./session-cache.js";
+import { isLocalModeRequest, LOCAL_USER } from "./local-mode.js";
 
 const TOKEN_COOKIE = "actio_token";
 const TOKEN_COOKIE_MAX_AGE = 3600; // 1時間 (トークン有効期限に合わせる)
@@ -119,6 +120,8 @@ compositeAuthRoutes.post("/logout", async (c) => {
 // WS接続用の短期トークン発行 (Cookie → URL パラメータ用トークン)
 // WebSocket でクエリパラメータにトークンが必要な環境で使用
 compositeAuthRoutes.get("/ws-token", async (c) => {
+  // Empty token is not a credential: the upgrade independently validates locality.
+  if (isLocalModeRequest(c)) return c.json({ token: "", localMode: true });
   const { getCookie } = await import("hono/cookie");
   const token = getCookie(c, TOKEN_COOKIE);
   if (!token) return c.json({ error: "Not authenticated" }, 401);
@@ -181,6 +184,9 @@ async function ensureLocalUser(userId: string): Promise<void> {
 auth.get("/me", async (c) => {
   const userId = getUserId(c);
   if (!userId) return c.json({ error: "No token provided" }, 401);
+  if (isLocalModeRequest(c)) {
+    return c.json({ ...LOCAL_USER, localMode: true, major: null, calendarAccessId: null });
+  }
 
   // Cernere から個人情報 (name/email/role) を取得 (cache 経由)
   const { getUserInfo } = await import("./user-info.js");
