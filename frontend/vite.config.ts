@@ -33,6 +33,27 @@ function silenceProxyErrors(proxy: unknown) {
   })
 }
 
+// dev server と preview で同じ proxy 定義を使う。ビルド済み frontend は
+// same-origin の /api・/ws を叩くため、preview 側にも proxy が要る。
+const apiProxy = {
+  '/api': {
+    target: `http://${backendHost}:${backendPort}`,
+    changeOrigin: process.env.ACTIO_LOCAL_MODE !== '1',
+    configure: silenceProxyErrors,
+  },
+  '/ws': {
+    target: `http://${backendHost}:${backendPort}`,
+    ws: true,
+    configure: silenceProxyErrors,
+  },
+  // declarative.ts が backend の corpus manifest を fetch するため。
+  '/.well-known': {
+    target: `http://${backendHost}:${backendPort}`,
+    changeOrigin: process.env.ACTIO_LOCAL_MODE !== '1',
+    configure: silenceProxyErrors,
+  },
+}
+
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react()],
@@ -55,23 +76,12 @@ export default defineConfig({
     watch: {
       usePolling: true,
     },
-    proxy: {
-      '/api': {
-        target: `http://${backendHost}:${backendPort}`,
-        changeOrigin: process.env.ACTIO_LOCAL_MODE !== '1',
-        configure: silenceProxyErrors,
-      },
-      '/ws': {
-        target: `http://${backendHost}:${backendPort}`,
-        ws: true,
-        configure: silenceProxyErrors,
-      },
-      // declarative.ts が backend の corpus manifest を fetch するため。
-      '/.well-known': {
-        target: `http://${backendHost}:${backendPort}`,
-        changeOrigin: process.env.ACTIO_LOCAL_MODE !== '1',
-        configure: silenceProxyErrors,
-      },
-    },
+    proxy: apiProxy,
+  },
+  preview: {
+    host: process.env.ACTIO_LOCAL_MODE === '1' ? '127.0.0.1' : '0.0.0.0',
+    port: frontendPort,
+    allowedHosts: [...extraHosts],
+    proxy: apiProxy,
   },
 })

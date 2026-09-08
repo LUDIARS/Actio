@@ -1,0 +1,54 @@
+# Machine-local Actio deployment. Do not attach Cloudflare or expose these listeners.
+services:
+  - code: actio
+    name: Actio local API
+    tier: personal
+    project_code: actio
+    component: backend
+    port: 17880
+    repo: LUDIARS/Actio
+    runtime: node
+    cwd: ${ARS_ROOT}/Actio
+    command: node --env-file=.env dist/src/index.js
+    autostart: false
+    restart_policy: "no"
+    health:
+      type: http
+      url: http://127.0.0.1:17880/api/health
+      interval_sec: 30
+      grace_period_sec: 20
+    log_path: ${ARS_ROOT}/logs/actio
+    env:
+      NODE_ENV: production
+      ACTIO_LOCAL_MODE: "1"
+      ACTIO_CLOUDFLARE_ENABLED: "0"
+      BACKEND_PORT: "17880"
+      FRONTEND_PORT: "17881"
+      ACTIO_PUBLIC_URL: http://127.0.0.1:17880
+      FRONTEND_URL: http://127.0.0.1:17881
+      CORS_ORIGIN: http://127.0.0.1:17881
+  - code: actio-web
+    name: Actio local web
+    tier: personal
+    project_code: actio
+    component: frontend
+    port: 17881
+    repo: LUDIARS/Actio
+    runtime: node
+    cwd: ${ARS_ROOT}/Actio/frontend
+    command: node --env-file=../.env node_modules/vite/bin/vite.js preview --host 127.0.0.1 --port 17881 --strictPort
+    depends_on: [actio]
+    autostart: false
+    restart_policy: "no"
+    health:
+      type: http
+      url: http://127.0.0.1:17881/
+      interval_sec: 30
+      grace_period_sec: 15
+    log_path: ${ARS_ROOT}/logs/actio-web
+    env:
+      NODE_ENV: production
+      ACTIO_LOCAL_MODE: "1"
+      ACTIO_CLOUDFLARE_ENABLED: "0"
+      BACKEND_PORT: "17880"
+      FRONTEND_PORT: "17881"
