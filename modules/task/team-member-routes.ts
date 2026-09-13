@@ -13,7 +13,7 @@
 import { Hono } from "hono";
 import { requireRole } from "../../src/middleware/auth.js";
 import { requireTeamRole } from "../../src/auth/team-role.js";
-import { getUserId } from "../../src/middleware/getUserId.js";
+import { getUserId, getUserRole } from "../../src/middleware/getUserId.js";
 import { teamMemberRepo, teamRefRepo } from "../../src/db/repository.js";
 import { TeamSettingsSchema } from "./team/settings.js";
 
@@ -26,6 +26,10 @@ export const teamMemberRoutes = new Hono();
 teamMemberRoutes.get("/", async (c) => {
   const userId = getUserId(c);
   if (!userId || userId === "anonymous") return c.json({ error: "Authentication required" }, 401);
+  if (getUserRole(c) === "admin") {
+    const refs = await teamRefRepo.listAll();
+    return c.json({ teams: refs.map(ref => ({ id: ref.id, slug: ref.slug, name: ref.name, role: "admin" })) });
+  }
   const memberships = await teamMemberRepo.listByUser(userId);
   const refs = await teamRefRepo.findByIds(memberships.map((m) => m.teamId));
   const refById = new Map(refs.map((r) => [r.id, r]));

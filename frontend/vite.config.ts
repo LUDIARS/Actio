@@ -4,6 +4,7 @@ import { resolve } from 'path'
 
 const frontendPort = parseInt(process.env.FRONTEND_PORT || '5173', 10)
 const backendPort = process.env.BACKEND_PORT || '3000'
+const backendTarget = process.env.ACTIO_URL || process.env.ACTIO_BACKEND_URL
 const backendHost = process.env.ACTIO_LOCAL_MODE === '1' ? '127.0.0.1' : 'localhost'
 const extraHosts = [
   ...(process.env.VITE_ALLOWED_HOSTS?.split(',').filter(Boolean) ?? []),
@@ -37,18 +38,18 @@ function silenceProxyErrors(proxy: unknown) {
 // same-origin の /api・/ws を叩くため、preview 側にも proxy が要る。
 const apiProxy = {
   '/api': {
-    target: `http://${backendHost}:${backendPort}`,
+    target: backendTarget || `http://${backendHost}:${backendPort}`,
     changeOrigin: process.env.ACTIO_LOCAL_MODE !== '1',
     configure: silenceProxyErrors,
   },
   '/ws': {
-    target: `http://${backendHost}:${backendPort}`,
+    target: backendTarget || `http://${backendHost}:${backendPort}`,
     ws: true,
     configure: silenceProxyErrors,
   },
   // declarative.ts が backend の corpus manifest を fetch するため。
   '/.well-known': {
-    target: `http://${backendHost}:${backendPort}`,
+    target: backendTarget || `http://${backendHost}:${backendPort}`,
     changeOrigin: process.env.ACTIO_LOCAL_MODE !== '1',
     configure: silenceProxyErrors,
   },
@@ -74,7 +75,7 @@ export default defineConfig({
     port: frontendPort,
     allowedHosts: [...extraHosts],
     watch: {
-      usePolling: true,
+      usePolling: process.env.ACTIO_VITE_POLLING === '1',
     },
     proxy: apiProxy,
   },

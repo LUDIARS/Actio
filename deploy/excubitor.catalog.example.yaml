@@ -1,0 +1,58 @@
+# Installation template. Reconcile with the service-owned Actio/excubitor.catalog.yaml.
+# Values below preserve the currently assigned local ports; do not start a worktree.
+# Configure the actio Infisical project mapping in Excubitor (not in Actio).
+# Relay only ACTIO_CONFIG_KEY and needed JWT/Cernere/Pf/OAuth credentials.
+# Ex's secret relay overrides topology; exclude legacy URL/port/local-mode secrets.
+services:
+  - code: actio
+    name: Actio local API
+    tier: personal
+    project_code: actio
+    component: backend
+    repo: LUDIARS/Actio
+    runtime: node
+    cwd: ${ARS_ROOT}/Actio
+    command: node dist/src/bootstrap.js
+    port: 17880
+    ports:
+      - role: service
+        port: 17880
+        env: BACKEND_PORT
+    provides:
+      ACTIO_URL: http://127.0.0.1:${port}
+    autostart: false
+    restart_policy: "no"
+    env:
+      NODE_ENV: production
+      SECRETS_PROVIDER: env
+      ACTIO_LOCAL_MODE: "1"
+      ACTIO_CLOUDFLARE_ENABLED: "0"
+      ACTIO_PUBLIC_URL: http://127.0.0.1:17880
+    health:
+      type: http
+      url: http://127.0.0.1:17880/api/health
+      interval_sec: 30
+      grace_period_sec: 20
+  - code: actio-web
+    name: Actio local web
+    tier: personal
+    project_code: actio
+    component: frontend
+    repo: LUDIARS/Actio
+    runtime: node
+    cwd: ${ARS_ROOT}/Actio/frontend
+    command: node node_modules/vite/bin/vite.js preview --host 127.0.0.1 --port 17881 --strictPort
+    port: 17881
+    provides:
+      ACTIO_FRONTEND_URL: http://127.0.0.1:${port}
+    depends_on: [actio]
+    autostart: false
+    restart_policy: "no"
+    env:
+      NODE_ENV: production
+      ACTIO_LOCAL_MODE: "1"
+    health:
+      type: http
+      url: http://127.0.0.1:17881/
+      interval_sec: 30
+      grace_period_sec: 15

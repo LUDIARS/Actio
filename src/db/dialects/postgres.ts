@@ -13,6 +13,8 @@ import {
 } from "drizzle-orm/pg-core";
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
+import { migratePmPostgres } from "../pm-postgres-migration.js";
+import { migratePlanningPostgres } from "../planning-postgres-migration.js";
 import { secretManager } from "../../config/secrets.js";
 
 // ─── Users (FK アンカー + Actio 固有のみ) ────────────────────
@@ -1227,7 +1229,7 @@ export async function waitForPostgres(
 
 export function createConnection() {
   const connectionString =
-    secretManager.getOrDefault("DATABASE_URL", "postgresql://localhost:5432/actio");
+    secretManager.getRequired("DATABASE_URL");
   console.log(
     `[db:postgres] createConnection called (lazy — 接続は初回クエリ時に確立されます)`
   );
@@ -1244,9 +1246,11 @@ export function createConnection() {
  */
 export async function createConnectionWithRetry() {
   const connectionString =
-    secretManager.getOrDefault("DATABASE_URL", "postgresql://localhost:5432/actio");
+    secretManager.getRequired("DATABASE_URL");
   console.log("[db:postgres] createConnectionWithRetry 開始");
   const client = await waitForPostgres(connectionString);
+  try { await migratePlanningPostgres(client); await migratePmPostgres(client); }
+  catch (error) { await client.end(); throw error; }
 
   // 新規テーブルの自動作成 (migrate.ts を手動実行しなくても動くように)
   try {
@@ -1465,155 +1469,13 @@ export async function createConnectionWithRetry() {
     }
   }
 
-  // PM モジュールテーブル
-  try {
-    await client`
-      CREATE TABLE IF NOT EXISTS pm_projects (
-        id TEXT PRIMARY KEY,
-        name TEXT NOT NULL,
-        source TEXT NOT NULL,
-        source_config JSONB NOT NULL DEFAULT '{}',
-        sync_interval_minutes INTEGER NOT NULL DEFAULT 15,
-        last_synced_at TEXT,
-        owner_id TEXT NOT NULL,
-        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
-        updated_at TIMESTAMP NOT NULL DEFAULT NOW()
-      )
-    `;
-    await client`CREATE INDEX IF NOT EXISTS idx_pm_projects_owner ON pm_projects(owner_id)`;
-    await client`
-      CREATE TABLE IF NOT EXISTS pm_tasks (
-        id TEXT PRIMARY KEY,
-        project_id TEXT NOT NULL,
-        external_id TEXT NOT NULL,
-        external_url TEXT,
-        title TEXT NOT NULL,
-        description TEXT,
-        status TEXT NOT NULL DEFAULT 'open',
-        priority TEXT NOT NULL DEFAULT 'medium',
-        assignees JSONB NOT NULL DEFAULT '[]',
-        labels JSONB NOT NULL DEFAULT '[]',
-        due_date TEXT,
-        milestone_external_id TEXT,
-        milestone_name TEXT,
-        estimated_hours REAL,
-        blocked_by JSONB NOT NULL DEFAULT '[]',
-        description_hash TEXT,
-        dirty_flag INTEGER NOT NULL DEFAULT 0,
-        local_updated_at TEXT,
-        external_updated_at TEXT,
-        last_synced_at TEXT,
-        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
-        updated_at TIMESTAMP NOT NULL DEFAULT NOW()
-      )
-    `;
-    await client`CREATE INDEX IF NOT EXISTS idx_pm_tasks_project ON pm_tasks(project_id)`;
-    await client`CREATE INDEX IF NOT EXISTS idx_pm_tasks_status ON pm_tasks(status)`;
-    await client`CREATE INDEX IF NOT EXISTS idx_pm_tasks_due_date ON pm_tasks(due_date)`;
-    await client`CREATE INDEX IF NOT EXISTS idx_pm_tasks_dirty ON pm_tasks(dirty_flag)`;
-    await client`
-      CREATE TABLE IF NOT EXISTS pm_task_snapshots (
-        id TEXT PRIMARY KEY,
-        task_id TEXT NOT NULL,
-        change_type TEXT NOT NULL,
-        changed_fields JSONB NOT NULL DEFAULT '{}',
-        snapshot_data JSONB NOT NULL DEFAULT '{}',
-        detected_at TEXT NOT NULL
-      )
-    `;
-    await client`CREATE INDEX IF NOT EXISTS idx_pm_snapshots_task ON pm_task_snapshots(task_id)`;
-    await client`
-      CREATE TABLE IF NOT EXISTS pm_milestones (
-        id TEXT PRIMARY KEY,
-        project_id TEXT NOT NULL,
-        external_id TEXT NOT NULL,
-        title TEXT NOT NULL,
-        description TEXT,
-        due_date TEXT,
-        state TEXT NOT NULL DEFAULT 'open',
-        external_updated_at TEXT,
-        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
-        updated_at TIMESTAMP NOT NULL DEFAULT NOW()
-      )
-    `;
-    await client`CREATE INDEX IF NOT EXISTS idx_pm_milestones_project ON pm_milestones(project_id)`;
-    await client`
-      CREATE TABLE IF NOT EXISTS pm_task_validations (
-        id TEXT PRIMARY KEY,
-        task_id TEXT NOT NULL,
-        score INTEGER NOT NULL DEFAULT 0,
-        issues JSONB NOT NULL DEFAULT '[]',
-        suggestions JSONB NOT NULL DEFAULT '[]',
-        related_commits JSONB NOT NULL DEFAULT '[]',
-        test_files JSONB NOT NULL DEFAULT '[]',
-        validated_at TEXT NOT NULL
-      )
-    `;
-    await client`CREATE INDEX IF NOT EXISTS idx_pm_validations_task ON pm_task_validations(task_id)`;
-    await client`
-      CREATE TABLE IF NOT EXISTS pm_conflicts (
-        id TEXT PRIMARY KEY,
-        task_id TEXT NOT NULL,
-        project_id TEXT NOT NULL,
-        local_version JSONB NOT NULL DEFAULT '{}',
-        external_version JSONB NOT NULL DEFAULT '{}',
-        base_version JSONB NOT NULL DEFAULT '{}',
-        resolution TEXT NOT NULL DEFAULT 'manual',
-        resolved_data JSONB,
-        status TEXT NOT NULL DEFAULT 'pending',
-        created_at_text TEXT NOT NULL,
-        resolved_at TEXT
-      )
-    `;
-    await client`CREATE INDEX IF NOT EXISTS idx_pm_conflicts_project ON pm_conflicts(project_id)`;
-    await client`CREATE INDEX IF NOT EXISTS idx_pm_conflicts_status ON pm_conflicts(status)`;
-    await client`
-      CREATE TABLE IF NOT EXISTS pm_analytics_cache (
-        id TEXT PRIMARY KEY,
-        project_id TEXT NOT NULL,
-        report_type TEXT NOT NULL,
-        data JSONB NOT NULL DEFAULT '{}',
-        generated_at TEXT NOT NULL,
-        expires_at TEXT NOT NULL
-      )
-    `;
-    await client`CREATE INDEX IF NOT EXISTS idx_pm_cache_project_type ON pm_analytics_cache(project_id, report_type)`;
-    console.log("[db:postgres] PM モジュールテーブル確認完了");
-  } catch (err) {
-    const msg3 = err instanceof Error ? err.message : String(err);
-    if (!msg3.includes("already exists")) {
-      console.warn("[db:postgres] PM テーブル自動作成エラー:", msg3);
-    }
-  }
-
   // カラム追加マイグレーション (既存DBとの互換)
   try { await client`ALTER TABLE group_schedules ADD COLUMN IF NOT EXISTS label TEXT`; } catch { /* ignore */ }
   try { await client`ALTER TABLE curricula ADD COLUMN IF NOT EXISTS term_id TEXT REFERENCES terms(id)`; } catch { /* ignore */ }
   try { await client`ALTER TABLE users ADD COLUMN IF NOT EXISTS last_login_at TIMESTAMP`; } catch { /* ignore */ }
   // tasks.project_id 新設 (EducationLab×Calliope PM 連携。2026-07-17 neco 最終裁定)
   // 値は EducationLab glab_project.id の不透明参照 (FK なし、Actio 側に project マスタは作らない)
-  try { await client`ALTER TABLE tasks ADD COLUMN IF NOT EXISTS project_id TEXT`; } catch { /* ignore */ }
-  try { await client`CREATE INDEX IF NOT EXISTS idx_task_project ON tasks(project_id)`; } catch { /* ignore */ }
-  try { await client`ALTER TABLE tasks ADD COLUMN IF NOT EXISTS team_id TEXT`; } catch { /* ignore */ }
-  try { await client`ALTER TABLE tasks ADD COLUMN IF NOT EXISTS lane TEXT NOT NULL DEFAULT 'daily'`; } catch { /* ignore */ }
-  try { await client`ALTER TABLE tasks ADD COLUMN IF NOT EXISTS sprint_id TEXT`; } catch { /* ignore */ }
-  try { await client`ALTER TABLE tasks ADD COLUMN IF NOT EXISTS source TEXT`; } catch { /* ignore */ }
-  try { await client`ALTER TABLE tasks ADD COLUMN IF NOT EXISTS source_ref TEXT`; } catch { /* ignore */ }
-  try { await client`ALTER TABLE tasks ADD COLUMN IF NOT EXISTS completion_score DOUBLE PRECISION`; } catch { /* ignore */ }
-  try { await client`ALTER TABLE tasks ADD COLUMN IF NOT EXISTS completion_evidence JSONB`; } catch { /* ignore */ }
-  try { await client`ALTER TABLE tasks ADD COLUMN IF NOT EXISTS completed_by TEXT`; } catch { /* ignore */ }
-  try { await client`ALTER TABLE tasks ADD COLUMN IF NOT EXISTS duration_days INTEGER`; } catch { /* ignore */ }
-  try { await client`ALTER TABLE tasks ADD COLUMN IF NOT EXISTS estimate_source TEXT`; } catch { /* ignore */ }
-  try { await client`ALTER TABLE tasks ADD COLUMN IF NOT EXISTS deadline_source TEXT`; } catch { /* ignore */ }
-  try { await client`ALTER TABLE tasks ADD COLUMN IF NOT EXISTS story_points INTEGER`; } catch { /* ignore */ }
-  try { await client`ALTER TABLE tasks ADD COLUMN IF NOT EXISTS blocked_by JSONB NOT NULL DEFAULT '[]'::jsonb`; } catch { /* ignore */ }
-  try { await client`ALTER TABLE tasks ADD COLUMN IF NOT EXISTS carried_from_sprint_id TEXT`; } catch { /* ignore */ }
-  try { await client`ALTER TABLE tasks ADD COLUMN IF NOT EXISTS actual_minutes INTEGER NOT NULL DEFAULT 0`; } catch { /* ignore */ }
-  try { await client`CREATE INDEX IF NOT EXISTS idx_task_team ON tasks(team_id)`; } catch { /* ignore */ }
-  try { await client`CREATE INDEX IF NOT EXISTS idx_task_sprint ON tasks(sprint_id)`; } catch { /* ignore */ }
-  try { await client`CREATE UNIQUE INDEX IF NOT EXISTS uniq_task_source_ref ON tasks(source, source_ref) WHERE source IS NOT NULL AND source_ref IS NOT NULL`; } catch { /* ignore */ }
   // completedAt 単体 INDEX (velocity Θ_p 集計のフルスキャン回避)
-  try { await client`CREATE INDEX IF NOT EXISTS idx_task_completed_at ON tasks(completed_at)`; } catch { /* ignore */ }
 
   // プロジェクト別ロール (業務ロール)
   // ※ ユーザープロファイル (bio / displayName / avatarUrl 等) は Cernere 側で管理

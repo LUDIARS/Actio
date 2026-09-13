@@ -220,6 +220,11 @@ taskRoutes.post("/", async (c) => {
   const metadataError = validateTeamTaskMetadata(teamFields);
   if (metadataError) return c.json({ error: metadataError }, 400);
   const teamId = teamFields.teamId ?? null;
+  if (teamFields.source === "praeforma-review") return c.json({ error: "Register Pf specifications through the reviewed import API" }, 400);
+  if (teamFields.sprintId != null) return c.json({ error: "Assign tasks through the sprint planning API" }, 400);
+  if (body.estimatedMinutes != null && (!Number.isSafeInteger(body.estimatedMinutes) || body.estimatedMinutes < 0)) {
+    return c.json({ error: "estimatedMinutes must be a non-negative integer" }, 400);
+  }
   const inputMode = await getTeamInputMode(teamId);
   const teamValidation = await validateTeamTask({
     teamId, assigneeId: body.assigneeId ?? null, lane: teamFields.lane,
@@ -329,6 +334,22 @@ taskRoutes.on(["PUT", "PATCH"], "/:id", async (c) => {
 
   const body = await c.req.json<Partial<CreateTaskInput>>();
   const teamFields = readTeamTaskRequestFields(body);
+  if (teamFields.sprintId !== undefined && teamFields.sprintId !== existing.sprintId) {
+    return c.json({ error: "Change sprint membership through the sprint planning API" }, 400);
+  }
+  if (existing.sprintId && ((teamFields.teamId !== undefined && teamFields.teamId !== existing.teamId)
+    || (teamFields.lane !== undefined && teamFields.lane !== existing.lane))) {
+    return c.json({ error: "Remove the task from its sprint before changing team or lane" }, 409);
+  }
+  if (existing.source === "praeforma-review" && (teamFields.source !== undefined || teamFields.sourceRef !== undefined || body.pluginPayload !== undefined)) {
+    return c.json({ error: "Pf review provenance is immutable" }, 400);
+  }
+  if (teamFields.source === "praeforma-review" && existing.source !== "praeforma-review") {
+    return c.json({ error: "Register Pf specifications through the reviewed import API" }, 400);
+  }
+  if (body.estimatedMinutes != null && (!Number.isSafeInteger(body.estimatedMinutes) || body.estimatedMinutes < 0)) {
+    return c.json({ error: "estimatedMinutes must be a non-negative integer" }, 400);
+  }
   const updates: Record<string, unknown> = {};
   if (body.title !== undefined) updates.title = body.title;
   // description: description / details(Memoria 互換)
@@ -517,6 +538,8 @@ taskRoutes.delete("/:id", async (c) => {
   if (existing.ownerId !== userId) {
     return c.json({ error: "Forbidden" }, 403);
   }
+
+  if (existing.sprintId) return c.json({ error: "Remove the task from its sprint before deleting it" }, 409);
 
   await taskRepo.deleteById(id);
   // 予約済みの Nuntius reminders もキャンセル (best-effort)

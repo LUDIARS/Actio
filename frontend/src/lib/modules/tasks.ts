@@ -19,6 +19,7 @@ export const tasksModule: ModuleDefinition = {
       category: "task",
       items: [
         { to: "/tasks", label: "タスク", icon: "T", removable: true, order: 0 },
+        { to: "/tasks/planning", label: "バックログ・スプリント", icon: "S", removable: true, order: 1 },
       ],
     },
   ],

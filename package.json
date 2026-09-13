@@ -7,14 +7,14 @@
   "scripts": {
     "sdk:build": "cd packages/sdk && npx tsc",
     "predev": "npm run sdk:build",
-    "dev": "npm run env:env && npx dotenv-cli -- concurrently -n api,web -c green,cyan \"tsx watch src/index.ts\" \"npx dotenv-cli -- npm run dev --prefix frontend\"",
+    "dev": "concurrently -n api,web -c green,cyan \"tsx watch src/bootstrap.ts\" \"npm run dev --prefix frontend\"",
     "predev:server": "npm run sdk:build",
-    "dev:server": "npx dotenv-cli -- tsx watch src/index.ts",
+    "dev:server": "tsx watch src/bootstrap.ts",
     "dev:front": "npx dotenv-cli -- npm run dev --prefix frontend",
     "prebuild": "npm run sdk:build",
     "build": "tsc",
     "typecheck": "tsc --noEmit",
-    "start": "node dist/index.js",
+    "start": "node dist/src/bootstrap.js",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:push": "drizzle-kit push",
@@ -40,11 +40,13 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "id:scan": "tsx services/id-service/src/migration/cli.ts",
-    "id:service": "tsx services/id-service/src/server.ts"
+    "id:service": "tsx services/id-service/src/server.ts",
+    "config:seal": "tsx src/config/config-cli.ts seal",
+    "config:import-env": "tsx src/config/config-cli.ts import-env"
   },
   "repository": {
     "type": "git",
-    "url": "http://local_proxy@127.0.0.1:34017/git/LUDIARS/Schedula"
+    "url": "https://github.com/LUDIARS/Actio.git"
   },
   "keywords": [],
   "author": "",

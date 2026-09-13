@@ -2501,6 +2501,9 @@ export const taskCategoryRepo = {
 export type TeamRef = typeof schema.teamRefs.$inferSelect;
 
 export const teamRefRepo = {
+  async listAll(): Promise<TeamRef[]> {
+    return db.select().from(schema.teamRefs);
+  },
   async findById(id: string): Promise<TeamRef | undefined> {
     const [row] = await db.select().from(schema.teamRefs).where(eq(schema.teamRefs.id, id));
     return row;

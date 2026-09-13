@@ -1,0 +1,10 @@
+.planning-page { display: grid; gap: 1rem; }
+.planning-page label { display: flex; flex-direction: column; gap: .3rem; }
+.planning-page input, .planning-page select, .planning-page textarea { padding: .5rem; max-width: 100%; }
+.planning-page pre { white-space: pre-wrap; overflow-wrap: anywhere; }
+.planning-page .card, .planning-page > details { padding: 1rem; border: 1px solid var(--border); border-radius: .5rem; }
+.planning-form { display: grid; gap: .6rem; max-width: 46rem; margin-block: 1rem; }
+.planning-table { overflow-x: auto; }
+.planning-table table { width: 100%; border-collapse: collapse; }
+.planning-table th, .planning-table td { padding: .6rem; text-align: left; vertical-align: top; border-bottom: 1px solid var(--border); }
+.planning-assigned { background: var(--bg-secondary); }

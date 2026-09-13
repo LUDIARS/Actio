@@ -62,7 +62,7 @@ export function setStoredUser(user: { id: string; name: string; email: string; r
 
 // ─── Core Request ──────────────────────────────────────────
 
-async function request<T>(
+export async function request<T>(
   path: string,
   options: RequestInit = {}
 ): Promise<T> {
@@ -1287,65 +1287,7 @@ export const setupApi = {
       setupSkipped: boolean;
     }>("/api/setup/status");
   },
-  testConnection(body: {
-    siteUrl?: string;
-    projectId: string;
-    environment?: string;
-    authMethod: "universal" | "token";
-    clientId?: string;
-    clientSecret?: string;
-    token?: string;
-  }) {
-    return request<{ success: boolean; message: string; secretCount?: number }>(
-      "/api/setup/test-connection",
-      { method: "POST", body: JSON.stringify(body) }
-    );
-  },
-  testSsm(body: { region: string; pathPrefix: string }) {
-    return request<{ success: boolean; message: string; secretCount?: number }>(
-      "/api/setup/test-ssm",
-      { method: "POST", body: JSON.stringify(body) }
-    );
-  },
-  saveInfisical(body: {
-    siteUrl?: string;
-    projectId: string;
-    environment?: string;
-    authMethod: "universal" | "token";
-    clientId?: string;
-    clientSecret?: string;
-    token?: string;
-  }) {
-    return request<{ success: boolean; message: string; infisicalEnabled: boolean }>(
-      "/api/setup/infisical",
-      { method: "POST", body: JSON.stringify(body) }
-    );
-  },
-  saveSsm(body: { region: string; pathPrefix: string }) {
-    return request<{ success: boolean; message: string; ssmEnabled: boolean; providerType: string }>(
-      "/api/setup/ssm",
-      { method: "POST", body: JSON.stringify(body) }
-    );
-  },
-  saveSsmSecrets(body: { region: string; pathPrefix: string; secrets: Record<string, string> }) {
-    return request<{ success: boolean; message: string; written: number; errors: string[] }>(
-      "/api/setup/ssm-secrets",
-      { method: "POST", body: JSON.stringify(body) }
-    );
-  },
-  skip() {
-    return request<{ success: boolean; message: string }>("/api/setup/skip", {
-      method: "POST",
-    });
-  },
-  envCheck() {
-    return request<{
-      hasEnvFile: boolean;
-      hasInfisicalConfig: boolean;
-      hasSsmConfig: boolean;
-      envVars: Record<string, boolean>;
-    }>("/api/setup/env-check");
-  },
+
 };
 
 // ─── M3 MACHINA (タスク自動生成) ─────────────────────────────

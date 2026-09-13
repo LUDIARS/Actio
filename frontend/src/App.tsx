@@ -11,6 +11,7 @@ import { DbViewerPage } from "./pages/DbViewerPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { ActivityLogsPage } from "./pages/ActivityLogsPage";
 import { TasksPage } from "./pages/TasksPage";
+import { PlanningPage } from "./pages/PlanningPage";
 import { HelpPage } from "./pages/HelpPage";
 import { SecretsPage } from "./pages/SecretsPage";
 import { InfisicalSetupPage } from "./pages/InfisicalSetupPage";
@@ -63,6 +64,7 @@ function AppRoutes() {
         <Route path="/notifications" element={<NotificationsPage />} />
         <Route path="/machina" element={<MachinaPage />} />
         <Route path="/tasks" element={<TasksPage />} />
+        <Route path="/tasks/planning" element={<PlanningPage />} />
         <Route path="/profile" element={<ProfilePage />} />
         <Route path="/admin/users" element={<UserManagementPage />} />
         <Route path="/admin/modules" element={<ModuleManagementPage />} />

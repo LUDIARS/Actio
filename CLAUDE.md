@@ -138,17 +138,16 @@ logActivity(userId, user.name, "アクション", "...");  // user.name は lega
 
 ## 環境変数・シークレット管理
 
-`@ludiars/cernere-env-cli` + Infisical で管理する。
+通常起動はExcubitorの注入と暗号化ローカルconfigを使う。仕様は `spec/feature/runtime-modernization.md`。
+`SECRETS_PROVIDER=env` を明示し、Actio自身の遠隔secret取得を止める。
+ローカルの接続先・動作設定をInfisicalへ登録しない。注入値 > 暗号化config > 外部secretの順。
 
-| コマンド | 用途 |
-|---------|------|
-| `npm run env:setup` | Infisical 初回設定 |
-| `npm run env:gen` | .env 生成 |
-| `npm run env:initialize` | デフォルト値を Infisical に登録 |
-| `npm run env:up` | 開発環境起動 (.env 生成 + Docker up) |
-| `npm run env:up:standalone` | All-in-One 起動 (DB 内蔵) |
-
-設定ファイル: `env-cli.config.ts`
+- `npm run config:seal`: 標準入力のJSONから暗号化configを保存
+- `npm run config:import-env`: 標準入力の旧.envから許可されたローカル設定だけ移入
+- 鍵 `ACTIO_CONFIG_KEY` はEx等から注入し、平文設定やソースに置かない
+- `npm start`: `dist/src/bootstrap.js`。設定完了後にアプリ/DBをimportする
+- DB既定はPostgreSQL。SQLiteは明示選択時のみ。`db:init` は選択したDBを初期化する
+- 旧ブラウザsetup APIのcredential保存は410。配備は本体フォルダからEx経由で行う
 
 ## Docker Compose
 

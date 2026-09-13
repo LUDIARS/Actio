@@ -2,10 +2,6 @@ import { serve } from "@hono/node-server";
 import { logger } from "hono/logger";
 import { install as installVestigium } from "@ludiars/vestigium";
 import { secretManager, initSecrets } from "./config/secrets.js";
-import { createApp } from "./app.js";
-import { initComposite } from "./auth/composite.js";
-import { startPasetoVerify } from "./auth/paseto-verify.js";
-import { localModeEnabled } from "./auth/local-mode.js";
 
 installVestigium({
   serviceCode: "actio",
@@ -13,8 +9,20 @@ installVestigium({
   pinoTransport: false,
 });
 
-// シークレチE��初期匁E(Infisical / env フォールバック)
+// Load injected secrets and encrypted local settings before application imports.
 await initSecrets();
+const port = Number(process.env.BACKEND_PORT || process.env.PORT);
+if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error("Excubitor must inject a valid BACKEND_PORT or PORT");
+
+const { localModeEnabled } = await import("./auth/local-mode.js");
+localModeEnabled();
+secretManager.getRequired("FRONTEND_URL");
+if (!localModeEnabled()) secretManager.getRequired("JWT_SECRET");
+const { createApp } = await import("./app.js");
+const { initComposite } = await import("./auth/composite.js");
+const { startPasetoVerify } = await import("./auth/paseto-verify.js");
+const { startTeamSyncTick } = await import("../modules/task/team/cc-sync.js");
+const { initServiceAdapter } = await import("./service-adapter.js");
 
 const { app, injectWebSocket } = createApp();
 
@@ -22,12 +30,10 @@ const { app, injectWebSocket } = createApp();
 app.use("*", logger());
 
 // ─── Server ─────────────────────────────────────────────────
-const port = parseInt(process.env.BACKEND_PORT || process.env.PORT || "3000", 10);
 
-console.log(`[server] 起動中... ポ�EチE${port}`);
-console.log(`[server] FRONTEND_URL = ${secretManager.getOrDefault("FRONTEND_URL", "http://localhost:8080")}`);
-console.log(`[server] GOOGLE_REDIRECT_URI = ${secretManager.getOrDefault("GOOGLE_REDIRECT_URI", "http://localhost:8080/api/auth/google/callback")}`);
-console.log(`[server] Infisical = ${secretManager.isInfisicalEnabled() ? "有効" : "無効 (環墁E��数フォールバック)"}`);
+
+console.log(`[server] Starting on port ${port}`);
+console.log(`[server] Secret provider: ${secretManager.getProviderType()}`);
 const server = serve({ fetch: app.fetch, port, ...(localModeEnabled() ? { hostname: "127.0.0.1" } : {}) }, (info) => {
   console.log(`[server] Actio server running on http://localhost:${info.port}`);
 });
@@ -48,11 +54,9 @@ startPasetoVerify({
 });
 
 // ─── Cc チーム同期 (起動時 + 10 分 tick, team-task §8.2) ──────
-import { startTeamSyncTick } from "../modules/task/team/cc-sync.js";
 startTeamSyncTick();
 
 // ─── Peer Service Adapter (backend-to-backend WS via Cernere) ─
-import { initServiceAdapter } from "./service-adapter.js";
 void initServiceAdapter().catch((err) => {
   console.warn("[actio-sa] peer adapter 起動失敁E(user-facing API は継綁E:", err);
 });

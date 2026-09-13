@@ -135,6 +135,8 @@ export function SecretsPage() {
             : "シークレット・環境変数の管理"}
       </p>
 
+      <p>ローカル設定は暗号化configで管理します。接続先やポートはExcubitorから注入し、ここには外部認証に必要なシークレットだけを登録してください。</p>
+
       {error && (
         <div style={{
           padding: "0.75rem 1rem",

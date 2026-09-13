@@ -7,51 +7,10 @@ const config: EnvCliConfig = {
    * Docker Compose / アプリケーションが .env から読むインフラキー。
    * Infisical に同名キーがあればそちらを優先し、なければデフォルト値を使用。
    */
+  // Legacy remote-secret CLI. Deployment settings are never uploaded by initialize.
   infraKeys: {
-    ACTIO_LOCAL_MODE: "0",
-    ACTIO_CLOUDFLARE_ENABLED: "0",
-    // ─── Docker Compose (Ports) ────────────────────────────
-    FRONTEND_PORT: "8080",
-    BACKEND_PORT: "3000",
-
-    // ─── Standalone 用 (docker-compose.standalone.yaml) ────
-    POSTGRES_USER: "actio",
-    POSTGRES_PASSWORD: "actio",
-    POSTGRES_DB: "actio",
-    DB_PORT: "5432",
-    REDIS_PORT: "6379",
-
-    // ─── Vite ──────────────────────────────────────────────
-    VITE_ALLOWED_HOSTS: "",
-
-    // ─── Application ───────────────────────────────────────
-    DB_DIALECT: "postgres",
-    DATABASE_URL: "postgresql://actio_user:actio@localhost:5432/actio",
-    REDIS_URL: "redis://127.0.0.1:6379",
-    FRONTEND_URL: "http://localhost:5173",
-    CERNERE_URL: "http://localhost:8080",
-
-    // ─── PASETO V4 audience (= Hub から渡される hub_url と一致させる) ────
-    // Cernere が user_for_project token に乗せる aud claim を検証する。
-    // ローカルは 8888、 本番は actio-d.vtn-game.com 等。
-    ACTIO_PUBLIC_URL: "http://localhost:8888",
-
-    // ─── JWT ───────────────────────────────────────────────
-    JWT_SECRET: "actio-dev-secret-change-in-production",
-
-    // ─── Cernere プロジェクト認証 (WS接続用) ──────────────
-    // Cernere で Actio をプロジェクト登録した際の client_id / client_secret
-    CERNERE_PROJECT_CLIENT_ID: "",
-    CERNERE_PROJECT_CLIENT_SECRET: "",
-
-    // ─── Nuntius (LUDIARS 統合通知基盤) ─────────────────
-    // 通知/リマインダーの配信先。未設定時はローカル配信にフォールバック。
-    NUNTIUS_URL: "http://localhost:3100",
-
-    // ─── Google OAuth ──────────────────────────────────────
-    GOOGLE_CLIENT_ID: "",
-    GOOGLE_CLIENT_SECRET: "",
-    GOOGLE_REDIRECT_URI: "",
+    JWT_SECRET: "", CERNERE_PROJECT_CLIENT_ID: "", CERNERE_PROJECT_CLIENT_SECRET: "",
+    GOOGLE_CLIENT_ID: "", GOOGLE_CLIENT_SECRET: "",
   },
 
   defaultSiteUrl: "https://app.infisical.com",
@@ -63,7 +22,7 @@ const config: EnvCliConfig = {
    * dev fallback が本番に漏れると致命的になる項目を列挙する。
    */
   required: {
-    production: ["JWT_SECRET", "DATABASE_URL", "REDIS_URL", "CERNERE_PROJECT_CLIENT_SECRET"],
+    production: ["JWT_SECRET", "CERNERE_PROJECT_CLIENT_SECRET"],
   },
 };
 

@@ -18,6 +18,7 @@
  * 未設定時は process.env にフォールバックし、従来通り動作する。
  */
 
+import { applyLocalConfig, LOCAL_SETTING_KEYS } from "./local-config.js";
 import { type InfisicalClient, createInfisicalClient } from "./infisical.js";
 import {
   type SsmParameterStoreClient,
@@ -48,13 +49,14 @@ class SecretManager {
   async init(): Promise<void> {
     if (this.initialized) return;
 
-    const explicitProvider = process.env.SECRETS_PROVIDER as
-      | "infisical"
-      | "ssm"
-      | undefined;
+    applyLocalConfig();
+    const explicitProvider = process.env.SECRETS_PROVIDER;
+    if (explicitProvider && !["env", "infisical", "ssm"].includes(explicitProvider)) throw new Error("Invalid SECRETS_PROVIDER");
 
     // プロバイダー選択
-    if (explicitProvider === "ssm") {
+    if (explicitProvider === "env") {
+      this.activeProvider = "env";
+    } else if (explicitProvider === "ssm") {
       this.ssmClient = createSsmClient();
       if (this.ssmClient) {
         this.activeProvider = "ssm";
@@ -77,6 +79,8 @@ class SecretManager {
       }
     }
 
+    if (explicitProvider && explicitProvider !== "env" && this.activeProvider === "env") throw new Error("Selected secret provider is not configured");
+
     if (this.activeProvider !== "env") {
       const providerName =
         this.activeProvider === "infisical" ? "Infisical" : "SSM Parameter Store";
@@ -87,11 +91,8 @@ class SecretManager {
         console.log(
           `[secrets] ${providerName} から ${this.cache.size} 件のシークレットを取得`
         );
-      } catch (err) {
-        console.error(
-          `[secrets] ${providerName} からの初回取得に失敗。環境変数フォールバックを併用:`,
-          err instanceof Error ? err.message : err
-        );
+      } catch {
+        throw new Error("Selected secret provider could not be initialized");
       }
     } else {
       console.log(
@@ -182,9 +183,11 @@ class SecretManager {
   // ─── Read API ───────────────────────────────────────────────
 
   /**
-   * シークレットを取得。キャッシュ → process.env の順で探索。
+   * 注入値・暗号化ローカル設定を優先し、外部シークレットを補完する。
    */
   get(key: string): string | undefined {
+    if (process.env[key] !== undefined) return process.env[key];
+    if (LOCAL_SETTING_KEYS.has(key)) return undefined;
     const cached = this.cache.get(key);
     if (cached) return cached.value;
     return process.env[key];
@@ -256,6 +259,7 @@ class SecretManager {
       hasValue: boolean;
     }> = [];
     for (const [key, cached] of this.cache.entries()) {
+      if (LOCAL_SETTING_KEYS.has(key)) continue;
       result.push({ key, scope: cached.scope, hasValue: !!cached.value });
     }
     return result;
@@ -278,6 +282,7 @@ class SecretManager {
     value: string,
     scope: SecretScope = "shared"
   ): Promise<void> {
+    if (LOCAL_SETTING_KEYS.has(key)) throw new Error("Use encrypted local config or Excubitor for deployment settings");
     if (!this.infisicalClient) {
       throw new Error("[secrets] Infisical is not configured");
     }
@@ -346,12 +351,5 @@ export const secretManager = new SecretManager();
  * top-level await ではなく明示的に呼び出す形にしている。
  */
 export async function initSecrets(): Promise<void> {
-  try {
-    await secretManager.init();
-  } catch (err) {
-    console.error(
-      "[secrets] 初期化中の予期しないエラー:",
-      err instanceof Error ? err.message : err
-    );
-  }
+  await secretManager.init();
 }

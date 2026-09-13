@@ -8,6 +8,7 @@ import { mkdirSync } from "fs";
 import * as schema from "../schema.js";
 import * as curriculumSchema from "../curriculum-schema.js";
 import { secretManager } from "../../config/secrets.js";
+import { migratePlanning } from "../planning-migration.js";
 
 export { schema, curriculumSchema };
 
@@ -261,6 +262,8 @@ export function createConnection(): { db: ReturnType<typeof drizzle>; sqlite: Sq
     CREATE TABLE IF NOT EXISTS team_refs (id TEXT PRIMARY KEY, slug TEXT NOT NULL, name TEXT NOT NULL, cc_settings TEXT NOT NULL, settings TEXT NOT NULL, synced_at INTEGER NOT NULL);
     CREATE TABLE IF NOT EXISTS team_members (team_id TEXT NOT NULL, user_id TEXT NOT NULL, role TEXT NOT NULL, PRIMARY KEY (team_id, user_id));
   `);
+
+  migratePlanning(sqlite);
 
   // ─── Placement Module (GPS 場所登録 + enter/leave トリガー) ──
   sqlite.exec(`

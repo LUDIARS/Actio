@@ -6,6 +6,7 @@
  * プロバイダー未設定時は読み取り専用のステータス情報のみ返す。
  */
 
+import { LOCAL_SETTING_KEYS } from "../../src/config/local-config.js";
 import { Hono } from "hono";
 import { requireRole } from "../../src/middleware/auth.js";
 import { secretManager, type SecretScope } from "../../src/config/secrets.js";
@@ -89,6 +90,7 @@ secretsRoutes.put("/:key", requireRole("admin"), async (c) => {
   }
 
   const key = c.req.param("key");
+  if (LOCAL_SETTING_KEYS.has(key)) return c.json({ error: "ローカル設定は暗号化configまたはExcubitorで管理してください" }, 400);
   const body = await c.req.json<{ value: string; scope?: SecretScope }>();
 
   if (!body.value && body.value !== "") {

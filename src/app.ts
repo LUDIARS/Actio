@@ -11,6 +11,7 @@ import { notification } from "../modules/notification/routes.js";
 import { groupRoutes } from "../modules/group/routes.js";
 import { taskRoutes } from "../modules/task/routes.js";
 import { teamMemberRoutes } from "../modules/task/team-member-routes.js";
+import { planningRoutes } from "../modules/task/planning/routes.js";
 // event / calendar / placement / 予定系 SDK モジュールは Schedula に分離
 // (2026-05-20 split-task-only)
 import { pmModule } from "../modules/pm/index.js";
@@ -150,6 +151,7 @@ export function createApp() {
 
   // ─── Core: Teams (チーム別タスク管理: メンバー / 設定) ──────
   app.route("/api/teams", teamMemberRoutes);
+  app.route("/api/teams", planningRoutes);
 
   // ─── event / calendar / placement / 予定系 SDK モジュールは
   //     Schedula に分離 (2026-05-20 split-task-only) ──
@@ -297,13 +299,14 @@ export function createApp() {
 
     // Redis ヘルスチェック
     try {
-      const { getRedis } = await import("./db/redis.js");
+      const { getRedis, redis: configuredRedis } = await import("./db/redis.js");
       const redis = getRedis();
       if (redis) {
         await redis.ping();
         health.redis_status = "connected";
       } else {
-        health.redis_status = "not_configured";
+        health.redis_status = configuredRedis ? "disconnected" : "not_configured";
+          if (configuredRedis) health.status = "degraded";
       }
     } catch (err) {
       health.status = "degraded";

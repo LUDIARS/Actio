@@ -7,6 +7,7 @@ const TASK_SOURCES = [
   "cc-command",
   "memoria-import",
   "sprint-plan",
+  "praeforma-review",
 ] as const;
 
 function isLocationReference(value: string): boolean {

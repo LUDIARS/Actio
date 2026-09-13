@@ -2,8 +2,8 @@
  * Database connection factory
  *
  * secretManager 経由で DB_DIALECT を取得し使用するデータベースを選択:
- *   - "sqlite" (デフォルト): SQLite (better-sqlite3)
- *   - "postgres": PostgreSQL (postgres.js)
+ *   - "sqlite" (明示選択): SQLite (better-sqlite3)
+ *   - "postgres" (デフォルト): PostgreSQL (postgres.js)
  *   - "mysql": MySQL (mysql2)
  *
  * 接続先は DATABASE_URL (postgres/mysql) または DATABASE_PATH (sqlite) で設定。
@@ -15,7 +15,9 @@ import { secretManager } from "../config/secrets.js";
 export type DbDialect = "sqlite" | "postgres" | "mysql";
 
 const dialect: DbDialect =
-  (secretManager.get("DB_DIALECT") as DbDialect) || "sqlite";
+  (secretManager.get("DB_DIALECT") as DbDialect) || "postgres";
+
+if (!["postgres", "sqlite", "mysql"].includes(dialect)) throw new Error("Unsupported DB_DIALECT");
 
 console.log(`[db:connection] DB_DIALECT = "${dialect}"`);
 console.log(
@@ -28,9 +30,10 @@ let db: any;
 let schema: any;
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 let curriculumSchema: any;
-// PM スキーマ (全方言で pm-schema.ts を共有)
-import * as pmSchemaImport from "./pm-schema.js";
-const pmSchema = pmSchemaImport;
+// PM: select the native PostgreSQL schema; SQLite remains an explicit legacy option.
+const pmSchema = dialect === "postgres"
+  ? await import("./pm-postgres-schema.js")
+  : await import("./pm-schema.js");
 
 switch (dialect) {
   case "postgres": {
