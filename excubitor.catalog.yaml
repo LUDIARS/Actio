@@ -43,6 +43,8 @@ services:
     depends_on: [actio]
     autostart: false
     restart_policy: "no"
+    # Same repo and hash as the actio service; its deployment notification covers both.
+    deploy_notify: false
     health:
       type: http
       url: http://127.0.0.1:17881/
