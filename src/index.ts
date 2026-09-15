@@ -2,6 +2,7 @@ import { serve } from "@hono/node-server";
 import { logger } from "hono/logger";
 import { install as installVestigium } from "@ludiars/vestigium";
 import { secretManager, initSecrets } from "./config/secrets.js";
+import { resolveBackendPort } from "./config/service-endpoints.js";
 
 installVestigium({
   serviceCode: "actio",
@@ -11,8 +12,7 @@ installVestigium({
 
 // Load injected secrets and encrypted local settings before application imports.
 await initSecrets();
-const port = Number(process.env.BACKEND_PORT || process.env.PORT);
-if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error("Excubitor must inject a valid BACKEND_PORT or PORT");
+const port = resolveBackendPort();
 
 const { localModeEnabled } = await import("./auth/local-mode.js");
 localModeEnabled();

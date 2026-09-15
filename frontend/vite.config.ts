@@ -2,8 +2,10 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { resolve } from 'path'
 
-const frontendPort = parseInt(process.env.FRONTEND_PORT || '5173', 10)
-const backendPort = process.env.BACKEND_PORT || '3000'
+// Excubitor が catalog の port から ACTIO_WEB_PORT / ACTIO_PORT / ACTIO_URL を注入する。
+// FRONTEND_PORT / BACKEND_PORT は Excubitor 外 (docker-compose) の起動用に残す。
+const frontendPort = parseInt(process.env.ACTIO_WEB_PORT || process.env.FRONTEND_PORT || '5173', 10)
+const backendPort = process.env.ACTIO_PORT || process.env.BACKEND_PORT || '3000'
 const backendTarget = process.env.ACTIO_URL || process.env.ACTIO_BACKEND_URL
 const backendHost = process.env.ACTIO_LOCAL_MODE === '1' ? '127.0.0.1' : 'localhost'
 const extraHosts = [

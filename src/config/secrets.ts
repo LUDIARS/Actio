@@ -19,6 +19,7 @@
  */
 
 import { applyLocalConfig, LOCAL_SETTING_KEYS } from "./local-config.js";
+import { applyExcubitorEndpoints } from "./service-endpoints.js";
 import { type InfisicalClient, createInfisicalClient } from "./infisical.js";
 import {
   type SsmParameterStoreClient,
@@ -49,6 +50,7 @@ class SecretManager {
   async init(): Promise<void> {
     if (this.initialized) return;
 
+    applyExcubitorEndpoints();
     applyLocalConfig();
     const explicitProvider = process.env.SECRETS_PROVIDER;
     if (explicitProvider && !["env", "infisical", "ssm"].includes(explicitProvider)) throw new Error("Invalid SECRETS_PROVIDER");

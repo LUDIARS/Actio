@@ -63,9 +63,6 @@ export function writeLocalConfig(input: unknown): void {
 }
 
 export function applyLocalConfig(): void {
-  if (process.env.FRONTEND_URL === undefined && process.env.ACTIO_FRONTEND_URL !== undefined) {
-    process.env.FRONTEND_URL = process.env.ACTIO_FRONTEND_URL;
-  }
   for (const [key, value] of Object.entries(readLocalConfig())) {
     // Explicit empty injection also overrides a stored value (e.g. disabling Redis).
     if (process.env[key] === undefined) process.env[key] = value;
