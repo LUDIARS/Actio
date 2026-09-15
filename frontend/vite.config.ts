@@ -8,7 +8,10 @@ const frontendPort = parseInt(process.env.ACTIO_WEB_PORT || process.env.FRONTEND
 const backendPort = process.env.ACTIO_PORT || process.env.BACKEND_PORT || '3000'
 const backendTarget = process.env.ACTIO_URL || process.env.ACTIO_BACKEND_URL
 const backendHost = process.env.ACTIO_LOCAL_MODE === '1' ? '127.0.0.1' : 'localhost'
+// ローカルモードでも Cloudflare Access 経由の公開 host は受け付ける (spec/feature/local-mode-cf-access.md §5)。
+const cfPublicHost = process.env.ACTIO_CF_PUBLIC_ORIGIN ? new URL(process.env.ACTIO_CF_PUBLIC_ORIGIN).hostname : null
 const extraHosts = [
+  ...(cfPublicHost ? [cfPublicHost] : []),
   ...(process.env.VITE_ALLOWED_HOSTS?.split(',').filter(Boolean) ?? []),
   ...(process.env.LUDIARS_ALLOWED_HOSTS?.split(',').map(s => s.trim()).filter(Boolean) ?? []),
 ]

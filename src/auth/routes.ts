@@ -24,7 +24,7 @@ import {
 import { logActivity } from "../activity-logger.js";
 import { isCompositeEnabled, getLoginUrl, exchangeAuthCode } from "./composite.js";
 import { saveSessionUser, invalidateSessionUser } from "./session-cache.js";
-import { isLocalModeRequest, LOCAL_USER } from "./local-mode.js";
+import { isLocalModeRequest, localAccessKind, LOCAL_USER } from "./local-mode.js";
 
 const TOKEN_COOKIE = "actio_token";
 const TOKEN_COOKIE_MAX_AGE = 3600; // 1時間 (トークン有効期限に合わせる)
@@ -185,7 +185,7 @@ auth.get("/me", async (c) => {
   const userId = getUserId(c);
   if (!userId) return c.json({ error: "No token provided" }, 401);
   if (isLocalModeRequest(c)) {
-    return c.json({ ...LOCAL_USER, localMode: true, major: null, calendarAccessId: null });
+    return c.json({ ...LOCAL_USER, localMode: true, access: localAccessKind(c), major: null, calendarAccessId: null });
   }
 
   // Cernere から個人情報 (name/email/role) を取得 (cache 経由)
