@@ -44,10 +44,11 @@ export async function resolveLocalAccess(c: Context): Promise<LocalAccessKind | 
   verifier ??= createCfAccessVerifier(config.cfAccess);
   const identity = await verifier.verify(assertion);
   if (!identity) return null;
-  if (!loggedAccessEmails.has(identity.email)) {
+  const auditLabel = identity.email ?? "(no email: service token)";
+  if (!loggedAccessEmails.has(auditLabel)) {
     // Audit who reached the local deployment through the tunnel, once per process; the email is not persisted.
-    loggedAccessEmails.add(identity.email);
-    console.info(`[local-access] via=cf-access email=${identity.email}`);
+    loggedAccessEmails.add(auditLabel);
+    console.info(`[local-access] via=cf-access email=${auditLabel}`);
   }
   return "cf-access";
 }

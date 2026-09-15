@@ -7,7 +7,6 @@ import type { CfAccessConfig } from "../../src/auth/local-mode-policy.js";
 const config: CfAccessConfig = {
   teamDomain: "ludiars.cloudflareaccess.com",
   audiences: ["abc123"],
-  allowedEmails: ["owner@example.com"],
   publicOrigin: "https://actio.example.com",
   publicHost: "actio.example.com",
 };
@@ -26,26 +25,33 @@ function sign(claims: Record<string, unknown> = {}, options: jwt.SignOptions = {
   });
 }
 
-function verifier(fetchJwks: (url: string) => Promise<unknown> = async () => jwks, now: () => number = () => Date.now()) {
-  return createCfAccessVerifier(config, { fetchJwks, now });
+function verifier(
+  fetchJwks: (url: string) => Promise<unknown> = async () => jwks,
+  now: () => number = () => Date.now(),
+  overrides: Partial<CfAccessConfig> = {},
+) {
+  return createCfAccessVerifier({ ...config, ...overrides }, { fetchJwks, now });
 }
 
 describe("createCfAccessVerifier", () => {
-  it("accepts a signed assertion for an allowed email and fetches the team certs", async () => {
+  it("accepts any assertion that passed the team's Access and fetches the team certs once", async () => {
     const urls: string[] = [];
     const v = verifier(async (url) => { urls.push(url); return jwks; });
     expect(await v.verify(sign())).toEqual({ email: "owner@example.com" });
+    expect(await v.verify(sign({ email: "anyone@example.org" }))).toEqual({ email: "anyone@example.org" });
+    expect(await v.verify(sign({ email: undefined }))).toEqual({ email: null });
     expect(urls).toEqual(["https://ludiars.cloudflareaccess.com/cdn-cgi/access/certs"]);
-    expect(await v.verify(sign())).toEqual({ email: "owner@example.com" });
-    expect(urls).toHaveLength(1);
   });
 
-  it("rejects wrong audience, issuer, expiry, email and signing key", async () => {
+  it("checks aud only when configured", async () => {
+    expect(await verifier().verify(sign({}, { audience: "other" }))).toBeNull();
+    expect(await verifier(undefined, undefined, { audiences: [] }).verify(sign({}, { audience: "other" }))).toEqual({ email: "owner@example.com" });
+  });
+
+  it("rejects wrong issuer, expiry and signing key", async () => {
     const v = verifier();
-    expect(await v.verify(sign({}, { audience: "other" }))).toBeNull();
     expect(await v.verify(sign({}, { issuer: "https://evil.cloudflareaccess.com" }))).toBeNull();
     expect(await v.verify(sign({}, { expiresIn: -600 }))).toBeNull();
-    expect(await v.verify(sign({ email: "stranger@example.com" }))).toBeNull();
     expect(await v.verify(sign({}, {}, keyPair().privateKey))).toBeNull();
     expect(await v.verify("not-a-jwt")).toBeNull();
   });

@@ -3,8 +3,8 @@ import { isIP } from "node:net";
 /** Cloudflare Access 経由を通すための設定 (spec/feature/local-mode-cf-access.md §1)。 */
 export interface CfAccessConfig {
   teamDomain: string;
+  /** 空なら aud を照合しない (誰を通すかは Cloudflare Access のポリシーで決める)。 */
   audiences: string[];
-  allowedEmails: string[];
   publicOrigin: string;
   publicHost: string;
 }
@@ -47,13 +47,10 @@ function readCfAccess(get: (key: string) => string | undefined): CfAccessConfig 
   if (!TEAM_DOMAIN_PATTERN.test(teamDomain)) {
     throw new Error("ACTIO_CF_ACCESS_TEAM_DOMAIN must be <team>.cloudflareaccess.com when Cloudflare is enabled in local mode");
   }
+  // Who may pass is decided by the Access policy; AUD only narrows which Access application, when set.
   const audiences = splitList(get("ACTIO_CF_ACCESS_AUD"));
-  if (audiences.length === 0 || audiences.some((aud) => !AUDIENCE_PATTERN.test(aud))) {
-    throw new Error("ACTIO_CF_ACCESS_AUD must list the Access application AUD tags when Cloudflare is enabled in local mode");
-  }
-  const allowedEmails = splitList(get("ACTIO_CF_ACCESS_ALLOWED_EMAILS")).map((email) => email.toLowerCase());
-  if (allowedEmails.length === 0 || allowedEmails.some((email) => !email.includes("@"))) {
-    throw new Error("ACTIO_CF_ACCESS_ALLOWED_EMAILS must list allowed email addresses when Cloudflare is enabled in local mode");
+  if (audiences.some((aud) => !AUDIENCE_PATTERN.test(aud))) {
+    throw new Error("ACTIO_CF_ACCESS_AUD must be Access application AUD tags");
   }
   let origin: URL;
   try { origin = new URL(get("ACTIO_CF_PUBLIC_ORIGIN")?.trim() ?? ""); }
@@ -62,7 +59,7 @@ function readCfAccess(get: (key: string) => string | undefined): CfAccessConfig 
     || isLocalUrl(origin.href)) {
     throw new Error("ACTIO_CF_PUBLIC_ORIGIN must be a public https origin without a path");
   }
-  return { teamDomain: teamDomain.toLowerCase(), audiences, allowedEmails, publicOrigin: origin.origin, publicHost: origin.host.toLowerCase() };
+  return { teamDomain: teamDomain.toLowerCase(), audiences, publicOrigin: origin.origin, publicHost: origin.host.toLowerCase() };
 }
 
 /** Explicit local deployment; conflicting public/tunnel settings are errors. */

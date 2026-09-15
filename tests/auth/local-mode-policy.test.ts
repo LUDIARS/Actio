@@ -10,7 +10,6 @@ const CF_ENV: Record<string, string> = {
   ACTIO_CLOUDFLARE_ENABLED: "1",
   ACTIO_CF_ACCESS_TEAM_DOMAIN: "ludiars.cloudflareaccess.com",
   ACTIO_CF_ACCESS_AUD: "abc123",
-  ACTIO_CF_ACCESS_ALLOWED_EMAILS: "Owner@Example.com",
   ACTIO_CF_PUBLIC_ORIGIN: "https://actio.example.com",
 };
 
@@ -33,14 +32,16 @@ describe("local mode deployment", () => {
     expect(readLocalMode((name) => CF_ENV[name]).cfAccess).toEqual({
       teamDomain: "ludiars.cloudflareaccess.com",
       audiences: ["abc123"],
-      allowedEmails: ["owner@example.com"],
       publicOrigin: "https://actio.example.com",
       publicHost: "actio.example.com",
     });
+    // Who may pass is the Access policy's job: AUD is optional and there is no email allowlist.
+    const withoutAud: Record<string, string> = { ...CF_ENV, ACTIO_CF_ACCESS_AUD: "" };
+    expect(readLocalMode((name) => withoutAud[name]).cfAccess?.audiences).toEqual([]);
     for (const [key, value] of [
       ["ACTIO_CF_ACCESS_TEAM_DOMAIN", "evil.example.com"],
-      ["ACTIO_CF_ACCESS_AUD", ""],
-      ["ACTIO_CF_ACCESS_ALLOWED_EMAILS", "not-an-email"],
+      ["ACTIO_CF_ACCESS_TEAM_DOMAIN", ""],
+      ["ACTIO_CF_ACCESS_AUD", "not a tag"],
       ["ACTIO_CF_PUBLIC_ORIGIN", "http://actio.example.com"],
       ["ACTIO_CF_PUBLIC_ORIGIN", "https://actio.example.com/app"],
       ["ACTIO_CF_PUBLIC_ORIGIN", "https://127.0.0.1"],
@@ -90,7 +91,7 @@ describe("local request boundary", () => {
 
 describe("Cloudflare Access request shape", () => {
   const config: CfAccessConfig = {
-    teamDomain: "ludiars.cloudflareaccess.com", audiences: ["abc123"], allowedEmails: ["owner@example.com"],
+    teamDomain: "ludiars.cloudflareaccess.com", audiences: ["abc123"],
     publicOrigin: "https://actio.example.com", publicHost: "actio.example.com",
   };
   function tunnelRequest(headers: Record<string, string> = {}): Request {

@@ -2,16 +2,17 @@
  * Cloudflare Access のアサーション (Cf-Access-Jwt-Assertion) を検証する。
  * spec/feature/local-mode-cf-access.md §3
  *
- * 署名は team domain の JWKS (RS256)。 iss / aud / 期限 / 許可 email を照合する。
+ * 署名は team domain の JWKS (RS256)。 iss / 期限 (と設定があれば aud) を照合する。
+ * 誰を通すかは Cloudflare Access のポリシーで決め、 Actio は「その team の Access を通った」ことだけを確かめる。
  * 署名の無い Cf-Access-Authenticated-User-Email や、 Cloudflare 側で変わりうる sub は使わない。
  */
 
 import { createPublicKey, type KeyObject } from "node:crypto";
+import jwt from "jsonwebtoken";
+import type { CfAccessConfig } from "./local-mode-policy.js";
 
 /** JWKS の 1 エントリ。 @types/node の版によって crypto.JsonWebKey が無いので自前で持つ。 */
 type Jwk = Record<string, unknown> & { kid?: unknown; kty?: unknown };
-import jwt from "jsonwebtoken";
-import type { CfAccessConfig } from "./local-mode-policy.js";
 
 const CLOCK_TOLERANCE_SECONDS = 60;
 /** 未知の kid が続いても証明書を取りに行き続けないための最小間隔。 */
@@ -19,7 +20,8 @@ const JWKS_REFETCH_MIN_MS = 30_000;
 const JWKS_TIMEOUT_MS = 10_000;
 
 export interface CfAccessIdentity {
-  email: string;
+  /** 監査ログ用。 service token 経由などで email が無ければ null。 */
+  email: string | null;
 }
 
 export interface CfAccessVerifierDeps {
@@ -62,7 +64,7 @@ export function createCfAccessVerifier(config: CfAccessConfig, deps: CfAccessVer
   }
 
   return {
-    /** 通してよければ email を返す。 形・署名・クレームのどれかが合わなければ null。 */
+    /** 通してよければ identity を返す。 形・署名・クレームのどれかが合わなければ null。 */
     async verify(assertion: string): Promise<CfAccessIdentity | null> {
       const decoded = jwt.decode(assertion, { complete: true });
       if (!decoded || typeof decoded === "string") return null;
@@ -78,7 +80,7 @@ export function createCfAccessVerifier(config: CfAccessConfig, deps: CfAccessVer
       try {
         payload = jwt.verify(assertion, key, {
           algorithms: ["RS256"],
-          audience: config.audiences as [string, ...string[]],
+          ...(config.audiences.length > 0 ? { audience: config.audiences as [string, ...string[]] } : {}),
           issuer,
           clockTolerance: CLOCK_TOLERANCE_SECONDS,
           clockTimestamp: Math.floor(deps.now() / 1000),
@@ -87,9 +89,7 @@ export function createCfAccessVerifier(config: CfAccessConfig, deps: CfAccessVer
         return null;
       }
       if (typeof payload === "string") return null;
-      const email = typeof payload.email === "string" ? payload.email.toLowerCase() : "";
-      if (!email || !config.allowedEmails.includes(email)) return null;
-      return { email };
+      return { email: typeof payload.email === "string" && payload.email ? payload.email.toLowerCase() : null };
     },
   };
 }

@@ -28,8 +28,7 @@ decided_by: neco (2026-09-15 指示「ローカルモードの場合、認証付
 |---|---|---|
 | `ACTIO_CLOUDFLARE_ENABLED` | | `1` で Access 経由を許可。未設定 / `0` は従来どおり Cloudflare 系要求を 403 |
 | `ACTIO_CF_ACCESS_TEAM_DOMAIN` | `1` のとき | 例 `ludiars.cloudflareaccess.com`。証明書 URL と `iss` の検証に使う |
-| `ACTIO_CF_ACCESS_AUD` | `1` のとき | Access アプリケーションの AUD タグ (カンマ区切り複数可) |
-| `ACTIO_CF_ACCESS_ALLOWED_EMAILS` | `1` のとき | 通すメールアドレス (カンマ区切り、小文字比較)。空は起動エラー |
+| `ACTIO_CF_ACCESS_AUD` | | Access アプリケーションの AUD タグ (カンマ区切り複数可)。設定したときだけ `aud` を照合する |
 | `ACTIO_CF_PUBLIC_ORIGIN` | `1` のとき | 公開 URL (例 `https://actio.example.com`)。Host / Origin の照合と Vite の許可ホストに使う |
 
 - `ACTIO_PUBLIC_URL` / `FRONTEND_URL` は従来どおりループバック限定 (Excubitor の provides)。公開 URL は `ACTIO_CF_PUBLIC_ORIGIN` に分ける。
@@ -49,8 +48,10 @@ decided_by: neco (2026-09-15 指示「ローカルモードの場合、認証付
 ## 3. アサーションの検証 (`src/auth/cf-access-verify.ts`)
 
 - 署名: RS256。公開鍵は `https://<team domain>/cdn-cgi/access/certs` の JWKS。起動後に取得してキャッシュし、未知の `kid` が来たら 1 回だけ再取得する (連続再取得は間隔を空ける)。
-- `iss` = `https://<team domain>`、`aud` に `ACTIO_CF_ACCESS_AUD` のいずれかを含む、`exp` / `nbf` (時計ずれ 60 秒まで)。
-- `email` クレームが `ACTIO_CF_ACCESS_ALLOWED_EMAILS` に含まれる。`sub` は使わない (Cloudflare 側で変わりうる)。
+- `iss` = `https://<team domain>`、`exp` / `nbf` (時計ずれ 60 秒まで)。`ACTIO_CF_ACCESS_AUD` を設定したときだけ `aud` を照合する。
+- **誰を通すかは Cloudflare Access のポリシーで決める** (neco 2026-09-15「CF の Access で制御するので通ったら OK」)。Actio は email で絞らない。
+  署名と team domain の検証は残す: Access の掛かっていない hostname がトンネルに向いた場合、利用者が自分で付けた偽のヘッダーを通さないため。
+- `email` は監査ログ用に読むだけ (無ければ null)。`sub` は使わない (Cloudflare 側で変わりうる)。
 - 証明書が取れないときは検証失敗 (403)。無検証で通さない。
 - 検証は依存注入 (JWKS 取得・時計) で純粋に試験できる形にする。
 
