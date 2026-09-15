@@ -20,7 +20,6 @@ JIRA のように、**コアの 2 概念 (Event / Task)** を中心に各種プ�
 - **マルチDB対応** — SQLite / PostgreSQL / MySQL (Drizzle ORM)
 - **WebSocket 常時接続** — 破壊的操作は `module_request` 経由、読み取りは REST
 - **モジュール有効/無効** — global / group / user の 3 スコープで制御
-- **通知プラットフォーム連携** — [Nuntius](https://github.com/LUDIARS/Nuntius) に shadow write
 
 ## 技術スタック
 
@@ -57,7 +56,6 @@ Actio/
 │   ├── holiday/          # 休日・休業期間管理
 │   ├── notification/     # Webhook 通知
 │   ├── voting/           # 日程調整
-│   ├── reminder/         # リマインダー (Nuntius 経由)
 │   ├── school/           # M1 学校カリキュラム
 │   ├── schedule/         # カリキュラム配置
 │   ├── external-api/     # 外部 API (API Key 認証)

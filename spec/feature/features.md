@@ -30,7 +30,6 @@ API: `/api/pm`
 |---|---|---|
 | グループ管理 | グループ / メンバー | `/api/groups` |
 | 通知 | Webhook 通知 | `/api/webhooks` |
-| WebPush | PWA プッシュ通知 (Nuntius プロキシ) | `/api/push` |
 | machina (Chat-to-Task) | DB テーブル / ページの残骸のみ。 機能は Discutere に移行済 | — |
 
 ## 共通基盤 (Schedula と複製保持)

@@ -785,7 +785,6 @@ export interface ApiClientUpdateResponse {
   client: ApiClientInfo | null;
 }
 
-// Reminder types は削除 (Nuntius 移行予定)
 
 // ─── M3 MACHINA ────────────────────────────────────────────
 

@@ -2,7 +2,6 @@ import { useState, useEffect, useCallback } from "react";
 import { useAuth } from "../contexts/AuthContext";
 import { settingsApi, groupApi } from "../lib/api";
 import { API_BASE } from "../lib/constants";
-import { PushSettings } from "../components/PushSettings";
 import { NotificationPrefsSettings } from "../components/NotificationPrefsSettings";
 
 interface SettingField {
@@ -284,9 +283,6 @@ export function SettingsPage() {
           </button>
         )}
       </div>
-
-      {/* WebPush */}
-      <PushSettings />
 
       {/* 通知種別の toggle */}
       <NotificationPrefsSettings />

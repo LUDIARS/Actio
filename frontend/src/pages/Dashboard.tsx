@@ -343,7 +343,6 @@ export function Dashboard() {
     return viewYear === today.getFullYear() && viewMonth === today.getMonth() && day === today.getDate();
   };
 
-  // リマインダーは Nuntius 移行予定のため、現時点ではダッシュボード表示なし
 
   // メニューレジストリから「予定 / タスク / その他」のモジュール一覧取得 (クイックリンク用)
   const groupsByCategory = useMemo(

@@ -521,7 +521,7 @@ export function NotificationsPage() {
             </button>
           </div>
           <p style={{ fontSize: "0.8rem", color: "var(--text-muted)", marginTop: "0.5rem" }}>
-            配信は LUDIARS Nuntius が担当します。テスト送信は Nuntius 側で行ってください。
+            Actio からのテスト送信は提供していません。
           </p>
 
           {/* Webhook Create Form */}

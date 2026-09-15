@@ -160,7 +160,6 @@ export const MODULE_LIST: readonly ModuleListEntry[] = [
     frontendModuleFile: "frontend/src/lib/modules/schedule.ts",
     dependsOn: ["holiday", "myplan", "group"],
   },
-  // reminder モジュールは削除 (Nuntius に移行予定)
 
   // ━━━ School (M1) ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   {

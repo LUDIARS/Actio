@@ -26,7 +26,6 @@ import { getTaskPlugins } from "./task-plugins.js";
 import { secretManager } from "./config/secrets.js";
 import { setupRoutes } from "../modules/setup/routes.js";
 import { profileRoutes } from "../modules/profile/routes.js";
-import { pushRoutes } from "../modules/push/routes.js";
 import { userPrefsRoutes } from "../modules/user-prefs/routes.js";
 import { rateLimit } from "./middleware/rate-limit.js";
 import { moduleAdminRoutes } from "./plugins/admin-routes.js";
@@ -159,15 +158,9 @@ export function createApp() {
   // ─── Module: Webhooks & Notifications ───────────────────────
   app.route("/api/webhooks", notification);
 
-  // ─── Module: WebPush (Nuntius プロキシ) ─────────────────────
-  // PWA フロントの PushManager.subscribe() の結果を Nuntius に保存する。
-  app.route("/api/push", pushRoutes);
-
   // ─── Module: User Preferences (個人設定 KV) ─────────────────
   // dot-key 形式の自由 KV。 通知 toggle 等のクライアント設定値を保持。
   app.route("/api/user-prefs", userPrefsRoutes);
-
-  // ─── リマインダーは Nuntius に移行予定 (modules/reminder 撤去済) ─
 
   // ─── Module: External API (外部API連携) ─────────────────────
   app.route("/api/external", externalApi);
@@ -322,7 +315,7 @@ export function createApp() {
   // 後方互換: 既存の /api/health もそのまま残す (中身は readiness)
   app.get("/api/health", readinessHandler);
 
-  // ─── Notification 配信は Nuntius に完全移行済み ──────────────
+  // ─── Notification 配信は Actio では行わない ──────────────────
   // 旧 initNotificationHandler はローカル EventBus 購読用だったが廃止。
 
   return { app, injectWebSocket };

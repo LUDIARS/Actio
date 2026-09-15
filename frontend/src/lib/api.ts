@@ -1100,7 +1100,6 @@ export const externalApiClient = {
   },
 };
 
-// Reminder API は削除 (Nuntius 移行予定)
 
 // ─── Integrations (外部サービス連携) ──────────────────────────
 
@@ -1664,40 +1663,6 @@ export const cocoiruApi = {
   },
   deleteScheduleLink(id: string) {
     return request<{ ok: boolean }>(`/api/cocoiru/schedule-links/${id}`, {
-      method: "DELETE",
-    });
-  },
-};
-
-// ─── WebPush API (Nuntius プロキシ経由) ────────────────────
-
-export interface PushSubscriptionRow {
-  id: string;
-  label: string | null;
-  userAgent: string | null;
-  createdAt: string;
-  revokedAt: string | null;
-}
-
-export const pushApi = {
-  vapidPublicKey() {
-    return request<{ publicKey: string }>(`/api/push/vapid-public-key`);
-  },
-  subscribe(input: {
-    endpoint: string;
-    keys: { p256dh: string; auth: string };
-    label?: string | null;
-  }) {
-    return request<{ id: string; status: "created" | "updated" }>(`/api/push/subscriptions`, {
-      method: "POST",
-      body: JSON.stringify(input),
-    });
-  },
-  list() {
-    return request<{ items: PushSubscriptionRow[] }>(`/api/push/subscriptions`);
-  },
-  remove(id: string) {
-    return request<{ ok: boolean }>(`/api/push/subscriptions/${id}`, {
       method: "DELETE",
     });
   },

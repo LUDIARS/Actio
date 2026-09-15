@@ -166,8 +166,6 @@ notification.delete("/notifications/:id", async (c) => {
   return c.json({ message: "Notification deleted" });
 });
 
-// morning-reminder エンドポイントは削除 (Nuntius 移行予定)
-
 // ─── Template CRUD Routes ───────────────────────────────────
 
 // GET /templates — list all templates
@@ -316,10 +314,10 @@ notification.post("/templates/preview", async (c) => {
 });
 
 // ─── POST /test-send (廃止) ──────────────────────────────────
-// 配信は Nuntius が担当する。Actio 側のテスト配信は提供しない。
+// Actio 側のテスト配信は提供しない。
 notification.post("/test-send", (c) => {
   return c.json({
-    error: "test-send is no longer supported. Configure delivery via Nuntius topics.",
+    error: "test-send is no longer supported.",
   }, 501);
 });
 

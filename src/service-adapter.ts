@@ -1,7 +1,7 @@
 /**
  * Actio の peer service adapter 統合レイヤ.
  *
- * LUDIARS 内の他バックエンド (Imperativus, Nuntius, SchoolModules 等) が
+ * LUDIARS 内の他バックエンド (Imperativus, SchoolModules 等) が
  * Actio に直接 WS で到達できるよう、`@ludiars/cernere-service-adapter` の
  * `PeerAdapter` を初期化する. HTTP 経由の service-to-service 通信は
  * 行わない (CLAUDE.md の WS-only ルールに準拠).
@@ -58,7 +58,6 @@ export async function initServiceAdapter(
     accept: {
       // MVP: LUDIARS サービスからの ping のみ許可. コマンド追加は別 PR で.
       imperativus: ["ping"],
-      nuntius:     ["ping"],
     },
   });
 

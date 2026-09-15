@@ -19,12 +19,6 @@ import type {
   CreateTaskInput,
   TaskPriority,
 } from "../../src/shared/types.js";
-import { scheduleTaskReminders, cancelTaskReminders } from "../../src/lib/event-reminders.js";
-import {
-  notifyTaskAssigned,
-  notifyTaskCompleted,
-  notifyTaskPriorityRaised,
-} from "../../src/lib/task-notifications.js";
 import {
   resolveUserId,
   normalizeStatus,
@@ -287,33 +281,6 @@ taskRoutes.post("/", async (c) => {
     return c.json({ task: racedDuplicate }, 200);
   }
 
-  // Nuntius へ deadline N 分前通知を予約 (assignee 優先、 fallback owner)
-  // 失敗しても task 作成自体は成功扱い (通知は best-effort)
-  await scheduleTaskReminders({
-    taskId: id,
-    userId: body.assigneeId ?? userId,
-    title: body.title,
-    description: body.description ?? null,
-    deadline,
-    minutesBefore: body.notifyMinutesBefore,
-    notifyMessage: body.notifyMessage,
-  }).catch((err) => {
-    console.warn(`[task] failed to schedule reminders for ${id}:`, err);
-  });
-
-  // 別人にアサインされたら新 assignee へ即時 push
-  if (body.assigneeId && body.assigneeId !== userId) {
-    await notifyTaskAssigned({
-      taskId: id,
-      taskTitle: body.title,
-      newAssigneeId: body.assigneeId,
-      ownerId: userId,
-      assignedById: userId,
-    }).catch((err) => {
-      console.warn(`[task] notifyTaskAssigned failed for ${id}:`, err);
-    });
-  }
-
   const created = await taskRepo.findById(id);
   return c.json({ task: created }, 201);
 });
@@ -470,62 +437,6 @@ taskRoutes.on(["PUT", "PATCH"], "/:id", async (c) => {
 
   await taskRepo.update(id, updates);
   const updated = await taskRepo.findById(id);
-
-  // 状態変化 push (best-effort)
-  // - status: !done → done → owner に完了通知
-  // - assigneeId 変更 (別人へ) → 新 assignee に push
-  // - priority 上昇 (low/medium → high) → assignee (or owner) に push
-  if (updated) {
-    const completedNow =
-      normalizedStatus === "done" && existing.status !== "done";
-    if (completedNow) {
-      await notifyTaskCompleted({
-        taskId: id,
-        taskTitle: updated.title,
-        ownerId: updated.ownerId,
-        assigneeId: updated.assigneeId,
-        completedById: userId,
-      }).catch((err) => {
-        console.warn(`[task] notifyTaskCompleted failed for ${id}:`, err);
-      });
-    }
-
-    const newAssignee = updated.assigneeId;
-    const oldAssignee = existing.assigneeId;
-    if (
-      body.assigneeId !== undefined &&
-      newAssignee &&
-      newAssignee !== oldAssignee
-    ) {
-      await notifyTaskAssigned({
-        taskId: id,
-        taskTitle: updated.title,
-        newAssigneeId: newAssignee,
-        ownerId: updated.ownerId,
-        assignedById: userId,
-      }).catch((err) => {
-        console.warn(`[task] notifyTaskAssigned failed for ${id}:`, err);
-      });
-    }
-
-    if (
-      body.priority !== undefined &&
-      updated.priority !== existing.priority
-    ) {
-      await notifyTaskPriorityRaised({
-        taskId: id,
-        taskTitle: updated.title,
-        ownerId: updated.ownerId,
-        assigneeId: updated.assigneeId,
-        oldPriority: existing.priority as TaskPriority,
-        newPriority: updated.priority as TaskPriority,
-        raisedById: userId,
-      }).catch((err) => {
-        console.warn(`[task] notifyTaskPriorityRaised failed for ${id}:`, err);
-      });
-    }
-  }
-
   return c.json({ task: updated });
 });
 
@@ -542,7 +453,5 @@ taskRoutes.delete("/:id", async (c) => {
   if (existing.sprintId) return c.json({ error: "Remove the task from its sprint before deleting it" }, 409);
 
   await taskRepo.deleteById(id);
-  // 予約済みの Nuntius reminders もキャンセル (best-effort)
-  await cancelTaskReminders(id).catch(() => {});
   return c.json({ ok: true });
 });
