@@ -1,4 +1,5 @@
-# Machine-local Actio deployment. Do not attach Cloudflare or expose these listeners.
+# Machine-local Actio deployment. Listeners stay on loopback; the only public path is the shared
+# Cloudflare tunnel behind Cloudflare Access (spec/feature/local-mode-cf-access.md).
 # Ports and URLs come from this catalog: Excubitor injects ACTIO_PORT / ACTIO_WEB_PORT from
 # `port` and ACTIO_URL / ACTIO_FRONTEND_URL from `provides`. Do not put them in .env or Infisical.
 services:
@@ -27,7 +28,10 @@ services:
       INFISICAL_PROJECT_ID: ""
       SSM_PATH_PREFIX: ""
       ACTIO_LOCAL_MODE: "1"
-      ACTIO_CLOUDFLARE_ENABLED: "0"
+      # Access policy decides who passes; Actio verifies the assertion signature for this team.
+      ACTIO_CLOUDFLARE_ENABLED: "1"
+      ACTIO_CF_ACCESS_TEAM_DOMAIN: nyangame.cloudflareaccess.com
+      ACTIO_CF_PUBLIC_ORIGIN: https://actio.ai-run-do.com
     provides:
       ACTIO_URL: http://127.0.0.1:${port}
   - code: actio-web
@@ -54,6 +58,8 @@ services:
     env:
       NODE_ENV: production
       ACTIO_LOCAL_MODE: "1"
-      ACTIO_CLOUDFLARE_ENABLED: "0"
+      ACTIO_CLOUDFLARE_ENABLED: "1"
+      # Vite accepts this public host in local mode (the backend does the Access verification).
+      ACTIO_CF_PUBLIC_ORIGIN: https://actio.ai-run-do.com
     provides:
       ACTIO_FRONTEND_URL: http://127.0.0.1:${port}
