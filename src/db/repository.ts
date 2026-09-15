@@ -5,7 +5,7 @@
  * ルートハンドラが直接 Drizzle クエリを書かなくて済むようにする。
  */
 
-import { eq, and, count, inArray, desc, like, gte, lte, or, isNull, sql } from "drizzle-orm";
+import { eq, and, count, inArray, notInArray, desc, like, gte, lte, or, isNull, sql } from "drizzle-orm";
 import type { SQL } from "drizzle-orm";
 import { db, schema, curriculumSchema, pmSchema } from "./connection.js";
 
@@ -2344,6 +2344,8 @@ export interface TaskListFilter {
   pluginId?: string;
   /** 種別フィルタ: "task" / "goal" / "all"(両方)。 省略時は全件 (互換) */
   kind?: string;
+  /** 作業者種別: "human" / "ai" (task-integration §4.3) */
+  executorType?: string;
   /** deadline <= dueBefore */
   dueBefore?: Date;
   /**
@@ -2383,6 +2385,7 @@ export const taskRepo = {
     if (filter.status) conditions.push(eq(schema.tasks.status, filter.status));
     if (filter.pluginId) conditions.push(eq(schema.tasks.pluginId, filter.pluginId));
     if (filter.kind && filter.kind !== "all") conditions.push(eq(schema.tasks.kind, filter.kind));
+    if (filter.executorType) conditions.push(eq(schema.tasks.executorType, filter.executorType));
     if (filter.dueBefore) conditions.push(lte(schema.tasks.deadline, filter.dueBefore));
 
     const order =
@@ -2420,6 +2423,25 @@ export const taskRepo = {
 
   async deleteById(id: string): Promise<void> {
     await db.delete(schema.tasks).where(eq(schema.tasks.id, id));
+  },
+
+  /** 期限前通知の走査用 (task-integration §2.1)。 未完了で from ≤ deadline ≤ to のタスク。 */
+  async listWithDeadlineBetween(from: Date, to: Date): Promise<Task[]> {
+    return db.select().from(schema.tasks).where(and(
+      gte(schema.tasks.deadline, from),
+      lte(schema.tasks.deadline, to),
+      notInArray(schema.tasks.status, ["done", "cancelled"]),
+    ));
+  },
+
+  /** クリティカルパスの保存 (task-integration §5.2)。 updated_at は変えない (人の変更ではないため)。 */
+  async updateCriticalPathFields(id: string, fields: {
+    isCriticalPath: boolean;
+    slackDays: number | null;
+    criticalPathError: string | null;
+    criticalPathComputedAt: Date | null;
+  }): Promise<void> {
+    await db.update(schema.tasks).set(fields).where(eq(schema.tasks.id, id));
   },
 };
 
@@ -2524,6 +2546,107 @@ export const teamRefRepo = {
 
   async updateSettings(id: string, settings: Record<string, unknown>): Promise<void> {
     await db.update(schema.teamRefs).set({ settings }).where(eq(schema.teamRefs.id, id));
+  },
+};
+
+// ─── Project Ref Repository (Cc project_codes キャッシュ) ────────
+// code / name / team_ids だけを持つ。 repo URL / パスは保存しない (task-integration §6.1)。
+
+export type ProjectRef = typeof schema.projectRefs.$inferSelect;
+
+export const projectRefRepo = {
+  async findByCode(code: string): Promise<ProjectRef | undefined> {
+    const [row] = await db.select().from(schema.projectRefs).where(eq(schema.projectRefs.code, code));
+    return row;
+  },
+
+  async listActive(): Promise<ProjectRef[]> {
+    return db.select().from(schema.projectRefs).where(isNull(schema.projectRefs.removedAt)).orderBy(schema.projectRefs.code);
+  },
+
+  /** team_ids は JSON 列で方言ごとに包含演算子が違うため、 件数の少ないキャッシュを JS で絞る。 */
+  async listByTeam(teamId: string): Promise<ProjectRef[]> {
+    return (await this.listActive()).filter((row) => (row.teamIds ?? []).includes(teamId));
+  },
+
+  async upsertFromCc(data: { code: string; name: string; teamIds: string[]; syncedAt: Date }): Promise<void> {
+    const existing = await this.findByCode(data.code);
+    if (existing) {
+      await db.update(schema.projectRefs)
+        .set({ name: data.name, teamIds: data.teamIds, syncedAt: data.syncedAt, removedAt: null })
+        .where(eq(schema.projectRefs.code, data.code));
+    } else {
+      await db.insert(schema.projectRefs).values({ ...data, removedAt: null });
+    }
+  },
+
+  /** Cc から消えた code に removed_at を付ける (行は残し、 既存タスクの参照を壊さない)。 */
+  async markRemovedExcept(codes: string[], at: Date): Promise<void> {
+    const conditions: SQL[] = [isNull(schema.projectRefs.removedAt)];
+    if (codes.length > 0) conditions.push(notInArray(schema.projectRefs.code, codes));
+    await db.update(schema.projectRefs).set({ removedAt: at }).where(and(...conditions));
+  },
+};
+
+// ─── Task Notification Repository (通知の送信箱) ────────────────
+// spec/feature/task-integration/spec.md §2.3
+
+export type TaskNotification = typeof schema.taskNotifications.$inferSelect;
+export type NewTaskNotification = typeof schema.taskNotifications.$inferInsert;
+
+export const taskNotificationRepo = {
+  async findByDedupeKey(dedupeKey: string): Promise<TaskNotification | undefined> {
+    const [row] = await db.select().from(schema.taskNotifications).where(eq(schema.taskNotifications.dedupeKey, dedupeKey));
+    return row;
+  },
+
+  /** 同じ dedupe_key が既にあれば積まずに false。 同時挿入は一意制約を最終判定にする。 */
+  async insertIfAbsent(row: NewTaskNotification): Promise<boolean> {
+    if (await this.findByDedupeKey(row.dedupeKey)) return false;
+    try {
+      await db.insert(schema.taskNotifications).values(row);
+      return true;
+    } catch (error) {
+      if (await this.findByDedupeKey(row.dedupeKey)) return false;
+      throw error;
+    }
+  },
+
+  async listPending(limit: number): Promise<TaskNotification[]> {
+    return db.select().from(schema.taskNotifications)
+      .where(eq(schema.taskNotifications.status, "pending"))
+      .orderBy(schema.taskNotifications.createdAt)
+      .limit(limit);
+  },
+
+  async listByStatus(status: string, limit: number): Promise<TaskNotification[]> {
+    return db.select().from(schema.taskNotifications)
+      .where(eq(schema.taskNotifications.status, status))
+      .orderBy(desc(schema.taskNotifications.createdAt))
+      .limit(limit);
+  },
+
+  async markSent(id: string, at: Date): Promise<void> {
+    await db.update(schema.taskNotifications)
+      .set({ status: "sent", sentAt: at, lastError: null })
+      .where(eq(schema.taskNotifications.id, id));
+  },
+
+  async markFailed(id: string, error: string): Promise<void> {
+    await db.update(schema.taskNotifications)
+      .set({ status: "failed", lastError: error, attempts: sql`${schema.taskNotifications.attempts} + 1` })
+      .where(eq(schema.taskNotifications.id, id));
+  },
+
+  /** 試行回数を 1 増やし、 上限に達したら failed、 それまでは pending のまま次の tick で再送する。 */
+  async markAttemptFailed(id: string, error: string, maxAttempts: number): Promise<void> {
+    await db.update(schema.taskNotifications)
+      .set({
+        lastError: error,
+        attempts: sql`${schema.taskNotifications.attempts} + 1`,
+        status: sql`CASE WHEN ${schema.taskNotifications.attempts} + 1 >= ${maxAttempts} THEN 'failed' ELSE 'pending' END`,
+      })
+      .where(eq(schema.taskNotifications.id, id));
   },
 };
 

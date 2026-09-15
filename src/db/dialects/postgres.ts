@@ -748,6 +748,9 @@ export const tasks = pgTable(
     completionEvidence: jsonb("completion_evidence").$type<Record<string, unknown>>(), completedBy: text("completed_by"),
     durationDays: integer("duration_days"), estimateSource: text("estimate_source"), deadlineSource: text("deadline_source"), storyPoints: integer("story_points"),
     blockedBy: jsonb("blocked_by").$type<string[]>().notNull().default([]), carriedFromSprintId: text("carried_from_sprint_id"), actualMinutes: integer("actual_minutes").notNull().default(0),
+    executorType: text("executor_type").notNull().default("human"), aiExecutor: text("ai_executor"),
+    isCriticalPath: boolean("is_critical_path").notNull().default(false), slackDays: doublePrecision("slack_days"),
+    criticalPathError: text("critical_path_error"), criticalPathComputedAt: timestamp("critical_path_computed_at"),
     title: text("title").notNull(),
     description: text("description"),
     requirements: text("requirements"),
@@ -797,6 +800,29 @@ export const teamMembers = pgTable("team_members", {
   userId: text("user_id").notNull(),
   role: text("role").notNull(),
 }, (t) => [primaryKey({ columns: [t.teamId, t.userId] })]);
+
+export const projectRefs = pgTable("project_refs", {
+  code: text("code").primaryKey(),
+  name: text("name").notNull(),
+  teamIds: jsonb("team_ids").$type<string[]>().notNull(),
+  syncedAt: timestamp("synced_at").notNull(),
+  removedAt: timestamp("removed_at"),
+});
+
+export const taskNotifications = pgTable("task_notifications", {
+  id: text("id").primaryKey(),
+  taskId: text("task_id"),
+  teamId: text("team_id"),
+  event: text("event").notNull(),
+  channel: text("channel").notNull(),
+  dedupeKey: text("dedupe_key").notNull().unique(),
+  payload: jsonb("payload").$type<Record<string, unknown>>().notNull(),
+  status: text("status").notNull(),
+  attempts: integer("attempts").notNull().default(0),
+  lastError: text("last_error"),
+  createdAt: timestamp("created_at").notNull(),
+  sentAt: timestamp("sent_at"),
+}, (t) => [index("idx_task_notifications_status").on(t.status)]);
 
 // ─── Group Events ──────────────────────────────────────────
 

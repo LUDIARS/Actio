@@ -38,6 +38,9 @@ export interface BacklogTask {
   status: string; priority: string; assigneeId: string | null; projectId: string | null;
   deadline: number | null; estimatedMinutes: number | null; sprintId: string | null;
   category: string | null; groupId: string | null; position: number; fingerprint: string;
+  /** task-integration §4 / §5。 SQLite は is_critical_path を 0/1 で返す。 */
+  executorType?: string; aiExecutor?: string | null; isCriticalPath?: boolean | number;
+  slackDays?: number | null; criticalPathError?: string | null; blockedBy?: string[] | string; durationDays?: number | null;
 }
 export class PlanningError extends Error {
   constructor(message: string, public readonly status: 400 | 404 | 409 = 409) { super(message); }

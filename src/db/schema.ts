@@ -1106,6 +1106,15 @@ export const tasks = sqliteTable(
     blockedBy: text("blocked_by", { mode: "json" }).$type<string[]>().notNull().default([]),
     carriedFromSprintId: text("carried_from_sprint_id"),
     actualMinutes: integer("actual_minutes").notNull().default(0),
+    /** 作業するのは human / ai (task-integration §4)。 creator_type (登録主体) とは別 */
+    executorType: text("executor_type").notNull().default("human"),
+    /** executor_type=ai のときの実行主体ラベル (Cc delegation call_name / agent 名) */
+    aiExecutor: text("ai_executor"),
+    /** チームのバックログ依存 DAG でスラック 0 (task-integration §5)。 計算で決まり手入力しない */
+    isCriticalPath: integer("is_critical_path", { mode: "boolean" }).notNull().default(false),
+    slackDays: real("slack_days"),
+    criticalPathError: text("critical_path_error"),
+    criticalPathComputedAt: integer("critical_path_computed_at", { mode: "timestamp" }),
     title: text("title").notNull(),
     description: text("description"),
     /** 要件 (Markdown / freeform) */

@@ -17,7 +17,18 @@ export async function migratePlanningPostgres(pool: postgres.Sql): Promise<void>
       estimate_source: "TEXT", deadline_source: "TEXT", story_points: "INTEGER", blocked_by: "JSONB NOT NULL DEFAULT '[]'",
       carried_from_sprint_id: "TEXT", actual_minutes: "INTEGER NOT NULL DEFAULT 0",
       kind: "TEXT NOT NULL DEFAULT 'task'", creator_type: "TEXT NOT NULL DEFAULT 'human'", category: "TEXT",
+      executor_type: "TEXT NOT NULL DEFAULT 'human'", ai_executor: "TEXT", is_critical_path: "BOOLEAN NOT NULL DEFAULT FALSE",
+      slack_days: "DOUBLE PRECISION", critical_path_error: "TEXT", critical_path_computed_at: "TIMESTAMP",
     })) await sql.unsafe(`ALTER TABLE tasks ADD COLUMN IF NOT EXISTS ${name} ${type}`);
+    await sql.unsafe(`CREATE TABLE IF NOT EXISTS project_refs (
+      code TEXT PRIMARY KEY, name TEXT NOT NULL, team_ids JSONB NOT NULL, synced_at TIMESTAMP NOT NULL, removed_at TIMESTAMP
+    )`);
+    await sql.unsafe(`CREATE TABLE IF NOT EXISTS task_notifications (
+      id TEXT PRIMARY KEY, task_id TEXT, team_id TEXT, event TEXT NOT NULL, channel TEXT NOT NULL,
+      dedupe_key TEXT NOT NULL UNIQUE, payload JSONB NOT NULL, status TEXT NOT NULL, attempts INTEGER NOT NULL DEFAULT 0,
+      last_error TEXT, created_at TIMESTAMP NOT NULL, sent_at TIMESTAMP
+    )`);
+    await sql.unsafe(`CREATE INDEX IF NOT EXISTS idx_task_notifications_status ON task_notifications(status)`);
     await sql.unsafe(`CREATE TABLE IF NOT EXISTS team_refs (
       id TEXT PRIMARY KEY, slug TEXT NOT NULL, name TEXT NOT NULL, cc_settings JSONB NOT NULL,
       settings JSONB NOT NULL, synced_at TIMESTAMP NOT NULL

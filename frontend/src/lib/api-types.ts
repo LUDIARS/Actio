@@ -1113,10 +1113,20 @@ export interface CoreTask {
   pluginId: string | null;
   pluginRef: string | null;
   pluginPayload: Record<string, unknown> | null;
+  /** 作業者: human / ai (creatorType = 登録主体とは別) */
+  executorType: TaskExecutorType;
+  aiExecutor: string | null;
+  /** クリティカルパス (チームのバックログ依存から計算) */
+  isCriticalPath: boolean;
+  slackDays: number | null;
+  criticalPathError: string | null;
   completedAt: string | null;
   createdAt: string;
   updatedAt: string;
 }
+
+/** 作業者: human / ai */
+export type TaskExecutorType = "human" | "ai";
 
 export interface CreateTaskInput {
   title: string;
@@ -1130,6 +1140,8 @@ export interface CreateTaskInput {
   status?: TaskStatus | "todo" | "doing";
   kind?: TaskKind;
   creatorType?: TaskCreatorType;
+  executorType?: TaskExecutorType;
+  aiExecutor?: string | null;
   category?: string | null;
   priority?: TaskPriority;
   deadline?: string | null;

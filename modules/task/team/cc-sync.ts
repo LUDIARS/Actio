@@ -11,6 +11,7 @@
 import { secretManager } from "../../../src/config/secrets.js";
 import { teamRefRepo } from "../../../src/db/repository.js";
 import { defaultTeamSettings } from "./settings.js";
+import { syncProjectsFromCc } from "./cc-project-sync.js";
 
 export interface CcTeam {
   id: string;
@@ -123,6 +124,8 @@ export function startTeamSyncTick(intervalMs: number = TEAM_SYNC_INTERVAL_MS): (
     isRunning = true;
     try {
       await syncTeamsFromCc();
+      // プロジェクトのチーム所属はチームキャッシュを前提にするので、 チームの後に同期する (task-integration §6.1)。
+      await syncProjectsFromCc();
     } catch {
       // Last-resort containment: a scheduler tick must never become an unhandled rejection.
       console.warn("[team-sync] 予期しない同期エラーを隔離しました。次回 tick で再試行します");

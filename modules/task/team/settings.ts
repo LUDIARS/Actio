@@ -5,6 +5,8 @@ const TimeOfDaySchema = z.string().regex(/^(?:[01]\d|2[0-3]):[0-5]\d$/);
 export const TeamSettingsSchema = z.object({
   input_mode: z.enum(["minimal", "full"]).default("minimal"),
   default_daily_minutes: z.number().int().positive().default(120),
+  /** 期限の何分前に通知するか (task-integration §2.1)。 上限 1 日。 */
+  notify_before_minutes: z.number().int().positive().max(1440).default(60),
   sprint_length_days: z.number().int().positive().default(7),
   review_slots: z.array(TimeOfDaySchema).default(["09:00", "18:00"]),
   completion_threshold: z.number().min(0).max(1).default(0.8),

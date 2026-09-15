@@ -252,7 +252,7 @@ export function createConnection(): { db: ReturnType<typeof drizzle>; sqlite: Sq
   sqlite.exec(`CREATE INDEX IF NOT EXISTS idx_task_project ON tasks(project_id)`);
   // completedAt 単体 INDEX (velocity Θ_p 集計のフルスキャン回避)
   sqlite.exec(`CREATE INDEX IF NOT EXISTS idx_task_completed_at ON tasks(completed_at)`);
-  for (const statement of ["team_id TEXT", "lane TEXT NOT NULL DEFAULT 'daily'", "sprint_id TEXT", "source TEXT", "source_ref TEXT", "completion_score REAL", "completion_evidence TEXT", "completed_by TEXT", "duration_days INTEGER", "estimate_source TEXT", "deadline_source TEXT", "story_points INTEGER", "blocked_by TEXT NOT NULL DEFAULT '[]'", "carried_from_sprint_id TEXT", "actual_minutes INTEGER NOT NULL DEFAULT 0"]) {
+  for (const statement of ["team_id TEXT", "lane TEXT NOT NULL DEFAULT 'daily'", "sprint_id TEXT", "source TEXT", "source_ref TEXT", "completion_score REAL", "completion_evidence TEXT", "completed_by TEXT", "duration_days INTEGER", "estimate_source TEXT", "deadline_source TEXT", "story_points INTEGER", "blocked_by TEXT NOT NULL DEFAULT '[]'", "carried_from_sprint_id TEXT", "actual_minutes INTEGER NOT NULL DEFAULT 0", "executor_type TEXT NOT NULL DEFAULT 'human'", "ai_executor TEXT", "is_critical_path INTEGER NOT NULL DEFAULT 0", "slack_days REAL", "critical_path_error TEXT", "critical_path_computed_at INTEGER"]) {
     try { sqlite.exec(`ALTER TABLE tasks ADD COLUMN ${statement}`); } catch { /* already exists */ }
   }
   sqlite.exec(`
@@ -261,6 +261,9 @@ export function createConnection(): { db: ReturnType<typeof drizzle>; sqlite: Sq
     CREATE UNIQUE INDEX IF NOT EXISTS uniq_task_source_ref ON tasks(source, source_ref) WHERE source IS NOT NULL AND source_ref IS NOT NULL;
     CREATE TABLE IF NOT EXISTS team_refs (id TEXT PRIMARY KEY, slug TEXT NOT NULL, name TEXT NOT NULL, cc_settings TEXT NOT NULL, settings TEXT NOT NULL, synced_at INTEGER NOT NULL);
     CREATE TABLE IF NOT EXISTS team_members (team_id TEXT NOT NULL, user_id TEXT NOT NULL, role TEXT NOT NULL, PRIMARY KEY (team_id, user_id));
+    CREATE TABLE IF NOT EXISTS project_refs (code TEXT PRIMARY KEY, name TEXT NOT NULL, team_ids TEXT NOT NULL, synced_at INTEGER NOT NULL, removed_at INTEGER);
+    CREATE TABLE IF NOT EXISTS task_notifications (id TEXT PRIMARY KEY, task_id TEXT, team_id TEXT, event TEXT NOT NULL, channel TEXT NOT NULL, dedupe_key TEXT NOT NULL UNIQUE, payload TEXT NOT NULL, status TEXT NOT NULL, attempts INTEGER NOT NULL DEFAULT 0, last_error TEXT, created_at INTEGER NOT NULL, sent_at INTEGER);
+    CREATE INDEX IF NOT EXISTS idx_task_notifications_status ON task_notifications(status);
   `);
 
   migratePlanning(sqlite);

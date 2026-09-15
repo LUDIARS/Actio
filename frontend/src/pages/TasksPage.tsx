@@ -3,10 +3,16 @@ import { tasksApi } from "../lib/api";
 import type {
   CoreTask,
   CreateTaskInput,
+  TaskExecutorType,
   TaskKind,
   TaskPriority,
   TaskStatus,
 } from "../lib/api-types";
+
+const EXECUTOR_LABELS: Record<TaskExecutorType, string> = {
+  human: "人間",
+  ai: "AI",
+};
 
 const STATUS_LABELS: Record<TaskStatus, string> = {
   open: "未着手",
@@ -56,6 +62,8 @@ const EMPTY_FORM: CreateTaskInput = {
   priority: "medium",
   deadline: null,
   estimatedMinutes: null,
+  executorType: "human",
+  aiExecutor: null,
 };
 
 /** "今日" / "明日" / "今週末(土)" の datetime-local 値を返す */
@@ -156,6 +164,8 @@ export function TasksPage() {
       estimatedMinutes: task.estimatedMinutes,
       assigneeId: task.assigneeId ?? undefined,
       groupId: task.groupId ?? undefined,
+      executorType: task.executorType,
+      aiExecutor: task.aiExecutor,
     });
     setEditingId(task.id);
     setShowForm(true);
@@ -176,6 +186,8 @@ export function TasksPage() {
       priority: form.priority,
       deadline: form.deadline ? new Date(form.deadline).toISOString() : null,
       estimatedMinutes: form.estimatedMinutes ?? null,
+      executorType: form.executorType ?? "human",
+      aiExecutor: form.executorType === "ai" ? form.aiExecutor?.trim() || null : null,
     };
 
     try {
@@ -378,6 +390,35 @@ export function TasksPage() {
                 ))}
               </select>
             </label>
+            <label style={{ display: "flex", flexDirection: "column", gap: "0.2rem", flex: 1, minWidth: 120 }}>
+              <span style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>作業者</span>
+              <select
+                value={form.executorType ?? "human"}
+                onChange={(e) => {
+                  const executorType = e.target.value as TaskExecutorType;
+                  setForm({ ...form, executorType, aiExecutor: executorType === "ai" ? form.aiExecutor ?? null : null });
+                }}
+                style={inputStyle}
+              >
+                {Object.entries(EXECUTOR_LABELS).map(([k, v]) => (
+                  <option key={k} value={k}>
+                    {v}
+                  </option>
+                ))}
+              </select>
+            </label>
+            {form.executorType === "ai" && (
+              <label style={{ display: "flex", flexDirection: "column", gap: "0.2rem", flex: 1, minWidth: 160 }}>
+                <span style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>AI 実行者 (任意)</span>
+                <input
+                  type="text"
+                  placeholder="codex/impl-from-design"
+                  value={form.aiExecutor ?? ""}
+                  onChange={(e) => setForm({ ...form, aiExecutor: e.target.value || null })}
+                  style={inputStyle}
+                />
+              </label>
+            )}
             <label style={{ display: "flex", flexDirection: "column", gap: "0.2rem", flex: 1, minWidth: 180 }}>
               <span style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>期限</span>
               <input
@@ -591,6 +632,36 @@ export function TasksPage() {
                   >
                     AI
                   </span>
+                )}
+                {task.executorType === "ai" && (
+                  <span
+                    style={{
+                      padding: "0.1rem 0.4rem",
+                      border: "1px solid var(--accent)",
+                      color: "var(--accent)",
+                      borderRadius: "var(--radius-sm)",
+                      fontSize: "0.7rem",
+                    }}
+                  >
+                    作業: AI{task.aiExecutor ? ` (${task.aiExecutor})` : ""}
+                  </span>
+                )}
+                {task.isCriticalPath && (
+                  <span
+                    style={{
+                      padding: "0.1rem 0.4rem",
+                      background: "#F85149",
+                      color: "#fff",
+                      borderRadius: "var(--radius-sm)",
+                      fontSize: "0.7rem",
+                      fontWeight: 600,
+                    }}
+                  >
+                    クリティカルパス
+                  </span>
+                )}
+                {task.criticalPathError === "cycle" && (
+                  <span style={{ fontSize: "0.7rem", color: "#F85149" }}>依存が循環</span>
                 )}
                 <span style={{ fontWeight: 600, fontSize: "0.95rem", flex: 1 }}>{task.title}</span>
                 <span style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>

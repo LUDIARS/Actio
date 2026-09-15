@@ -20,6 +20,8 @@ beforeEach(() => {
       sprint_id TEXT, title TEXT, description TEXT, requirements TEXT, status TEXT, priority TEXT,
       project_id TEXT, deadline INTEGER, estimated_minutes INTEGER, category TEXT, updated_at INTEGER,
       created_at INTEGER, carried_from_sprint_id TEXT, source TEXT, source_ref TEXT, creator_type TEXT,
+      executor_type TEXT NOT NULL DEFAULT 'human', ai_executor TEXT, is_critical_path INTEGER NOT NULL DEFAULT 0,
+      slack_days REAL, critical_path_error TEXT, blocked_by TEXT NOT NULL DEFAULT '[]', duration_days INTEGER,
       kind TEXT, plugin_payload TEXT, UNIQUE(source, source_ref));
     INSERT INTO tasks(id,team_id,assignee_id,lane,title,status,project_id,updated_at)
       VALUES ('a','team','member','backlog','Task A','open','project',1),

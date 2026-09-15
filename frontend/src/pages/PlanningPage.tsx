@@ -1,5 +1,18 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
-import { planningApi, type PlanningData, type Team } from "../lib/planning-api";
+import { planningApi, type CurrentSprintView, type PlanningData, type PlanningTask, type Team, type TeamProject } from "../lib/planning-api";
+
+type BoardView = "current" | "all";
+
+function executorText(task: PlanningTask): string {
+  if (task.executorType !== "ai") return "人間";
+  return task.aiExecutor ? `AI: ${task.aiExecutor}` : "AI (未割り当て)";
+}
+
+function criticalPathText(task: PlanningTask): string {
+  if (task.criticalPathError === "cycle") return "依存が循環しています";
+  if (task.isCriticalPath) return "★ クリティカルパス";
+  return task.slackDays != null ? `余裕 ${task.slackDays} 日` : "—";
+}
 import { request } from "../lib/api";
 import { SprintForm, SprintAdjustment } from "../components/planning/SprintForm";
 import { PraeformaBacklog } from "../components/planning/PraeformaBacklog";
@@ -18,20 +31,26 @@ export function PlanningPage() {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [history, setHistory] = useState<Awaited<ReturnType<typeof planningApi.history>>["changes"]>([]);
+  const [view, setView] = useState<BoardView>("current");
+  const [current, setCurrent] = useState<CurrentSprintView | null>(null);
+  const [projects, setProjects] = useState<TeamProject[]>([]);
+  const [executorType, setExecutorType] = useState<"human" | "ai">("human");
   useEffect(() => { let active = true; void planningApi.teams().then(r => { if (active) setTeams(r.teams); }).catch(e => { if (active) setError(e.message); }); return () => { active = false; }; }, []);
   const refresh = useCallback(async () => {
     if (!team) return;
-    const result = await planningApi.load(team);
+    const [result, currentView] = await Promise.all([planningApi.load(team), planningApi.currentView(team)]);
     if (currentTeam.current !== team) return;
-    setData(result); setSelected([]); setHistory([]);
+    setData(result); setCurrent(currentView); setSelected([]); setHistory([]);
   }, [team]);
   useEffect(() => {
-    let active = true; setData(null); setSelected([]); setSprintId(""); setHistory([]); setMembers([]); setError("");
-    if (team) { setBusy(true); void Promise.all([planningApi.load(team), planningApi.members(team)]).then(([d, m]) => {
-      if (active) { setData(d); setMembers(m.members.map(x => x.userId)); }
+    let active = true; setData(null); setCurrent(null); setProjects([]); setSelected([]); setSprintId(""); setHistory([]); setMembers([]); setError("");
+    if (team) { setBusy(true); void Promise.all([planningApi.load(team), planningApi.members(team), planningApi.currentView(team), planningApi.teamProjects(team)]).then(([d, m, cv, p]) => {
+      if (active) { setData(d); setMembers(m.members.map(x => x.userId)); setCurrent(cv); setProjects(p.projects); }
     }).catch(e => { if (active) setError(e.message); }).finally(() => { if (active) setBusy(false); }); }
     return () => { active = false; };
   }, [team]);
+  const currentIds = new Set(current?.tasks.map(t => t.id) ?? []);
+  const visibleTasks = data ? (view === "current" && current ? data.tasks.filter(t => currentIds.has(t.id)) : data.tasks) : [];
   const run = async (fn: () => Promise<unknown>) => {
     setBusy(true); setError("");
     try { await fn(); await refresh(); } catch (e) { setError((e as Error).message); } finally { setBusy(false); }
@@ -45,10 +64,13 @@ export function PlanningPage() {
   };
   const createTask = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault(); const form = event.currentTarget; const values = new FormData(form);
+    const aiExecutor = String(values.get("aiExecutor") ?? "").trim();
+    const projectId = String(values.get("projectId") ?? "");
     void run(async () => { await request("/tasks", { method: "POST", body: JSON.stringify({ teamId: team, lane: "backlog",
       title: values.get("title"), description: values.get("description"), assigneeId: values.get("assigneeId"),
       deadline: new Date(String(values.get("deadline"))).toISOString(), estimatedMinutes: Number(values.get("estimatedMinutes")),
-    }) }); form.reset(); });
+      executorType, ...(executorType === "ai" && aiExecutor ? { aiExecutor } : {}), ...(projectId ? { projectId } : {}),
+    }) }); form.reset(); setExecutorType("human"); });
   };
   return <div className="page-container planning-page">
     <h1>バックログとスプリント</h1>
@@ -61,8 +83,16 @@ export function PlanningPage() {
           <label>タイトル<input name="title" required /></label><label>内容<textarea name="description" /></label>
           <label>担当者<select name="assigneeId" required><option value="">選択</option>{members.map(m => <option key={m}>{m}</option>)}</select></label>
           <label>締め切り<input name="deadline" type="datetime-local" required /></label><label>見積工数（分）<input name="estimatedMinutes" type="number" min="1" required /></label>
+          <label>作業者<select name="executorType" value={executorType} onChange={e => setExecutorType(e.target.value as "human" | "ai")}><option value="human">人間</option><option value="ai">AI</option></select></label>
+          {executorType === "ai" && <label>AI 実行者（任意）<input name="aiExecutor" placeholder="例: codex/impl-from-design" pattern="[A-Za-z0-9._:/@-]{1,128}" /></label>}
+          <label>プロジェクト（任意）<select name="projectId" defaultValue=""><option value="">なし</option>{projects.map(p => <option key={p.code} value={p.code}>{p.name} ({p.code})</option>)}</select></label>
+          <p>AI が作業するタスクでも、担当者は結果を確認する責任者です。</p>
           <button className="btn" disabled={busy}>追加</button>
         </form></details></>}
+      <label>表示<select value={view} onChange={e => setView(e.target.value as BoardView)}><option value="current">現在のスプリントとバックログ</option><option value="all">すべて</option></select></label>
+      {view === "current" && current && <p role="status">{current.current_sprint
+        ? `進行中のスプリント: ${current.current_sprint.name}（${current.current_sprint.startsOn} ～ ${current.current_sprint.endsOn}）と未割付のバックログを表示しています。`
+        : "進行中のスプリントがありません。未割付のバックログだけを表示しています。"}</p>}
       <label>スプリント<select value={sprintId} onChange={e => { setSprintId(e.target.value); setHistory([]); }}><option value="">全体バックログ</option>{data.sprints.map(s => <option key={s.id} value={s.id}>{s.name} ({s.status})</option>)}</select></label>
       {sprint && <section className="card">
         <h2>{sprint.name}</h2><p>{sprint.goal}</p>
@@ -82,13 +112,14 @@ export function PlanningPage() {
         <button className="btn" disabled={busy || selected.length < 2}>選択した {selected.length} 件をまとめる</button>
       </form>}
       {canEdit && sprint && sprint.status !== "closed" && <label>割付・差し込み・取り外しの理由<input value={reason} onChange={e => setReason(e.target.value)} required /></label>}
-      <div className="planning-table"><table><thead><tr><th>選択</th><th>タスク</th><th>まとまり</th><th>状態</th><th>担当・見積</th><th>スプリント</th><th>操作</th></tr></thead><tbody>
-        {data.tasks.map((task, index) => <tr key={task.id} className={task.sprintId === sprintId ? "planning-assigned" : ""}>
+      <div className="planning-table"><table><thead><tr><th>選択</th><th>タスク</th><th>まとまり</th><th>状態</th><th>担当・見積</th><th>作業者</th><th>クリティカルパス</th><th>プロジェクト</th><th>スプリント</th><th>操作</th></tr></thead><tbody>
+        {visibleTasks.map((task, index) => <tr key={task.id} className={task.sprintId === sprintId ? "planning-assigned" : ""}>
           <td><input type="checkbox" aria-label={`${task.title}を選択`} checked={selected.includes(task.id)} onChange={e => setSelected(prev => e.target.checked ? [...prev, task.id] : prev.filter(id => id !== task.id))} /></td>
           <td><details><summary>{task.title}</summary><pre>{task.description}</pre><pre>{task.requirements}</pre><p>期限: {task.deadline ? new Date(task.deadline * 1000).toLocaleString() : "未設定"}</p></details></td>
           <td>{data.groups.find(g => g.id === task.groupId)?.name ?? "—"}</td><td>{task.status}</td><td>{task.assigneeId} / {task.estimatedMinutes ?? "?"} 分</td>
+          <td>{executorText(task)}</td><td>{criticalPathText(task)}</td><td>{projects.find(p => p.code === task.projectId)?.name ?? task.projectId ?? "—"}</td>
           <td>{data.sprints.find(s => s.id === task.sprintId)?.name ?? "未割付"}</td><td>
-            {canEdit && index > 0 && <button className="btn btn-sm" disabled={busy} onClick={() => {
+            {canEdit && view === "all" && index > 0 && <button className="btn btn-sm" disabled={busy} onClick={() => {
               const ids = data.tasks.map(t => t.id); [ids[index - 1], ids[index]] = [ids[index], ids[index - 1]];
               void run(() => planningApi.mutate(team, "/order", { taskIds: ids }, "PUT"));
             }}>↑</button>}
@@ -97,7 +128,7 @@ export function PlanningPage() {
             }, "PATCH"))}>{task.sprintId ? "バックログへ戻す" : sprint.status === "active" ? "差し込む" : "割り付ける"}</button>}
           </td></tr>)}
       </tbody></table></div>
-      {data.tasks.length === 0 && <p>バックログは空です。手動追加または Pf 仕様の精査から登録できます。</p>}
+      {visibleTasks.length === 0 && <p>{view === "current" && data.tasks.length > 0 ? "現在のスプリントと未割付のバックログに該当するタスクはありません。" : "バックログは空です。手動追加または Pf 仕様の精査から登録できます。"}</p>}
       {canEdit && data.groups.map(g => <p key={g.id}>{g.name} — {g.reason} <button className="btn btn-sm" disabled={busy} onClick={() => void run(() => planningApi.mutate(team, `/groups/${g.id}`, {}, "DELETE"))}>まとまりを解除</button></p>)}
     </>}
   </div>;

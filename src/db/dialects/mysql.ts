@@ -707,6 +707,9 @@ export const tasks = mysqlTable(
     completionEvidence: json("completion_evidence").$type<Record<string, unknown>>(), completedBy: varchar("completed_by", { length: 255 }),
     durationDays: int("duration_days"), estimateSource: varchar("estimate_source", { length: 32 }), deadlineSource: varchar("deadline_source", { length: 32 }), storyPoints: int("story_points"),
     blockedBy: json("blocked_by").$type<string[]>().notNull().default([]), carriedFromSprintId: varchar("carried_from_sprint_id", { length: 255 }), actualMinutes: int("actual_minutes").notNull().default(0),
+    executorType: varchar("executor_type", { length: 16 }).notNull().default("human"), aiExecutor: varchar("ai_executor", { length: 128 }),
+    isCriticalPath: boolean("is_critical_path").notNull().default(false), slackDays: double("slack_days"),
+    criticalPathError: varchar("critical_path_error", { length: 32 }), criticalPathComputedAt: timestamp("critical_path_computed_at"),
     title: varchar("title", { length: 512 }).notNull(),
     description: text("description"),
     requirements: text("requirements"),
@@ -756,6 +759,29 @@ export const teamMembers = mysqlTable("team_members", {
   userId: varchar("user_id", { length: 255 }).notNull(),
   role: varchar("role", { length: 64 }).notNull(),
 }, (t) => [primaryKey({ columns: [t.teamId, t.userId] })]);
+
+export const projectRefs = mysqlTable("project_refs", {
+  code: varchar("code", { length: 64 }).primaryKey(),
+  name: varchar("name", { length: 255 }).notNull(),
+  teamIds: json("team_ids").$type<string[]>().notNull(),
+  syncedAt: timestamp("synced_at").notNull(),
+  removedAt: timestamp("removed_at"),
+});
+
+export const taskNotifications = mysqlTable("task_notifications", {
+  id: varchar("id", { length: 255 }).primaryKey(),
+  taskId: varchar("task_id", { length: 255 }),
+  teamId: varchar("team_id", { length: 255 }),
+  event: varchar("event", { length: 64 }).notNull(),
+  channel: varchar("channel", { length: 32 }).notNull(),
+  dedupeKey: varchar("dedupe_key", { length: 512 }).notNull().unique(),
+  payload: json("payload").$type<Record<string, unknown>>().notNull(),
+  status: varchar("status", { length: 16 }).notNull(),
+  attempts: int("attempts").notNull().default(0),
+  lastError: varchar("last_error", { length: 512 }),
+  createdAt: timestamp("created_at").notNull(),
+  sentAt: timestamp("sent_at"),
+}, (t) => [index("idx_task_notifications_status").on(t.status)]);
 
 // ─── User Preferences (汎用 user-scoped KV) ──────────────────
 

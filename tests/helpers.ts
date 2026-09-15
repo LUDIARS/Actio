@@ -418,6 +418,12 @@ export function initTestDatabase() {
       blocked_by TEXT NOT NULL DEFAULT '[]',
       carried_from_sprint_id TEXT,
       actual_minutes INTEGER NOT NULL DEFAULT 0,
+      executor_type TEXT NOT NULL DEFAULT 'human',
+      ai_executor TEXT,
+      is_critical_path INTEGER NOT NULL DEFAULT 0,
+      slack_days REAL,
+      critical_path_error TEXT,
+      critical_path_computed_at INTEGER,
       title TEXT NOT NULL,
       description TEXT,
       requirements TEXT,
@@ -442,7 +448,9 @@ export function initTestDatabase() {
     CREATE UNIQUE INDEX IF NOT EXISTS uniq_task_source_ref ON tasks(source, source_ref) WHERE source IS NOT NULL AND source_ref IS NOT NULL;
     CREATE TABLE IF NOT EXISTS team_refs (id TEXT PRIMARY KEY, slug TEXT NOT NULL, name TEXT NOT NULL, cc_settings TEXT NOT NULL, settings TEXT NOT NULL, synced_at INTEGER NOT NULL);
     CREATE TABLE IF NOT EXISTS team_members (team_id TEXT NOT NULL, user_id TEXT NOT NULL, role TEXT NOT NULL, PRIMARY KEY (team_id, user_id));
-    CREATE TABLE IF NOT EXISTS sprints (id TEXT PRIMARY KEY, team_id TEXT NOT NULL, name TEXT NOT NULL, goal TEXT, starts_on TEXT NOT NULL, ends_on TEXT NOT NULL, status TEXT NOT NULL, capacity_minutes INTEGER, approved_by TEXT, approved_at INTEGER, created_by TEXT NOT NULL, created_at INTEGER, updated_at INTEGER);
+    CREATE TABLE IF NOT EXISTS project_refs (code TEXT PRIMARY KEY, name TEXT NOT NULL, team_ids TEXT NOT NULL, synced_at INTEGER NOT NULL, removed_at INTEGER);
+    CREATE TABLE IF NOT EXISTS task_notifications (id TEXT PRIMARY KEY, task_id TEXT, team_id TEXT, event TEXT NOT NULL, channel TEXT NOT NULL, dedupe_key TEXT NOT NULL UNIQUE, payload TEXT NOT NULL, status TEXT NOT NULL, attempts INTEGER NOT NULL DEFAULT 0, last_error TEXT, created_at INTEGER NOT NULL, sent_at INTEGER);
+    CREATE TABLE IF NOT EXISTS sprints (id TEXT PRIMARY KEY, team_id TEXT NOT NULL, name TEXT NOT NULL, goal TEXT, starts_on TEXT NOT NULL, ends_on TEXT NOT NULL, status TEXT NOT NULL, capacity_minutes INTEGER, approved_by TEXT, approved_at INTEGER, created_by TEXT NOT NULL, created_at INTEGER, updated_at INTEGER, cadence_days INTEGER, original_ends_on TEXT, buffer_ends_on TEXT, revision INTEGER NOT NULL DEFAULT 0);
     CREATE TABLE IF NOT EXISTS sprint_plans (id TEXT PRIMARY KEY, team_id TEXT NOT NULL, sprint_id TEXT, kind TEXT NOT NULL, prompt_input TEXT NOT NULL, proposal TEXT NOT NULL, human_edits TEXT, status TEXT NOT NULL, decided_by TEXT, decided_at INTEGER, created_at INTEGER);
     CREATE TABLE IF NOT EXISTS task_reviews (id TEXT PRIMARY KEY, team_id TEXT NOT NULL, review_date TEXT NOT NULL, ran_at INTEGER NOT NULL, slot TEXT NOT NULL, status TEXT NOT NULL, finished_at INTEGER, summary TEXT NOT NULL, UNIQUE(team_id, review_date, slot));
     CREATE TABLE IF NOT EXISTS task_review_items (id TEXT PRIMARY KEY, review_id TEXT NOT NULL, task_id TEXT NOT NULL, score REAL NOT NULL, evidence TEXT NOT NULL, evidence_fingerprint TEXT NOT NULL, verdict TEXT NOT NULL, decision TEXT, decided_by TEXT, decided_at INTEGER);

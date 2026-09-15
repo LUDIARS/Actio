@@ -7,6 +7,8 @@ import { planningRepositories } from "../../../src/db/planning-repository.js";
 import { sprintImpact } from "./impact.js";
 import { praeformaRoutes } from "./spec-routes.js";
 import { suggestGroups } from "./group-suggestions.js";
+import { sprintNotification } from "../notifications/events.js";
+import { enqueueNotificationsSafely } from "../notifications/enqueue.js";
 
 export const planningRoutes = new Hono();
 planningRoutes.use("/:teamId/planning/*", async (c, next) => {
@@ -32,7 +34,11 @@ planningRoutes.post("/:teamId/planning/sprints", requireTeamRole("leader"), asyn
 });
 planningRoutes.patch("/:teamId/planning/sprints/:id", requireTeamRole("leader"), async c => {
   const input = sprintChange.parse(await c.req.json().catch(() => null));
-  return c.json({ sprint: await planningStores().sprints.change(c.req.param("teamId"), c.req.param("id"), c.get("actingUserId" as never) as string, input, new Date()) });
+  const sprint = await planningStores().sprints.change(c.req.param("teamId"), c.req.param("id"), c.get("actingUserId" as never) as string, input, new Date());
+  if (input.action === "start" || input.action === "close") {
+    await enqueueNotificationsSafely([sprintNotification(input.action === "start" ? "started" : "closed", sprint)]);
+  }
+  return c.json({ sprint });
 });
 planningRoutes.get("/:teamId/planning/sprints/:id/history", requireTeamRole("member"), async c =>
   c.json({ changes: await planningStores().sprints.history(c.req.param("teamId"), c.req.param("id")) }));

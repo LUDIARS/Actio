@@ -1485,6 +1485,12 @@ export interface TaskListQuery {
   sort?: "personal";
   /** ISO 8601 string */
   dueBefore?: string;
+  /** チーム (Cc team id) */
+  teamId?: string;
+  /** 作業者: human / ai */
+  executorType?: "human" | "ai";
+  /** current_sprint: 進行中スプリント + 未割付バックログ (teamId 必須) */
+  view?: "current_sprint";
 }
 
 export const tasksApi = {
@@ -1497,6 +1503,9 @@ export const tasksApi = {
     if (query.pluginId) params.set("pluginId", query.pluginId);
     if (query.sort) params.set("sort", query.sort);
     if (query.dueBefore) params.set("dueBefore", query.dueBefore);
+    if (query.teamId) params.set("team_id", query.teamId);
+    if (query.executorType) params.set("executor_type", query.executorType);
+    if (query.view) params.set("view", query.view);
     const qs = params.toString();
     return request<TaskListResponse>(`/api/tasks${qs ? `?${qs}` : ""}`);
   },

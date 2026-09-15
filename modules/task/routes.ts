@@ -12,7 +12,7 @@
 import { Hono } from "hono";
 import type { Context } from "hono";
 import { v4 as uuidv4 } from "uuid";
-import { taskRepo, taskCategoryRepo, teamRefRepo, type TaskListFilter } from "../../src/db/repository.js";
+import { projectRefRepo, taskRepo, taskCategoryRepo, teamRefRepo, type TaskListFilter } from "../../src/db/repository.js";
 import { getUserRole } from "../../src/middleware/getUserId.js";
 import { getTaskPlugins } from "../../src/task-plugins.js";
 import type {
@@ -30,6 +30,20 @@ import { teamTaskRoutes } from "./team-routes.js";
 import { readTeamInputMode } from "./team/settings.js";
 import { validateLaneTransition, validateTeamTask } from "./validation/team-task.js";
 import { readTeamTaskRequestFields, validateTeamTaskMetadata } from "./validation/team-task-request.js";
+import { isExecutorType, readExecutorFields, resolveExecutor } from "./validation/executor.js";
+import { validateTeamProject } from "./validation/team-project.js";
+import { isTaskView, selectCurrentSprintView } from "./views/current-sprint-view.js";
+import { CRITICAL_PATH_FIELDS, recomputeCriticalPathSafely } from "./critical-path/recompute.js";
+import { taskChangeNotifications } from "./notifications/events.js";
+import { enqueueNotificationsSafely } from "./notifications/enqueue.js";
+import { toTaskSnapshot } from "./notifications/snapshot.js";
+import { notificationAdminRoutes } from "./notifications/admin-routes.js";
+import { planningRepositories } from "../../src/db/planning-repository.js";
+import { dialect } from "../../src/db/connection.js";
+
+function findProjectRef(code: string) {
+  return projectRefRepo.findByCode(code);
+}
 
 /** body から creator_type(snake) / creatorType(camel) を取り出す */
 function readCreatorType(body: { creatorType?: unknown }): unknown {
@@ -72,6 +86,8 @@ async function getTeamInputMode(teamId: string | null): Promise<"minimal" | "ful
 
 export const taskRoutes = new Hono();
 taskRoutes.route("/", teamTaskRoutes);
+// /notifications は /:id より前に登録する (Hono は登録順に照合する)。
+taskRoutes.route("/", notificationAdminRoutes);
 
 export const VALID_PRIORITIES: TaskPriority[] = ["low", "medium", "high", "critical"];
 
@@ -122,6 +138,17 @@ taskRoutes.get("/", async (c) => {
   if (lane && lane !== "daily" && lane !== "backlog") return c.json({ error: "lane must be daily or backlog" }, 400);
   if (lane) filter.lane = lane;
   if (sprintId) filter.sprintId = sprintId;
+  const executorType = c.req.query("executor_type");
+  if (executorType !== undefined) {
+    if (!isExecutorType(executorType)) return c.json({ error: "executor_type must be human or ai" }, 400);
+    filter.executorType = executorType;
+  }
+  const view = c.req.query("view");
+  if (view !== undefined) {
+    if (!isTaskView(view)) return c.json({ error: "view must be current_sprint" }, 400);
+    if (!teamId) return c.json({ error: "view=current_sprint requires team_id" }, 400);
+    if (dialect === "mysql") return c.json({ error: "スプリント表示は PostgreSQL または SQLite 配備で利用できます" }, 501);
+  }
   if (status) filter.status = normalizeStatus(status) ?? status;
   if (kind) filter.kind = kind; // "task" | "goal" | "all"
   if (pluginId) filter.pluginId = pluginId;
@@ -132,6 +159,11 @@ taskRoutes.get("/", async (c) => {
   }
 
   const tasks = await taskRepo.list(filter);
+  if (view !== undefined && teamId) {
+    const sprints = await planningRepositories().sprints.list(teamId);
+    const selected = selectCurrentSprintView(tasks, sprints);
+    return c.json({ tasks: selected.tasks, current_sprint: selected.currentSprint });
+  }
   // format=memoria: 既存 Memoria 消費者向け互換 shape ({items}, todo/doing/done)
   if (c.req.query("format") === "memoria") {
     return c.json({ items: tasks.map(toMemoriaShape) });
@@ -219,6 +251,10 @@ taskRoutes.post("/", async (c) => {
   if (body.estimatedMinutes != null && (!Number.isSafeInteger(body.estimatedMinutes) || body.estimatedMinutes < 0)) {
     return c.json({ error: "estimatedMinutes must be a non-negative integer" }, 400);
   }
+  const executor = resolveExecutor(null, readExecutorFields(body as unknown as Record<string, unknown>));
+  if (executor.error) return c.json({ error: executor.error }, 400);
+  const projectError = await validateTeamProject(teamId, projectId, findProjectRef);
+  if (projectError) return c.json({ error: projectError }, 400);
   const inputMode = await getTeamInputMode(teamId);
   const teamValidation = await validateTeamTask({
     teamId, assigneeId: body.assigneeId ?? null, lane: teamFields.lane,
@@ -259,6 +295,8 @@ taskRoutes.post("/", async (c) => {
     status,
     kind: normalizeKind(body.kind),
     creatorType: normalizeCreatorType(readCreatorType(body)),
+    executorType: executor.value.executorType,
+    aiExecutor: executor.value.aiExecutor,
     category,
     priority: body.priority ?? "medium",
     deadline,
@@ -281,7 +319,9 @@ taskRoutes.post("/", async (c) => {
     return c.json({ task: racedDuplicate }, 200);
   }
 
+  await recomputeCriticalPathSafely([teamId]);
   const created = await taskRepo.findById(id);
+  if (created) await enqueueNotificationsSafely(taskChangeNotifications(null, toTaskSnapshot(created)));
   return c.json({ task: created }, 201);
 });
 
@@ -374,6 +414,13 @@ taskRoutes.on(["PUT", "PATCH"], "/:id", async (c) => {
   }
   const creatorTypeInput = readCreatorType(body);
   if (creatorTypeInput !== undefined) updates.creatorType = normalizeCreatorType(creatorTypeInput);
+  const executor = resolveExecutor(
+    { executorType: isExecutorType(existing.executorType) ? existing.executorType : "human", aiExecutor: existing.aiExecutor },
+    readExecutorFields(body as unknown as Record<string, unknown>),
+  );
+  if (executor.error) return c.json({ error: executor.error }, 400);
+  if (executor.value.executorType !== existing.executorType) updates.executorType = executor.value.executorType;
+  if (executor.value.aiExecutor !== existing.aiExecutor) updates.aiExecutor = executor.value.aiExecutor;
   if (body.estimatedMinutes !== undefined) updates.estimatedMinutes = body.estimatedMinutes;
   const nextTeamFields = {
     ...teamFields,
@@ -425,6 +472,14 @@ taskRoutes.on(["PUT", "PATCH"], "/:id", async (c) => {
   if (teamValidation.value.teamId && !await canAccessTeam(c, teamValidation.value.teamId, userId)) {
     return c.json({ error: "Forbidden" }, 403);
   }
+  // 既存の不透明 project_id を壊さないよう、 チームかプロジェクトを変えたときだけ Cc の所属を検証する。
+  if (projectIdInput !== undefined || teamFields.teamId !== undefined) {
+    const nextProjectId = projectIdInput !== undefined
+      ? (typeof projectIdInput === "string" ? projectIdInput : null)
+      : existing.projectId;
+    const projectError = await validateTeamProject(nextTeamId, nextProjectId, findProjectRef);
+    if (projectError) return c.json({ error: projectError }, 400);
+  }
   if (teamFields.teamId !== undefined) updates.teamId = teamFields.teamId;
   if (teamFields.lane !== undefined || teamFields.durationDays !== undefined) updates.lane = teamValidation.value.lane;
   if (teamFields.sprintId !== undefined) updates.sprintId = teamFields.sprintId;
@@ -436,7 +491,11 @@ taskRoutes.on(["PUT", "PATCH"], "/:id", async (c) => {
   if (body.pluginPayload !== undefined) updates.pluginPayload = body.pluginPayload;
 
   await taskRepo.update(id, updates);
+  if (CRITICAL_PATH_FIELDS.some((field) => Object.prototype.hasOwnProperty.call(updates, field))) {
+    await recomputeCriticalPathSafely([existing.teamId, updates.teamId as string | null | undefined]);
+  }
   const updated = await taskRepo.findById(id);
+  if (updated) await enqueueNotificationsSafely(taskChangeNotifications(toTaskSnapshot(existing), toTaskSnapshot(updated)));
   return c.json({ task: updated });
 });
 
@@ -453,5 +512,6 @@ taskRoutes.delete("/:id", async (c) => {
   if (existing.sprintId) return c.json({ error: "Remove the task from its sprint before deleting it" }, 409);
 
   await taskRepo.deleteById(id);
+  await recomputeCriticalPathSafely([existing.teamId]);
   return c.json({ ok: true });
 });

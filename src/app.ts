@@ -12,6 +12,8 @@ import { groupRoutes } from "../modules/group/routes.js";
 import { taskRoutes } from "../modules/task/routes.js";
 import { teamMemberRoutes } from "../modules/task/team-member-routes.js";
 import { planningRoutes } from "../modules/task/planning/routes.js";
+import { criticalPathRoutes } from "../modules/task/critical-path/routes.js";
+import { ccProjectRoutes, teamProjectRoutes } from "../modules/task/team/project-routes.js";
 // event / calendar / placement / 予定系 SDK モジュールは Schedula に分離
 // (2026-05-20 split-task-only)
 import { pmModule } from "../modules/pm/index.js";
@@ -151,6 +153,11 @@ export function createApp() {
   // ─── Core: Teams (チーム別タスク管理: メンバー / 設定) ──────
   app.route("/api/teams", teamMemberRoutes);
   app.route("/api/teams", planningRoutes);
+  app.route("/api/teams", criticalPathRoutes);
+  app.route("/api/teams", teamProjectRoutes);
+
+  // ─── Cc プロジェクト (同期キャッシュの参照, task-integration §6.3) ─
+  app.route("/api/projects", ccProjectRoutes);
 
   // ─── event / calendar / placement / 予定系 SDK モジュールは
   //     Schedula に分離 (2026-05-20 split-task-only) ──

@@ -10,6 +10,9 @@ export class BacklogStore {
     const rows = this.db.prepare(`SELECT t.id, t.title, t.description, t.requirements, t.status, t.priority,
       t.assignee_id AS assigneeId, t.project_id AS projectId, t.deadline, t.estimated_minutes AS estimatedMinutes,
       t.sprint_id AS sprintId, t.category, p.group_id AS groupId, COALESCE(p.position, 0) AS position,
+      t.executor_type AS executorType, t.ai_executor AS aiExecutor, t.is_critical_path AS isCriticalPath,
+      t.slack_days AS slackDays, t.critical_path_error AS criticalPathError, t.blocked_by AS blockedBy,
+      t.duration_days AS durationDays,
       t.updated_at AS updatedAt FROM tasks t LEFT JOIN backlog_placements p ON p.task_id = t.id
       WHERE t.team_id = ? AND t.lane = 'backlog' ORDER BY position, t.created_at, t.id`).all(teamId) as Omit<BacklogTask, "fingerprint">[];
     return rows.map(row => ({ ...row, fingerprint: createHash("sha256").update(JSON.stringify(row)).digest("hex") }));

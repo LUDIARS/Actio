@@ -22,6 +22,7 @@ const { createApp } = await import("./app.js");
 const { initComposite } = await import("./auth/composite.js");
 const { startPasetoVerify } = await import("./auth/paseto-verify.js");
 const { startTeamSyncTick } = await import("../modules/task/team/cc-sync.js");
+const { startNotificationTick } = await import("../modules/task/notifications/tick.js");
 const { initServiceAdapter } = await import("./service-adapter.js");
 
 const { app, injectWebSocket } = createApp();
@@ -55,6 +56,9 @@ startPasetoVerify({
 
 // ─── Cc チーム同期 (起動時 + 10 分 tick, team-task §8.2) ──────
 startTeamSyncTick();
+
+// ─── タスク通知 (期限前検出 + 送信箱の配送, 1 分 tick, task-integration §2.3) ─
+startNotificationTick();
 
 // ─── Peer Service Adapter (backend-to-backend WS via Cernere) ─
 void initServiceAdapter().catch((err) => {

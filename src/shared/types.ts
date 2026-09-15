@@ -444,6 +444,13 @@ export interface CoreTask {
   pluginId: string | null;
   pluginRef: string | null;
   pluginPayload: Record<string, unknown> | null;
+  /** 作業者: human / ai (task-integration §4) */
+  executorType: "human" | "ai";
+  aiExecutor: string | null;
+  /** クリティカルパス (task-integration §5)。 計算で決まる */
+  isCriticalPath: boolean;
+  slackDays: number | null;
+  criticalPathError: string | null;
   completedAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
@@ -479,6 +486,14 @@ export interface CreateTaskInput {
   kind?: TaskKind;
   /** 作成主体: human(既定) / ai */
   creatorType?: TaskCreatorType;
+  /** 作業者: human(既定) / ai。 creatorType とは別 (task-integration §4) */
+  executorType?: "human" | "ai";
+  executor_type?: "human" | "ai";
+  /** executorType=ai のときの実行主体ラベル */
+  aiExecutor?: string | null;
+  ai_executor?: string | null;
+  /** チームタスクでは Cc project code (task-integration §6.2) */
+  project_id?: string | null;
   /** カテゴリ (カンマ区切り複数可) */
   category?: string | null;
   priority?: TaskPriority;
