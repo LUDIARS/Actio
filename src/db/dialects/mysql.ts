@@ -826,6 +826,8 @@ export const schema = {
   tasks,
   teamRefs,
   teamMembers,
+  projectRefs,
+  taskNotifications,
   userPreferences,
 };
 
@@ -874,6 +876,8 @@ const allTables = {
   tasks,
   teamRefs,
   teamMembers,
+  projectRefs,
+  taskNotifications,
   userPreferences,
 };
 
