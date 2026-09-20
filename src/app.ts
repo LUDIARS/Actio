@@ -26,6 +26,7 @@ import type { ActioModule } from "./shared/types.js";
 import { getRecentLogs } from "./activity-logger.js";
 import { getTaskPlugins } from "./task-plugins.js";
 import { secretManager } from "./config/secrets.js";
+import { resolveServiceVersion } from "./shared/service-version.js";
 import { setupRoutes } from "../modules/setup/routes.js";
 import { profileRoutes } from "../modules/profile/routes.js";
 import { userPrefsRoutes } from "../modules/user-prefs/routes.js";
@@ -48,6 +49,12 @@ export function createApp() {
 
   // ─── Global Error Handler ───────────────────────────────────
   app.onError((err, c) => {
+    // c.req.json() が壊れた本文で投げる SyntaxError は入力の誤りなので 400 で返す
+    // (500 だとサーバ障害と区別できない)。
+    if (err instanceof SyntaxError) {
+      console.warn(`[server] 不正な JSON: ${c.req.method} ${c.req.path}`);
+      return c.json({ error: "invalid_json" }, 400);
+    }
     console.error(`[server] 未処理エラー: ${c.req.method} ${c.req.path}`, err);
     const isProduction = secretManager.get("NODE_ENV") === "production";
     return c.json({
@@ -267,6 +274,8 @@ export function createApp() {
     return c.json({
       status: "ok",
       service: "actio",
+      // 稼働中の版を名乗る (RULE_SRE §2)。 Excubitor がディスク側と突き合わせる。
+      version: resolveServiceVersion(),
       timestamp: new Date().toISOString(),
     });
   });
@@ -278,6 +287,7 @@ export function createApp() {
     const health: Record<string, unknown> = {
       status: "ok",
       service: "actio",
+      version: resolveServiceVersion(),
       timestamp: new Date().toISOString(),
     };
 
