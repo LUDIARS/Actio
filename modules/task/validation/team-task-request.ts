@@ -5,6 +5,7 @@ const TASK_SOURCES = [
   "cc-taskmd",
   "cc-rwf",
   "cc-command",
+  "concordia.taskflow.v3",
   "memoria-import",
   "sprint-plan",
   "praeforma-review",

@@ -1097,6 +1097,9 @@ export type TaskCreatorType = "human" | "ai";
 
 export interface CoreTask {
   id: string;
+  /** Provenance includes concordia.taskflow.v3; sourceRef is an opaque retry identity. */
+  source?: string | null;
+  sourceRef?: string | null;
   ownerId: string;
   assigneeId: string | null;
   groupId: string | null;
@@ -1130,6 +1133,9 @@ export type TaskExecutorType = "human" | "ai";
 
 export interface CreateTaskInput {
   title: string;
+  /** Source and sourceRef must be provided together, including Cc workflow v3. */
+  source?: string | null;
+  sourceRef?: string | null;
   description?: string | null;
   /** Memoria 互換エイリアス: details → description */
   details?: string | null;

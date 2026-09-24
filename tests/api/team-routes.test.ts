@@ -21,6 +21,32 @@ beforeEach(() => {
 });
 
 describe("team lane routes", () => {
+  it("accepts Cc workflow v3 provenance through creation, retry, listing and status updates", async () => {
+    const token = generateTestToken("user-1");
+    const source = "concordia.taskflow.v3";
+    const body = {
+      title: "Cc workflow task", description: "Keep content in Actio", projectId: "Cc",
+      source, sourceRef: "a".repeat(64), pluginId: source, pluginRef: "a".repeat(64),
+      pluginPayload: { version: 3, kind: "operations", memory_links: [] },
+    };
+    const created = await request(app, "POST", "/api/tasks", { token, body });
+    expect(created.status).toBe(201);
+    const duplicate = await request(app, "POST", "/api/tasks", { token, body });
+    expect(duplicate.status).toBe(200);
+    expect(duplicate.json.task.id).toBe(created.json.task.id);
+    const denied = await request(app, "POST", "/api/tasks", { token: generateTestToken("user-2"), body });
+    expect(denied.status).toBe(409);
+    const listed = await request(app, "GET", `/api/tasks?scope=owned&project=Cc&pluginId=${source}`, { token });
+    expect(listed.json.tasks).toHaveLength(1);
+    expect(listed.json.tasks[0].source).toBe(source);
+    for (const status of ["in_progress", "done"]) {
+      const changed = await request(app, "PATCH", `/api/tasks/${created.json.task.id}`, { token, body: { status } });
+      expect(changed.status).toBe(200);
+      expect(changed.json.task.status).toBe(status);
+      expect(changed.json.task.sourceRef).toBe(body.sourceRef);
+    }
+  });
+
   it("lists tasks by team and lane", async () => {
     const token = generateTestToken("user-1");
     const created = await request(app, "POST", "/api/tasks", {
