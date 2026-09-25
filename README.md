@@ -31,7 +31,7 @@ JIRA のように、**コアの 2 概念 (Event / Task)** を中心に各種プ�
 | 認証 | Cernere (`@ludiars/cernere-id-cache`, `@ludiars/cernere-composite`) |
 | セッション | Redis (ioredis) |
 | SDK | `@ludiars/schedula-sdk` (module declaration) |
-| シークレット管理 | Infisical / AWS SSM (via `@ludiars/cernere-env-cli`) |
+| シークレット管理 | Excubitor 注入 + 暗号化ローカル config (外部 secret は Infisical / AWS SSM) |
 
 ## プロジェクト構造
 
@@ -69,7 +69,6 @@ Actio/
 │   ├── auth/             # @actio/auth (内部)
 │   ├── id-service/       # @actio/id-service (内部)
 │   ├── id-cache/         # @ludiars/cernere-id-cache (参照)
-│   └── env-cli/          # @ludiars/cernere-env-cli (参照)
 ├── services/
 │   └── id-service/       # スタンドアロン Identity Service
 ├── frontend/             # React SPA
@@ -105,23 +104,21 @@ npm install
 cd frontend && npm install && cd ..
 ```
 
-### 2. シークレット管理のセットアップ (初回)
+### 2. 設定の投入 (初回)
+
+設定はファイルに平文で置かず、次の 2 経路で与えます (仕様: `spec/feature/runtime-modernization.md`)。
+
+- **注入**: Excubitor (またはシェルの環境変数) が secret・ポート・サービス間 URL を渡す
+- **暗号化ローカル config**: DB / Redis 接続文字列などローカル設定だけを保存する
 
 ```bash
-npm run env:setup
+# ACTIO_CONFIG_KEY (32 バイト以上) を環境に注入した上で、JSON を標準入力から渡す
+npm run config:seal < local-settings.json
 ```
 
-対話形式で Infisical または AWS SSM の認証情報を入力します。
+優先順位は 注入値 > 暗号化 config > 外部 secret。
 
-### 3. デフォルト値を登録
-
-```bash
-npm run env:initialize
-```
-
-`env-cli.config.ts` で定義された環境変数のデフォルトをシークレット管理に登録します。
-
-### 4. 開発環境の起動
+### 3. 開発環境の起動
 
 #### 共有インフラ + 開発サーバー
 
@@ -161,38 +158,23 @@ npm run env:up:standalone
 npm run dev:server
 ```
 
-`.env` に以下を設定:
+起動前に次の環境変数をシェルで設定:
 
 ```bash
-DB_DIALECT=sqlite
-DATABASE_PATH=data/actio.db
-JWT_SECRET=dev-secret
+export DB_DIALECT=sqlite
+export DATABASE_PATH=data/actio.db
+export JWT_SECRET=dev-secret
 ```
 
 ## 環境変数管理
 
-環境変数は `@ludiars/cernere-env-cli` + Infisical / AWS SSM で一元管理します。
+通常起動は Excubitor の注入と暗号化ローカル config を使います。Actio 自身は遠隔 secret を取得しません (`SECRETS_PROVIDER=env`)。
 
 | コマンド | 説明 |
 |---------|------|
-| `npm run env:setup` | 対話形式で認証を設定 |
-| `npm run env:initialize` | config のデフォルト値を登録 (未存在のみ) |
-| `npm run env:test` | 接続テスト |
-| `npm run env:list` | シークレット一覧 (値はマスク表示) |
-| `npm run env:get <KEY>` | 指定キーの値を取得 |
-| `npm run env:set <KEY> <VALUE>` | シークレットを作成/更新 |
-| `npm run env:env` | `.env` を生成 |
-| `npm run env:up` | `.env` 一時生成 → Docker 起動 |
-
-### シークレットを使わない場合
-
-`.env.example` をコピーして手動設定:
-
-```bash
-cp .env.example .env
-# .env を編集して値を設定
-docker compose up -d
-```
+| `npm run config:seal` | 標準入力の JSON から暗号化 config を保存 |
+| `npm run env:up` | 共有インフラ前提でアプリのみ Docker 起動 (値は起動元の環境変数から) |
+| `npm run env:up:standalone` | DB / Redis 込みで単体 Docker 起動 |
 
 ## 認証
 

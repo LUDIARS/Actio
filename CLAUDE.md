@@ -143,10 +143,10 @@ logActivity(userId, user.name, "アクション", "...");  // user.name は lega
 ローカルの接続先・動作設定をInfisicalへ登録しない。注入値 > 暗号化config > 外部secretの順。
 
 - `npm run config:seal`: 標準入力のJSONから暗号化configを保存
-- `npm run config:import-env`: 標準入力の旧.envから許可されたローカル設定だけ移入
 - 鍵 `ACTIO_CONFIG_KEY` はEx等から注入し、平文設定やソースに置かない
 - `npm start`: `dist/src/bootstrap.js`。設定完了後にアプリ/DBをimportする
 - DB既定はPostgreSQL。SQLiteは明示選択時のみ。`db:init` は選択したDBを初期化する
+- ローカル配備でDB接続先が未設定なら、本体の代わりに初回設定画面 (`src/setup/`) が同じポートで開く。保存できるのはこのPCからの直接アクセスだけで、DB/Redis接続先のみ (secretは不可)
 - 旧ブラウザsetup APIのcredential保存は410。配備は本体フォルダからEx経由で行う
 
 ## Docker Compose

@@ -14,7 +14,7 @@ import { TasksPage } from "./pages/TasksPage";
 import { PlanningPage } from "./pages/PlanningPage";
 import { HelpPage } from "./pages/HelpPage";
 import { SecretsPage } from "./pages/SecretsPage";
-import { InfisicalSetupPage } from "./pages/InfisicalSetupPage";
+import { InitialSetupPage } from "./pages/InitialSetupPage";
 import { ApiKeysPage } from "./pages/ApiKeysPage";
 import { ProfilePage } from "./pages/ProfilePage";
 import { MachinaPage } from "./pages/MachinaPage";
@@ -108,7 +108,7 @@ function App() {
   }
 
   if (needsSetup) {
-    return <InfisicalSetupPage onComplete={() => setNeedsSetup(false)} />;
+    return <InitialSetupPage onComplete={() => setNeedsSetup(false)} />;
   }
 
   return (

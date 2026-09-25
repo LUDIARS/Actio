@@ -70,6 +70,37 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return unsubscribe;
   }, []);
 
+  /**
+   * authCode を受け取って backend で serviceToken に交換 → セッション確立。
+   * Popup モードと埋め込みモード両方で使う共通処理。
+   */
+  const completeLogin = useCallback(async (authCode: string) => {
+    const exchangeRes = await fetch(`${API_BASE}/api/auth/exchange`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include", // HttpOnly Cookie を受け取る
+      body: JSON.stringify({ authCode }),
+    });
+
+    if (!exchangeRes.ok) {
+      const err = await exchangeRes.json().catch(() => ({ error: "Exchange failed" }));
+      throw new Error((err as { error: string }).error);
+    }
+
+    const result = await exchangeRes.json() as {
+      user: { id: string; displayName: string; email: string; role: string };
+    };
+
+    const u = {
+      id: result.user.id,
+      name: result.user.displayName,
+      email: result.user.email,
+      role: result.user.role,
+    };
+    setUser(u);
+    setStoredUser(u);
+  }, []);
+
   // 初期化: 保存済みトークン or URL ?code= (Cernere からの open_url リダイレクト) でセッション確立
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -171,38 +202,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
 
     await completeLogin(authCode);
-  }, []);
-
-  /**
-   * authCode を受け取って backend で serviceToken に交換 → セッション確立。
-   * Popup モードと埋め込みモード両方で使う共通処理。
-   */
-  const completeLogin = useCallback(async (authCode: string) => {
-    const exchangeRes = await fetch(`${API_BASE}/api/auth/exchange`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include", // HttpOnly Cookie を受け取る
-      body: JSON.stringify({ authCode }),
-    });
-
-    if (!exchangeRes.ok) {
-      const err = await exchangeRes.json().catch(() => ({ error: "Exchange failed" }));
-      throw new Error((err as { error: string }).error);
-    }
-
-    const result = await exchangeRes.json() as {
-      user: { id: string; displayName: string; email: string; role: string };
-    };
-
-    const u = {
-      id: result.user.id,
-      name: result.user.displayName,
-      email: result.user.email,
-      role: result.user.role,
-    };
-    setUser(u);
-    setStoredUser(u);
-  }, []);
+  }, [completeLogin]);
 
   const logout = useCallback(async () => {
     wsClient.disconnect();

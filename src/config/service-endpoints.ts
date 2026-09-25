@@ -3,7 +3,7 @@
  *
  * - `ACTIO_PORT` / `ACTIO_URL` は actio サービスの port と provides から、
  *   `ACTIO_FRONTEND_URL` は actio-web サービスの provides から Excubitor が注入する。
- * - Excubitor の値がある時はそれを正とし、旧キー (.env 等) より優先する。
+ * - Excubitor の値がある時はそれを正とし、旧キーより優先する。
  * - Excubitor 外の起動 (docker-compose) のためだけに旧キーを残す。
  */
 

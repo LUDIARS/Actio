@@ -8,5 +8,5 @@ setupRoutes.get("/status", c => c.json({
   ssmConfigured: secretManager.isSsmEnabled(), providerType: secretManager.getProviderType(),
   setupSkipped: false, configurationMode: "excubitor",
 }));
-// Explicitly retire unauthenticated credential writes, remote probes and .env mutation.
+// Explicitly retire unauthenticated credential writes, remote probes and settings-file mutation.
 setupRoutes.all("/*", c => c.json({ error: "設定は暗号化configとExcubitorで管理してください。旧セットアップAPIは廃止しました。" }, 410));

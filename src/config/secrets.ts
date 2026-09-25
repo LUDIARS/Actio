@@ -21,6 +21,8 @@
 import { applyLocalConfig, LOCAL_SETTING_KEYS } from "./local-config.js";
 import { applyExcubitorEndpoints } from "./service-endpoints.js";
 import { type InfisicalClient, createInfisicalClient } from "./infisical.js";
+import { readSecretSource } from "./secret-source.js";
+import { resolveSecretsFromExcubitor } from "./excubitor/secret-agent-client.js";
 import {
   type SsmParameterStoreClient,
   createSsmClient,
@@ -102,7 +104,27 @@ class SecretManager {
       );
     }
 
+    await this.loadSecretSource();
+
     this.initialized = true;
+  }
+
+  /**
+   * 暗号化ローカル config が指す取得元の secret を Excubitor の secret-agent から受け取る。
+   * プロバイダー選択とは独立。取得元が設定されているのに受け取れない場合は起動を止める
+   * (黙って secret 無しで動かさない)。値はこのキャッシュ (メモリ) にだけ置く。
+   */
+  private async loadSecretSource(): Promise<void> {
+    const source = readSecretSource();
+    if (!source) return;
+    const secrets = await resolveSecretsFromExcubitor(source);
+    for (const [key, value] of secrets) {
+      this.cache.set(key, { value, scope: "shared", updatedAt: Date.now() });
+    }
+    const absent = source.keys.filter((key) => !secrets.has(key));
+    // 名前だけを出す。必須のものは後続の getRequired が起動を止める。
+    if (absent.length > 0) console.warn(`[secrets] secret source has no value for: ${absent.join(", ")}`);
+    console.log(`[secrets] Excubitor secret-agent から ${secrets.size} 件のシークレットを取得`);
   }
 
   /**

@@ -1276,17 +1276,42 @@ export const m6Voting = {
 
 // ─── Setup (初回セットアップ: 認証不要) ────────────────────────
 
+/** 初回設定画面が扱うローカル設定 (secret は含めない)。 */
+export interface InitialSetupSettings {
+  DB_DIALECT: string;
+  DATABASE_URL: string;
+  DATABASE_PATH: string;
+  REDIS_URL: string;
+  /** secret の取得元 (Infisical)。接続先と認証情報は Excubitor が持つので、ここでは指定だけ。 */
+  ACTIO_SECRET_PROJECT_ID: string;
+  ACTIO_SECRET_ENVIRONMENT: string;
+  ACTIO_SECRET_KEYS: string;
+}
+
+export interface SetupStatus {
+  needsSetup: boolean;
+  infisicalConfigured: boolean;
+  ssmConfigured: boolean;
+  providerType: string;
+  setupSkipped: boolean;
+  /** 以下は初回設定モードのバックエンドだけが返す。 */
+  missing?: string[];
+  canSave?: boolean;
+  saveBlockedReason?: "not_local" | "config_key_missing" | null;
+}
+
 export const setupApi = {
   getStatus() {
-    return request<{
-      needsSetup: boolean;
-      infisicalConfigured: boolean;
-      ssmConfigured: boolean;
-      providerType: string;
-      setupSkipped: boolean;
-    }>("/api/setup/status");
+    return request<SetupStatus>("/api/setup/status");
   },
 
+  /** この PC からの直接アクセスでだけ成功する。保存後はバックエンドが本体として起動し直す。 */
+  saveLocalConfig(settings: Partial<InitialSetupSettings>) {
+    return request<{ ok: boolean; restarting: boolean }>("/api/setup/local-config", {
+      method: "POST",
+      body: JSON.stringify(settings),
+    });
+  },
 };
 
 // ─── M3 MACHINA (タスク自動生成) ─────────────────────────────

@@ -29,24 +29,24 @@ cd ..
 
 ## 3. 環境変数の設定
 
-プロジェクトルートに `.env` ファイルを作成し、以下を設定します。
+設定ファイルは作らず、以下を環境変数としてシェルに設定します (常用の値は `npm run config:seal` で暗号化ローカル config に保存)。
 
 ```bash
 # サーバー設定
-PORT=3000
+export PORT=3000
 
 # データベース設定 (sqlite / postgres / mysql)
-DB_DIALECT=sqlite
-DATABASE_PATH=data/actio.db
+export DB_DIALECT=sqlite
+export DATABASE_PATH=data/actio.db
 
 # JWT 認証
-JWT_SECRET=your-secret-key-change-in-production
+export JWT_SECRET=your-secret-key-change-in-production
 
 # Google OAuth (任意)
-GOOGLE_CLIENT_ID=
-GOOGLE_CLIENT_SECRET=
-GOOGLE_REDIRECT_URI=http://localhost:8080/api/auth/google/callback
-FRONTEND_URL=http://localhost:8080
+export GOOGLE_CLIENT_ID=
+export GOOGLE_CLIENT_SECRET=
+export GOOGLE_REDIRECT_URI=http://localhost:8080/api/auth/google/callback
+export FRONTEND_URL=http://localhost:8080
 ```
 
 > **注意**: `JWT_SECRET` は本番環境では必ず安全なランダム文字列に変更してください。

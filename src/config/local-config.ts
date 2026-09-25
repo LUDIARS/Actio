@@ -11,7 +11,9 @@ export const LOCAL_SETTING_KEYS = new Set([
   "PRAEFORMA_URL", "CONCORDIA_URL", "GOOGLE_REDIRECT_URI",
   "VITE_ALLOWED_HOSTS", "ACTIO_VITE_POLLING", "CORS_ORIGIN", "SECRETS_PROVIDER", "NODE_ENV",
 ]);
-const allowed = new Set([...LOCAL_SETTING_KEYS, "DATABASE_URL", "REDIS_URL"]);
+/** Where secrets come from (config/secret-source.ts). A pointer only: never the Infisical credentials. */
+const SECRET_SOURCE_SETTING_KEYS = ["ACTIO_SECRET_PROJECT_ID", "ACTIO_SECRET_ENVIRONMENT", "ACTIO_SECRET_KEYS"];
+const allowed = new Set([...LOCAL_SETTING_KEYS, "DATABASE_URL", "REDIS_URL", ...SECRET_SOURCE_SETTING_KEYS]);
 const settingsSchema = z.record(z.string(), z.string()).superRefine((settings, ctx) => {
   for (const key of Object.keys(settings)) {
     if (!allowed.has(key)) ctx.addIssue({ code: "custom", message: `Unsupported local setting: ${key}` });

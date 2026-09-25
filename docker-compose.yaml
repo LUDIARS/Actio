@@ -4,7 +4,7 @@
 ##
 ## Usage:
 ##   cd ../infra && docker compose up -d   # 共有インフラ起動
-##   npm run env:up                        # .env 生成 + アプリ起動
+##   npm run env:up                        # アプリ起動 (値は起動元の環境変数)
 ##
 ## 単体運用 (DB/Redis 込み):
 ##   npm run env:up:standalone
@@ -20,7 +20,7 @@ services:
     ports:
       - "${BACKEND_PORT:-3000}:3000"
     environment:
-      # ─ Infra (from .env) ─
+      # ─ Infra (from the launching environment) ─
       BACKEND_PORT: ${BACKEND_PORT:-3000}
       DB_DIALECT: ${DB_DIALECT:-postgres}
       DATABASE_URL: ${DATABASE_URL:-postgresql://actio_user:actio@host.docker.internal:5432/actio}

@@ -1,7 +1,7 @@
 # Machine-local Actio deployment. Listeners stay on loopback; the only public path is the shared
 # Cloudflare tunnel behind Cloudflare Access (spec/feature/local-mode-cf-access.md).
 # Ports and URLs come from this catalog: Excubitor injects ACTIO_PORT / ACTIO_WEB_PORT from
-# `port` and ACTIO_URL / ACTIO_FRONTEND_URL from `provides`. Do not put them in .env or Infisical.
+# `port` and ACTIO_URL / ACTIO_FRONTEND_URL from `provides`. Do not put them in Infisical or the encrypted config.
 services:
   - code: actio
     name: Actio local API
@@ -12,7 +12,7 @@ services:
     repo: LUDIARS/Actio
     runtime: node
     cwd: ${ARS_ROOT}/Actio
-    command: node --env-file=.env dist/src/index.js
+    command: node dist/src/bootstrap.js
     autostart: false
     restart_policy: "no"
     health:
@@ -23,7 +23,7 @@ services:
     log_path: ${ARS_ROOT}/logs/actio
     env:
       NODE_ENV: production
-      # Local deployment deliberately uses .env plus this catalog, not public Infisical URLs.
+      # Actio itself fetches nothing remote: Excubitor injects secrets, the encrypted local config fills the rest.
       SECRETS_PROVIDER: env
       INFISICAL_PROJECT_ID: ""
       SSM_PATH_PREFIX: ""
@@ -43,7 +43,7 @@ services:
     repo: LUDIARS/Actio
     runtime: node
     cwd: ${ARS_ROOT}/Actio/frontend
-    command: node --env-file=../.env node_modules/vite/bin/vite.js preview --strictPort
+    command: node node_modules/vite/bin/vite.js preview --strictPort
     depends_on: [actio]
     autostart: false
     restart_policy: "no"
