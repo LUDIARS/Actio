@@ -22,6 +22,7 @@ import { applyLocalConfig, LOCAL_SETTING_KEYS } from "./local-config.js";
 import { applyExcubitorEndpoints } from "./service-endpoints.js";
 import { type InfisicalClient, createInfisicalClient } from "./infisical.js";
 import { readSecretSource } from "./secret-source.js";
+import { applyExcubitorServiceConfig } from "./excubitor/service-config.js";
 import { resolveSecretsFromExcubitor } from "./excubitor/secret-agent-client.js";
 import {
   type SsmParameterStoreClient,
@@ -52,6 +53,8 @@ class SecretManager {
   async init(): Promise<void> {
     if (this.initialized) return;
 
+    // Excubitor の runtime-config (ACTIO_CONFIG_KEY 等) を先に展開しないと暗号化 config を開けない。
+    applyExcubitorServiceConfig();
     applyExcubitorEndpoints();
     applyLocalConfig();
     const explicitProvider = process.env.SECRETS_PROVIDER;

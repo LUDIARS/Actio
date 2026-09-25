@@ -36,7 +36,7 @@ neco の 2026-09-21 指示: 設定されていない場合は初回設定画面�
 - **対象**: `ACTIO_LOCAL_MODE=1` のローカル配備だけ。公開配備の設定不足は起動失敗のまま (画面で補わない)。
 - **動作**: `bootstrap` は本体 (DB・認証) を読み込まず、同じポート・loopbackだけで設定用の最小サーバー (`src/setup/`) を待ち受ける。`/api/health` は `needs_setup` で503、`/api/setup/status` は `needsSetup: true` と不足キー・保存可否を返し、それ以外は503。無言の劣化ではなく、Excubitorからは未設定として観測できる。
 - **保存**: `POST /api/setup/local-config`。受け付けるのはソケットがloopbackでproxyヘッダの無い直接アクセスだけ (`allowsLocalRequest`、Cloudflare経由とLANは403)。キーは `DB_DIALECT` / `DATABASE_URL` / `DATABASE_PATH` / `REDIS_URL` に限り、secretは拒否する。接続URLはprotocolを検証し、値はログにも応答にも出さない。既存の暗号化configの他キーは保持する。
-- **鍵**: `ACTIO_CONFIG_KEY` が未注入なら保存は409で、画面にその旨を出す。鍵を画面から受け取ることはしない。
+- **鍵**: `ACTIO_CONFIG_KEY` が未注入なら保存は409で、画面にその旨を出す。鍵を画面から受け取ることはしない。 鍵の置き場所はExcubitorのruntime-config (サービス別の暗号化config)。Excubitorはそれを `EXCUBITOR_SERVICE_CONFIG_JSON` 1変数にJSONでまとめて渡すので、Actioは起動時 (`src/config/excubitor/service-config.ts`) に展開する。明示注入された環境変数が優先。壊れたJSONは起動失敗 (2026-09-25追加)。
 - **引き継ぎ**: 保存後は待受を閉じてポートを解放し、同じプロセスで本体を起動する (Excubitorでの再起動は不要)。空文字の注入が保存値を上書きして未設定が続く場合は、画面では直せないので起動失敗にする。
 - 9/13に廃止した旧setup API (credential登録・remoteプローブ・SSM書き込み・設定ファイル追記) は410のまま。復活させたのは上記のローカル設定保存だけ。
 
