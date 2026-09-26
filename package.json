@@ -6,14 +6,14 @@
   "main": "src/index.ts",
   "scripts": {
     "sdk:build": "cd packages/sdk && npx tsc",
-    "predev": "npm run sdk:build",
+    "predev": "npm run sdk:build && npm run terpsichore:build",
     "dev": "concurrently -n api,web -c green,cyan \"tsx watch src/bootstrap.ts\" \"npm run dev --prefix frontend\"",
-    "predev:server": "npm run sdk:build",
+    "predev:server": "npm run sdk:build && npm run terpsichore:build",
     "dev:server": "tsx watch src/bootstrap.ts",
     "dev:front": "npm run dev --prefix frontend",
-    "prebuild": "npm run sdk:build",
+    "prebuild": "npm run sdk:build && npm run terpsichore:build",
     "build": "tsc",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "npm run terpsichore:build && tsc --noEmit",
     "start": "node dist/src/bootstrap.js",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
@@ -26,12 +26,13 @@
     "env:up": "docker compose up -d",
     "env:up:standalone": "docker compose -f docker-compose.yaml -f docker-compose.standalone.yaml up -d",
     "ci-check": "bash scripts/ci-check.sh",
-    "pretest": "npm run sdk:build",
+    "pretest": "npm run sdk:build && npm run terpsichore:build",
     "test": "vitest run",
     "test:watch": "vitest",
     "id:scan": "tsx services/id-service/src/migration/cli.ts",
     "id:service": "tsx services/id-service/src/server.ts",
-    "config:seal": "tsx src/config/config-cli.ts seal"
+    "config:seal": "tsx src/config/config-cli.ts seal",
+    "terpsichore:build": "tsc -p lib/terpsichore/tsconfig.build.json"
   },
   "repository": {
     "type": "git",
@@ -67,7 +68,8 @@
     "paseto": "^3.1.4",
     "postgres": "^3.4.8",
     "uuid": "^13.0.0",
-    "ws": "^8.20.0"
+    "ws": "^8.20.0",
+    "@ludiars/terpsichore": "file:./lib/terpsichore"
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",

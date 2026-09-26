@@ -8,7 +8,7 @@ import { z } from "zod";
 export const LOCAL_SETTING_KEYS = new Set([
   "DB_DIALECT", "DATABASE_PATH", "BACKEND_PORT", "PORT", "FRONTEND_PORT", "FRONTEND_URL",
   "ACTIO_LOCAL_MODE", "ACTIO_CLOUDFLARE_ENABLED", "ACTIO_PUBLIC_URL", "CERNERE_URL",
-  "PRAEFORMA_URL", "CONCORDIA_URL", "GOOGLE_REDIRECT_URI",
+  "PRAEFORMA_URL", "CONCORDIA_URL", "GENIUS_URL", "GOOGLE_REDIRECT_URI",
   "VITE_ALLOWED_HOSTS", "ACTIO_VITE_POLLING", "CORS_ORIGIN", "SECRETS_PROVIDER", "NODE_ENV",
 ]);
 /** Where secrets come from (config/secret-source.ts). A pointer only: never the Infisical credentials. */

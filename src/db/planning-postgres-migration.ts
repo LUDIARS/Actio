@@ -4,6 +4,17 @@ import type postgres from "postgres";
 export async function migratePlanningPostgres(pool: postgres.Sql): Promise<void> {
   await pool.begin(async sql => {
     await sql.unsafe(`SELECT pg_advisory_xact_lock(hashtextextended('actio-planning-schema', 0))`);
+    await sql.unsafe(`CREATE TABLE IF NOT EXISTS terpsichore_runs (
+      id TEXT PRIMARY KEY, team_id TEXT NOT NULL, project_id TEXT NOT NULL, actor_id TEXT NOT NULL,
+      task_ids TEXT NOT NULL, manifest_json TEXT NOT NULL, state TEXT NOT NULL, run_id TEXT, created_at TEXT NOT NULL
+    )`);
+    await sql.unsafe(`CREATE UNIQUE INDEX IF NOT EXISTS idx_terpsichore_active_run ON terpsichore_runs(team_id, project_id)
+      WHERE state IN ('submitting', 'running', 'unknown')`);
+    await sql.unsafe(`CREATE TABLE IF NOT EXISTS terpsichore_plans (
+      team_id TEXT NOT NULL, scope_key TEXT NOT NULL, input_json TEXT NOT NULL,
+      revision INTEGER NOT NULL, actor_id TEXT NOT NULL, updated_at TEXT NOT NULL,
+      PRIMARY KEY(team_id, scope_key)
+    )`);
     await sql.unsafe(`CREATE TABLE IF NOT EXISTS tasks (
       id TEXT PRIMARY KEY, owner_id TEXT NOT NULL, assignee_id TEXT, group_id TEXT, project_id TEXT,
       title TEXT NOT NULL, description TEXT, requirements TEXT, status TEXT NOT NULL DEFAULT 'open',

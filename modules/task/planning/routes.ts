@@ -9,6 +9,7 @@ import { praeformaRoutes } from "./spec-routes.js";
 import { suggestGroups } from "./group-suggestions.js";
 import { sprintNotification } from "../notifications/events.js";
 import { enqueueNotificationsSafely } from "../notifications/enqueue.js";
+import { terpsichoreRoutes } from "../terpsichore/routes.js";
 
 export const planningRoutes = new Hono();
 planningRoutes.use("/:teamId/planning/*", async (c, next) => {
@@ -56,3 +57,4 @@ planningRoutes.put("/:teamId/planning/order", requireTeamRole("leader"), async c
   return c.json({ ok: true });
 });
 planningRoutes.route("/", praeformaRoutes);
+planningRoutes.route("/", terpsichoreRoutes);

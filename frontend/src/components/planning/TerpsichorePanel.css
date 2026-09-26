@@ -1,0 +1,10 @@
+.terpsichore-panel { display: grid; gap: .9rem; }
+.terpsichore-panel fieldset { display: grid; gap: .65rem; min-width: 0; padding: 1rem; border: 1px solid var(--border); border-radius: .4rem; }
+.terpsichore-panel select[multiple] { min-height: 6rem; }
+.terpsichore-panel textarea { min-height: 4rem; }
+.terpsichore-panel .terpsichore-inline { flex-direction: row; align-items: center; }
+.terpsichore-actions { display: flex; flex-wrap: wrap; gap: .5rem; }
+.terpsichore-criterion { display: grid; gap: .5rem; padding: .75rem; background: var(--bg-secondary); }
+.terpsichore-report { overflow-wrap: anywhere; }
+.terpsichore-report section { border-top: 1px solid var(--border); padding-block: .5rem; }
+.terpsichore-report blockquote { margin-inline: 0; border-left: 3px solid var(--border); padding-left: 1rem; }

@@ -4,6 +4,17 @@ import type { SqliteDatabase } from "./dialects/sqlite.js";
 export function migratePlanning(sqlite: SqliteDatabase): void {
   sqlite.transaction(() => {
     sqlite.exec(`
+      CREATE TABLE IF NOT EXISTS terpsichore_runs (
+        id TEXT PRIMARY KEY, team_id TEXT NOT NULL, project_id TEXT NOT NULL, actor_id TEXT NOT NULL,
+        task_ids TEXT NOT NULL, manifest_json TEXT NOT NULL, state TEXT NOT NULL, run_id TEXT, created_at TEXT NOT NULL
+      );
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_terpsichore_active_run ON terpsichore_runs(team_id, project_id)
+        WHERE state IN ('submitting', 'running', 'unknown');
+      CREATE TABLE IF NOT EXISTS terpsichore_plans (
+        team_id TEXT NOT NULL, scope_key TEXT NOT NULL, input_json TEXT NOT NULL,
+        revision INTEGER NOT NULL, actor_id TEXT NOT NULL, updated_at TEXT NOT NULL,
+        PRIMARY KEY(team_id, scope_key)
+      );
       CREATE TABLE IF NOT EXISTS sprints (
         id TEXT PRIMARY KEY, team_id TEXT NOT NULL, name TEXT NOT NULL, goal TEXT,
         starts_on TEXT NOT NULL, ends_on TEXT NOT NULL, status TEXT NOT NULL,

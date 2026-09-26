@@ -10,7 +10,8 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "prebuild": "npm --prefix .. run terpsichore:build"
   },
   "dependencies": {
     "@ludiars/cernere-composite": "^0.3.0",

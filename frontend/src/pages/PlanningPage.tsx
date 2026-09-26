@@ -16,6 +16,7 @@ function criticalPathText(task: PlanningTask): string {
 import { request } from "../lib/api";
 import { SprintForm, SprintAdjustment } from "../components/planning/SprintForm";
 import { PraeformaBacklog } from "../components/planning/PraeformaBacklog";
+import { TerpsichorePanel } from "../components/planning/TerpsichorePanel";
 import "./PlanningPage.css";
 
 export function PlanningPage() {
@@ -78,6 +79,7 @@ export function PlanningPage() {
     {teams.length === 0 && <p>所属チームがありません。チーム同期とメンバー登録を確認してください。</p>}
     {error && <p role="alert">{error}</p>}
     {data && <>
+      <TerpsichorePanel key={team} team={team} sprintId={sprintId} data={data} projects={projects} canEdit={canEdit} onRefresh={refresh} />
       {canEdit && <><SprintForm key={`sprint-${team}`} team={team} onSaved={refresh} /><PraeformaBacklog key={`pf-${team}`} team={team} members={members} onSaved={refresh} />
         <details><summary>バックログを追加</summary><form className="planning-form" onSubmit={createTask}>
           <label>タイトル<input name="title" required /></label><label>内容<textarea name="description" /></label>
