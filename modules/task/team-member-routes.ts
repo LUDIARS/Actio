@@ -1,9 +1,9 @@
 /**
  * チームメンバー / 設定 API (spec/feature/team-task/spec.md §3, §2.3)
  *
- * - `GET /api/teams` 自分が member の team 一覧 + role
+ * - `GET /api/teams` 自分が member の team 一覧 + role (admin / ローカルモードの持ち主は全件)
  * - `GET /api/teams/:teamId/members` member 以上
- * - `PUT/DELETE /api/teams/:teamId/members/:userId` admin のみ (§3 表)
+ * - `PUT/DELETE /api/teams/:teamId/members/:userId` admin / ローカルモードの持ち主 (§3 表)
  * - `GET/PATCH /api/teams/:teamId/settings` leader/admin
  *
  * メンバー/ロールは Actio 正本 (`team_members`)。チームマスタは Cc 同期の
@@ -13,6 +13,7 @@
 import { Hono } from "hono";
 import { requireRole } from "../../src/middleware/auth.js";
 import { requireTeamRole } from "../../src/auth/team-role.js";
+import { allowLocalOwnerOr, isLocalOwnerRequest, LOCAL_OWNER_TEAM_ROLE } from "../../src/auth/local-owner.js";
 import { getUserId, getUserRole } from "../../src/middleware/getUserId.js";
 import { teamMemberRepo, teamRefRepo } from "../../src/db/repository.js";
 import { TeamSettingsSchema } from "./team/settings.js";
@@ -23,13 +24,17 @@ export const teamMemberRoutes = new Hono();
 
 // ─── GET / — 自分が所属する team 一覧 + role ───────────────────
 
+async function listAllTeamsAs(role: string) {
+  const refs = await teamRefRepo.listAll();
+  return refs.map((ref) => ({ id: ref.id, slug: ref.slug, name: ref.name, role }));
+}
+
 teamMemberRoutes.get("/", async (c) => {
   const userId = getUserId(c);
   if (!userId || userId === "anonymous") return c.json({ error: "Authentication required" }, 401);
-  if (getUserRole(c) === "admin") {
-    const refs = await teamRefRepo.listAll();
-    return c.json({ teams: refs.map(ref => ({ id: ref.id, slug: ref.slug, name: ref.name, role: "admin" })) });
-  }
+  if (getUserRole(c) === "admin") return c.json({ teams: await listAllTeamsAs("admin") });
+  // ローカルモードの持ち主は membership 無しで全チームの leader 相当 (local-mode-cf-access.md §4.1)
+  if (isLocalOwnerRequest(c)) return c.json({ teams: await listAllTeamsAs(LOCAL_OWNER_TEAM_ROLE) });
   const memberships = await teamMemberRepo.listByUser(userId);
   const refs = await teamRefRepo.findByIds(memberships.map((m) => m.teamId));
   const refById = new Map(refs.map((r) => [r.id, r]));
@@ -47,9 +52,11 @@ teamMemberRoutes.get("/:teamId/members", requireTeamRole("member"), async (c) =>
   return c.json({ members: members.map((m) => ({ userId: m.userId, role: m.role })) });
 });
 
-// ─── PUT/DELETE /:teamId/members/:userId — admin のみ ──────────
+// ─── PUT/DELETE /:teamId/members/:userId — admin / ローカルモードの持ち主 ──
 
-teamMemberRoutes.put("/:teamId/members/:userId", requireRole("admin"), async (c) => {
+const requireMemberAdmin = allowLocalOwnerOr(requireRole("admin"));
+
+teamMemberRoutes.put("/:teamId/members/:userId", requireMemberAdmin, async (c) => {
   const teamId = c.req.param("teamId");
   const userId = c.req.param("userId");
   const body = await c.req.json<{ role?: string }>().catch(() => null);
@@ -62,7 +69,7 @@ teamMemberRoutes.put("/:teamId/members/:userId", requireRole("admin"), async (c)
   return c.json({ member: { teamId, userId, role: body.role } });
 });
 
-teamMemberRoutes.delete("/:teamId/members/:userId", requireRole("admin"), async (c) => {
+teamMemberRoutes.delete("/:teamId/members/:userId", requireMemberAdmin, async (c) => {
   const teamId = c.req.param("teamId");
   const userId = c.req.param("userId");
   if ((await teamMemberRepo.findRole(teamId, userId)) === undefined) {

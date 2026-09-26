@@ -1,6 +1,6 @@
 # Local authentication mode
 
-Actio may run without Cernere login only in an explicitly selected, loopback-only deployment without Cloudflare. The default remains the existing authenticated deployment. Local mode does not grant administrator or team membership privileges.
+Actio may run without Cernere login only in an explicitly selected, loopback-only deployment without Cloudflare. The default remains the existing authenticated deployment. Local mode does not grant administrator privileges; the local owner's team permissions (leader-equivalent on Cc-synced teams) are defined in `local-mode-cf-access.md` §4.1.
 
 ## Configuration and boundary
 
@@ -13,7 +13,7 @@ Actio may run without Cernere login only in an explicitly selected, loopback-onl
 
 ## Identity and client behavior
 
-Local requests use the fixed `actio-local` identity with the ordinary `general` role. Only the user ID anchor is persisted; no password, bearer token, identity profile or elevated permission is created. Existing Cernere users and their tasks are not reassigned. Local mode identifies a machine-local user, not individual OS accounts.
+Local requests use the fixed `actio-local` identity with the ordinary `general` role. Only the user ID anchor is persisted; no password, bearer token, identity profile or elevated permission is created. Team permissions of the local owner are derived per request from the verified access path and are never stored. Existing Cernere users and their tasks are not reassigned. Local mode identifies a machine-local user, not individual OS accounts.
 
 REST and WS use the same boundary. `/api/auth/me` returns `localMode: true` and the local user without fetching Cernere. `/api/auth/ws-token` returns an empty token for local mode; this is not a reusable credential. WS independently checks the socket and headers. The SPA resolves `/me` before routing even with no saved login and supports tokenless WS reconnection. DB setup remains required.
 

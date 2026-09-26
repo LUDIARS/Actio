@@ -4,6 +4,8 @@ status: implemented
 owner: Actio
 related:
   - spec/feature/local-auth-mode.md
+  - spec/feature/team-task/spec.md
+  - spec/tasks/2026-09-26-local-owner-team-role.md
   - Excubitor spec/feature/cf-tunnel-routes.md
 decided_by: neco (2026-09-15 指示「ローカルモードの場合、認証付きの CF トンネルは通すようにしてほしい」)
 ---
@@ -61,6 +63,24 @@ decided_by: neco (2026-09-15 指示「ローカルモードの場合、認証付
 - 検証済み email は監査ログ (アクセスログの `via=cf-access`) にだけ残し、DB には保存しない。
 - `/api/auth/me` は `localMode: true` に加えて `access: "loopback" | "cf-access"` を返す。
 
+### 4.1 持ち主のチーム権限
+
+neco 2026-09-26 指示「Actio のチームに既存のチームを登録しよう」による。持ち主 (`actio-local`) はどのチームの
+`team_members` にも居ないため、Cc 同期済みのチームがあっても一覧が空になり、計画もできなかった。
+ローカルモードは持ち主 1 人の配備なので、持ち主を全チームの leader 相当として扱う (`src/auth/local-owner.ts`)。
+
+| 対象 | 持ち主の扱い |
+|---|---|
+| Cc 同期で `team_refs` にあるチーム | `team_members` に行が無くても leader 相当。`requireTeamRole` は `teamRole=leader`、`actingUserId=actio-local` で通す |
+| `team_refs` に無い teamId | 従来どおり 403 |
+| `GET /api/teams` | `team_refs` の全件を role `leader` で返す |
+| メンバー/ロール変更 (`PUT/DELETE /api/teams/:teamId/members/:userId`) | admin 相当として許す (持ち主以外のユーザーは居ないので実害は無い) |
+
+- **判定の根拠は経路だけ。** 境界 middleware が確定した経路 (loopback / §3 の検証を通った cf-access) で、かつ userId が `actio-local` の要求を持ち主とする。legacy の `users.role` や DB の membership は読まない。持ち主のロールは DB に保存せず、要求ごとに経路から決める。
+- **公開配備 (ローカルモード無効) では一切適用されない。** 経路が決まらないので、`actio-local` を名乗るトークンでも持ち主にはならない。
+- Cc service 経路 (api_client + `X-Decided-By`) は対象外で、従来どおり `team_members` で判定する。
+- admin のバイパス (`userRole=admin`) とは別枠。持ち主のロールは `general` のままで、チーム以外の admin 機能は開かない。
+
 ## 5. Vite (actio-web)
 
 - ローカルモードでも `ACTIO_CF_PUBLIC_ORIGIN` のホストを `allowedHosts` に加える。
@@ -78,6 +98,9 @@ decided_by: neco (2026-09-15 指示「ローカルモードの場合、認証付
 - 検証: 正しい署名、別の鍵、`aud` / `iss` 違い、期限切れ、許可外 email、未知 `kid` の再取得、証明書取得失敗。
 - 設定: `ACTIO_CLOUDFLARE_ENABLED=1` で必須値が欠けたら起動エラー、`TUNNEL_TOKEN` は引き続き拒否。
 - REST / WS: 有効なアサーション付きの要求が `actio-local` として通り、無いものは 403。
+- 持ち主 (§4.1): 判定の純関数 (loopback / cf-access / ローカルモード無効 / 別ユーザー / `team_refs` に無いチーム)、
+  ローカル経路での `GET /api/teams` 全件 leader・計画 API の通過・未知 teamId の 403・メンバー変更、
+  ローカルモード無効時に `actio-local` を名乗るトークンが従来どおり拒否されること。
 
 ## 8. 未決 (人間の判断待ち)
 

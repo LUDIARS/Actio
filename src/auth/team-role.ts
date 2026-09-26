@@ -4,6 +4,8 @@
  * - ロールは `team_members.role` (Actio 正本)。leader は member 権限を包含する。
  * - `userRole=admin` (Cernere 検証済みトークン由来) は明示バイパス。
  *   legacy の `users.role` カラムは読まない (userContext() がトークンから設定する)。
+ * - ローカルモードの持ち主 (`src/auth/local-owner.ts`) は `team_refs` にあるチームで
+ *   leader 相当として通す (spec/feature/local-mode-cf-access.md §4.1)。
  * - Cc service 経路 (api_client トークン, `apiClientId` がコンテキストにある) では
  *   判断者 `X-Decided-By` (Actio user id) を必須にし、対象チームのメンバーへ
  *   マッピングできない場合は 403 (「匿名の裁定を残さない」)。
@@ -13,6 +15,7 @@
 
 import { createMiddleware } from "hono/factory";
 import { teamMemberRepo } from "../db/repository.js";
+import { isLocalOwnerRequest, resolveLocalOwnerTeamRole } from "./local-owner.js";
 
 export type TeamRole = "leader" | "member";
 
@@ -63,7 +66,10 @@ export function requireTeamRole(...required: TeamRole[]) {
       return;
     }
 
-    const role = await teamMemberRepo.findRole(teamId, userId);
+    // ローカルモードの持ち主は membership の代わりに team_refs の存在で leader 相当になる
+    const role = isLocalOwnerRequest(c)
+      ? await resolveLocalOwnerTeamRole(teamId)
+      : await teamMemberRepo.findRole(teamId, userId);
     if (role === undefined || !roleSatisfies(role, required)) {
       return c.json({ error: "Forbidden" }, 403);
     }

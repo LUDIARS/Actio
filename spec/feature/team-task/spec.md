@@ -205,19 +205,23 @@ Cc `team_repos` 由来の安定 ID は `cc_settings.repo_ids` (例: `["cernere"]
 
 ## 3. ロールと権限
 
-| 操作 | member | leader | admin |
-|---|---|---|---|
-| 日常タスクの登録・自分担当の状態変更 | ○ | ○ | ○ |
-| バックログ登録 (期日必須) | ○ | ○ | ○ |
-| LLM 相談 (分解・割付案の生成) | ○ | ○ | ○ |
-| スプリント案の承認・却下・容量入力 | × | ○ | ○ |
-| 判定キューの裁定 (閾値以下の完了判断) | × | ○ | ○ |
-| 遅延レポートの閲覧 | × | ○ | ○ |
-| チーム設定 (閾値・スロット) | × | ○ | ○ |
-| メンバー/ロール変更 | × | × | ○ |
+| 操作 | member | leader | admin | ローカルモードの持ち主 |
+|---|---|---|---|---|
+| 日常タスクの登録・自分担当の状態変更 | ○ | ○ | ○ | ○ |
+| バックログ登録 (期日必須) | ○ | ○ | ○ | ○ |
+| LLM 相談 (分解・割付案の生成) | ○ | ○ | ○ | ○ |
+| スプリント案の承認・却下・容量入力 | × | ○ | ○ | ○ |
+| 判定キューの裁定 (閾値以下の完了判断) | × | ○ | ○ | ○ |
+| 遅延レポートの閲覧 | × | ○ | ○ | ○ |
+| チーム設定 (閾値・スロット) | × | ○ | ○ | ○ |
+| メンバー/ロール変更 | × | × | ○ | ○ (admin 相当) |
 
 ロールは `team_members.role` + Cernere から検証した `role=admin`。legacy の Actio `users.role` は
-新規コードから読み書きしない。 判定 API は admin の明示的なバイパスを持つ
+新規コードから読み書きしない。
+**ローカルモードの持ち主** (`actio-local`) は、Cc 同期で `team_refs` にあるチームに対して membership 無しで
+leader 相当、メンバー/ロール変更は admin 相当として扱う。判定の根拠は境界 middleware が確定した経路
+(loopback / 検証済み cf-access) だけで、公開配備 (ローカルモード無効) では一切適用しない
+(`src/auth/local-owner.ts`、詳細は `../local-mode-cf-access.md` §4.1)。 判定 API は admin の明示的なバイパスを持つ
 `requireTeamRole(teamId, ["leader"])` ミドルウェアで守る (`src/auth/team-role.ts`)。
 Cc から叩くサービス経路は Cc の service token (既存 `api_client` 経路) を使い、 その場合の
 「判断者」は Cc が渡す `decided_by` (Discord participant → Actio user のマッピング) を必須にする。

@@ -36,6 +36,15 @@ describe("GET /api/teams", () => {
     const res = await request(app, "GET", "/api/teams", {});
     expect(res.status).toBe(401);
   });
+
+  it("gives no owner privileges to an actio-local token outside local mode", async () => {
+    const token = generateTestToken("actio-local");
+    const listed = await request(app, "GET", "/api/teams", { token });
+    expect(listed.status).toBe(200);
+    expect(listed.json.teams).toEqual([]);
+    expect((await request(app, "GET", "/api/teams/team-1/planning", { token })).status).toBe(403);
+    expect((await request(app, "PUT", "/api/teams/team-1/members/actio-local", { token, body: { role: "leader" } })).status).toBe(403);
+  });
 });
 
 describe("GET /api/teams/:teamId/members", () => {
