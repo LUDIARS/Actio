@@ -1120,6 +1120,7 @@ export interface CoreTask {
   executorType: TaskExecutorType;
   aiExecutor: string | null;
   /** クリティカルパス (チームのバックログ依存から計算) */
+  blockedBy?: string[];
   isCriticalPath: boolean;
   slackDays: number | null;
   criticalPathError: string | null;

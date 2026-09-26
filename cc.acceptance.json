@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "implementations": [
+    { "source": "frontend/src/lib/api-types.ts", "tests": ["frontend/src/lib/task-pr-evidence.test.ts"], "contracts": ["AT-TASK-PR-01"] },
+    { "source": "frontend/src/lib/task-pr-evidence.ts", "tests": ["frontend/src/lib/task-pr-evidence.test.ts"], "contracts": ["AT-TASK-PR-01"] },
+    { "source": "frontend/src/components/TaskPrEvidence.tsx", "tests": ["frontend/src/lib/task-pr-evidence.test.ts"], "contracts": ["AT-TASK-PR-01"] },
+    { "source": "frontend/src/pages/TasksPage.tsx", "tests": ["frontend/src/lib/task-pr-evidence.test.ts"], "contracts": ["AT-TASK-PR-01"] }
+  ]
+}

@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "repository": "Actio",
+  "defaultBus": "local",
+  "buses": { "local": { "type": "local", "env": [] } },
+  "runners": { "vitest": { "command": ["node", "node_modules/vitest/vitest.mjs", "run"] } },
+  "timeoutMs": 600000
+}

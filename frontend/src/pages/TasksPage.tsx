@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { tasksApi } from "../lib/api";
+import { TaskPrEvidence } from "../components/TaskPrEvidence";
 import type {
   CoreTask,
   CreateTaskInput,
@@ -668,6 +669,10 @@ export function TasksPage() {
                   期限: {formatDeadline(task.deadline)}
                 </span>
               </div>
+              <TaskPrEvidence payload={task.pluginPayload} />
+              {!!task.blockedBy?.length && <div style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>
+                先行タスク: {task.blockedBy.map((id) => tasks.find((other) => other.id === id)?.title ?? "一覧外のタスク").join("、")}
+              </div>}
               {task.category && (
                 <div style={{ display: "flex", gap: "0.3rem", flexWrap: "wrap" }}>
                   {task.category.split(",").map((c) => c.trim()).filter(Boolean).map((c) => (

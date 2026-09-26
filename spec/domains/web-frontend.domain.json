@@ -1,6 +1,7 @@
 {
   "name": "web-frontend",
   "description": "ブラウザ側の画面。 タスクと活動の表示・操作。",
+  "specRefs": ["spec/ux/product.md", "spec/feature/task-pr-evidence.md"],
   "presetRules": [],
   "templateRules": [],
   "membership": [
