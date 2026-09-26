@@ -1,0 +1,14 @@
+{
+  "service": "actio",
+  "include": ["src/**/*.ts"],
+  "exclude": ["**/*.test.ts"],
+  "rules": {
+    "entry-runtime": false,
+    "silent-catch": false,
+    "spawn-watch": false,
+    "interval-guard": false,
+    "listener-guard": false,
+    "contract-wrap": true
+  },
+  "importFrom": "../contract-runtime.js"
+}

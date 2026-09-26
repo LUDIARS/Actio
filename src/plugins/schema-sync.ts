@@ -13,6 +13,8 @@ import type { UserDataColumn } from "@ludiars/schedula-sdk";
 import { moduleRegistry } from "./registry.js";
 import { updateProjectSchema } from "../auth/cernere-client.js";
 import { secretManager } from "../config/secrets.js";
+import { localModeEnabled } from "../auth/local-mode.js";
+import { shouldSyncSchema } from "./schema-sync-policy.js";
 
 const PROJECT_KEY = "actio";
 
@@ -43,12 +45,20 @@ function toCernereColumn(
 
 /**
  * 全ロード済みモジュールから userData を収集して Cernere に反映する。
- * CERNERE_URL 未設定時は no-op。
+ * ローカルモード・CERNERE_URL 未設定・project 資格情報欠落時は同期せずログだけ残す
+ * (判定は schema-sync-policy.ts の shouldSyncSchema)。
+ * @implements SPEC-SCHEMA-SYNC-SKIP
  */
 export async function syncProjectSchemaToCernere(): Promise<void> {
-  const cernereUrl = secretManager.getOrDefault("CERNERE_URL", "");
-  if (!cernereUrl) {
-    console.log("[plugin] CERNERE_URL 未設定 — schema sync をスキップ");
+  const decision = shouldSyncSchema({
+    localMode: localModeEnabled(),
+    cernereUrl: secretManager.getOrDefault("CERNERE_URL", ""),
+    clientId: secretManager.getOrDefault("CERNERE_PROJECT_CLIENT_ID", ""),
+    clientSecret: secretManager.getOrDefault("CERNERE_PROJECT_CLIENT_SECRET", ""),
+  });
+  if (!decision.sync) {
+    if (decision.level === "warn") console.warn(decision.message);
+    else console.log(decision.message);
     return;
   }
 

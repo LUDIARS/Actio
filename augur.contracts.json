@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "contractsDir": "contracts",
+  "importFrom": "../contract-runtime.js",
+  "contracts": [
+    {
+      "id": "C-1",
+      "criterion": "C-1 shouldSyncSchema(input): ローカルモードでは同期せず info でスキップし、公開配備で CERNERE_URL があり client id / secret が欠けるときは throw せず warn でスキップし、URL・id・secret が揃った公開配備でだけ同期する",
+      "symbol": "shouldSyncSchema",
+      "file": "src/plugins/schema-sync-policy.ts",
+      "module": "contracts/should-sync-schema.contract.ts",
+      "mode": "observe",
+      "sample": 1
+    }
+  ]
+}

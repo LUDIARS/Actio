@@ -193,11 +193,14 @@ export function createApp() {
     packageVersion: "0.1.0",
   });
 
-  // Cernere に userData カラムを同期 (fire-and-forget、CERNERE_URL 未設定なら no-op)
+  // Cernere に userData カラムを同期 (fire-and-forget)。ローカルモード・資格情報欠落時は
+  // スキップのログだけ出す (src/plugins/schema-sync-policy.ts)。
   void (async () => {
     const { syncProjectSchemaToCernere } = await import("./plugins/schema-sync.js");
     await syncProjectSchemaToCernere();
-  })();
+  })().catch((err: unknown) => {
+    console.warn("[plugin] Cernere schema sync failed:", err);
+  });
 
   // ─── Legacy Compatibility ───────────────────────────────────
   // /api/m1 は school SDK モジュールの /api/school/m1 に移行 (alias は別途必要なら module 内追加)

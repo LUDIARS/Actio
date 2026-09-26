@@ -17,6 +17,10 @@ Local requests use the fixed `actio-local` identity with the ordinary `general` 
 
 REST and WS use the same boundary. `/api/auth/me` returns `localMode: true` and the local user without fetching Cernere. `/api/auth/ws-token` returns an empty token for local mode; this is not a reusable credential. WS independently checks the socket and headers. The SPA resolves `/me` before routing even with no saved login and supports tokenless WS reconnection. DB setup remains required.
 
+### Cernere schema sync (SPEC-SCHEMA-SYNC-SKIP)
+
+Startup module `userData` schema sync (`src/plugins/schema-sync.ts`) is skipped in local mode with a single info log (`ローカルモードのため schema sync をスキップ`); local mode has no Cernere project. On a public deployment, a missing `CERNERE_URL` skips with an info log, and `CERNERE_URL` without `CERNERE_PROJECT_CLIENT_ID` / `CERNERE_PROJECT_CLIENT_SECRET` skips with a warn log instead of throwing, so the misconfiguration stays visible. The decision is the pure function `shouldSyncSchema` in `src/plugins/schema-sync-policy.ts` (Actio task `actio:ab3ce741-ea47-4229-8712-18285b73da65`).
+
 ## Validation and rollout
 
 Policy cases cover loopback IPv4/IPv6, missing/remote sockets, forged local headers, Cloudflare/forwarded headers, foreign/null Origin and conflicting deployment settings. Tests must not be executed without explicit user authorization. Runtime validation additionally needs REST identity, task creation, WS dispatch/reconnection, initial SPA navigation, and rejection through Cloudflare/LAN paths. Starts/restarts must use Excubitor and the main project folder with a Concordia testing claim.

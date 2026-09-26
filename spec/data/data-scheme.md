@@ -76,6 +76,7 @@ Cernere は次の 2 経路で `INSERT INTO project_data_actio (user_id) VALUES (
 
 新カラム追加時は `cernere-project.json` を編集して `managed_project.update_schema` (project WS) を呼ぶ。
 カラム削除は禁止 — 不要になったら `_deleted: true` を付ける (データは保全)。
+起動時の自動同期は `shouldSyncSchema` がローカルモード・資格情報欠落時にスキップする (`spec/feature/local-auth-mode.md` の Cernere schema sync 節)。
 
 ---
 
