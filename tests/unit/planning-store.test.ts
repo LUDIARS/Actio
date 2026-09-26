@@ -45,14 +45,15 @@ describe("sprint changes", () => {
     expect(() => store.change("team", sprint.id, "leader", { action: "start", revision: 0, reason: "開始" }, now)).toThrow("変更");
     expect(store.history("team", sprint.id)).toHaveLength(2);
   });
-  it("allows active insertion and atomically carries unfinished tasks back on closure", () => {
+  it("rejects legacy start and close without moving unfinished tasks", () => {
     const store = new SprintStore(db), sprint = store.create("team", "leader", plan, now);
-    store.change("team", sprint.id, "leader", { action: "start", revision: 0, reason: "開始" }, now);
-    store.change("team", sprint.id, "leader", { action: "assign", revision: 1, taskId: "a", reason: "差し込み" }, now);
-    store.change("team", sprint.id, "leader", { action: "close", revision: 2, reason: "終了" }, now);
+    store.change("team", sprint.id, "leader", { action: "assign", revision: 0, taskId: "a", reason: "割付" }, now);
+    for (const action of ["start", "close"] as const) {
+      expect(() => store.change("team", sprint.id, "leader", { action, revision: 1, reason: "旧API" }, now)).toThrow("フェーズ");
+    }
     expect(db.prepare("SELECT sprint_id, carried_from_sprint_id FROM tasks WHERE id='a'").get())
-      .toEqual({ sprint_id: null, carried_from_sprint_id: sprint.id });
-    expect(() => store.change("team", sprint.id, "leader", { action: "assign", revision: 3, taskId: "b", reason: "追加" }, now)).toThrow("終了");
+      .toEqual({ sprint_id: sprint.id, carried_from_sprint_id: null });
+    expect(store.find("team", sprint.id).status).toBe("planning");
   });
   it("rejects foreign team tasks and reports a conflicting successor sprint", () => {
     const store = new SprintStore(db), sprint = store.create("team", "leader", plan, now);

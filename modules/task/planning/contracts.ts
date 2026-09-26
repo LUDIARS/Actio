@@ -12,6 +12,7 @@ export const newSprint = z.object({
   capacityMinutes: z.number().int().positive().nullable().default(null),
 }).strict().refine(v => v.endsOn >= v.startsOn && v.bufferEndsOn >= v.endsOn, "開始日・締め切り・バッファ上限の順で指定してください");
 export const sprintChange = z.discriminatedUnion("action", [
+  z.object({ action:z.literal("update_goal"), revision:z.number().int().min(0),goal:z.string().trim().min(1).max(5000),reason }).strict(),
   z.object({ action: z.literal("start"), revision: z.number().int().min(0), reason }).strict(),
   z.object({ action: z.literal("close"), revision: z.number().int().min(0), reason }).strict(),
   z.object({ action: z.literal("extend"), revision: z.number().int().min(0), endsOn: calendarDate, reason }).strict(),

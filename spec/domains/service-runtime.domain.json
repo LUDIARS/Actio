@@ -31,5 +31,8 @@
     {
       "pathPattern": "(^|/)[^/]+\\.config\\.(?:ts|js|mjs|cjs)$"
     }
+  ],
+  "specRefs": [
+    "spec/feature/sprint-human-gates.md"
   ]
 }

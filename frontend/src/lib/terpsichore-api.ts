@@ -4,7 +4,7 @@ import type { ExecutionPreview, ExecutionRecord, ExecutionStatus, ExecutionTempl
 export type { GuidanceInput, GuidanceReport, JudgmentCard };
 export type { ExecutionPreview, ExecutionStatus, ExecutionTemplate };
 export interface GuidancePlan { revision: number; input: GuidanceInput; updatedAt: string }
-const base = (team: string) => `/teams/${encodeURIComponent(team)}/planning/terpsichore`;
+const base = (team: string) => `/api/teams/${encodeURIComponent(team)}/planning/terpsichore`;
 export const terpsichoreApi = {
   load: (team: string, projectId: string, sprintId: string) => {
     const query = new URLSearchParams();

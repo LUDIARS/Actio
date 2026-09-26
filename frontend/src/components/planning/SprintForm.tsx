@@ -26,7 +26,7 @@ export function SprintForm({ team, onSaved }: { team: string; onSaved: () => Pro
     <label>締め切り<input name="endsOn" type="date" required /></label>
     <label>バッファ上限<input name="bufferEndsOn" type="date" required /></label>
     <label>1周期の容量（分・任意）<input name="capacityMinutes" type="number" min="1" /></label>
-    <p>周期・締め切り・バッファを先に決めます。容量を入れると見積工数との比較ができます。</p>
+    <p>下書きとして保存できます。開始の承認には、目標・容量・対象バックログが必要です。</p>
     {error && <p role="alert">{error}</p>}<button disabled={busy} className="btn btn-primary">計画を保存</button>
   </form></details>;
 }
@@ -38,6 +38,7 @@ export function SprintAdjustment({ team, sprint, onSaved }: { team: string; spri
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault(); const data = new FormData(event.currentTarget);
     const body: Record<string, unknown> = { action, revision: sprint.revision, reason: data.get("reason") };
+    if (action === "update_goal") body.goal = data.get("goal");
     if (action === "extend" || action === "reschedule") body.endsOn = data.get("endsOn");
     if (action === "reschedule") {
       body.startsOn = data.get("startsOn"); body.bufferEndsOn = data.get("bufferEndsOn");
@@ -51,8 +52,9 @@ export function SprintAdjustment({ team, sprint, onSaved }: { team: string; spri
   return <form onSubmit={submit} className="planning-form" key={`${sprint.id}-${sprint.revision}`}>
     <label>操作<select value={action} onChange={e => setAction(e.target.value)}>
       <option value="extend">バッファ内で延長</option><option value="reschedule">リスケ</option>
-      {sprint.status === "planning" && <option value="start">開始</option>}<option value="close">終了して未完了をバックログへ戻す</option>
+      <option value="update_goal">目標を更新</option>
     </select></label>
+    {action === "update_goal" && <label>目標<textarea name="goal" defaultValue={sprint.goal ?? ""} maxLength={5000} required /></label>}
     {action === "reschedule" && <label>開始日<input name="startsOn" type="date" defaultValue={sprint.startsOn} readOnly={sprint.status === "active"} required /></label>}
     {(action === "extend" || action === "reschedule") && <label>新しい締め切り<input name="endsOn" type="date" defaultValue={sprint.endsOn} required /></label>}
     {action === "reschedule" && <label>新しいバッファ上限<input name="bufferEndsOn" type="date" defaultValue={sprint.bufferEndsOn} required /></label>}

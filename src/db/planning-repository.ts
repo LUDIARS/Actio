@@ -1,3 +1,5 @@
+import { SprintGateStore } from "../../modules/task/sprint-gates/store.js";
+import { sqliteGateDatabase, postgresGateDatabase } from "./sprint-gate-database.js";
 import type postgres from "postgres";
 import { db, dialect } from "./connection.js";
 import type { SqliteDatabase } from "./dialects/sqlite.js";
@@ -15,9 +17,9 @@ import { ExecutionStore } from "../../modules/task/terpsichore/execution-store.j
 export function planningRepositories() {
   if (dialect === "postgres") {
     const client = new PlanningPostgres(db.$client as postgres.Sql);
-    return { backlog: new PostgresBacklogStore(client), sprints: new PostgresSprintStore(client), specs: new PostgresSpecImportStore(client), guidance: new GuidancePlanStore(client), executions: new ExecutionStore(client) };
+    return { gates: new SprintGateStore(postgresGateDatabase(client)), backlog: new PostgresBacklogStore(client), sprints: new PostgresSprintStore(client), specs: new PostgresSpecImportStore(client), guidance: new GuidancePlanStore(client), executions: new ExecutionStore(client) };
   }
   if (dialect !== "sqlite") throw new Error("Planning requires PostgreSQL or SQLite");
   const client = db.$client as SqliteDatabase;
-  return { backlog: new BacklogStore(client), sprints: new SprintStore(client), specs: new SpecImportStore(client), guidance: new GuidancePlanStore(client), executions: new ExecutionStore(client) };
+  return { gates: new SprintGateStore(sqliteGateDatabase(client)), backlog: new BacklogStore(client), sprints: new SprintStore(client), specs: new SpecImportStore(client), guidance: new GuidancePlanStore(client), executions: new ExecutionStore(client) };
 }

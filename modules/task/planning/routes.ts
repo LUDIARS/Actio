@@ -1,3 +1,5 @@
+import { SprintPhaseError } from "@ludiars/terpsichore";
+import { sprintGateRoutes } from "../sprint-gates/routes.js";
 import { Hono } from "hono";
 import { z } from "zod";
 import { dialect } from "../../../src/db/connection.js";
@@ -7,8 +9,6 @@ import { planningRepositories } from "../../../src/db/planning-repository.js";
 import { sprintImpact } from "./impact.js";
 import { praeformaRoutes } from "./spec-routes.js";
 import { suggestGroups } from "./group-suggestions.js";
-import { sprintNotification } from "../notifications/events.js";
-import { enqueueNotificationsSafely } from "../notifications/enqueue.js";
 import { terpsichoreRoutes } from "../terpsichore/routes.js";
 
 export const planningRoutes = new Hono();
@@ -17,6 +17,7 @@ planningRoutes.use("/:teamId/planning/*", async (c, next) => {
   await next();
 });
 planningRoutes.onError((error, c) => {
+  if (error instanceof SprintPhaseError) return c.json({ error: error.message }, 409);
   if (error instanceof PlanningError) return c.json({ error: error.message }, error.status);
   if (error instanceof z.ZodError) return c.json({ error: error.issues.map(i => i.message).join("; ") }, 400);
   throw error;
@@ -36,9 +37,6 @@ planningRoutes.post("/:teamId/planning/sprints", requireTeamRole("leader"), asyn
 planningRoutes.patch("/:teamId/planning/sprints/:id", requireTeamRole("leader"), async c => {
   const input = sprintChange.parse(await c.req.json().catch(() => null));
   const sprint = await planningStores().sprints.change(c.req.param("teamId"), c.req.param("id"), c.get("actingUserId" as never) as string, input, new Date());
-  if (input.action === "start" || input.action === "close") {
-    await enqueueNotificationsSafely([sprintNotification(input.action === "start" ? "started" : "closed", sprint)]);
-  }
   return c.json({ sprint });
 });
 planningRoutes.get("/:teamId/planning/sprints/:id/history", requireTeamRole("member"), async c =>
@@ -58,3 +56,5 @@ planningRoutes.put("/:teamId/planning/order", requireTeamRole("leader"), async c
 });
 planningRoutes.route("/", praeformaRoutes);
 planningRoutes.route("/", terpsichoreRoutes);
+
+planningRoutes.route("/", sprintGateRoutes);

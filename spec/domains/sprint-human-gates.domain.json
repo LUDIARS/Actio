@@ -1,0 +1,21 @@
+{
+  "name": "sprint-human-gates",
+  "description": "Actioを状態正本とするスプリント計画、人間のフェーズ判断、履歴とCc配送。",
+  "presetRules": [],
+  "templateRules": [],
+  "membership": [
+    {
+      "pathPattern": "(^|/)modules/task/sprint-gates/.*$"
+    },
+    {
+      "pathPattern": "(^|/)modules/task/planning/(?!project-sprint-summary\\.ts$).*\\.ts$"
+    },
+    {
+      "pathPattern": "(^|/)tests/unit/(?:sprint-gate-(?:store|worker|routes)|planning-store)\\.test\\.ts$"
+    }
+  ],
+  "specRefs": [
+    "spec/feature/sprint-human-gates.md"
+  ],
+  "rationale": "全対象の証拠と本人の判断を同一トランザクションに結び、差し戻しでスプリントを進めない。"
+}

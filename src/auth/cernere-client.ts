@@ -398,3 +398,12 @@ export async function deleteOAuthToken(
     provider,
   }) as Promise<{ ok: true; deleted: boolean }>;
 }
+
+// @spec スプリントフェーズの本人認証
+/** Authoritative reverse identity lookup. No local cache or placeholder grants authority. */
+export async function resolveCernereDiscordUser(discordUserId:string):Promise<string|null> {
+ const value=await cernereClient.request("managed_project","resolve_user_by_claim",{claim:"discord_id",value:discordUserId});
+ if(value===null)return null;
+ if(typeof value!=="object"||!("userId" in value)||typeof value.userId!=="string"||!value.userId.trim())throw new Error("Cernere identity response is invalid");
+ return value.userId;
+}

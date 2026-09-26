@@ -1,3 +1,4 @@
+import { assertGoalEditable } from "../sprint-gates/legacy-guard.js";
 import { randomUUID } from "node:crypto";
 import type { z } from "zod";
 import type { SqliteDatabase } from "../../../src/db/dialects/sqlite.js";
@@ -47,18 +48,11 @@ export class SprintStore {
       const before = this.find(teamId, id);
       if (before.revision !== input.revision) throw new PlanningError("計画が変更されています。再読み込みしてください");
       if (before.status === "closed") throw new PlanningError("終了したスプリントは変更できません");
-      if (input.action === "start") {
-        if (before.status !== "planning") throw new PlanningError("計画中のスプリントのみ開始できます");
-        if (this.list(teamId).some(s => s.status === "active")) throw new PlanningError("進行中のスプリントを先に終了してください");
-        this.db.prepare("UPDATE sprints SET status = 'active', approved_by = ?, approved_at = ? WHERE id = ?")
-          .run(actor, Math.floor(now.getTime() / 1000), id);
-      } else if (input.action === "close") {
-        // Completed tasks remain attached for history; unfinished tasks return to the product backlog.
-        const carried = this.db.prepare("SELECT id FROM tasks WHERE sprint_id = ? AND status NOT IN ('done', 'cancelled')").all(id);
-        this.db.prepare(`UPDATE tasks SET sprint_id = NULL, carried_from_sprint_id = ?, updated_at = ?
-          WHERE sprint_id = ? AND status NOT IN ('done', 'cancelled')`).run(id, Math.floor(now.getTime() / 1000), id);
-        this.db.prepare("UPDATE sprints SET status = 'closed' WHERE id = ?").run(id);
-        this.record(id, "carry_back", actor, input.reason, { tasks: carried }, {}, now);
+      if (input.action === "start" || input.action === "close") throw new PlanningError("フェーズ画面で計画・受入・振り返り・次計画を確認してください。直接の開始・終了はできません");
+      if (input.action === "update_goal") {
+        const gate = (this.db.prepare("SELECT state_json AS stateJson FROM sprint_gates WHERE team_id=? AND sprint_id=?").get(teamId,id)) as {stateJson:string}|undefined;
+        assertGoalEditable(before.status,gate?.stateJson);
+        this.db.prepare("UPDATE sprints SET goal=? WHERE id=?").run(input.goal,id);
       } else if (input.action === "extend") {
         if (input.endsOn <= before.endsOn) throw new PlanningError("現在の締め切りより後の日付を指定してください", 400);
         if (input.endsOn > before.bufferEndsOn) throw new PlanningError("バッファ上限を超えます。リスケで開始日・締め切り・バッファを見直してください");

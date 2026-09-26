@@ -1,0 +1,13 @@
+.sprint-phase-panel { display: grid; gap: .8rem; }
+.sprint-phase-panel header { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .75rem; }
+.sprint-phase-panel h2, .sprint-phase-panel h3, .sprint-phase-panel p { margin-block: .35rem; }
+.sprint-phase-steps { display: flex; flex-wrap: wrap; gap: .6rem; padding: 0; list-style-position: inside; }
+.sprint-phase-steps li { padding: .6rem .8rem; border: 1px solid var(--border); border-radius: .4rem; }
+.sprint-phase-steps [aria-current="step"] { font-weight: bold; border: 2px solid currentColor; background: var(--bg-secondary); }
+.sprint-phase-panel fieldset { display: grid; gap: .75rem; min-width: 0; padding: 1rem; border: 1px solid var(--border); border-radius: .4rem; }
+.sprint-phase-panel .sprint-phase-checkbox { display: flex; flex-direction: row; align-items: center; gap: .5rem; }
+.sprint-phase-panel button { white-space: normal; }
+.sprint-phase-delivery, .sprint-phase-evidence, .sprint-phase-rework, .sprint-phase-pending { padding: 1rem; border: 1px solid var(--border); border-radius: .4rem; overflow-wrap: anywhere; }
+.sprint-phase-rework, .sprint-phase-pending { border-left: .25rem solid currentColor; }
+.sprint-phase-tasks, .sprint-phase-history { display: grid; gap: .6rem; padding-left: 1.4rem; }
+.sprint-phase-tasks summary { cursor: pointer; }

@@ -25,14 +25,14 @@ export interface Team { id: string; name: string | null; role: string }
 export interface PfSpec { id: string; code: string; title: string; description: string | null; version: number; status: string; preconditions?: string[]; postconditions?: string[] }
 export interface PfDetail { spec: PfSpec; acceptance: { text: string; enabled: boolean }[]; fingerprint: string;
   existingTask: { id: string; fingerprint: string; requirements: string | null; estimatedMinutes: number | null } | null }
-const base = (team: string) => `/teams/${encodeURIComponent(team)}/planning`;
+const base = (team: string) => `/api/teams/${encodeURIComponent(team)}/planning`;
 const specBase = (team: string, project: string) => `${base(team)}/praeforma/projects/${encodeURIComponent(project)}/specs`;
 export const planningApi = {
-  teams: () => request<{ teams: Team[] }>("/teams"),
-  members: (team: string) => request<{ members: { userId: string; role: string }[] }>(`/teams/${encodeURIComponent(team)}/members`),
+  teams: () => request<{ teams: Team[] }>("/api/teams"),
+  members: (team: string) => request<{ members: { userId: string; role: string }[] }>(`/api/teams/${encodeURIComponent(team)}/members`),
   load: (team: string) => request<PlanningData>(base(team)),
-  currentView: (team: string) => request<CurrentSprintView>(`/tasks?team_id=${encodeURIComponent(team)}&view=current_sprint`),
-  teamProjects: (team: string) => request<{ projects: TeamProject[] }>(`/teams/${encodeURIComponent(team)}/projects`),
+  currentView: (team: string) => request<CurrentSprintView>(`/api/tasks?team_id=${encodeURIComponent(team)}&view=current_sprint`),
+  teamProjects: (team: string) => request<{ projects: TeamProject[] }>(`/api/teams/${encodeURIComponent(team)}/projects`),
   mutate: (team: string, path: string, body: unknown, method = "POST") => request(base(team) + path, { method, body: JSON.stringify(body) }),
   history: (team: string, id: string) => request<{ changes: { kind: string; reason: string; actorId: string; createdAt: string; beforeJson: string; afterJson: string }[] }>(`${base(team)}/sprints/${id}/history`),
   projects: (team: string) => request<{ items: { id: string; name: string }[] }>(`${base(team)}/praeforma/projects`),

@@ -1,9 +1,11 @@
+import { sprintGateDdl } from "./sprint-gate-migration.js";
 import type postgres from "postgres";
 
 /** Additive, atomic task migration; independent of optional calendar module DDL. */
 export async function migratePlanningPostgres(pool: postgres.Sql): Promise<void> {
   await pool.begin(async sql => {
     await sql.unsafe(`SELECT pg_advisory_xact_lock(hashtextextended('actio-planning-schema', 0))`);
+    for (const ddl of sprintGateDdl) await sql.unsafe(ddl);
     await sql.unsafe(`CREATE TABLE IF NOT EXISTS terpsichore_runs (
       id TEXT PRIMARY KEY, team_id TEXT NOT NULL, project_id TEXT NOT NULL, actor_id TEXT NOT NULL,
       task_ids TEXT NOT NULL, manifest_json TEXT NOT NULL, state TEXT NOT NULL, run_id TEXT, created_at TEXT NOT NULL

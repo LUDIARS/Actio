@@ -10,5 +10,8 @@
     {
       "pathPattern": "(^|/)src/corpus\\.ts$"
     }
+  ],
+  "specRefs": [
+    "spec/feature/sprint-human-gates.md"
   ]
 }

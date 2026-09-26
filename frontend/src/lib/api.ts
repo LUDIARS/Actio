@@ -62,6 +62,13 @@ export function setStoredUser(user: { id: string; name: string; email: string; r
 
 // ─── Core Request ──────────────────────────────────────────
 
+export class ApiRequestError extends Error {
+  readonly status: number;
+  constructor(message: string, status: number) {
+    super(message); this.name = "ApiRequestError"; this.status = status;
+  }
+}
+
 export async function request<T>(
   path: string,
   options: RequestInit = {}
@@ -94,7 +101,7 @@ export async function request<T>(
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
     console.error(`[api] HTTPエラー: ${res.status} ${url}`, body);
-    throw new Error(body.error || `HTTP ${res.status}`);
+    throw new ApiRequestError(body.error || `HTTP ${res.status}`, res.status);
   }
   return res.json();
 }

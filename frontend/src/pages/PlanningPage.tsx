@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
+import { useSearchParams } from "react-router-dom";
 import { planningApi, type CurrentSprintView, type PlanningData, type PlanningTask, type Team, type TeamProject } from "../lib/planning-api";
 
 type BoardView = "current" | "all";
@@ -17,16 +18,32 @@ import { request } from "../lib/api";
 import { SprintForm, SprintAdjustment } from "../components/planning/SprintForm";
 import { PraeformaBacklog } from "../components/planning/PraeformaBacklog";
 import { TerpsichorePanel } from "../components/planning/TerpsichorePanel";
+import { SprintPhasePanel } from "../components/planning/SprintPhasePanel";
 import "./PlanningPage.css";
 
 export function PlanningPage() {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const team = searchParams.get("teamId") ?? searchParams.get("team") ?? "";
+  const sprintId = searchParams.get("sprintId") ?? searchParams.get("sprint") ?? "";
+  const setTeam = (value: string): void => {
+    const query = new URLSearchParams(searchParams);
+    query.delete("team"); query.delete("sprint"); query.delete("sprintId");
+    if (value) query.set("teamId", value); else query.delete("teamId");
+    setSearchParams(query);
+  };
+  const setSprintId = (value: string): void => {
+    const query = new URLSearchParams(searchParams);
+    query.delete("sprint");
+    if (value) query.set("sprintId", value); else query.delete("sprintId");
+    setSearchParams(query);
+  };
   const [teams, setTeams] = useState<Team[]>([]);
-  const [team, setTeam] = useState("");
   const currentTeam = useRef(team);
   currentTeam.current = team;
   const [data, setData] = useState<PlanningData | null>(null);
   const [members, setMembers] = useState<string[]>([]);
-  const [sprintId, setSprintId] = useState("");
+  const currentSprint = useRef(sprintId);
+  currentSprint.current = sprintId;
   const [selected, setSelected] = useState<string[]>([]);
   const [reason, setReason] = useState("");
   const [error, setError] = useState("");
@@ -44,7 +61,7 @@ export function PlanningPage() {
     setData(result); setCurrent(currentView); setSelected([]); setHistory([]);
   }, [team]);
   useEffect(() => {
-    let active = true; setData(null); setCurrent(null); setProjects([]); setSelected([]); setSprintId(""); setHistory([]); setMembers([]); setError("");
+    let active = true; setData(null); setCurrent(null); setProjects([]); setSelected([]); setHistory([]); setMembers([]); setError("");
     if (team) { setBusy(true); void Promise.all([planningApi.load(team), planningApi.members(team), planningApi.currentView(team), planningApi.teamProjects(team)]).then(([d, m, cv, p]) => {
       if (active) { setData(d); setMembers(m.members.map(x => x.userId)); setCurrent(cv); setProjects(p.projects); }
     }).catch(e => { if (active) setError(e.message); }).finally(() => { if (active) setBusy(false); }); }
@@ -54,7 +71,8 @@ export function PlanningPage() {
   const visibleTasks = data ? (view === "current" && current ? data.tasks.filter(t => currentIds.has(t.id)) : data.tasks) : [];
   const run = async (fn: () => Promise<unknown>) => {
     setBusy(true); setError("");
-    try { await fn(); await refresh(); } catch (e) { setError((e as Error).message); } finally { setBusy(false); }
+    try { await fn(); await refresh(); } catch (e) { if (currentTeam.current === team) setError((e as Error).message); }
+    finally { if (currentTeam.current === team) setBusy(false); }
   };
   const canEdit = ["leader", "admin"].includes(teams.find(t => t.id === team)?.role ?? "");
   const sprint = data?.sprints.find(s => s.id === sprintId);
@@ -67,7 +85,7 @@ export function PlanningPage() {
     event.preventDefault(); const form = event.currentTarget; const values = new FormData(form);
     const aiExecutor = String(values.get("aiExecutor") ?? "").trim();
     const projectId = String(values.get("projectId") ?? "");
-    void run(async () => { await request("/tasks", { method: "POST", body: JSON.stringify({ teamId: team, lane: "backlog",
+    void run(async () => { await request("/api/tasks", { method: "POST", body: JSON.stringify({ teamId: team, lane: "backlog",
       title: values.get("title"), description: values.get("description"), assigneeId: values.get("assigneeId"),
       deadline: new Date(String(values.get("deadline"))).toISOString(), estimatedMinutes: Number(values.get("estimatedMinutes")),
       executorType, ...(executorType === "ai" && aiExecutor ? { aiExecutor } : {}), ...(projectId ? { projectId } : {}),
@@ -96,6 +114,8 @@ export function PlanningPage() {
         ? `進行中のスプリント: ${current.current_sprint.name}（${current.current_sprint.startsOn} ～ ${current.current_sprint.endsOn}）と未割付のバックログを表示しています。`
         : "進行中のスプリントがありません。未割付のバックログだけを表示しています。"}</p>}
       <label>スプリント<select value={sprintId} onChange={e => { setSprintId(e.target.value); setHistory([]); }}><option value="">全体バックログ</option>{data.sprints.map(s => <option key={s.id} value={s.id}>{s.name} ({s.status})</option>)}</select></label>
+      {sprintId && !sprint && <p role="alert">リンク先のスプリントがこのチームに見つかりません。チームとスプリントを選び直してください。</p>}
+      {sprint && <SprintPhasePanel key={`${team}:${sprint.id}`} team={team} sprintId={sprint.id} sprints={data.sprints} projects={projects} onChanged={refresh} />}
       {sprint && <section className="card">
         <h2>{sprint.name}</h2><p>{sprint.goal}</p>
         <p>{sprint.startsOn} ～ {sprint.endsOn} ／周期 {sprint.cadenceDays} 日 ／当初締め切り {sprint.originalEndsOn} ／バッファ上限 {sprint.bufferEndsOn}</p>
@@ -103,8 +123,8 @@ export function PlanningPage() {
         <p role="status">{({ unknown: "見積・容量が未設定のため予測できません", within: "見積は締め切り内です", buffer: "バッファを使う見込みです。締め切りを調整してください", reschedule: "バッファ上限を超える見込みです。リスケしてください" })[sprint.impact.state]}
           {sprint.impact.projectedEndsOn && `（容量に基づく目安: ${sprint.impact.projectedEndsOn}）`}</p>
         {sprint.impact.overdueTaskIds.length > 0 && <p>タスク個別の締め切りを再確認: {sprint.impact.overdueTaskIds.length} 件</p>}
-        {canEdit && sprint.status !== "closed" && <SprintAdjustment key={sprint.id} team={team} sprint={sprint} onSaved={refresh} />}
-        <button className="btn" onClick={() => { void planningApi.history(team, sprint.id).then(r => setHistory(r.changes)).catch(e => setError(e.message)); }}>変更履歴</button>
+        {canEdit && sprint.status !== "closed" && <SprintAdjustment key={`${team}:${sprint.id}`} team={team} sprint={sprint} onSaved={refresh} />}
+        <button className="btn" onClick={() => { void planningApi.history(team, sprint.id).then(r => { if (currentTeam.current === team && currentSprint.current === sprint.id) setHistory(r.changes); }).catch(e => { if (currentTeam.current === team && currentSprint.current === sprint.id) setError(e.message); }); }}>日程・割付の変更履歴</button>
         {history.map((h, i) => <details key={i}><summary>{h.createdAt} {h.kind}: {h.reason}</summary><p>判断者 {h.actorId}</p><pre>{h.beforeJson}</pre><pre>{h.afterJson}</pre></details>)}
       </section>}
       {canEdit && <form className="planning-form" onSubmit={group}><h2>同系統をまとめる</h2><p>タスク本文・担当・状態を保ったまま、選択した項目をまとめます。</p>
