@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import { z } from "zod";
 import { dialect } from "../../../src/db/connection.js";
 import { requireTeamRole } from "../../../src/auth/team-role.js";
-import { newSprint, sprintChange, groupInput, orderInput, PlanningError } from "./contracts.js";
+import { newSprint, sprintChange, groupInput, orderInput, PlanningError, PLANNING_UNSUPPORTED_MESSAGE } from "./contracts.js";
 import { planningRepositories } from "../../../src/db/planning-repository.js";
 import { sprintImpact } from "./impact.js";
 import { praeformaRoutes } from "./spec-routes.js";
@@ -12,7 +12,7 @@ import { enqueueNotificationsSafely } from "../notifications/enqueue.js";
 
 export const planningRoutes = new Hono();
 planningRoutes.use("/:teamId/planning/*", async (c, next) => {
-  if (dialect === "mysql") return c.json({ error: "計画機能は PostgreSQL または SQLite 配備で利用できます" }, 501);
+  if (dialect === "mysql") return c.json({ error: PLANNING_UNSUPPORTED_MESSAGE }, 501);
   await next();
 });
 planningRoutes.onError((error, c) => {
@@ -22,7 +22,7 @@ planningRoutes.onError((error, c) => {
 });
 const planningStores = planningRepositories;
 planningRoutes.get("/:teamId/planning", requireTeamRole("member"), async (c) => {
-  if (dialect === "mysql") return c.json({ error: "計画機能は PostgreSQL または SQLite 配備で利用できます" }, 501);
+  if (dialect === "mysql") return c.json({ error: PLANNING_UNSUPPORTED_MESSAGE }, 501);
   const teamId = c.req.param("teamId");
   const { sprints, backlog } = planningStores();
   const tasks = await backlog.list(teamId);

@@ -42,6 +42,8 @@ export interface BacklogTask {
   executorType?: string; aiExecutor?: string | null; isCriticalPath?: boolean | number;
   slackDays?: number | null; criticalPathError?: string | null; blockedBy?: string[] | string; durationDays?: number | null;
 }
+/** MySQL 方言では計画機能を提供しない (501)。 */
+export const PLANNING_UNSUPPORTED_MESSAGE = "計画機能は PostgreSQL または SQLite 配備で利用できます";
 export class PlanningError extends Error {
   constructor(message: string, public readonly status: 400 | 404 | 409 = 409) { super(message); }
 }

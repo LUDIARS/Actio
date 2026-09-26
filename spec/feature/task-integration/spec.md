@@ -225,6 +225,69 @@ introduced by this compatibility addition.
 - WebUI: バックログ追加フォームにプロジェクト選択 (チームに属するものだけ)、 計画表にプロジェクト列と絞り込み。
 - Cc の管理面 (`/projects`) のチーム割り当て変更は、 次の同期 tick で Actio に反映される。
 
+### 6.4 プロジェクト別スプリント集計 (Breviarium 連携)
+
+Breviarium (プロジェクト状態のエグゼクティブサマリー) がスプリントを可視化するための読み取り専用 API。
+neco 指示 (2026-09-26「スプリントも可視化しよう」)。 Actio タスク参照: `actio:b5a0e91a-723b-49c6-926f-879df2109945`。
+応答の形は Breviarium と共通の契約で、 両リポで同じ形を使う。
+
+`GET /api/projects/cc/:code/sprints`
+
+- 実装: 集計は純粋関数 `modules/task/planning/project-sprint-summary.ts`、 読み出し (project_refs → チーム → スプリント・
+  バックログ) は `modules/task/team/project-sprint-query.ts`、 認可は `src/auth/loopback-or-admin.ts`。
+- **認可**: ローカルモードの loopback (`/api/auth/me` が `localMode:true, access:"loopback"`) か Actio 管理者 (`userRole=admin`)。
+  チーム所属は要求しない (集計・読み取り専用のため)。 cf-access 経由・匿名・一般ユーザー (チームリーダーを含む) は 403。
+  ローカルモードでは Bearer トークンを見ないので、 cf-access 経由は管理者トークンを付けても 403。
+  認可は code の解決より先に行い、 403 の相手に code の有無を漏らさない。
+  既存の `GET /api/teams/:teamId/planning` は `requireTeamRole("member")` で、 チーム未所属の `actio-local` が 403 になるため使わない。
+- **応答順**: 403 (認可) → 501 (MySQL 方言。 計画機能と同じ本文 = `modules/task/planning/contracts.ts` の
+  `PLANNING_UNSUPPORTED_MESSAGE`、 `modules/task/planning/routes.ts` と共有) → 404 `{error:"unknown_project"}`
+  (`GET /api/projects/cc` に無い code = 未知、 または Cc から消えて `removed_at` 付き。 code は大文字小文字を区別する) → 200。
+- **対象チーム**: `project_refs.team_ids` (Cc 同期) の順。 0 件なら `teams: []`。 `team_refs` に行が無いチームは `teamName: null`。
+- **応答**:
+
+```json
+{
+  "project": "KD",
+  "generatedAt": "2026-09-26T03:00:00.000Z",
+  "teams": [
+    {
+      "teamId": "team_x", "teamName": "KonbiniDominant",
+      "activeSprint": {
+        "id": "sprint_x", "name": "Sprint 12", "goal": "goal text", "status": "active",
+        "startsOn": "2026-09-22", "endsOn": "2026-10-05", "originalEndsOn": "2026-10-05", "bufferEndsOn": "2026-10-07",
+        "cadenceDays": 14, "capacityMinutes": 4800, "revision": 3,
+        "tasks": {
+          "total": 18, "byStatus": { "open": 6, "in_progress": 4, "blocked": 2, "done": 6 },
+          "project": { "total": 7, "byStatus": { "open": 2, "in_progress": 2, "blocked": 1, "done": 2 } },
+          "criticalPath": 3, "byExecutor": { "human": 10, "ai": 8 }, "overdue": 1,
+          "estimatedMinutes": 4200, "doneMinutes": 1500
+        }
+      },
+      "planningSprints": [ { "id": "sprint_y", "name": "Sprint 13", "startsOn": "2026-10-06", "endsOn": "2026-10-19" } ],
+      "backlogUnassigned": { "total": 25, "project": 9 }
+    }
+  ]
+}
+```
+
+| 項目 | 定義 |
+|---|---|
+| `activeSprint` | status `active` のスプリント (§3.1 の `findCurrentSprint`、 チームにつき 1 件まで)。 無ければ `null` |
+| `tasks.total` / `byStatus` | そのスプリントに割り当てたタスク全体 (完了済みを含む)。 キーは Actio の status 値そのまま (`open` / `in_progress` / `blocked` / `done` / `cancelled`)。 0 件の status は載せない |
+| `tasks.project.*` | 上と同じ集計を `project_id = :code` のタスクだけで |
+| `criticalPath` | 未完了 (done / cancelled 以外) かつ `is_critical_path` のタスク数 (§5) |
+| `byExecutor` | スプリント全タスクを `executor_type` で `ai` / それ以外 (`human`) に分けた数 (§4) |
+| `overdue` | 未完了かつ `deadline` が `generatedAt` より前のタスク数 |
+| `estimatedMinutes` | cancelled 以外のタスクの見積合計 (未完了分は `sprintImpact` と同じ、 見積の無いタスクは 0) |
+| `doneMinutes` | done タスクの見積合計 |
+| `planningSprints` | status `planning` のスプリントを `startsOn`, `id` の順に。 `id` / `name` / `startsOn` / `endsOn` だけ |
+| `backlogUnassigned` | スプリント未割付の未完了バックログ (§3.1 の未割付条件)。 `project` はそのうち `project_id = :code` の数 |
+
+- **除外する情報**: タスクの id・タイトル・説明・要件・担当者 (id / 名前)・fingerprint は出さない。 件数と、
+  スプリントの id / 名前 / ゴール / 日付 / 容量 / revision だけを返す。 チームの id / 名前は Cc 同期キャッシュ由来。
+- 書き込みはしない。 集計はリクエストごとに行い、 キャッシュしない。
+
 ## 7. DB migration
 
 - SQLite (`src/db/dialects/sqlite.ts` / `src/db/migrate-sqlite.ts`)、 Postgres (`src/db/planning-postgres-migration.ts`)、

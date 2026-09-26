@@ -18,6 +18,9 @@
     },
     {
       "pathPattern": "(^|/)src/db/team-task-schema\\.ts$"
+    },
+    {
+      "pathPattern": "(^|/)modules/task/planning/project-sprint-summary\\.ts$"
     }
   ]
 }

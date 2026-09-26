@@ -19,6 +19,11 @@ export interface ViewSprint {
   status: string;
 }
 
+/** 完了系 (done / cancelled) か。 未完了の判定はこれの否定で揃える。 */
+export function isClosedStatus(status: string): boolean {
+  return CLOSED_STATUSES.has(status);
+}
+
 export function isTaskView(value: unknown): value is TaskView {
   return typeof value === "string" && (TASK_VIEWS as readonly string[]).includes(value);
 }
@@ -36,7 +41,7 @@ export function selectCurrentSprintView<T extends ViewTask, S extends ViewSprint
   const selected = tasks.filter((task) => {
     // Everything in the running sprint stays visible, including finished work, to show progress.
     if (currentSprint && task.sprintId === currentSprint.id) return true;
-    return task.lane === "backlog" && task.sprintId === null && !CLOSED_STATUSES.has(task.status);
+    return task.lane === "backlog" && task.sprintId === null && !isClosedStatus(task.status);
   });
   return { currentSprint, tasks: selected };
 }
