@@ -24,6 +24,11 @@ export interface DiscordMessage {
   id: string; channel_id: string; content: string; timestamp: string; edited_timestamp: string | null;
   author: { id: string; bot?: boolean }; webhook_id?: string;
   attachments: { filename: string; url: string }[];
+  application_id?: string;
+  interaction_metadata?: { type: number };
+  interaction?: { type: number };
+  embeds?: { footer?: { text: string }; description?: string }[];
+  message_reference?: { channel_id?: string; message_id?: string; guild_id?: string };
 }
 export function splitChatText(text: string, limit = 1750): string[] {
   const parts: string[] = [];

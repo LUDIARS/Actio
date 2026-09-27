@@ -129,3 +129,12 @@ Discord Botの登録は管理画面から接続先・Botアプリ識別子・シ
 - Slack channel archive: https://docs.slack.dev/reference/methods/conversations.archive/
 
 2026-09-27確認。Discordの通常チャンネル保管方式はAPIに基づく設計判断。実運用の権限・Bot設定・画面体験は未検証。
+
+## Explicit Discord command intake (2026-09-27)
+Approved by neco: この設計で開始. Add actual /backlog add (text OR message), message context action, configured-bot mention with explicit backlog action, and reply ++バックログ. References are restricted to the same public intake channel and guild; no arbitrary URL fetching. Public command replies carry versioned actio-backlog-command:v1 receipts, accepted only from this Bot application with application-command interaction metadata. Actio owns intake, source-message deduplication, review and public registration notification. Missing information belongs in the receipt thread. Final task confirmation remains the authenticated human action. Source edits/deletions invalidate the review. Standalone applications use Ed25519 signed interactions and explicit command registration, preserving other commands; PUBLIC_KEY is configured alongside the token reference. Local-only mode does not expose an external endpoint. Cc performs an authenticated live admission check before publishing a receipt.
+
+Implementation references: `modules/task/chat/discord-intake.ts` validates explicit mentions, bot receipts and source IDs. `modules/task/chat/discord-commands.ts` maps application commands to public receipts. `modules/task/chat/discord-signature.ts` verifies the exact UTF-8 payload and timestamp. `modules/task/chat/triggers.ts` recognizes leading explicit commands. `frontend/src/lib/chat-api.ts` and `frontend/src/pages/ChatPlanningPage.tsx` expose standalone command setup and usage.
+
+`modules/task/chat/intake-requirements.ts` deterministically asks for missing purpose, change scope and acceptance criteria even if LLM output omits questions.
+
+`modules/task/chat/intake-store.ts` owns intake creation, source-message deduplication, revisions and human confirmation. `modules/task/chat/ingestion.ts` resolves the referenced message before receipt and rejects invalid sources through the durable outbox. Source refresh must use receive with allowNew=false, so it updates existing intake without opening a new request.

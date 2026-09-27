@@ -30,6 +30,8 @@ export interface Message {
   content: string; actorId: string | null; bot: boolean; deleted: boolean;
   occurredAt: string; editedAt: string | null; url: string;
   attachments: { name: string; url: string }[];
+  /** Transport-validated explicit request; ordinary Bot messages never receive this. */
+  intakeRequest?: { text: string; target?: { channelId: string; messageId: string }; error?: string };
 }
 export interface IncomingMessage extends Omit<Message, "teamId" | "actorId"> {
   externalActorId: string | null;
@@ -49,6 +51,7 @@ export interface Intake {
   state: "checking" | "needs_information" | "needs_review" | "registered";
   review: IntakeReview | null; reviewedRevision: number | null;
   reviewError: string | null; taskId: string | null; confirmedBy: string | null;
+  sourceMessageId?: string;
 }
 export const confirmIntake = z.object({
   revision: z.number().int().positive(),
@@ -78,6 +81,7 @@ export interface Operation {
   resultId: string | null; lastError: string | null; createdAt: string;
 }
 export interface Transport {
+  sourceMessage?(connection: Connection, channelId: string, messageId: string): Promise<IncomingMessage>;
   threads(connection: Connection, channelId: string): Promise<string[]>;
   deleted(connection: Connection, channelId: string, ids: string[]): Promise<string[]>;
   validate(connection: Connection): Promise<void>;

@@ -22,6 +22,7 @@ export interface ChatLog {
 }
 export const chatBase = (team: string): string => `/api/teams/${encodeURIComponent(team)}/chat`;
 export const chatApi = {
+  registerCommands: (team: string): Promise<{ registered: boolean; interactionPath: string }> => request(`${chatBase(team)}/commands`, { method: "POST" }),
   state: (team: string, signal?: AbortSignal): Promise<ChatState> => request(`${chatBase(team)}/state`, { signal }),
   logs: (team: string, channel: string, offset: number, q: string, signal?: AbortSignal): Promise<ChatLog> => request(`${chatBase(team)}/logs/${encodeURIComponent(channel)}?offset=${offset}&q=${encodeURIComponent(q)}`, { signal }),
 };

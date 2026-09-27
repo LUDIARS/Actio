@@ -1,9 +1,179 @@
 {
   "version": 1,
   "implementations": [
-    { "source": "frontend/src/lib/api-types.ts", "tests": ["frontend/src/lib/task-pr-evidence.test.ts"], "contracts": ["AT-TASK-PR-01"] },
-    { "source": "frontend/src/lib/task-pr-evidence.ts", "tests": ["frontend/src/lib/task-pr-evidence.test.ts"], "contracts": ["AT-TASK-PR-01"] },
-    { "source": "frontend/src/components/TaskPrEvidence.tsx", "tests": ["frontend/src/lib/task-pr-evidence.test.ts"], "contracts": ["AT-TASK-PR-01"] },
-    { "source": "frontend/src/pages/TasksPage.tsx", "tests": ["frontend/src/lib/task-pr-evidence.test.ts"], "contracts": ["AT-TASK-PR-01"] }
+    {
+      "source": "frontend/src/lib/api-types.ts",
+      "tests": [
+        "frontend/src/lib/task-pr-evidence.test.ts"
+      ],
+      "contracts": [
+        "AT-TASK-PR-01"
+      ]
+    },
+    {
+      "source": "frontend/src/lib/task-pr-evidence.ts",
+      "tests": [
+        "frontend/src/lib/task-pr-evidence.test.ts"
+      ],
+      "contracts": [
+        "AT-TASK-PR-01"
+      ]
+    },
+    {
+      "source": "frontend/src/components/TaskPrEvidence.tsx",
+      "tests": [
+        "frontend/src/lib/task-pr-evidence.test.ts"
+      ],
+      "contracts": [
+        "AT-TASK-PR-01"
+      ]
+    },
+    {
+      "source": "frontend/src/pages/TasksPage.tsx",
+      "tests": [
+        "frontend/src/lib/task-pr-evidence.test.ts"
+      ],
+      "contracts": [
+        "AT-TASK-PR-01"
+      ]
+    },
+    {
+      "source": "modules/task/chat/triggers.ts",
+      "tests": [
+        "tests/unit/chat-command-intake.test.ts",
+        "tests/unit/chat-intake.test.ts"
+      ],
+      "contracts": [
+        "AT-SPRINT-CHAT-INTEGRATION"
+      ]
+    },
+    {
+      "source": "modules/task/chat/contracts.ts",
+      "tests": [
+        "tests/unit/chat-command-intake.test.ts",
+        "tests/unit/chat-intake.test.ts"
+      ],
+      "contracts": [
+        "AT-SPRINT-CHAT-INTEGRATION"
+      ]
+    },
+    {
+      "source": "modules/task/chat/discord-intake.ts",
+      "tests": [
+        "tests/unit/chat-command-intake.test.ts",
+        "tests/unit/chat-intake.test.ts"
+      ],
+      "contracts": [
+        "AT-SPRINT-CHAT-INTEGRATION"
+      ]
+    },
+    {
+      "source": "modules/task/chat/discord-commands.ts",
+      "tests": [
+        "tests/unit/chat-command-intake.test.ts",
+        "tests/unit/chat-intake.test.ts"
+      ],
+      "contracts": [
+        "AT-SPRINT-CHAT-INTEGRATION"
+      ]
+    },
+    {
+      "source": "modules/task/chat/command-routes.ts",
+      "tests": [
+        "tests/unit/chat-command-intake.test.ts",
+        "tests/unit/chat-intake.test.ts"
+      ],
+      "contracts": [
+        "AT-SPRINT-CHAT-INTEGRATION"
+      ]
+    },
+    {
+      "source": "modules/task/chat/discord-rest.ts",
+      "tests": [
+        "tests/unit/chat-command-intake.test.ts",
+        "tests/unit/chat-intake.test.ts"
+      ],
+      "contracts": [
+        "AT-SPRINT-CHAT-INTEGRATION"
+      ]
+    },
+    {
+      "source": "modules/task/chat/discord-history.ts",
+      "tests": [
+        "tests/unit/chat-command-intake.test.ts",
+        "tests/unit/chat-intake.test.ts"
+      ],
+      "contracts": [
+        "AT-SPRINT-CHAT-INTEGRATION"
+      ]
+    },
+    {
+      "source": "modules/task/chat/discord-transport.ts",
+      "tests": [
+        "tests/unit/chat-command-intake.test.ts",
+        "tests/unit/chat-intake.test.ts"
+      ],
+      "contracts": [
+        "AT-SPRINT-CHAT-INTEGRATION"
+      ]
+    },
+    {
+      "source": "modules/task/chat/intake-store.ts",
+      "tests": [
+        "tests/unit/chat-command-intake.test.ts",
+        "tests/unit/chat-intake.test.ts"
+      ],
+      "contracts": [
+        "AT-SPRINT-CHAT-INTEGRATION"
+      ]
+    },
+    {
+      "source": "modules/task/chat/ingestion.ts",
+      "tests": [
+        "tests/unit/chat-command-intake.test.ts",
+        "tests/unit/chat-intake.test.ts"
+      ],
+      "contracts": [
+        "AT-SPRINT-CHAT-INTEGRATION"
+      ]
+    },
+    {
+      "source": "modules/task/chat/routes.ts",
+      "tests": [
+        "tests/unit/chat-command-intake.test.ts",
+        "tests/unit/chat-intake.test.ts"
+      ],
+      "contracts": [
+        "AT-SPRINT-CHAT-INTEGRATION"
+      ]
+    },
+    {
+      "source": "src/app.ts",
+      "tests": [
+        "tests/unit/chat-command-intake.test.ts",
+        "tests/unit/chat-intake.test.ts"
+      ],
+      "contracts": [
+        "AT-SPRINT-CHAT-INTEGRATION"
+      ]
+    },
+    {
+      "source": "modules/task/chat/discord-signature.ts",
+      "tests": [
+        "tests/unit/chat-command-intake.test.ts"
+      ],
+      "contracts": [
+        "AT-SPRINT-CHAT-INTEGRATION"
+      ]
+    },
+    {
+      "source": "modules/task/chat/intake-requirements.ts",
+      "tests": [
+        "tests/unit/chat-command-intake.test.ts"
+      ],
+      "contracts": [
+        "AT-SPRINT-CHAT-INTEGRATION"
+      ]
+    }
   ]
 }

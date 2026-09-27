@@ -12,6 +12,8 @@ import { IntakeStore } from "./intake-store.js";
 import { chatMode, chatProviders } from "./providers.js";
 import { conversation, type DiscussionSetting } from "./discussion.js";
 import { readRecord, writeRecord, requireRevision } from "./records.js";
+import { DiscordRest } from "./discord-rest.js";
+import { backlogCommands } from "./discord-commands.js";
 
 function param(c: Context, key: string): string { const value = c.req.param(key); if (!value) throw new ChatError("Missing route parameter", 400); return value; }
 const base = "/:teamId/chat";
@@ -63,6 +65,18 @@ chatRoutes.get(base + "/logs/:channel", async c => {
 chatRoutes.use(base + "/*", async (c, next) => {
   if (!human(c)) return c.json({ error: "人間のログインで操作してください" }, 403);
   await next();
+});
+chatRoutes.post(base + "/commands", requireTeamRole("leader"), async c => {
+  if (!chatAdministrator(c) || chatMode() !== "discord") throw new ChatError("独立Discord Botの管理者が登録してください", 403);
+  const connection = await chatRecords().get<Connection>(param(c, "teamId"), "connection", "discord");
+  if (!connection?.tokenRef || !secretManager.get(connection.tokenRef + "_PUBLIC_KEY")) throw new ChatError("BotのPUBLIC_KEYとInteractions Endpointを設定してください", 400);
+  const rest = new DiscordRest(secretManager.getRequired(connection.tokenRef), c.req.raw.signal);
+  const app = await rest.call<{ id: string; interactions_endpoint_url?: string }>("/oauth2/applications/@me");
+  const expectedPath = `/api/chat/commands/discord/${connection.teamId}/interactions`;
+  if (!app.interactions_endpoint_url?.startsWith("https://") || new URL(app.interactions_endpoint_url).pathname !== expectedPath)
+    throw new ChatError("Developer PortalのInteractions Endpointをこのチーム用に設定してください", 400);
+  for (const command of backlogCommands) await rest.call(`/applications/${app.id}/guilds/${connection.workspaceId}/commands`, "POST", command);
+  return c.json({ registered: true, interactionPath: `/api/chat/commands/discord/${connection.teamId}/interactions` });
 });
 chatRoutes.put(base + "/connection", requireTeamRole("leader"), async c => {
   const body = z.object({ revision: z.number().int().nonnegative(), connection: connectionInput }).strict().parse(await c.req.json());

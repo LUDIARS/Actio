@@ -13,6 +13,7 @@ import { taskRoutes } from "../modules/task/routes.js";
 import { teamMemberRoutes } from "../modules/task/team-member-routes.js";
 import { planningRoutes } from "../modules/task/planning/routes.js";
 import { chatRoutes } from "../modules/task/chat/routes.js";
+import { chatCommandRoutes } from "../modules/task/chat/command-routes.js";
 import { criticalPathRoutes } from "../modules/task/critical-path/routes.js";
 import { ccProjectRoutes, teamProjectRoutes } from "../modules/task/team/project-routes.js";
 // event / calendar / placement / 予定系 SDK モジュールは Schedula に分離
@@ -133,6 +134,7 @@ export function createApp() {
   // ─── Composite Auth (認証不要: ログイン前のユーザーが呼ぶ) ──
   app.route("/api/auth", compositeAuthRoutes);
 
+  app.route("/api/chat/commands", chatCommandRoutes);
   app.use("/api/*", userContext());
 
   // ─── Module Admin API (プラグインモジュール管理) ─────────────

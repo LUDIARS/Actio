@@ -2,6 +2,7 @@
 import { ChatError, type Connection, type Operation, type Transport, type IncomingMessage } from "./contracts.js";
 import { DiscordRest, splitChatText, type DiscordChannel, type DiscordMessage } from "./discord-rest.js";
 import { discordHistory } from "./discord-history.js";
+import { discordIncoming } from "./discord-intake.js";
 
 const VIEW_CHANNEL = 1024n;
 const WRITE = 2048n | 64n | (1n << 35n) | (1n << 36n) | (1n << 38n);
@@ -58,7 +59,16 @@ export class DiscordTransport implements Transport {
   }
   async messages(connection: Connection, channelId: string, cursor: string | null): Promise<{ messages: IncomingMessage[]; cursor: string | null; complete: boolean }> {
     const channel = await this.channel(connection, channelId);
-    return discordHistory(this.rest, connection.workspaceId, channelId, channel.type === 11 ? channel.parent_id ?? null : null, cursor);
+    return discordHistory(this.rest, connection.workspaceId, channelId, channel.type === 11 ? channel.parent_id ?? null : null, cursor, this.me ?? "");
+  }
+  async sourceMessage(connection: Connection, channelId: string, messageId: string): Promise<IncomingMessage> {
+    // Referenced content must be visible on the same intake surface; never copy a private or unrelated channel.
+    if (channelId !== connection.backlogChannelId) throw new ChatError("同じ受付チャンネルの投稿を指定してください", 400);
+    await this.channel(connection, channelId);
+    const raw = await this.rest.call<DiscordMessage>(`/channels/${channelId}/messages/${messageId}`);
+    if (raw.channel_id !== channelId) throw new ChatError("元投稿のチャンネルが一致しません", 400);
+    const { intakeRequest: _request, ...message } = discordIncoming(raw, connection.workspaceId, channelId, null, "");
+    return message;
   }
   private async findMessage(channel: string, marker: string, createdAt: string): Promise<string | null> {
     let before: string | null = null;
