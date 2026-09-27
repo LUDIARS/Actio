@@ -3,7 +3,7 @@ import { Hono, type Context } from "hono";
 import { bodyLimit } from "hono/body-limit";
 import { z } from "zod";
 import { requireTeamRole } from "../../../src/auth/team-role.js";
-import { isLocalModeRequest } from "../../../src/auth/local-mode.js";
+import { chatHuman as human, chatAdministrator } from "./access.js";
 import { chatRecords } from "../../../src/db/chat-repository.js";
 import { secretManager } from "../../../src/config/secrets.js";
 import { ChatError, connectionInput, confirmIntake, type Connection, type Intake, type Surface, type Operation } from "./contracts.js";
@@ -16,10 +16,6 @@ import { readRecord, writeRecord, requireRevision } from "./records.js";
 function param(c: Context, key: string): string { const value = c.req.param(key); if (!value) throw new ChatError("Missing route parameter", 400); return value; }
 const base = "/:teamId/chat";
 function actor(c: Context): string { return c.get("userId" as never) as string; }
-function human(c: Context): boolean {
-  const id = actor(c);
-  return !!id && id !== "anonymous" && id !== "actio-local" && !isLocalModeRequest(c) && !c.get("apiClientId" as never);
-}
 export const chatRoutes = new Hono();
 chatRoutes.use("*", bodyLimit({ maxSize: 160_000 }));
 chatRoutes.onError((error, c) => {
@@ -73,7 +69,7 @@ chatRoutes.put(base + "/connection", requireTeamRole("leader"), async c => {
   const value = { ...body.connection, teamId: param(c, "teamId") };
   // Secret references are administrator-controlled; a team leader must not select another team's Bot credentials.
   const prior = await chatRecords().get<Connection>(value.teamId, "connection", value.platform);
-  if (c.get("teamRole" as never) !== "admin" && (!prior || prior.tokenRef !== value.tokenRef || prior.workspaceId !== value.workspaceId || prior.backlogChannelId !== value.backlogChannelId))
+  if (!chatAdministrator(c) && (!prior || prior.tokenRef !== value.tokenRef || prior.workspaceId !== value.workspaceId || prior.backlogChannelId !== value.backlogChannelId))
     throw new ChatError("初回接続とBot・接続先の設定は管理者が行ってください", 403);
   if (value.enabled) {
     const providers = chatProviders({ ...value, revision: body.revision }, c.req.raw.signal);
@@ -99,7 +95,7 @@ chatRoutes.put(base + "/discussion/:channel", requireTeamRole("leader"), async c
 });
 chatRoutes.post(base + "/intakes/:id/confirm", requireTeamRole("leader"), async c => {
   const value = confirmIntake.parse(await c.req.json());
-  const taskId = await new IntakeStore(chatRecords()).confirm(param(c, "teamId"), param(c, "id"), actor(c), value, new Date(), c.get("teamRole" as never) !== "admin");
+  const taskId = await new IntakeStore(chatRecords()).confirm(param(c, "teamId"), param(c, "id"), actor(c), value, new Date(), !chatAdministrator(c));
   return c.json({ taskId });
 });
 chatRoutes.post(base + "/outbox/:id/retry", requireTeamRole("leader"), async c => {
