@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
-import { useSearchParams } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { planningApi, type CurrentSprintView, type PlanningData, type PlanningTask, type Team, type TeamProject } from "../lib/planning-api";
 
 type BoardView = "current" | "all";
@@ -93,6 +93,7 @@ export function PlanningPage() {
   };
   return <div className="page-container planning-page">
     <h1>バックログとスプリント</h1>
+    <p><Link to={`/tasks/chat?teamId=${encodeURIComponent(team)}`}>チャット受付・議論参加・会話ログ</Link></p>
     <label>チーム<select value={team} disabled={busy} onChange={e => setTeam(e.target.value)}><option value="">チームを選択</option>{teams.map(t => <option key={t.id} value={t.id}>{t.name ?? t.id}</option>)}</select></label>
     {teams.length === 0 && <p>所属チームがありません。チーム同期とメンバー登録を確認してください。</p>}
     {error && <p role="alert">{error}</p>}

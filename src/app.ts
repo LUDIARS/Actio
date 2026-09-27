@@ -12,6 +12,7 @@ import { groupRoutes } from "../modules/group/routes.js";
 import { taskRoutes } from "../modules/task/routes.js";
 import { teamMemberRoutes } from "../modules/task/team-member-routes.js";
 import { planningRoutes } from "../modules/task/planning/routes.js";
+import { chatRoutes } from "../modules/task/chat/routes.js";
 import { criticalPathRoutes } from "../modules/task/critical-path/routes.js";
 import { ccProjectRoutes, teamProjectRoutes } from "../modules/task/team/project-routes.js";
 // event / calendar / placement / 予定系 SDK モジュールは Schedula に分離
@@ -160,6 +161,7 @@ export function createApp() {
   // ─── Core: Teams (チーム別タスク管理: メンバー / 設定) ──────
   app.route("/api/teams", teamMemberRoutes);
   app.route("/api/teams", planningRoutes);
+  app.route("/api/teams", chatRoutes);
   app.route("/api/teams", criticalPathRoutes);
   app.route("/api/teams", teamProjectRoutes);
 

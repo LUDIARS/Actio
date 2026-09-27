@@ -1,10 +1,11 @@
 import { sprintGateDdl } from "./sprint-gate-migration.js";
+import { chatDdl } from "./chat-migration.js";
 import type { SqliteDatabase } from "./dialects/sqlite.js";
 
 /** Shared by normal startup and db:init; inspect columns rather than swallowing DDL errors. */
 export function migratePlanning(sqlite: SqliteDatabase): void {
   sqlite.transaction(() => {
-    for (const ddl of sprintGateDdl) sqlite.exec(ddl);
+    for (const ddl of [...sprintGateDdl, ...chatDdl]) sqlite.exec(ddl);
     sqlite.exec(`
       CREATE TABLE IF NOT EXISTS terpsichore_runs (
         id TEXT PRIMARY KEY, team_id TEXT NOT NULL, project_id TEXT NOT NULL, actor_id TEXT NOT NULL,

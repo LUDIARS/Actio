@@ -5,6 +5,8 @@ import { secretManager } from "../../../src/config/secrets.js";
 import { resolveCernereDiscordUser } from "../../../src/auth/cernere-client.js";
 import { SprintDialogueClient } from "./concordia-client.js";
 import { runSprintGateCycle } from "./worker.js";
+import { chatRecords } from "../../../src/db/chat-repository.js";
+import type { Connection } from "../chat/contracts.js";
 /** Called only by the real server entrypoint, never imported tests or request handlers. */
 export function startSprintGateTick(warn: (message: string) => void, intervalMs = 30000): () => void {
     if (dialect === "mysql")
@@ -16,7 +18,9 @@ export function startSprintGateTick(warn: (message: string) => void, intervalMs 
             return;
         running = true;
         try {
-            await runSprintGateCycle({ store: planningRepositories().gates, concordia: () => new SprintDialogueClient(secretManager.get("CONCORDIA_URL"), controller.signal), resolveIdentity: resolveCernereDiscordUser, now: () => new Date(), signal: controller.signal, warn: message => warn("[sprint-gates] " + message) });
+            if (!secretManager.get("CONCORDIA_URL") || secretManager.get("ACTIO_CHAT_MODE") === "discord") return;
+            const excludedTeams = new Set((await chatRecords().allOfKind<Connection>("connection")).map(c => c.teamId));
+            await runSprintGateCycle({ excludedTeams, store: planningRepositories().gates, concordia: () => new SprintDialogueClient(secretManager.get("CONCORDIA_URL"), controller.signal), resolveIdentity: resolveCernereDiscordUser, now: () => new Date(), signal: controller.signal, warn: message => warn("[sprint-gates] " + message) });
         }
         catch (error) {
             if (!controller.signal.aborted)

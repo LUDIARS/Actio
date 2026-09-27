@@ -10,13 +10,15 @@ export const LOCAL_SETTING_KEYS = new Set([
   "ACTIO_LOCAL_MODE", "ACTIO_CLOUDFLARE_ENABLED", "ACTIO_PUBLIC_URL", "CERNERE_URL",
   "PRAEFORMA_URL", "CONCORDIA_URL", "GENIUS_URL", "GOOGLE_REDIRECT_URI",
   "VITE_ALLOWED_HOSTS", "ACTIO_VITE_POLLING", "CORS_ORIGIN", "SECRETS_PROVIDER", "NODE_ENV",
+  "DISCUTERE_URL", "ACTIO_CHAT_MODE", "ACTIO_INTAKE_LLM_URL", "ACTIO_INTAKE_LLM_MODEL",
 ]);
 /** Where secrets come from (config/secret-source.ts). A pointer only: never the Infisical credentials. */
 const SECRET_SOURCE_SETTING_KEYS = ["ACTIO_SECRET_PROJECT_ID", "ACTIO_SECRET_ENVIRONMENT", "ACTIO_SECRET_KEYS"];
-const allowed = new Set([...LOCAL_SETTING_KEYS, "DATABASE_URL", "REDIS_URL", ...SECRET_SOURCE_SETTING_KEYS]);
+const allowed = new Set([...LOCAL_SETTING_KEYS, "DATABASE_URL", "REDIS_URL", "DISCUTERE_EXTERNAL_DISCUSSION_SECRET",
+  "ACTIO_CHAT_SHARED_SECRET", "ACTIO_INTAKE_LLM_KEY", ...SECRET_SOURCE_SETTING_KEYS]);
 const settingsSchema = z.record(z.string(), z.string()).superRefine((settings, ctx) => {
   for (const key of Object.keys(settings)) {
-    if (!allowed.has(key)) ctx.addIssue({ code: "custom", message: `Unsupported local setting: ${key}` });
+    if (!allowed.has(key) && !/^ACTIO_DISCORD_[A-Z0-9_]+$/.test(key)) ctx.addIssue({ code: "custom", message: `Unsupported local setting: ${key}` });
   }
 });
 const envelopeSchema = z.object({ version: z.literal(1), salt: z.string(), iv: z.string(), tag: z.string(), data: z.string() }).strict();

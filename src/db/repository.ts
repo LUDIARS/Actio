@@ -2582,7 +2582,7 @@ export const projectRefRepo = {
 
   /** Cc から消えた code に removed_at を付ける (行は残し、 既存タスクの参照を壊さない)。 */
   async markRemovedExcept(codes: string[], at: Date): Promise<void> {
-    const conditions: SQL[] = [isNull(schema.projectRefs.removedAt)];
+    const conditions: SQL[] = [isNull(schema.projectRefs.removedAt), sql`${schema.projectRefs.code} NOT LIKE 'local:%'`];
     if (codes.length > 0) conditions.push(notInArray(schema.projectRefs.code, codes));
     await db.update(schema.projectRefs).set({ removedAt: at }).where(and(...conditions));
   },

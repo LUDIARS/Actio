@@ -12,6 +12,7 @@ import { SettingsPage } from "./pages/SettingsPage";
 import { ActivityLogsPage } from "./pages/ActivityLogsPage";
 import { TasksPage } from "./pages/TasksPage";
 import { PlanningPage } from "./pages/PlanningPage";
+import { ChatPlanningPage } from "./pages/ChatPlanningPage";
 import { HelpPage } from "./pages/HelpPage";
 import { SecretsPage } from "./pages/SecretsPage";
 import { InitialSetupPage } from "./pages/InitialSetupPage";
@@ -65,6 +66,7 @@ function AppRoutes() {
         <Route path="/machina" element={<MachinaPage />} />
         <Route path="/tasks" element={<TasksPage />} />
         <Route path="/tasks/planning" element={<PlanningPage />} />
+        <Route path="/tasks/chat" element={<ChatPlanningPage />} />
         <Route path="/profile" element={<ProfilePage />} />
         <Route path="/admin/users" element={<UserManagementPage />} />
         <Route path="/admin/modules" element={<ModuleManagementPage />} />

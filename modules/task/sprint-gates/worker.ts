@@ -10,6 +10,8 @@ export interface GateCycleDependencies {
     now: () => Date;
     signal: AbortSignal;
     warn: (message: string) => void;
+    /** Teams explicitly moved to ordinary chat channels must not publish duplicate forum dialogues. */
+    excludedTeams?: ReadonlySet<string>;
 }
 async function handleEvent(deps: GateCycleDependencies, event: CcEvent): Promise<DecisionOutcome> {
     const prior = await deps.store.eventOutcome("cc:" + event.eventId);
@@ -33,6 +35,7 @@ async function handleEvent(deps: GateCycleDependencies, event: CcEvent): Promise
 /** Recoverable owner: phase/state commit precedes external delivery, event outcome precedes ack. */
 export async function runSprintGateCycle(deps: GateCycleDependencies): Promise<void> {
     for (const row of await deps.store.candidates()) {
+        if (deps.excludedTeams?.has(row.teamId)) continue;
         deps.signal.throwIfAborted();
         try {
             await deps.store.view(row.teamId, row.id, deps.now());
@@ -41,7 +44,7 @@ export async function runSprintGateCycle(deps: GateCycleDependencies): Promise<v
             deps.warn(`スプリント状態を更新できません: ${error instanceof Error ? error.message : "unknown"}`);
         }
     }
-    const pending = await deps.store.pending();
+    const pending = (await deps.store.pending()).filter(row => !deps.excludedTeams?.has(row.teamId));
     let client: SprintDialogueClient;
     try {
         client = deps.concordia();
@@ -64,6 +67,10 @@ export async function runSprintGateCycle(deps: GateCycleDependencies): Promise<v
         }
     }
     for (const event of await client.events()) {
+        if (deps.excludedTeams?.has(event.teamId)) {
+            await client.ack(event.eventId, { outcome: "rejected", reason: "通常チャンネルへ移行済みです。Actioで最新状態を確認してください" });
+            continue;
+        }
         deps.signal.throwIfAborted();
         // Durable applied/rejected outcome makes lost ACK retries harmless.
         const outcome = await handleEvent(deps, event);
