@@ -78,6 +78,18 @@ chatRoutes.put(base + "/connection", requireTeamRole("leader"), async c => {
   }
   return c.json(await new ChatSetupStore(chatRecords()).saveConnection(value, body.revision, new Date()));
 });
+chatRoutes.put(base + "/destination", requireTeamRole("leader"), async c => {
+  if (!chatAdministrator(c)) throw new ChatError("投稿先の変更は管理者が行ってください", 403);
+  const body = z.object({ revision: z.number().int().positive(), connection: connectionInput }).strict().parse(await c.req.json());
+  if (body.connection.enabled) throw new ChatError("停止状態で投稿先を変更してください", 400);
+  const value = { ...body.connection, teamId: param(c, "teamId") };
+  const prior = await chatRecords().get<Connection>(value.teamId, "connection", value.platform);
+  if (!prior || prior.enabled) throw new ChatError("既存の接続を先に停止してください");
+  const providers = chatProviders({ ...value, revision: body.revision }, c.req.raw.signal);
+  try { await providers.transport.validate({ ...value, revision: body.revision }); }
+  finally { providers.transport.close(); }
+  return c.json(await new ChatSetupStore(chatRecords()).changeDestination(value, body.revision, actor(c), new Date()));
+});
 chatRoutes.put(base + "/discussion/:channel", requireTeamRole("leader"), async c => {
   const body = z.object({ revision: z.number().int().nonnegative(), enabled: z.boolean() }).strict().parse(await c.req.json());
   const records = chatRecords(), team = param(c, "teamId"), channelId = param(c, "channel");

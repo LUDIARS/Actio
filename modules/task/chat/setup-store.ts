@@ -7,6 +7,12 @@ import { ChatError, type Connection } from "./contracts.js";
 
 export class ChatSetupStore {
   constructor(private readonly records: ChatRecords) {}
+  async changeDestination(value: Omit<Connection, "revision">, revision: number, actor: string, now: Date): Promise<Connection> {
+    const owner = `destination-${randomUUID()}`;
+    if (!await this.records.lease(owner, now, 300_000)) throw new ChatError("配送処理中です。停止したまま少し待って再試行してください");
+    try { return await this.saveConnection(value, revision, now, actor); }
+    finally { await this.records.releaseLease(owner); }
+  }
   createTeam(name: string, actor: string, now: Date): Promise<string> {
     const id = `at-team-${randomUUID()}`;
     const timestamp = this.records.database.timestamp(now);
@@ -32,7 +38,7 @@ export class ChatSetupStore {
       return id;
     });
   }
-  saveConnection(value: Omit<Connection, "revision">, revision: number, now: Date): Promise<Connection> {
+  saveConnection(value: Omit<Connection, "revision">, revision: number, now: Date, destinationActor?: string): Promise<Connection> {
     return this.records.transaction("chat-connections", function* () {
       const current = yield* readRecord<Connection>(value.teamId, "connection", value.platform);
       requireRevision(current?.revision ?? 0, revision);
@@ -43,8 +49,14 @@ export class ChatSetupStore {
         throw new ChatError("チームの接続先はDiscordまたはSlackの一方です。履歴を維持する移行が必要です");
       if (existing.some(c => c.teamId !== value.teamId && c.platform === value.platform && c.workspaceId === value.workspaceId && c.backlogChannelId === value.backlogChannelId))
         throw new ChatError("このチャンネルは別チームへ接続済みです");
-      if (current && (current.workspaceId !== value.workspaceId || current.backlogChannelId !== value.backlogChannelId))
-        throw new ChatError("履歴を保護するため既存接続先の変更はできません。現在の接続を無効化し、移行を行ってください");
+      const moving = current && (current.workspaceId !== value.workspaceId || current.backlogChannelId !== value.backlogChannelId);
+      if (moving) {
+        if (!destinationActor) throw new ChatError("履歴を保護するため通常の設定保存では接続先を変更できません。停止して投稿先変更を使用してください");
+        if (current.enabled || value.enabled) throw new ChatError("投稿先変更の前後は接続を停止してください");
+        const blockers = yield* all("SELECT id FROM task_chat_records WHERE team_id=? AND (kind IN ('intake','surface') OR (kind='outbox' AND state<>'sent')) LIMIT 1", value.teamId);
+        if (blockers.length) throw new ChatError("受付・スプリント・未完了配送があるため投稿先を変更できません");
+        yield* writeRecord(value.teamId, "connection-history", `${current.platform}:${current.revision}`, { connection: current, actor: destinationActor, changedAt: now.toISOString() }, now);
+      }
       const saved = { ...value, revision: revision + 1, enabledAt: value.enabled && !current?.enabled ? now.toISOString() : current?.enabledAt };
       yield* writeRecord(value.teamId, "connection", value.platform, saved, now, value.enabled ? "enabled" : "disabled", saved.revision);
       return saved;
