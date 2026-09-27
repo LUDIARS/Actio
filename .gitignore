@@ -12,7 +12,8 @@ id-service.config.json
 /lib/
 
 # Anatomia のローカル状態 (ドメイン定義の正本は spec/domains/)
-.anatomia/
+.anatomia/*
+!.anatomia/layers.json
 
 # Machine-local encrypted deployment settings and atomic write files
 *.enc

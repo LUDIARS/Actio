@@ -1,0 +1,9 @@
+{
+  "mergeCouplingThreshold": 1,
+  "layers": [
+    { "glob": "modules/task/*", "layer": "application" },
+    { "glob": "modules/task/team/*", "layer": "application" },
+    { "glob": "scripts/*", "layer": "infrastructure" },
+    { "glob": "tests/api/*", "layer": "shared" }
+  ]
+}

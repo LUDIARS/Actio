@@ -40,6 +40,7 @@ import { toTaskSnapshot } from "./notifications/snapshot.js";
 import { notificationAdminRoutes } from "./notifications/admin-routes.js";
 import { planningRepositories } from "../../src/db/planning-repository.js";
 import { dialect } from "../../src/db/connection.js";
+import { canActAsTeamMember } from "./team/access.js";
 
 function findProjectRef(code: string) {
   return projectRefRepo.findByCode(code);
@@ -66,7 +67,7 @@ function isAdmin(c: Context): boolean {
 }
 
 async function canAccessTeam(c: Context, teamId: string, userId: string): Promise<boolean> {
-  return isAdmin(c) || taskRepo.isTeamMember(teamId, userId);
+  return isAdmin(c) || canActAsTeamMember(c, teamId, userId);
 }
 
 async function canReturnIdempotentTask(
@@ -259,7 +260,7 @@ taskRoutes.post("/", async (c) => {
   const teamValidation = await validateTeamTask({
     teamId, assigneeId: body.assigneeId ?? null, lane: teamFields.lane,
     sprintId: teamFields.sprintId ?? null, deadline, durationDays: teamFields.durationDays ?? null, blockedBy: teamFields.blockedBy,
-  }, inputMode, { isMember: (candidateTeamId, memberId) => taskRepo.isTeamMember(candidateTeamId, memberId), isTaskInTeam: async (candidateTeamId, taskId) => (await taskRepo.findById(taskId))?.teamId === candidateTeamId });
+  }, inputMode, { isMember: (candidateTeamId, memberId) => canActAsTeamMember(c, candidateTeamId, memberId), isTaskInTeam: async (candidateTeamId, taskId) => (await taskRepo.findById(taskId))?.teamId === candidateTeamId });
   if (teamValidation.error) return c.json({ error: teamValidation.error }, 400);
   if (teamValidation.value.teamId && !await canAccessTeam(c, teamValidation.value.teamId, userId)) {
     return c.json({ error: "Forbidden" }, 403);
@@ -465,7 +466,7 @@ taskRoutes.on(["PUT", "PATCH"], "/:id", async (c) => {
     durationDays: teamFields.durationDays !== undefined ? teamFields.durationDays : existing.durationDays,
     blockedBy: teamFields.blockedBy !== undefined ? teamFields.blockedBy : existing.blockedBy,
   }, inputMode, {
-    isMember: (candidateTeamId, memberId) => taskRepo.isTeamMember(candidateTeamId, memberId),
+    isMember: (candidateTeamId, memberId) => canActAsTeamMember(c, candidateTeamId, memberId),
     isTaskInTeam: async (candidateTeamId, taskId) => (await taskRepo.findById(taskId))?.teamId === candidateTeamId,
   });
   if (teamValidation.error) return c.json({ error: teamValidation.error }, 400);

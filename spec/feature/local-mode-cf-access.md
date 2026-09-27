@@ -107,3 +107,7 @@ neco 2026-09-26 指示「Actio のチームに既存のチームを登録しよ�
 - 公開 hostname (例 `actio.<domain>`)。
 - Cloudflare Access アプリの team domain / AUD と許可 email (作成は Cloudflare 側の作業)。
 - Access 経由のユーザーを `actio-local` 1 人に寄せるか (本書の案)、email ごとに Actio ユーザーを分けるか。
+
+### Task API parity (AT-LOCAL-TASK-01)
+
+Task list/create/update reuse the verified local-owner team policy from section 4.1. Only a registered team and the current local owner qualify for membership-free assignment; another assignee still requires membership. Team identity, normal owner checks, and nonlocal rejection are preserved. No membership rows or role data are persisted. Coverage: tests/api/local-owner-teams.test.ts exercises create/list/idempotent retry/update and unknown-team/other-assignee/nonlocal denial.

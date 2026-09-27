@@ -35,6 +35,32 @@ const sprint = {
 };
 
 describe("local mode owner — teams synced from Cc", () => {
+  it("creates, lists and updates an owned team task without persisting membership", async () => {
+    const body = { title: "Lw handoff", teamId: "team-1", assigneeId: "actio-local", source: "concordia.taskflow.v3", sourceRef: "request-1" };
+    const created = await call("POST", "/api/tasks", { body });
+    expect(created.status, JSON.stringify(created.json)).toBe(201);
+    expect(created.json.task).toMatchObject({ ownerId: "actio-local", assigneeId: "actio-local", teamId: "team-1" });
+    const listed = await call("GET", "/api/tasks?team_id=team-1");
+    expect(listed.status).toBe(200);
+    expect(listed.json.tasks.map((task: { id: string }) => task.id)).toContain(created.json.task.id);
+    const retry = await call("POST", "/api/tasks", { body });
+    expect(retry.status).toBe(200);
+    expect(retry.json.task.id).toBe(created.json.task.id);
+    const updated = await call("PATCH", `/api/tasks/${created.json.task.id}`, { body: { status: "in_progress" } });
+    expect(updated.status).toBe(200);
+    expect(updated.json.task.status).toBe("in_progress");
+    expect((await call("GET", "/api/teams/team-1/members")).json.members).toEqual([]);
+  });
+
+  it("does not grant local owner access to unknown teams or other assignees", async () => {
+    expect((await call("GET", "/api/tasks?team_id=unknown")).status).toBe(403);
+    const unknown = await call("POST", "/api/tasks", { body: { title: "x", teamId: "unknown", assigneeId: "actio-local" } });
+    expect(unknown.status).toBe(400);
+    const other = await call("POST", "/api/tasks", { body: { title: "x", teamId: "team-1", assigneeId: "other" } });
+    expect(other.status).toBe(400);
+    expect((await call("GET", "/api/tasks?team_id=team-1", { fromThisPc: false })).status).toBe(403);
+  });
+
   it("lists every team_refs team as leader without membership rows", async () => {
     const res = await call("GET", "/api/teams");
     expect(res.status).toBe(200);
