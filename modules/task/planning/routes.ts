@@ -7,6 +7,7 @@ import { requireTeamRole } from "../../../src/auth/team-role.js";
 import { newSprint, sprintChange, groupInput, orderInput, PlanningError, PLANNING_UNSUPPORTED_MESSAGE } from "./contracts.js";
 import { planningRepositories } from "../../../src/db/planning-repository.js";
 import { sprintImpact } from "./impact.js";
+import { implementationRoutes } from "../implementation/routes.js";
 import { praeformaRoutes } from "./spec-routes.js";
 import { suggestGroups } from "./group-suggestions.js";
 import { terpsichoreRoutes } from "../terpsichore/routes.js";
@@ -54,6 +55,7 @@ planningRoutes.put("/:teamId/planning/order", requireTeamRole("leader"), async c
   await planningStores().backlog.reorder(c.req.param("teamId"), input.taskIds);
   return c.json({ ok: true });
 });
+planningRoutes.route("/", implementationRoutes);
 planningRoutes.route("/", praeformaRoutes);
 planningRoutes.route("/", terpsichoreRoutes);
 

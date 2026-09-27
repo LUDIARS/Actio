@@ -1,3 +1,4 @@
+import { PraeformaImplementation } from "./PraeformaImplementation";
 import { useState, type FormEvent } from "react";
 import { planningApi, type PfSpec, type PfDetail } from "../../lib/planning-api";
 
@@ -49,6 +50,7 @@ export function PraeformaBacklog({ team, members, onSaved }: { team: string; mem
       <label>見積工数（分）<input name="estimatedMinutes" type="number" min="1" required /></label>
       <button className="btn btn-primary" disabled={busy || detail.spec.status === "obsolete"}>{detail.existingTask ? "再精査して更新" : "精査して登録"}</button>
     </form>}
+    {project && <PraeformaImplementation key={`${team}/${project}`} team={team} project={project} members={members} onSaved={onSaved} />}
     {message && <p role="status">{message}</p>}
   </details>;
 }

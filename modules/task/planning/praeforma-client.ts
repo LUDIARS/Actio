@@ -1,3 +1,4 @@
+import { manifestSchema } from "../implementation/contracts.js";
 import { createHash } from "node:crypto";
 import { z } from "zod";
 
@@ -23,6 +24,12 @@ export class PraeformaClient {
     });
     if (!response.ok) throw new Error(`Pf との接続に失敗しました (HTTP ${response.status})`);
     return response.json();
+  }
+
+  async implementationManifest(projectId: string): Promise<z.infer<typeof manifestSchema>> {
+    const result = manifestSchema.parse(await this.get(`/api/projects/${encodeURIComponent(projectId)}/review-overlay/manifest`));
+    if (result.projectId !== projectId) throw new Error("Pf プロジェクトが一致しません");
+    return result;
   }
 
   async projects(): Promise<{ id: string; name: string }[]> {

@@ -1,3 +1,4 @@
+import { implementationDdl, implementationPostgresTriggers } from "./implementation-migration.js";
 import { sprintGateDdl } from "./sprint-gate-migration.js";
 import { chatDdl } from "./chat-migration.js";
 import type postgres from "postgres";
@@ -34,6 +35,7 @@ export async function migratePlanningPostgres(pool: postgres.Sql): Promise<void>
       executor_type: "TEXT NOT NULL DEFAULT 'human'", ai_executor: "TEXT", is_critical_path: "BOOLEAN NOT NULL DEFAULT FALSE",
       slack_days: "DOUBLE PRECISION", critical_path_error: "TEXT", critical_path_computed_at: "TIMESTAMP",
     })) await sql.unsafe(`ALTER TABLE tasks ADD COLUMN IF NOT EXISTS ${name} ${type}`);
+    for (const ddl of [...implementationDdl, ...implementationPostgresTriggers]) await sql.unsafe(ddl);
     await sql.unsafe(`CREATE TABLE IF NOT EXISTS project_refs (
       code TEXT PRIMARY KEY, name TEXT NOT NULL, team_ids JSONB NOT NULL, synced_at TIMESTAMP NOT NULL, removed_at TIMESTAMP
     )`);
