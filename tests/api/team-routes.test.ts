@@ -31,9 +31,11 @@ describe("team lane routes", () => {
     };
     const created = await request(app, "POST", "/api/tasks", { token, body });
     expect(created.status).toBe(201);
+    expect(created.json.task.category).toBe("一時登録, 要整理");
     const duplicate = await request(app, "POST", "/api/tasks", { token, body });
     expect(duplicate.status).toBe(200);
     expect(duplicate.json.task.id).toBe(created.json.task.id);
+    expect(duplicate.json.task.category).toBe("一時登録, 要整理");
     const denied = await request(app, "POST", "/api/tasks", { token: generateTestToken("user-2"), body });
     expect(denied.status).toBe(409);
     const listed = await request(app, "GET", `/api/tasks?scope=owned&project=Cc&pluginId=${source}`, { token });

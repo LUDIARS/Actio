@@ -680,8 +680,8 @@ export function TasksPage() {
                       key={c}
                       style={{
                         padding: "0.1rem 0.4rem",
-                        background: "var(--bg-surface-2)",
-                        color: "var(--text-muted)",
+                        background: c === "要整理" ? "#fff3cd" : "var(--bg-surface-2)",
+                        color: c === "要整理" ? "#664d03" : "var(--text-muted)",
                         borderRadius: "var(--radius-sm)",
                         fontSize: "0.7rem",
                       }}

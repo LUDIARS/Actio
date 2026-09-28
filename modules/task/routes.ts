@@ -41,6 +41,7 @@ import { notificationAdminRoutes } from "./notifications/admin-routes.js";
 import { planningRepositories } from "../../src/db/planning-repository.js";
 import { dialect } from "../../src/db/connection.js";
 import { canActAsTeamMember } from "./team/access.js";
+import { classifyUnassignedIntake } from "./unassigned-intake.js";
 
 function findProjectRef(code: string) {
   return projectRefRepo.findByCode(code);
@@ -298,7 +299,7 @@ taskRoutes.post("/", async (c) => {
     creatorType: normalizeCreatorType(readCreatorType(body)),
     executorType: executor.value.executorType,
     aiExecutor: executor.value.aiExecutor,
-    category,
+    category: await classifyUnassignedIntake({ teamId, projectId, source: teamFields.source ?? null, category }, findProjectRef),
     priority: body.priority ?? "medium",
     deadline,
     estimatedMinutes: body.estimatedMinutes ?? null,
