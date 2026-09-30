@@ -38,6 +38,7 @@ import { taskChangeNotifications } from "./notifications/events.js";
 import { enqueueNotificationsSafely } from "./notifications/enqueue.js";
 import { toTaskSnapshot } from "./notifications/snapshot.js";
 import { notificationAdminRoutes } from "./notifications/admin-routes.js";
+import { taskListCache } from "./cache/redis-task-list-cache.js";
 import { planningRepositories } from "../../src/db/planning-repository.js";
 import { dialect } from "../../src/db/connection.js";
 import { canActAsTeamMember } from "./team/access.js";
@@ -160,17 +161,22 @@ taskRoutes.get("/", async (c) => {
     if (d) filter.dueBefore = d;
   }
 
+  const format = c.req.query("format");
+  if (view === undefined) {
+    // Cc のワークフローが同じ一覧を短時間に繰り返し引くため、 本文を短期キャッシュする。
+    // format=memoria: 既存 Memoria 消費者向け互換 shape ({items}, todo/doing/done)
+    const body = await taskListCache.getOrLoad({ ...filter, format }, async () => {
+      const listed = await taskRepo.list(filter);
+      return JSON.stringify(format === "memoria" ? { items: listed.map(toMemoriaShape) } : { tasks: listed });
+    });
+    return c.body(body, 200, { "content-type": "application/json; charset=UTF-8" });
+  }
+
+  // view=current_sprint はスプリント側の変更でも結果が変わるためキャッシュしない (teamId は上で必須化済み)
   const tasks = await taskRepo.list(filter);
-  if (view !== undefined && teamId) {
-    const sprints = await planningRepositories().sprints.list(teamId);
-    const selected = selectCurrentSprintView(tasks, sprints);
-    return c.json({ tasks: selected.tasks, current_sprint: selected.currentSprint });
-  }
-  // format=memoria: 既存 Memoria 消費者向け互換 shape ({items}, todo/doing/done)
-  if (c.req.query("format") === "memoria") {
-    return c.json({ items: tasks.map(toMemoriaShape) });
-  }
-  return c.json({ tasks });
+  const sprints = await planningRepositories().sprints.list(teamId as string);
+  const selected = selectCurrentSprintView(tasks, sprints);
+  return c.json({ tasks: selected.tasks, current_sprint: selected.currentSprint });
 });
 
 // ─── Task Categories (Memoria 個人タスク移植) ───────────────

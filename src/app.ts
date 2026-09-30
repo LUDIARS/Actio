@@ -40,6 +40,9 @@ import { commentRoutes } from "./plugins/comments-routes.js";
 import { customFieldRoutes } from "./plugins/custom-fields-routes.js";
 import { dynamicInstallRoutes } from "./plugins/dynamic-loader.js";
 import exampleModule from "../modules-ext/example/server.js";
+import { notifyTaskWrite } from "./db/task-write-listeners.js";
+
+const TASK_READ_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
 
 export function createApp() {
   const app = new Hono();
@@ -122,6 +125,13 @@ export function createApp() {
     if (secretManager.get("NODE_ENV") === "production") {
       c.header("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
     }
+  });
+
+  // タスクは SQL 直書きの経路 (スプリント・仕様取込・チャット受付など) からも更新されるため、
+  // 成功した書き込み要求のあとに一覧キャッシュを無効化する (リポジトリ層の通知と二重でも害はない)。
+  app.use("/api/*", async (c, next) => {
+    await next();
+    if (!TASK_READ_METHODS.has(c.req.method) && c.res.status < 400) notifyTaskWrite();
   });
 
   // ─── Setup Routes (認証不要: 初回セットアップ) ──────────────

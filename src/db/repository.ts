@@ -8,6 +8,7 @@
 import { eq, and, count, inArray, notInArray, desc, like, gte, lte, or, isNull, sql } from "drizzle-orm";
 import type { SQL } from "drizzle-orm";
 import { db, schema, curriculumSchema, pmSchema } from "./connection.js";
+import { notifyTaskWrite } from "./task-write-listeners.js";
 
 // ─── Types ──────────────────────────────────────────────────
 
@@ -2402,6 +2403,7 @@ export const taskRepo = {
 
   async create(data: NewTask): Promise<void> {
     await db.insert(schema.tasks).values(data);
+    notifyTaskWrite();
   },
 
   async findBySource(source: string, sourceRef: string): Promise<Task | undefined> {
@@ -2419,10 +2421,12 @@ export const taskRepo = {
       .update(schema.tasks)
       .set({ ...data, updatedAt: new Date() })
       .where(eq(schema.tasks.id, id));
+    notifyTaskWrite();
   },
 
   async deleteById(id: string): Promise<void> {
     await db.delete(schema.tasks).where(eq(schema.tasks.id, id));
+    notifyTaskWrite();
   },
 
   /** 期限前通知の走査用 (task-integration §2.1)。 未完了で from ≤ deadline ≤ to のタスク。 */
@@ -2442,6 +2446,7 @@ export const taskRepo = {
     criticalPathComputedAt: Date | null;
   }): Promise<void> {
     await db.update(schema.tasks).set(fields).where(eq(schema.tasks.id, id));
+    notifyTaskWrite();
   },
 };
 
