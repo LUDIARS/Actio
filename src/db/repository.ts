@@ -2125,8 +2125,36 @@ export const pmTaskSnapshotRepo = {
       .orderBy(desc(pmSchema.pmTaskSnapshots.detectedAt));
   },
 
+  /** 各タスクの最新スナップショット (前回同期時点の外部値) */
+  async findLatestForTasks(taskIds: string[]): Promise<Map<string, PMTaskSnapshot>> {
+    const latest = new Map<string, PMTaskSnapshot>();
+    if (taskIds.length === 0) return latest;
+    const rows = await db
+      .select()
+      .from(pmSchema.pmTaskSnapshots)
+      .where(inArray(pmSchema.pmTaskSnapshots.taskId, taskIds));
+    for (const row of rows) {
+      const prev = latest.get(row.taskId);
+      if (!prev || row.detectedAt > prev.detectedAt) latest.set(row.taskId, row);
+    }
+    return latest;
+  },
+
+  async findByTasks(taskIds: string[]): Promise<PMTaskSnapshot[]> {
+    if (taskIds.length === 0) return [];
+    return db
+      .select()
+      .from(pmSchema.pmTaskSnapshots)
+      .where(inArray(pmSchema.pmTaskSnapshots.taskId, taskIds));
+  },
+
   async create(data: NewPMTaskSnapshot): Promise<void> {
     await db.insert(pmSchema.pmTaskSnapshots).values(data);
+  },
+
+  async deleteByTasks(taskIds: string[]): Promise<void> {
+    if (taskIds.length === 0) return;
+    await db.delete(pmSchema.pmTaskSnapshots).where(inArray(pmSchema.pmTaskSnapshots.taskId, taskIds));
   },
 };
 
@@ -2191,6 +2219,11 @@ export const pmTaskValidationRepo = {
   async create(data: NewPMTaskValidation): Promise<void> {
     await db.insert(pmSchema.pmTaskValidations).values(data);
   },
+
+  async deleteByTasks(taskIds: string[]): Promise<void> {
+    if (taskIds.length === 0) return;
+    await db.delete(pmSchema.pmTaskValidations).where(inArray(pmSchema.pmTaskValidations.taskId, taskIds));
+  },
 };
 
 // ─── PM: Conflict Repository ─────────────────────────────
@@ -2234,6 +2267,31 @@ export const pmConflictRepo = {
       .update(pmSchema.pmConflicts)
       .set(data)
       .where(eq(pmSchema.pmConflicts.id, id));
+  },
+
+  /**
+   * pending のときだけ更新する (二重解決の防止)。更新できたら true。
+   */
+  async updateIfPending(id: string, data: Partial<Omit<NewPMConflict, "id">>): Promise<boolean> {
+    const rows = await db
+      .update(pmSchema.pmConflicts)
+      .set(data)
+      .where(and(eq(pmSchema.pmConflicts.id, id), eq(pmSchema.pmConflicts.status, "pending")))
+      .returning({ id: pmSchema.pmConflicts.id });
+    return rows.length > 0;
+  },
+
+  async findPendingByResolution(resolution: string, limit: number): Promise<PMConflict[]> {
+    return db
+      .select()
+      .from(pmSchema.pmConflicts)
+      .where(and(eq(pmSchema.pmConflicts.status, "pending"), eq(pmSchema.pmConflicts.resolution, resolution)))
+      .orderBy(pmSchema.pmConflicts.createdAt)
+      .limit(limit);
+  },
+
+  async deleteByProject(projectId: string): Promise<void> {
+    await db.delete(pmSchema.pmConflicts).where(eq(pmSchema.pmConflicts.projectId, projectId));
   },
 };
 

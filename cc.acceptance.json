@@ -174,6 +174,159 @@
       "contracts": [
         "AT-SPRINT-CHAT-INTEGRATION"
       ]
+    },
+    {
+      "source": "modules/pm/domain/tracked-task.ts",
+      "tests": [
+        "tests/unit/pm-domain.test.ts",
+        "tests/unit/pm-sync-project.test.ts"
+      ],
+      "contracts": [
+        "AT-PM-SYNC"
+      ]
+    },
+    {
+      "source": "modules/pm/domain/sync-plan.ts",
+      "tests": [
+        "tests/unit/pm-domain.test.ts",
+        "tests/unit/pm-sync-project.test.ts"
+      ],
+      "contracts": [
+        "AT-PM-SYNC"
+      ]
+    },
+    {
+      "source": "modules/pm/domain/sync-schedule.ts",
+      "tests": [
+        "tests/unit/pm-domain.test.ts"
+      ],
+      "contracts": [
+        "AT-PM-SYNC"
+      ]
+    },
+    {
+      "source": "modules/pm/domain/conflict-policy.ts",
+      "tests": [
+        "tests/unit/pm-domain.test.ts",
+        "tests/unit/pm-sync-project.test.ts",
+        "tests/unit/pm-resolve-conflict.test.ts"
+      ],
+      "contracts": [
+        "AT-PM-CONFLICT"
+      ]
+    },
+    {
+      "source": "modules/pm/domain/merge-prompt.ts",
+      "tests": [
+        "tests/unit/pm-domain.test.ts",
+        "tests/unit/pm-resolve-conflict.test.ts"
+      ],
+      "contracts": [
+        "AT-PM-CONFLICT"
+      ]
+    },
+    {
+      "source": "modules/pm/domain/github-labels.ts",
+      "tests": [
+        "tests/unit/pm-domain.test.ts"
+      ],
+      "contracts": [
+        "AT-PM-SYNC"
+      ]
+    },
+    {
+      "source": "modules/pm/domain/notifications.ts",
+      "tests": [
+        "tests/unit/pm-domain.test.ts",
+        "tests/unit/pm-sync-project.test.ts"
+      ],
+      "contracts": [
+        "AT-PM-NOTIFY"
+      ]
+    },
+    {
+      "source": "modules/pm/application/sync-project.ts",
+      "tests": [
+        "tests/unit/pm-sync-project.test.ts"
+      ],
+      "contracts": [
+        "AT-PM-SYNC",
+        "AT-PM-CONFLICT",
+        "AT-PM-NOTIFY"
+      ]
+    },
+    {
+      "source": "modules/pm/application/resolve-conflict.ts",
+      "tests": [
+        "tests/unit/pm-resolve-conflict.test.ts"
+      ],
+      "contracts": [
+        "AT-PM-CONFLICT"
+      ]
+    },
+    {
+      "source": "modules/pm/application/reminder-cycle.ts",
+      "tests": [
+        "tests/unit/pm-resolve-conflict.test.ts"
+      ],
+      "contracts": [
+        "AT-PM-REMINDER"
+      ]
+    },
+    {
+      "source": "modules/pm/reminder/deadline-checker.ts",
+      "tests": [
+        "tests/unit/pm-analytics.test.ts",
+        "tests/unit/pm-resolve-conflict.test.ts"
+      ],
+      "contracts": [
+        "AT-PM-REMINDER"
+      ]
+    },
+    {
+      "source": "modules/pm/analytics/progress-forecast.ts",
+      "tests": [
+        "tests/unit/pm-analytics.test.ts"
+      ],
+      "contracts": [
+        "AT-PM-ANALYTICS"
+      ]
+    },
+    {
+      "source": "modules/pm/analytics/bug-series.ts",
+      "tests": [
+        "tests/unit/pm-analytics.test.ts"
+      ],
+      "contracts": [
+        "AT-PM-ANALYTICS"
+      ]
+    },
+    {
+      "source": "modules/pm/validation/test-matching.ts",
+      "tests": [
+        "tests/unit/pm-analytics.test.ts"
+      ],
+      "contracts": [
+        "AT-PM-VALIDATION"
+      ]
+    },
+    {
+      "source": "modules/pm/secret/token-box.ts",
+      "tests": [
+        "tests/unit/pm-secret.test.ts"
+      ],
+      "contracts": [
+        "AT-PM-SECRET"
+      ]
+    },
+    {
+      "source": "modules/pm/secret/source-config.ts",
+      "tests": [
+        "tests/unit/pm-secret.test.ts"
+      ],
+      "contracts": [
+        "AT-PM-SECRET"
+      ]
     }
   ]
 }

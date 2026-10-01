@@ -5,7 +5,7 @@
  * チームのタスクとスプリントは Cc のチーム面 (task-kanban カード)、 個人タスクは Memoria。
  */
 
-import type { NotificationIntent } from "./events.js";
+import type { QueueableNotificationIntent } from "./events.js";
 
 export const NOTIFICATION_CHANNELS = ["concordia", "memoria"] as const;
 export type NotificationChannel = (typeof NOTIFICATION_CHANNELS)[number];
@@ -13,17 +13,18 @@ export type NotificationChannel = (typeof NOTIFICATION_CHANNELS)[number];
 /** Cc の既存カード種別。 Cc 側に種別を足さずに済むものを使う。 */
 export const CONCORDIA_CARD_KIND = "task-kanban";
 
-export function channelFor(intent: Pick<NotificationIntent, "teamId">): NotificationChannel {
+export function channelFor(intent: Pick<QueueableNotificationIntent, "teamId">): NotificationChannel {
   return intent.teamId ? "concordia" : "memoria";
 }
 
-function linkPath(intent: Pick<NotificationIntent, "teamId">): string {
+function linkPath(intent: Pick<QueueableNotificationIntent, "teamId" | "link">): string {
+  if (intent.link) return intent.link;
   return intent.teamId ? "/tasks/planning" : "/tasks";
 }
 
 /** frontendUrl が空なら相対パスのリンクにする (Memoria は相対パスを受ける)。 */
 export function buildDeliveryPayload(
-  intent: NotificationIntent,
+  intent: QueueableNotificationIntent,
   channel: NotificationChannel,
   frontendUrl: string,
 ): Record<string, unknown> {

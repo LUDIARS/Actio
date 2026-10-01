@@ -20,7 +20,7 @@ import type {
   ProfileResponse, ProfileUpdateResponse, ProjectRolesResponse, ProjectRolesUpdateResponse, GroupProjectRolesResponse,
   MachinaTaskListResponse, MachinaTaskDetailResponse, MachinaTaskLogListResponse,
   MachinaMonitorListResponse, MachinaAnalysisResponse, MachinaStatusResponse,
-  PMProject, PMTask, PMTaskSnapshot, PMConflict, PMValidationResult, PMSyncResult,
+  PMProject, PMTask, PMTaskSnapshot, PMConflict, PMValidationResult, PMSyncResult, PMSyncStatus, PMRelatedCommits, PMTestCoverage, PMConflictResolveResult,
   PMProgressReport, PMCriticalPathResult, PMDecompositionRecommendation, PMGompertzReport, PMFullReport,
   PMReminderSettings, PMReminderTestResult,
   SyncLog, NotionPage,
@@ -1442,7 +1442,7 @@ export const pmApi = {
     return request<PMSyncResult>(`/api/pm/projects/${projectId}/sync`, { method: "POST" });
   },
   getSyncStatus(projectId: string) {
-    return request<{ projectId: string; lastSyncedAt: string | null; status: string }>(`/api/pm/projects/${projectId}/sync/status`);
+    return request<PMSyncStatus>(`/api/pm/projects/${projectId}/sync/status`);
   },
 
   // Tasks
@@ -1466,13 +1466,22 @@ export const pmApi = {
   getValidation(taskId: string) {
     return request<PMValidationResult>(`/api/pm/tasks/${taskId}/validation`);
   },
+  getRelatedCommits(taskId: string) {
+    return request<PMRelatedCommits>(`/api/pm/tasks/${taskId}/related-commits`);
+  },
+  getTestCoverage(taskId: string) {
+    return request<PMTestCoverage>(`/api/pm/tasks/${taskId}/test-coverage`);
+  },
 
   // Conflicts
   listConflicts(projectId: string) {
     return request<{ conflicts: PMConflict[] }>(`/api/pm/projects/${projectId}/conflicts`);
   },
-  resolveConflict(conflictId: string, data: { resolution: string; resolvedData?: Record<string, unknown> }) {
-    return request<{ message: string }>(`/api/pm/conflicts/${conflictId}/resolve`, { method: "POST", body: JSON.stringify(data) });
+  resolveConflict(conflictId: string, data: { resolution: "force_external" | "keep_local" | "manual"; resolvedData?: Record<string, unknown> }) {
+    return request<PMConflictResolveResult>(`/api/pm/conflicts/${conflictId}/resolve`, { method: "POST", body: JSON.stringify(data) });
+  },
+  autoMergeConflict(conflictId: string) {
+    return request<PMConflictResolveResult>(`/api/pm/conflicts/${conflictId}/auto-merge`, { method: "POST" });
   },
 
   // Reminders

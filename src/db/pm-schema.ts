@@ -26,6 +26,10 @@ export const pmProjects = sqliteTable(
       .notNull(),
     syncIntervalMinutes: integer("sync_interval_minutes").notNull().default(15),
     lastSyncedAt: text("last_synced_at"),
+    /** JSON: 前回同期の結果 (SyncResult)。未実行なら null */
+    lastSyncResult: text("last_sync_result", { mode: "json" }).$type<Record<string, unknown>>(),
+    /** JSON: リマインダー設定 (ReminderSettings)。null は既定値 */
+    reminderSettings: text("reminder_settings", { mode: "json" }).$type<Record<string, unknown>>(),
     ownerId: text("owner_id").notNull(),
     createdAt: integer("created_at", { mode: "timestamp" })
       .$defaultFn(() => new Date())

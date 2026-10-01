@@ -6,7 +6,7 @@
 import { v4 as uuidv4 } from "uuid";
 import { secretManager } from "../../../src/config/secrets.js";
 import { taskNotificationRepo, type NewTaskNotification } from "../../../src/db/repository.js";
-import type { NotificationIntent } from "./events.js";
+import type { QueueableNotificationIntent } from "./events.js";
 import { buildDeliveryPayload, channelFor } from "./route.js";
 
 export interface EnqueueDeps {
@@ -24,7 +24,7 @@ const defaultDeps: EnqueueDeps = {
 };
 
 /** 積んだ件数を返す (重複で積まなかった分は数えない)。 */
-export async function enqueueNotifications(intents: readonly NotificationIntent[], deps: EnqueueDeps = defaultDeps): Promise<number> {
+export async function enqueueNotifications(intents: readonly QueueableNotificationIntent[], deps: EnqueueDeps = defaultDeps): Promise<number> {
   let queued = 0;
   for (const intent of intents) {
     const channel = channelFor(intent);
@@ -51,7 +51,7 @@ export async function enqueueNotifications(intents: readonly NotificationIntent[
  * タスク更新の API 応答を通知の失敗で落とさないための入口。 通知は付随処理なので、
  * 積めなかったときは警告を残して続行する (タスク自体の変更は成立している)。
  */
-export async function enqueueNotificationsSafely(intents: readonly NotificationIntent[]): Promise<void> {
+export async function enqueueNotificationsSafely(intents: readonly QueueableNotificationIntent[]): Promise<void> {
   if (intents.length === 0) return;
   try {
     await enqueueNotifications(intents);

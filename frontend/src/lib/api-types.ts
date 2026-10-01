@@ -905,9 +905,12 @@ export interface PMProject {
   id: string;
   name: string;
   source: string;
-  sourceConfig: Record<string, string>;
+  /** 接続トークンは返らない (hasToken で有無だけ分かる) */
+  sourceConfig: Record<string, string | boolean>;
   syncIntervalMinutes: number;
   lastSyncedAt: string | null;
+  lastSyncResult: PMSyncRunResult | null;
+  reminderSettings: PMReminderSettings | null;
   ownerId: string;
   createdAt: string;
   updatedAt: string;
@@ -978,16 +981,56 @@ export interface PMValidationResult {
   suggestions: string[];
 }
 
+export interface PMSyncRunResult {
+  created: number;
+  updated: number;
+  closed: number;
+  unchanged: number;
+  conflicts: number;
+  errors: string[];
+  attemptedAt?: string;
+  finishedAt?: string;
+}
+
 export interface PMSyncResult {
-  result: {
-    created: number;
-    updated: number;
-    closed: number;
-    unchanged: number;
-    conflicts: number;
-    errors: string[];
-  };
-  lastSyncedAt: string;
+  result: PMSyncRunResult;
+  lastSyncedAt: string | null;
+}
+
+export interface PMSyncStatus {
+  projectId: string;
+  lastSyncedAt: string | null;
+  status: "idle" | "syncing" | "error";
+  lastResult: PMSyncRunResult | null;
+}
+
+export interface PMRelatedCommit {
+  hash: string;
+  message: string;
+  author: string;
+  date: string;
+}
+
+export interface PMRelatedCommits {
+  taskId: string;
+  relatedCommits: PMRelatedCommit[];
+  affectedFiles: string[];
+  error: string | null;
+}
+
+export interface PMTestCoverage {
+  taskId: string;
+  testFiles: string[];
+  testCoverage: "found" | "missing" | "unknown";
+  error: string | null;
+}
+
+export interface PMConflictResolveResult {
+  message: string;
+  conflictId: string;
+  resolution: string;
+  resolvedData: Record<string, unknown>;
+  dirty: boolean;
 }
 
 export interface PMProgressReport {
@@ -998,6 +1041,12 @@ export interface PMProgressReport {
   projectedCompletionDate: string | null;
   tasksByStatus: Record<string, number>;
   tasksByPriority: Record<string, number>;
+  /** 担当者ごとの完了速度からの予測 (直近 windowDays 日) */
+  forecast?: {
+    windowDays: number;
+    projectedCompletionDate: string | null;
+    assignees: { assignee: string; remainingTasks: number; velocityPerDay: number; daysToFinish: number | null }[];
+  };
 }
 
 export interface PMCriticalPathNode {

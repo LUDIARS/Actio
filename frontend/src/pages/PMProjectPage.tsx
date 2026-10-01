@@ -4,6 +4,10 @@ import { useAuth } from "../contexts/AuthContext";
 import { pmApi } from "../lib/api";
 import type { PMProject, PMTask, PMConflict } from "../lib/api-types";
 import { useWsEvents } from "../hooks/useWsEvent";
+import { PMSyncStatusPanel } from "../components/pm/PMSyncStatusPanel";
+import { PMReminderSettingsPanel } from "../components/pm/PMReminderSettingsPanel";
+import { PMConflictList } from "../components/pm/PMConflictList";
+import { PMRelatedCommitsPanel } from "../components/pm/PMRelatedCommitsPanel";
 
 const STATUS_LABELS: Record<string, string> = {
   open: "未着手",
@@ -38,6 +42,7 @@ export function PMProjectPage() {
   const [error, setError] = useState("");
   const [filter, setFilter] = useState<string>("all");
   const [selectedTask, setSelectedTask] = useState<PMTask | null>(null);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   const fetchData = useCallback(async () => {
     if (!projectId) return;
@@ -50,6 +55,7 @@ export function PMProjectPage() {
       setProject(proj);
       setTasks(taskRes.tasks);
       setConflicts(conflictRes.conflicts);
+      setRefreshKey((k) => k + 1);
     } catch (err) {
       setError((err as Error).message);
     } finally {
@@ -132,15 +138,11 @@ export function PMProjectPage() {
         ))}
       </div>
 
-      {/* コンフリクト警告 */}
-      {conflicts.length > 0 && (
-        <div className="card" style={{ padding: "0.75rem", marginBottom: "1rem", borderLeft: "3px solid var(--color-warning)" }}>
-          <strong>コンフリクト: {conflicts.length}件</strong>
-          <span style={{ marginLeft: "0.5rem", fontSize: "0.875rem", color: "var(--text-muted)" }}>
-            同期中に競合が検出されました
-          </span>
-        </div>
-      )}
+      <PMSyncStatusPanel projectId={project.id} syncIntervalMinutes={project.syncIntervalMinutes} refreshKey={refreshKey} />
+      <PMReminderSettingsPanel projectId={project.id} />
+
+      {/* コンフリクト (解決待ち) */}
+      <PMConflictList conflicts={conflicts} onResolved={fetchData} />
 
       {/* タスクテーブル */}
       <div className="card" style={{ overflow: "auto" }}>
@@ -303,6 +305,8 @@ function TaskDetailModal({ task, onClose }: { task: PMTask; onClose: () => void 
             {validating ? "検証中..." : "タスク検証"}
           </button>
         </div>
+
+        <PMRelatedCommitsPanel taskId={task.id} />
 
         {validation && (
           <div style={{ marginTop: "1rem", padding: "0.75rem", background: "var(--bg-secondary)", borderRadius: "4px" }}>

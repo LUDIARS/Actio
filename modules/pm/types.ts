@@ -44,14 +44,15 @@ export interface TaskDiff {
 
 // ─── Sync ─────────────────────────────────────────────────
 
-export interface SyncResult {
+/** type にしているのは、JSON カラム (Record<string, unknown>) へそのまま保存するため */
+export type SyncResult = {
   created: number;
   updated: number;
   closed: number;
   unchanged: number;
   conflicts: number;
   errors: string[];
-}
+};
 
 export interface SyncStatus {
   projectId: string;

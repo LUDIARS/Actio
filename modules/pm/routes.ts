@@ -1,82 +1,151 @@
 /**
  * PM モジュール — API ルート
+ *
+ * 業務判断は domain/、手順は application/、外部 I/O と永続化は infra/ にある。
+ * ここは入力の検証・応答の形・HTTP ステータスの対応だけを持つ。
  */
 
-import { Hono } from "hono";
+import { Hono, type Context } from "hono";
 import { v4 as uuidv4 } from "uuid";
+import { z } from "zod";
 import { getUserId } from "../../src/middleware/getUserId.js";
 import { logActivity } from "../../src/activity-logger.js";
 import {
+  pmAnalyticsCacheRepo,
+  pmConflictRepo,
+  pmMilestoneRepo,
   pmProjectRepo,
   pmTaskRepo,
   pmTaskSnapshotRepo,
-  pmMilestoneRepo,
   pmTaskValidationRepo,
-  pmConflictRepo,
-  pmAnalyticsCacheRepo,
+  type PMProject,
 } from "../../src/db/repository.js";
-import type {
-  PMProject,
-  PMTask,
-  NewPMProject,
-  NewPMTask,
-} from "../../src/db/repository.js";
-import { fetchGitHubIssues, fetchGitHubMilestones } from "./sync/github-sync.js";
-import { fetchNotionTasks } from "./sync/notion-sync.js";
-import { detectAllChanges, hashDescription } from "./sync/diff-detector.js";
-import { pushDirtyTasks } from "./sync/writeback.js";
-import { resolveConflict } from "./sync/conflict-resolver.js";
+import { hashDescription } from "./sync/diff-detector.js";
 import { validateTask } from "./validation/task-validator.js";
 import { calculateCriticalPath, findDecompositionCandidates } from "./analytics/critical-path.js";
-import { generateGompertzReport } from "./analytics/gompertz.js";
-import { findWarningTasks, findOverdueTasks, getDefaultReminderSettings } from "./reminder/deadline-checker.js";
-import type {
-  GitHubSourceConfig,
-  NotionSourceConfig,
-  SyncResult,
-  ProgressReport,
-  FullReport,
-  ReminderSettings,
-} from "./types.js";
+import {
+  buildGompertzReport,
+  buildProgressReport,
+  cachedFullReport,
+  type AnalyticsInput,
+} from "./application/analytics-report.js";
+import { autoMergeConflict, ConflictResolutionError, resolveConflictManually, type ManualChoice } from "./application/resolve-conflict.js";
+import { collectStatusChangeEvidence } from "./application/status-change-validation.js";
+import { defaultSyncLock, SyncInProgressError } from "./application/sync-project.js";
+import { findOverdueTasks, findWarningTasks, reminderSettingsSchema, resolveReminderSettings } from "./reminder/deadline-checker.js";
+import { MergeProviderUnavailableError } from "./llm/merge-client.js";
+import { commitSourceFor } from "./infra/external-source.js";
+import { createMergeModel, pmResolveDeps, runProjectSync, validateReviewTransitions } from "./infra/deps.js";
+import { pmReportCache } from "./infra/repo-store.js";
+import { sealSourceConfig, SourceConfigError, toPublicProject } from "./secret/source-config.js";
+import { PmSecretKeyMissingError } from "./secret/token-box.js";
+import { PM_PRIORITIES, PM_SOURCES, PM_TASK_STATUSES } from "./types.js";
 
 export const pmRoutes = new Hono();
+
+const syncIntervalSchema = z.number().int().min(1).max(1440);
+
+const createProjectSchema = z.object({
+  name: z.string().min(1).max(200),
+  source: z.enum(PM_SOURCES),
+  sourceConfig: z.record(z.string(), z.unknown()),
+  syncIntervalMinutes: syncIntervalSchema.optional(),
+});
+
+const updateProjectSchema = z.object({
+  name: z.string().min(1).max(200).optional(),
+  sourceConfig: z.record(z.string(), z.unknown()).optional(),
+  syncIntervalMinutes: syncIntervalSchema.optional(),
+});
+
+const updateTaskSchema = z.object({
+  title: z.string().min(1).max(1000).optional(),
+  description: z.string().max(200_000).nullable().optional(),
+  status: z.enum(PM_TASK_STATUSES).optional(),
+  priority: z.enum(PM_PRIORITIES).optional(),
+  assignees: z.array(z.string().max(200)).max(100).optional(),
+  labels: z.array(z.string().max(200)).max(200).optional(),
+  dueDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
+  estimatedHours: z.number().min(0).max(10_000).nullable().optional(),
+  blockedBy: z.array(z.string().max(200)).max(200).optional(),
+});
+
+const resolveSchema = z.object({
+  resolution: z.enum(["force_external", "keep_local", "manual"]),
+  resolvedData: z.record(z.string(), z.unknown()).optional(),
+});
+
+type Json = Record<string, unknown>;
+
+async function readJson(c: Context): Promise<unknown> {
+  try {
+    return await c.req.json();
+  } catch {
+    return undefined;
+  }
+}
+
+function invalid(c: Context, error: z.ZodError) {
+  return c.json({ error: "Invalid request", issues: error.issues.map((i) => i.path.join(".") || i.message) }, 400);
+}
+
+function configError(c: Context, error: unknown) {
+  if (error instanceof SourceConfigError) return c.json({ error: error.message }, 400);
+  if (error instanceof PmSecretKeyMissingError) return c.json({ error: error.message }, 503);
+  throw error;
+}
+
+async function loadProject(id: string): Promise<PMProject | undefined> {
+  return pmProjectRepo.findById(id);
+}
+
+async function analyticsInput(projectId: string): Promise<AnalyticsInput> {
+  const tasks = await pmTaskRepo.findByProject(projectId);
+  const snapshots = await pmTaskSnapshotRepo.findByTasks(tasks.map((t) => t.id));
+  return { projectId, tasks, snapshots, now: new Date() };
+}
+
+function analysisTasks(tasks: Awaited<ReturnType<typeof pmTaskRepo.findByProject>>) {
+  return tasks.map((t) => ({
+    id: t.id,
+    title: t.title,
+    status: t.status,
+    estimatedHours: t.estimatedHours,
+    assignees: t.assignees ?? [],
+    blockedBy: t.blockedBy ?? [],
+    dueDate: t.dueDate,
+  }));
+}
+
+pmRoutes.use("*", async (c, next) => {
+  if (!getUserId(c)) return c.json({ error: "Authentication required" }, 401);
+  await next();
+});
 
 // ─── Projects ─────────────────────────────────────────────
 
 pmRoutes.get("/projects", async (c) => {
-  const userId = getUserId(c);
-  if (!userId) return c.json({ error: "Authentication required" }, 401);
-
   const projects = await pmProjectRepo.findAll();
-  return c.json({ projects });
+  return c.json({ projects: projects.map(toPublicProject) });
 });
 
 pmRoutes.get("/projects/:id", async (c) => {
-  const userId = getUserId(c);
-  if (!userId) return c.json({ error: "Authentication required" }, 401);
-
-  const project = await pmProjectRepo.findById(c.req.param("id"));
+  const project = await loadProject(c.req.param("id"));
   if (!project) return c.json({ error: "Project not found" }, 404);
-  return c.json(project);
+  return c.json(toPublicProject(project));
 });
 
 pmRoutes.post("/projects", async (c) => {
-  const userId = getUserId(c);
-  if (!userId) return c.json({ error: "Authentication required" }, 401);
+  const userId = getUserId(c) as string;
+  const parsed = createProjectSchema.safeParse(await readJson(c));
+  if (!parsed.success) return invalid(c, parsed.error);
+  const body = parsed.data;
 
-  const body = await c.req.json<{
-    name: string;
-    source: string;
-    sourceConfig: Record<string, string>;
-    syncIntervalMinutes?: number;
-  }>();
-
-  if (!body.name || !body.source || !body.sourceConfig) {
-    return c.json({ error: "name, source, sourceConfig are required" }, 400);
-  }
-
-  if (body.source !== "github" && body.source !== "notion") {
-    return c.json({ error: "source must be 'github' or 'notion'" }, 400);
+  let sourceConfig: Record<string, string>;
+  try {
+    sourceConfig = sealSourceConfig(body.source, body.sourceConfig, null);
+  } catch (error) {
+    return configError(c, error);
   }
 
   const id = uuidv4();
@@ -84,48 +153,54 @@ pmRoutes.post("/projects", async (c) => {
     id,
     name: body.name,
     source: body.source,
-    sourceConfig: body.sourceConfig,
+    sourceConfig,
     syncIntervalMinutes: body.syncIntervalMinutes ?? 15,
     ownerId: userId,
   });
 
   logActivity(userId, "", "PMプロジェクト作成", `「${body.name}」(${body.source})`);
-
-  const project = await pmProjectRepo.findById(id);
-  return c.json(project, 201);
+  const project = await loadProject(id);
+  return c.json(project ? toPublicProject(project) : { id }, 201);
 });
 
 pmRoutes.put("/projects/:id", async (c) => {
-  const userId = getUserId(c);
-  if (!userId) return c.json({ error: "Authentication required" }, 401);
-
-  const project = await pmProjectRepo.findById(c.req.param("id"));
+  const project = await loadProject(c.req.param("id"));
   if (!project) return c.json({ error: "Project not found" }, 404);
+  const parsed = updateProjectSchema.safeParse(await readJson(c));
+  if (!parsed.success) return invalid(c, parsed.error);
+  const body = parsed.data;
 
-  const body = await c.req.json<{
-    name?: string;
-    sourceConfig?: Record<string, string>;
-    syncIntervalMinutes?: number;
-  }>();
+  let sourceConfig: Record<string, string> | undefined;
+  if (body.sourceConfig !== undefined) {
+    const source = PM_SOURCES.find((s) => s === project.source);
+    if (!source) return c.json({ error: `未対応のソースです: ${project.source}` }, 400);
+    try {
+      sourceConfig = sealSourceConfig(source, body.sourceConfig, project.sourceConfig);
+    } catch (error) {
+      return configError(c, error);
+    }
+  }
 
   await pmProjectRepo.update(project.id, {
     ...(body.name !== undefined ? { name: body.name } : {}),
-    ...(body.sourceConfig !== undefined ? { sourceConfig: body.sourceConfig } : {}),
+    ...(sourceConfig !== undefined ? { sourceConfig } : {}),
     ...(body.syncIntervalMinutes !== undefined ? { syncIntervalMinutes: body.syncIntervalMinutes } : {}),
   });
 
-  const updated = await pmProjectRepo.findById(project.id);
-  return c.json(updated);
+  const updated = await loadProject(project.id);
+  return c.json(updated ? toPublicProject(updated) : { id: project.id });
 });
 
 pmRoutes.delete("/projects/:id", async (c) => {
-  const userId = getUserId(c);
-  if (!userId) return c.json({ error: "Authentication required" }, 401);
-
-  const project = await pmProjectRepo.findById(c.req.param("id"));
+  const userId = getUserId(c) as string;
+  const project = await loadProject(c.req.param("id"));
   if (!project) return c.json({ error: "Project not found" }, 404);
+  if (defaultSyncLock.isRunning(project.id)) return c.json({ error: "同期中のため削除できません" }, 409);
 
-  // 関連データも削除
+  const taskIds = (await pmTaskRepo.findByProject(project.id)).map((t) => t.id);
+  await pmTaskSnapshotRepo.deleteByTasks(taskIds);
+  await pmTaskValidationRepo.deleteByTasks(taskIds);
+  await pmConflictRepo.deleteByProject(project.id);
   await pmTaskRepo.deleteByProject(project.id);
   await pmMilestoneRepo.deleteByProject(project.id);
   await pmAnalyticsCacheRepo.deleteByProject(project.id);
@@ -138,100 +213,68 @@ pmRoutes.delete("/projects/:id", async (c) => {
 // ─── Sync ─────────────────────────────────────────────────
 
 pmRoutes.post("/projects/:id/sync", async (c) => {
-  const userId = getUserId(c);
-  if (!userId) return c.json({ error: "Authentication required" }, 401);
-
-  const project = await pmProjectRepo.findById(c.req.param("id"));
+  const userId = getUserId(c) as string;
+  const project = await loadProject(c.req.param("id"));
   if (!project) return c.json({ error: "Project not found" }, 404);
 
-  const result = await performSync(project);
-
-  await pmProjectRepo.update(project.id, {
-    lastSyncedAt: new Date().toISOString(),
-  });
-
-  logActivity(userId, "", "PM同期実行", `「${project.name}」: +${result.created} ~${result.updated}`);
-  return c.json({ result, lastSyncedAt: new Date().toISOString() });
+  try {
+    const result = await runProjectSync(project);
+    logActivity(userId, "", "PM同期実行", `「${project.name}」: +${result.created} ~${result.updated}`);
+    return c.json({ result, lastSyncedAt: result.errors.length === 0 ? result.finishedAt : project.lastSyncedAt });
+  } catch (error) {
+    if (error instanceof SyncInProgressError) return c.json({ error: error.message }, 409);
+    throw error;
+  }
 });
 
 pmRoutes.get("/projects/:id/sync/status", async (c) => {
-  const userId = getUserId(c);
-  if (!userId) return c.json({ error: "Authentication required" }, 401);
-
-  const project = await pmProjectRepo.findById(c.req.param("id"));
+  const project = await loadProject(c.req.param("id"));
   if (!project) return c.json({ error: "Project not found" }, 404);
 
-  return c.json({
-    projectId: project.id,
-    lastSyncedAt: project.lastSyncedAt,
-    status: "idle",
-    lastResult: null,
-  });
+  const lastResult = project.lastSyncResult ?? null;
+  const errors = Array.isArray(lastResult?.errors) ? lastResult.errors : [];
+  const status = defaultSyncLock.isRunning(project.id) ? "syncing" : errors.length > 0 ? "error" : "idle";
+  return c.json({ projectId: project.id, lastSyncedAt: project.lastSyncedAt, status, lastResult });
 });
 
 // ─── Tasks ────────────────────────────────────────────────
 
 pmRoutes.get("/projects/:id/tasks", async (c) => {
-  const userId = getUserId(c);
-  if (!userId) return c.json({ error: "Authentication required" }, 401);
-
   const tasks = await pmTaskRepo.findByProject(c.req.param("id"));
   return c.json({ tasks });
 });
 
 pmRoutes.get("/tasks/:taskId", async (c) => {
-  const userId = getUserId(c);
-  if (!userId) return c.json({ error: "Authentication required" }, 401);
-
   const task = await pmTaskRepo.findById(c.req.param("taskId"));
   if (!task) return c.json({ error: "Task not found" }, 404);
   return c.json(task);
 });
 
 pmRoutes.put("/tasks/:taskId", async (c) => {
-  const userId = getUserId(c);
-  if (!userId) return c.json({ error: "Authentication required" }, 401);
-
   const task = await pmTaskRepo.findById(c.req.param("taskId"));
   if (!task) return c.json({ error: "Task not found" }, 404);
-
-  const body = await c.req.json<{
-    title?: string;
-    description?: string;
-    status?: string;
-    priority?: string;
-    assignees?: string[];
-    labels?: string[];
-    dueDate?: string | null;
-    estimatedHours?: number | null;
-    blockedBy?: string[];
-  }>();
+  const parsed = updateTaskSchema.safeParse(await readJson(c));
+  if (!parsed.success) return invalid(c, parsed.error);
+  const body = parsed.data;
 
   await pmTaskRepo.update(task.id, {
-    ...(body.title !== undefined ? { title: body.title } : {}),
-    ...(body.description !== undefined ? {
-      description: body.description,
-      descriptionHash: hashDescription(body.description ?? null),
-    } : {}),
-    ...(body.status !== undefined ? { status: body.status } : {}),
-    ...(body.priority !== undefined ? { priority: body.priority } : {}),
-    ...(body.assignees !== undefined ? { assignees: body.assignees } : {}),
-    ...(body.labels !== undefined ? { labels: body.labels } : {}),
-    ...(body.dueDate !== undefined ? { dueDate: body.dueDate } : {}),
-    ...(body.estimatedHours !== undefined ? { estimatedHours: body.estimatedHours } : {}),
-    ...(body.blockedBy !== undefined ? { blockedBy: body.blockedBy } : {}),
+    ...body,
+    ...(body.description !== undefined ? { descriptionHash: hashDescription(body.description) } : {}),
     dirtyFlag: 1,
     localUpdatedAt: new Date().toISOString(),
   });
+  await pmAnalyticsCacheRepo.deleteByProject(task.projectId);
+
+  if (body.status === "review" && task.status !== "review") {
+    const project = await loadProject(task.projectId);
+    if (project) validateReviewTransitions(project, [task.id]);
+  }
 
   const updated = await pmTaskRepo.findById(task.id);
   return c.json(updated);
 });
 
 pmRoutes.get("/tasks/:taskId/history", async (c) => {
-  const userId = getUserId(c);
-  if (!userId) return c.json({ error: "Authentication required" }, 401);
-
   const history = await pmTaskSnapshotRepo.findByTask(c.req.param("taskId"));
   return c.json({ history });
 });
@@ -239,41 +282,45 @@ pmRoutes.get("/tasks/:taskId/history", async (c) => {
 // ─── Conflicts ────────────────────────────────────────────
 
 pmRoutes.get("/projects/:id/conflicts", async (c) => {
-  const userId = getUserId(c);
-  if (!userId) return c.json({ error: "Authentication required" }, 401);
-
   const conflicts = await pmConflictRepo.findByProject(c.req.param("id"), "pending");
   return c.json({ conflicts });
 });
 
+function conflictError(c: Context, error: unknown) {
+  if (error instanceof ConflictResolutionError) return c.json({ error: error.message }, error.status);
+  if (error instanceof MergeProviderUnavailableError) return c.json({ error: error.message }, 503);
+  throw error;
+}
+
 pmRoutes.post("/conflicts/:conflictId/resolve", async (c) => {
-  const userId = getUserId(c);
-  if (!userId) return c.json({ error: "Authentication required" }, 401);
+  const parsed = resolveSchema.safeParse(await readJson(c));
+  if (!parsed.success) return invalid(c, parsed.error);
+  const { resolution, resolvedData } = parsed.data;
+  if (resolution === "manual" && !resolvedData) return c.json({ error: "manual では resolvedData が必要です" }, 400);
+  const choice: ManualChoice = resolution === "manual" ? { kind: "manual", data: resolvedData } : { kind: resolution };
 
-  const conflict = await pmConflictRepo.findById(c.req.param("conflictId"));
-  if (!conflict) return c.json({ error: "Conflict not found" }, 404);
+  try {
+    const outcome = await resolveConflictManually(c.req.param("conflictId"), choice, pmResolveDeps);
+    return c.json({ message: "Conflict resolved", ...outcome });
+  } catch (error) {
+    return conflictError(c, error);
+  }
+});
 
-  const body = await c.req.json<{
-    resolution: string;
-    resolvedData?: Record<string, unknown>;
-  }>();
-
-  await pmConflictRepo.update(conflict.id, {
-    resolution: body.resolution,
-    resolvedData: body.resolvedData ?? null,
-    status: "resolved",
-    resolvedAt: new Date().toISOString(),
-  });
-
-  return c.json({ message: "Conflict resolved" });
+pmRoutes.post("/conflicts/:conflictId/auto-merge", async (c) => {
+  const model = createMergeModel();
+  if (!model.isConfigured()) return c.json({ error: "LLM マージの提供元が未設定です。手動で解決してください" }, 503);
+  try {
+    const outcome = await autoMergeConflict(c.req.param("conflictId"), model, pmResolveDeps, c.req.raw.signal);
+    return c.json({ message: "Conflict merged", ...outcome });
+  } catch (error) {
+    return conflictError(c, error);
+  }
 });
 
 // ─── Validation ───────────────────────────────────────────
 
 pmRoutes.post("/tasks/:taskId/validate", async (c) => {
-  const userId = getUserId(c);
-  if (!userId) return c.json({ error: "Authentication required" }, 401);
-
   const task = await pmTaskRepo.findById(c.req.param("taskId"));
   if (!task) return c.json({ error: "Task not found" }, 404);
 
@@ -287,15 +334,16 @@ pmRoutes.post("/tasks/:taskId/validate", async (c) => {
     status: task.status,
   });
 
-  const validationId = uuidv4();
+  // 関連コミット・テストは直近の検証結果 (review への変更時に収集) を引き継ぐ
+  const previous = await pmTaskValidationRepo.findLatestByTask(task.id);
   await pmTaskValidationRepo.create({
-    id: validationId,
+    id: uuidv4(),
     taskId: task.id,
     score: result.score,
     issues: result.issues,
     suggestions: result.suggestions,
-    relatedCommits: [],
-    testFiles: [],
+    relatedCommits: previous?.relatedCommits ?? [],
+    testFiles: previous?.testFiles ?? [],
     validatedAt: result.validatedAt,
   });
 
@@ -303,65 +351,79 @@ pmRoutes.post("/tasks/:taskId/validate", async (c) => {
 });
 
 pmRoutes.get("/tasks/:taskId/validation", async (c) => {
-  const userId = getUserId(c);
-  if (!userId) return c.json({ error: "Authentication required" }, 401);
-
   const validation = await pmTaskValidationRepo.findLatestByTask(c.req.param("taskId"));
   if (!validation) return c.json({ error: "No validation found" }, 404);
   return c.json(validation);
 });
 
+async function evidenceFor(c: Context) {
+  const task = await pmTaskRepo.findById(c.req.param("taskId") ?? "");
+  if (!task) return null;
+  const project = await loadProject(task.projectId);
+  if (!project) return null;
+  return collectStatusChangeEvidence(task, commitSourceFor(project));
+}
+
+pmRoutes.get("/tasks/:taskId/related-commits", async (c) => {
+  const evidence = await evidenceFor(c);
+  if (!evidence) return c.json({ error: "Task not found" }, 404);
+  return c.json({
+    taskId: evidence.taskId,
+    relatedCommits: evidence.relatedCommits,
+    affectedFiles: evidence.affectedFiles,
+    error: evidence.error,
+  });
+});
+
+pmRoutes.get("/tasks/:taskId/test-coverage", async (c) => {
+  const evidence = await evidenceFor(c);
+  if (!evidence) return c.json({ error: "Task not found" }, 404);
+  return c.json({
+    taskId: evidence.taskId,
+    testFiles: evidence.testFiles,
+    testCoverage: evidence.testCoverage,
+    error: evidence.error,
+  });
+});
+
 // ─── Reminders ────────────────────────────────────────────
 
 pmRoutes.get("/projects/:id/reminders", async (c) => {
-  const userId = getUserId(c);
-  if (!userId) return c.json({ error: "Authentication required" }, 401);
-
-  // デフォルト設定を返す (将来的にDB保存に拡張可能)
-  return c.json(getDefaultReminderSettings());
+  const project = await loadProject(c.req.param("id"));
+  if (!project) return c.json({ error: "Project not found" }, 404);
+  return c.json(resolveReminderSettings(project.reminderSettings));
 });
 
 pmRoutes.put("/projects/:id/reminders", async (c) => {
-  const userId = getUserId(c);
-  if (!userId) return c.json({ error: "Authentication required" }, 401);
+  const project = await loadProject(c.req.param("id"));
+  if (!project) return c.json({ error: "Project not found" }, 404);
+  const parsed = reminderSettingsSchema.safeParse(await readJson(c));
+  if (!parsed.success) return invalid(c, parsed.error);
 
-  const body = await c.req.json<ReminderSettings>();
-  // 将来的にDB保存
-  return c.json(body);
+  await pmProjectRepo.update(project.id, { reminderSettings: parsed.data });
+  return c.json(parsed.data);
 });
 
+/** 送らずに、いまの設定で対象になるタスクを返す (確認用)。 */
 pmRoutes.post("/projects/:id/reminders/test", async (c) => {
-  const userId = getUserId(c);
-  if (!userId) return c.json({ error: "Authentication required" }, 401);
+  const project = await loadProject(c.req.param("id"));
+  if (!project) return c.json({ error: "Project not found" }, 404);
 
-  const tasks = await pmTaskRepo.findByProject(c.req.param("id"));
-  const settings = getDefaultReminderSettings();
-
-  const warningTasks = findWarningTasks(
-    tasks.map((t) => ({
-      id: t.id,
-      title: t.title,
-      dueDate: t.dueDate,
-      assignees: t.assignees ?? [],
-      projectId: t.projectId,
-      status: t.status,
-    })),
-    settings
-  );
-
-  const overdueTasks = findOverdueTasks(
-    tasks.map((t) => ({
-      id: t.id,
-      title: t.title,
-      dueDate: t.dueDate,
-      assignees: t.assignees ?? [],
-      projectId: t.projectId,
-      status: t.status,
-    }))
-  );
+  const settings = resolveReminderSettings(project.reminderSettings);
+  const tasks = (await pmTaskRepo.findByProject(project.id)).map((t) => ({
+    id: t.id,
+    title: t.title,
+    dueDate: t.dueDate,
+    assignees: t.assignees ?? [],
+    projectId: t.projectId,
+    status: t.status,
+  }));
+  const warningTasks = findWarningTasks(tasks, settings);
+  const overdueTasks = settings.overdueCheckEnabled ? findOverdueTasks(tasks) : [];
 
   return c.json({
     message: "Test reminder check",
+    settings,
     warningCount: warningTasks.length,
     overdueCount: overdueTasks.length,
     warningTasks: warningTasks.map((t) => ({ id: t.id, title: t.title, dueDate: t.dueDate })),
@@ -372,403 +434,33 @@ pmRoutes.post("/projects/:id/reminders/test", async (c) => {
 // ─── Analytics ────────────────────────────────────────────
 
 pmRoutes.get("/projects/:id/analytics/progress", async (c) => {
-  const userId = getUserId(c);
-  if (!userId) return c.json({ error: "Authentication required" }, 401);
-
-  const projectId = c.req.param("id");
-  const tasks = await pmTaskRepo.findByProject(projectId);
-
-  const tasksByStatus: Record<string, number> = {};
-  const tasksByPriority: Record<string, number> = {};
-  let completedCount = 0;
-
-  for (const task of tasks) {
-    tasksByStatus[task.status] = (tasksByStatus[task.status] ?? 0) + 1;
-    tasksByPriority[task.priority] = (tasksByPriority[task.priority] ?? 0) + 1;
-    if (task.status === "closed") completedCount++;
-  }
-
-  const report: ProgressReport = {
-    projectId,
-    totalTasks: tasks.length,
-    completedTasks: completedCount,
-    completionRate: tasks.length > 0 ? Math.round((completedCount / tasks.length) * 100) / 100 : 0,
-    projectedCompletionDate: null,
-    tasksByStatus,
-    tasksByPriority,
-  };
-
-  return c.json(report);
+  const input = await analyticsInput(c.req.param("id"));
+  const criticalPath = calculateCriticalPath(analysisTasks(input.tasks));
+  return c.json(buildProgressReport(input, new Set(criticalPath.path.map((n) => n.taskId))));
 });
 
 pmRoutes.get("/projects/:id/analytics/critical-path", async (c) => {
-  const userId = getUserId(c);
-  if (!userId) return c.json({ error: "Authentication required" }, 401);
-
   const tasks = await pmTaskRepo.findByProject(c.req.param("id"));
-  const result = calculateCriticalPath(
-    tasks.map((t) => ({
-      id: t.id,
-      title: t.title,
-      status: t.status,
-      estimatedHours: t.estimatedHours,
-      assignees: t.assignees ?? [],
-      blockedBy: t.blockedBy ?? [],
-      dueDate: t.dueDate,
-    }))
-  );
-
-  return c.json(result);
+  return c.json(calculateCriticalPath(analysisTasks(tasks)));
 });
 
 pmRoutes.get("/projects/:id/analytics/decomposition", async (c) => {
-  const userId = getUserId(c);
-  if (!userId) return c.json({ error: "Authentication required" }, 401);
-
-  const tasks = await pmTaskRepo.findByProject(c.req.param("id"));
-  const taskData = tasks.map((t) => ({
-    id: t.id,
-    title: t.title,
-    status: t.status,
-    estimatedHours: t.estimatedHours,
-    assignees: t.assignees ?? [],
-    blockedBy: t.blockedBy ?? [],
-    dueDate: t.dueDate,
-  }));
-
+  const taskData = analysisTasks(await pmTaskRepo.findByProject(c.req.param("id")));
   const criticalPath = calculateCriticalPath(taskData);
-  const criticalPathIds = new Set(criticalPath.path.map((n) => n.taskId));
-  const recommendations = findDecompositionCandidates(taskData, criticalPathIds);
-
+  const recommendations = findDecompositionCandidates(taskData, new Set(criticalPath.path.map((n) => n.taskId)));
   return c.json({ recommendations });
 });
 
 pmRoutes.get("/projects/:id/analytics/gompertz", async (c) => {
-  const userId = getUserId(c);
-  if (!userId) return c.json({ error: "Authentication required" }, 401);
-
-  const projectId = c.req.param("id");
-  const tasks = await pmTaskRepo.findByProject(projectId);
-
-  // バグラベル付きタスクでゴンペルツ分析
-  const bugTasks = tasks.filter((t) =>
-    (t.labels ?? []).some((l: string) => l.toLowerCase().includes("bug"))
-  );
-
-  if (bugTasks.length < 3) {
-    return c.json({
-      projectId,
-      generatedAt: new Date().toISOString(),
-      totalBugsFound: bugTasks.length,
-      totalBugsFixed: bugTasks.filter((t) => t.status === "closed").length,
-      estimatedTotalBugs: 0,
-      convergenceDate: null,
-      confidenceLevel: 0,
-      dataPoints: [],
-      message: "バグデータが不十分です (最低3件必要)",
-    });
-  }
-
-  // 日付ごとに累積集計
-  const sorted = [...bugTasks].sort((a, b) =>
-    (a.createdAt?.toString() ?? "").localeCompare(b.createdAt?.toString() ?? "")
-  );
-
-  let cumulativeFound = 0;
-  let cumulativeFixed = 0;
-  const dataPoints = sorted.map((t) => {
-    cumulativeFound++;
-    if (t.status === "closed") cumulativeFixed++;
-    return {
-      date: t.createdAt ? new Date(t.createdAt).toISOString().split("T")[0] : new Date().toISOString().split("T")[0],
-      cumulativeFound,
-      cumulativeFixed,
-    };
-  });
-
-  const report = generateGompertzReport(projectId, dataPoints);
-  return c.json(report);
+  const report = buildGompertzReport(await analyticsInput(c.req.param("id")));
+  const payload: Json = { ...report };
+  if (report.dataPoints.length < 3) payload.message = "バグデータが不十分です (最低3日分必要)";
+  return c.json(payload);
 });
 
 pmRoutes.get("/projects/:id/analytics/report", async (c) => {
-  const userId = getUserId(c);
-  if (!userId) return c.json({ error: "Authentication required" }, 401);
-
-  const projectId = c.req.param("id");
-  const tasks = await pmTaskRepo.findByProject(projectId);
-
-  const taskData = tasks.map((t) => ({
-    id: t.id,
-    title: t.title,
-    status: t.status,
-    estimatedHours: t.estimatedHours,
-    assignees: t.assignees ?? [],
-    blockedBy: t.blockedBy ?? [],
-    dueDate: t.dueDate,
-    labels: t.labels ?? [],
-    priority: t.priority,
-    description: t.description,
-    createdAt: t.createdAt,
-  }));
-
-  // Progress
-  const tasksByStatus: Record<string, number> = {};
-  const tasksByPriority: Record<string, number> = {};
-  let completedCount = 0;
-  for (const task of taskData) {
-    tasksByStatus[task.status] = (tasksByStatus[task.status] ?? 0) + 1;
-    tasksByPriority[task.priority] = (tasksByPriority[task.priority] ?? 0) + 1;
-    if (task.status === "closed") completedCount++;
-  }
-
-  const progress: ProgressReport = {
-    projectId,
-    totalTasks: taskData.length,
-    completedTasks: completedCount,
-    completionRate: taskData.length > 0 ? Math.round((completedCount / taskData.length) * 100) / 100 : 0,
-    projectedCompletionDate: null,
-    tasksByStatus,
-    tasksByPriority,
-  };
-
-  // Critical Path
-  const criticalPath = calculateCriticalPath(taskData);
-  const criticalPathIds = new Set(criticalPath.path.map((n) => n.taskId));
-  const decomposition = findDecompositionCandidates(taskData, criticalPathIds);
-
-  const report: FullReport = {
-    projectId,
-    generatedAt: new Date().toISOString(),
-    progress,
-    criticalPath,
-    decomposition,
-    gompertz: null,
-  };
-
+  const project = await loadProject(c.req.param("id"));
+  if (!project) return c.json({ error: "Project not found" }, 404);
+  const report = await cachedFullReport(project, () => analyticsInput(project.id), pmReportCache);
   return c.json(report);
 });
-
-// ─── Sync Logic ───────────────────────────────────────────
-
-async function performSync(project: PMProject): Promise<SyncResult> {
-  const result: SyncResult = {
-    created: 0,
-    updated: 0,
-    closed: 0,
-    unchanged: 0,
-    conflicts: 0,
-    errors: [],
-  };
-
-  try {
-    // 外部からタスクを取得
-    let externalTasks;
-    if (project.source === "github") {
-      const config = project.sourceConfig as unknown as GitHubSourceConfig;
-      externalTasks = await fetchGitHubIssues(config);
-
-      // マイルストーンも同期
-      const milestones = await fetchGitHubMilestones(config);
-      for (const ms of milestones) {
-        const existing = await pmMilestoneRepo.findByExternalId(project.id, ms.externalId);
-        if (existing) {
-          await pmMilestoneRepo.update(existing.id, {
-            title: ms.title,
-            description: ms.description,
-            dueDate: ms.dueDate,
-            state: ms.state,
-            externalUpdatedAt: ms.updatedAt,
-          });
-        } else {
-          await pmMilestoneRepo.create({
-            id: uuidv4(),
-            projectId: project.id,
-            externalId: ms.externalId,
-            title: ms.title,
-            description: ms.description,
-            dueDate: ms.dueDate,
-            state: ms.state,
-            externalUpdatedAt: ms.updatedAt,
-          });
-        }
-      }
-    } else {
-      const config = project.sourceConfig as unknown as NotionSourceConfig;
-      externalTasks = await fetchNotionTasks(config);
-    }
-
-    // 既存タスクを取得
-    const storedTasks = await pmTaskRepo.findByProject(project.id);
-    const storedMap = new Map(storedTasks.map((t) => [t.externalId, t]));
-
-    // 差分検出
-    const { diffs } = detectAllChanges(
-      externalTasks,
-      storedTasks.map((t) => ({
-        externalId: t.externalId,
-        title: t.title,
-        description: t.description,
-        status: t.status,
-        priority: t.priority,
-        assignees: t.assignees ?? [],
-        labels: t.labels ?? [],
-        dueDate: t.dueDate,
-        milestoneExternalId: t.milestoneExternalId,
-        milestoneName: t.milestoneName,
-        descriptionHash: t.descriptionHash,
-      }))
-    );
-
-    for (const ext of externalTasks) {
-      const stored = storedMap.get(ext.externalId);
-      const diff = diffs.find((d) => d.taskExternalId === ext.externalId);
-
-      if (!stored) {
-        // 新規タスク
-        const taskId = uuidv4();
-        await pmTaskRepo.create({
-          id: taskId,
-          projectId: project.id,
-          externalId: ext.externalId,
-          externalUrl: ext.externalUrl,
-          title: ext.title,
-          description: ext.description,
-          status: ext.status,
-          priority: ext.priority,
-          assignees: ext.assignees,
-          labels: ext.labels,
-          dueDate: ext.dueDate,
-          milestoneExternalId: ext.milestoneExternalId,
-          milestoneName: ext.milestoneName,
-          descriptionHash: hashDescription(ext.description),
-          externalUpdatedAt: ext.updatedAt,
-          lastSyncedAt: new Date().toISOString(),
-        });
-
-        await pmTaskSnapshotRepo.create({
-          id: uuidv4(),
-          taskId,
-          changeType: "created",
-          changedFields: {},
-          snapshotData: ext as unknown as Record<string, unknown>,
-          detectedAt: new Date().toISOString(),
-        });
-
-        result.created++;
-      } else if (diff) {
-        // コンフリクトチェック
-        const hasLocalChanges = stored.localUpdatedAt && stored.lastSyncedAt &&
-          stored.localUpdatedAt > stored.lastSyncedAt;
-
-        if (hasLocalChanges && stored.dirtyFlag === 1) {
-          // コンフリクト検出
-          const conflictResult = resolveConflict({
-            taskId: stored.id,
-            localVersion: stored as unknown as Record<string, unknown>,
-            externalVersion: ext as unknown as Record<string, unknown>,
-            baseVersion: stored as unknown as Record<string, unknown>,
-          });
-
-          if (conflictResult.resolution === "auto_field_merge") {
-            await pmTaskRepo.update(stored.id, {
-              ...conflictResult.mergedData as Partial<NewPMTask>,
-              descriptionHash: hashDescription(ext.description),
-              externalUpdatedAt: ext.updatedAt,
-              lastSyncedAt: new Date().toISOString(),
-              dirtyFlag: 0,
-            });
-            result.updated++;
-          } else {
-            // コンフリクトレコード作成
-            await pmConflictRepo.create({
-              id: uuidv4(),
-              taskId: stored.id,
-              projectId: project.id,
-              localVersion: stored as unknown as Record<string, unknown>,
-              externalVersion: ext as unknown as Record<string, unknown>,
-              baseVersion: stored as unknown as Record<string, unknown>,
-              resolution: conflictResult.resolution,
-              resolvedData: conflictResult.mergedData,
-              status: "pending",
-              createdAt: new Date().toISOString(),
-            });
-            result.conflicts++;
-          }
-        } else {
-          // 通常更新
-          await pmTaskRepo.update(stored.id, {
-            title: ext.title,
-            description: ext.description,
-            status: ext.status,
-            priority: ext.priority,
-            assignees: ext.assignees,
-            labels: ext.labels,
-            dueDate: ext.dueDate,
-            milestoneExternalId: ext.milestoneExternalId,
-            milestoneName: ext.milestoneName,
-            descriptionHash: hashDescription(ext.description),
-            externalUpdatedAt: ext.updatedAt,
-            lastSyncedAt: new Date().toISOString(),
-          });
-
-          // スナップショット保存
-          const changedFields: Record<string, { before: unknown; after: unknown }> = {};
-          for (const change of diff.changes) {
-            changedFields[change.field] = { before: change.before, after: change.after };
-          }
-
-          await pmTaskSnapshotRepo.create({
-            id: uuidv4(),
-            taskId: stored.id,
-            changeType: diff.changeType,
-            changedFields,
-            snapshotData: ext as unknown as Record<string, unknown>,
-            detectedAt: new Date().toISOString(),
-          });
-
-          if (diff.changeType === "closed") result.closed++;
-          else result.updated++;
-        }
-      } else {
-        result.unchanged++;
-      }
-    }
-
-    // 書き戻し (dirty タスクを外部に反映)
-    const dirtyTasks = await pmTaskRepo.findDirty(project.id);
-    if (dirtyTasks.length > 0) {
-      const writebackResult = await pushDirtyTasks(
-        {
-          id: project.id,
-          source: project.source,
-          sourceConfig: project.sourceConfig,
-        },
-        dirtyTasks.map((t) => ({
-          id: t.id,
-          externalId: t.externalId,
-          title: t.title,
-          description: t.description,
-          status: t.status,
-          labels: t.labels ?? [],
-          assignees: t.assignees ?? [],
-          milestoneExternalId: t.milestoneExternalId,
-        }))
-      );
-
-      for (const successId of writebackResult.success) {
-        await pmTaskRepo.update(successId, {
-          dirtyFlag: 0,
-          externalUpdatedAt: new Date().toISOString(),
-        });
-      }
-
-      for (const fail of writebackResult.failed) {
-        result.errors.push(`Writeback failed for ${fail.taskId}: ${fail.error}`);
-      }
-    }
-  } catch (err) {
-    result.errors.push(String(err));
-  }
-
-  return result;
-}

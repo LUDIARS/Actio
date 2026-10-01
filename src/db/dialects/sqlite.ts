@@ -250,6 +250,10 @@ export function createConnection(): { db: ReturnType<typeof drizzle>; sqlite: Sq
   // tasks.project_id 新設 (EducationLab×Calliope PM 連携。2026-07-17 neco 最終裁定)
   try { sqlite.exec(`ALTER TABLE tasks ADD COLUMN project_id TEXT`); } catch { /* already exists */ }
   sqlite.exec(`CREATE INDEX IF NOT EXISTS idx_task_project ON tasks(project_id)`);
+  // PM: 同期結果とリマインダー設定 (spec/feature/pm/completion.md)
+  for (const statement of ["last_sync_result TEXT", "reminder_settings TEXT"]) {
+    try { sqlite.exec(`ALTER TABLE pm_projects ADD COLUMN ${statement}`); } catch { /* already exists */ }
+  }
   // completedAt 単体 INDEX (velocity Θ_p 集計のフルスキャン回避)
   sqlite.exec(`CREATE INDEX IF NOT EXISTS idx_task_completed_at ON tasks(completed_at)`);
   for (const statement of ["team_id TEXT", "lane TEXT NOT NULL DEFAULT 'daily'", "sprint_id TEXT", "source TEXT", "source_ref TEXT", "completion_score REAL", "completion_evidence TEXT", "completed_by TEXT", "duration_days INTEGER", "estimate_source TEXT", "deadline_source TEXT", "story_points INTEGER", "blocked_by TEXT NOT NULL DEFAULT '[]'", "carried_from_sprint_id TEXT", "actual_minutes INTEGER NOT NULL DEFAULT 0", "executor_type TEXT NOT NULL DEFAULT 'human'", "ai_executor TEXT", "is_critical_path INTEGER NOT NULL DEFAULT 0", "slack_days REAL", "critical_path_error TEXT", "critical_path_computed_at INTEGER"]) {

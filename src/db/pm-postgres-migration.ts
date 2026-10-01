@@ -18,6 +18,7 @@ export async function migratePmPostgres(pool: postgres.Sql): Promise<void> {
       )
     `);
     await sql.unsafe(`CREATE INDEX IF NOT EXISTS idx_pm_projects_owner ON pm_projects(owner_id)`);
+    await sql.unsafe(`ALTER TABLE pm_projects ADD COLUMN IF NOT EXISTS last_sync_result JSONB, ADD COLUMN IF NOT EXISTS reminder_settings JSONB`);
     await sql.unsafe(`
       CREATE TABLE IF NOT EXISTS pm_tasks (
         id TEXT PRIMARY KEY,

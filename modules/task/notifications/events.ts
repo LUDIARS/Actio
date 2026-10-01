@@ -50,6 +50,15 @@ export interface NotificationIntent {
   dedupeKey: string;
 }
 
+/**
+ * 送信箱に積める意図。タスク以外 (PM 等) の通知もここに合わせて積む。
+ * link はフロントのパス (省略時はタスク画面)。
+ */
+export type QueueableNotificationIntent = Omit<NotificationIntent, "event"> & {
+  event: string;
+  link?: string;
+};
+
 const PRIORITY_RANK: Record<string, number> = { low: 0, medium: 1, high: 2, critical: 3 };
 
 function unique(ids: readonly (string | null)[]): string[] {

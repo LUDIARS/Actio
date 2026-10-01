@@ -1,107 +1,98 @@
 /**
  * WS Command Handlers — PM (Project Management) module
+ *
+ * REST (modules/pm/routes.ts) と同じユースケース・検証・トークンの扱いを使う。
  */
 
 import { v4 as uuidv4 } from "uuid";
 import { registerCommand } from "../dispatcher.js";
 import {
+  pmAnalyticsCacheRepo,
+  pmConflictRepo,
+  pmMilestoneRepo,
   pmProjectRepo,
   pmTaskRepo,
   pmTaskSnapshotRepo,
-  pmMilestoneRepo,
   pmTaskValidationRepo,
-  pmConflictRepo,
-  pmAnalyticsCacheRepo,
 } from "../../db/repository.js";
-import type { NewPMTask } from "../../db/repository.js";
 import { logActivity } from "../../activity-logger.js";
 import { notifyUser } from "../broadcast.js";
-import { fetchGitHubIssues, fetchGitHubMilestones } from "../../../modules/pm/sync/github-sync.js";
-import { fetchNotionTasks } from "../../../modules/pm/sync/notion-sync.js";
-import { detectAllChanges, hashDescription } from "../../../modules/pm/sync/diff-detector.js";
-import { pushDirtyTasks } from "../../../modules/pm/sync/writeback.js";
-import { resolveConflict } from "../../../modules/pm/sync/conflict-resolver.js";
+import { hashDescription } from "../../../modules/pm/sync/diff-detector.js";
 import { validateTask } from "../../../modules/pm/validation/task-validator.js";
-import type {
-  GitHubSourceConfig,
-  NotionSourceConfig,
-  SyncResult,
-} from "../../../modules/pm/types.js";
+import { resolveConflictManually, type ManualChoice } from "../../../modules/pm/application/resolve-conflict.js";
+import { defaultSyncLock } from "../../../modules/pm/application/sync-project.js";
+import { pmResolveDeps, runProjectSync, validateReviewTransitions } from "../../../modules/pm/infra/deps.js";
+import { sealSourceConfig, toPublicProject } from "../../../modules/pm/secret/source-config.js";
+import { PM_PRIORITIES, PM_SOURCES, PM_TASK_STATUSES } from "../../../modules/pm/types.js";
+
+function requireString(value: unknown, name: string): string {
+  if (typeof value !== "string" || value.length === 0) throw new Error(`${name} is required`);
+  return value;
+}
+
+function optionalInterval(value: unknown): number | undefined {
+  if (value === undefined) return undefined;
+  if (typeof value !== "number" || !Number.isInteger(value) || value < 1 || value > 1440) {
+    throw new Error("syncIntervalMinutes must be an integer between 1 and 1440");
+  }
+  return value;
+}
 
 // ── pm.create_project ──
 
-interface CreateProjectPayload {
-  name: string;
-  source: string;
-  sourceConfig: Record<string, string>;
-  syncIntervalMinutes?: number;
-}
-
 registerCommand("pm", "create_project", async (userId, payload) => {
-  const body = payload as CreateProjectPayload;
-
-  if (!body.name || !body.source || !body.sourceConfig) {
-    throw new Error("name, source, sourceConfig are required");
-  }
-  if (body.source !== "github" && body.source !== "notion") {
-    throw new Error("source must be 'github' or 'notion'");
-  }
+  const body = payload as Record<string, unknown>;
+  const name = requireString(body.name, "name");
+  const source = PM_SOURCES.find((s) => s === body.source);
+  if (!source) throw new Error("source must be 'github' or 'notion'");
 
   const id = uuidv4();
   await pmProjectRepo.create({
     id,
-    name: body.name,
-    source: body.source,
-    sourceConfig: body.sourceConfig,
-    syncIntervalMinutes: body.syncIntervalMinutes ?? 15,
+    name,
+    source,
+    sourceConfig: sealSourceConfig(source, body.sourceConfig, null),
+    syncIntervalMinutes: optionalInterval(body.syncIntervalMinutes) ?? 15,
     ownerId: userId,
   });
 
-  logActivity(userId, "", "PMプロジェクト作成", `「${body.name}」(${body.source})`);
-
+  logActivity(userId, "", "PMプロジェクト作成", `「${name}」(${source})`);
   const project = await pmProjectRepo.findById(id);
-  return project;
+  return project ? toPublicProject(project) : { id };
 });
 
 // ── pm.update_project ──
 
-interface UpdateProjectPayload {
-  id: string;
-  name?: string;
-  sourceConfig?: Record<string, string>;
-  syncIntervalMinutes?: number;
-}
-
-registerCommand("pm", "update_project", async (userId, payload) => {
-  const body = payload as UpdateProjectPayload;
-  if (!body.id) throw new Error("id is required");
-
-  const project = await pmProjectRepo.findById(body.id);
+registerCommand("pm", "update_project", async (_userId, payload) => {
+  const body = payload as Record<string, unknown>;
+  const project = await pmProjectRepo.findById(requireString(body.id, "id"));
   if (!project) throw new Error("Project not found");
+  const source = PM_SOURCES.find((s) => s === project.source);
+  if (!source) throw new Error(`未対応のソースです: ${project.source}`);
+  const interval = optionalInterval(body.syncIntervalMinutes);
 
   await pmProjectRepo.update(project.id, {
-    ...(body.name !== undefined ? { name: body.name } : {}),
-    ...(body.sourceConfig !== undefined ? { sourceConfig: body.sourceConfig } : {}),
-    ...(body.syncIntervalMinutes !== undefined ? { syncIntervalMinutes: body.syncIntervalMinutes } : {}),
+    ...(typeof body.name === "string" && body.name.length > 0 ? { name: body.name } : {}),
+    ...(body.sourceConfig !== undefined ? { sourceConfig: sealSourceConfig(source, body.sourceConfig, project.sourceConfig) } : {}),
+    ...(interval !== undefined ? { syncIntervalMinutes: interval } : {}),
   });
 
   const updated = await pmProjectRepo.findById(project.id);
-  return updated;
+  return updated ? toPublicProject(updated) : { id: project.id };
 });
 
 // ── pm.delete_project ──
 
-interface DeleteProjectPayload {
-  id: string;
-}
-
 registerCommand("pm", "delete_project", async (userId, payload) => {
-  const body = payload as DeleteProjectPayload;
-  if (!body.id) throw new Error("id is required");
-
-  const project = await pmProjectRepo.findById(body.id);
+  const body = payload as Record<string, unknown>;
+  const project = await pmProjectRepo.findById(requireString(body.id, "id"));
   if (!project) throw new Error("Project not found");
+  if (defaultSyncLock.isRunning(project.id)) throw new Error("同期中のため削除できません");
 
+  const taskIds = (await pmTaskRepo.findByProject(project.id)).map((t) => t.id);
+  await pmTaskSnapshotRepo.deleteByTasks(taskIds);
+  await pmTaskValidationRepo.deleteByTasks(taskIds);
+  await pmConflictRepo.deleteByProject(project.id);
   await pmTaskRepo.deleteByProject(project.id);
   await pmMilestoneRepo.deleteByProject(project.id);
   await pmAnalyticsCacheRepo.deleteByProject(project.id);
@@ -113,23 +104,12 @@ registerCommand("pm", "delete_project", async (userId, payload) => {
 
 // ── pm.sync ──
 
-interface SyncPayload {
-  id: string;
-}
-
 registerCommand("pm", "sync", async (userId, payload) => {
-  const body = payload as SyncPayload;
-  if (!body.id) throw new Error("id is required");
-
-  const project = await pmProjectRepo.findById(body.id);
+  const body = payload as Record<string, unknown>;
+  const project = await pmProjectRepo.findById(requireString(body.id, "id"));
   if (!project) throw new Error("Project not found");
 
-  const result = await performSync(project);
-
-  await pmProjectRepo.update(project.id, {
-    lastSyncedAt: new Date().toISOString(),
-  });
-
+  const result = await runProjectSync(project);
   logActivity(userId, "", "PM同期実行", `「${project.name}」: +${result.created} ~${result.updated}`);
 
   // プロジェクトオーナーに同期結果を通知（操作者と異なる場合）
@@ -143,52 +123,46 @@ registerCommand("pm", "sync", async (userId, payload) => {
     });
   }
 
-  return { result, lastSyncedAt: new Date().toISOString() };
+  return { result, lastSyncedAt: result.errors.length === 0 ? result.finishedAt : project.lastSyncedAt };
 });
 
 // ── pm.update_task ──
 
-interface UpdateTaskPayload {
-  taskId: string;
-  title?: string;
-  description?: string;
-  status?: string;
-  priority?: string;
-  assignees?: string[];
-  labels?: string[];
-  dueDate?: string | null;
-  estimatedHours?: number | null;
-  blockedBy?: string[];
-}
-
 registerCommand("pm", "update_task", async (userId, payload) => {
-  const body = payload as UpdateTaskPayload;
-  if (!body.taskId) throw new Error("taskId is required");
-
-  const task = await pmTaskRepo.findById(body.taskId);
+  const body = payload as Record<string, unknown>;
+  const task = await pmTaskRepo.findById(requireString(body.taskId, "taskId"));
   if (!task) throw new Error("Task not found");
 
+  const status = body.status === undefined ? undefined : PM_TASK_STATUSES.find((s) => s === body.status);
+  if (body.status !== undefined && !status) throw new Error("invalid status");
+  const priority = body.priority === undefined ? undefined : PM_PRIORITIES.find((p) => p === body.priority);
+  if (body.priority !== undefined && !priority) throw new Error("invalid priority");
+  const strings = (value: unknown): string[] | undefined =>
+    Array.isArray(value) ? value.filter((v): v is string => typeof v === "string") : undefined;
+
   await pmTaskRepo.update(task.id, {
-    ...(body.title !== undefined ? { title: body.title } : {}),
+    ...(typeof body.title === "string" && body.title.length > 0 ? { title: body.title } : {}),
     ...(body.description !== undefined ? {
-      description: body.description,
-      descriptionHash: hashDescription(body.description ?? null),
+      description: typeof body.description === "string" ? body.description : null,
+      descriptionHash: hashDescription(typeof body.description === "string" ? body.description : null),
     } : {}),
-    ...(body.status !== undefined ? { status: body.status } : {}),
-    ...(body.priority !== undefined ? { priority: body.priority } : {}),
-    ...(body.assignees !== undefined ? { assignees: body.assignees } : {}),
-    ...(body.labels !== undefined ? { labels: body.labels } : {}),
-    ...(body.dueDate !== undefined ? { dueDate: body.dueDate } : {}),
-    ...(body.estimatedHours !== undefined ? { estimatedHours: body.estimatedHours } : {}),
-    ...(body.blockedBy !== undefined ? { blockedBy: body.blockedBy } : {}),
+    ...(status ? { status } : {}),
+    ...(priority ? { priority } : {}),
+    ...(strings(body.assignees) ? { assignees: strings(body.assignees) } : {}),
+    ...(strings(body.labels) ? { labels: strings(body.labels) } : {}),
+    ...(body.dueDate !== undefined ? { dueDate: typeof body.dueDate === "string" ? body.dueDate : null } : {}),
+    ...(body.estimatedHours !== undefined ? { estimatedHours: typeof body.estimatedHours === "number" ? body.estimatedHours : null } : {}),
+    ...(strings(body.blockedBy) ? { blockedBy: strings(body.blockedBy) } : {}),
     dirtyFlag: 1,
     localUpdatedAt: new Date().toISOString(),
   });
+  await pmAnalyticsCacheRepo.deleteByProject(task.projectId);
 
   const updated = await pmTaskRepo.findById(task.id);
+  const project = await pmProjectRepo.findById(task.projectId);
+  if (project && status === "review" && task.status !== "review") validateReviewTransitions(project, [task.id]);
 
   // プロジェクトオーナーにタスク更新を通知
-  const project = await pmProjectRepo.findById(task.projectId);
   if (project?.ownerId && project.ownerId !== userId) {
     notifyUser(project.ownerId, "pm.task_updated", {
       projectId: task.projectId,
@@ -202,40 +176,23 @@ registerCommand("pm", "update_task", async (userId, payload) => {
 
 // ── pm.resolve_conflict ──
 
-interface ResolveConflictPayload {
-  conflictId: string;
-  resolution: string;
-  resolvedData?: Record<string, unknown>;
-}
-
 registerCommand("pm", "resolve_conflict", async (_userId, payload) => {
-  const body = payload as ResolveConflictPayload;
-  if (!body.conflictId) throw new Error("conflictId is required");
+  const body = payload as Record<string, unknown>;
+  const conflictId = requireString(body.conflictId, "conflictId");
+  let choice: ManualChoice;
+  if (body.resolution === "force_external" || body.resolution === "keep_local") choice = { kind: body.resolution };
+  else if (body.resolution === "manual" && body.resolvedData) choice = { kind: "manual", data: body.resolvedData };
+  else throw new Error("resolution must be force_external, keep_local, or manual with resolvedData");
 
-  const conflict = await pmConflictRepo.findById(body.conflictId);
-  if (!conflict) throw new Error("Conflict not found");
-
-  await pmConflictRepo.update(conflict.id, {
-    resolution: body.resolution,
-    resolvedData: body.resolvedData ?? null,
-    status: "resolved",
-    resolvedAt: new Date().toISOString(),
-  });
-
-  return { message: "Conflict resolved" };
+  const outcome = await resolveConflictManually(conflictId, choice, pmResolveDeps);
+  return { message: "Conflict resolved", ...outcome };
 });
 
 // ── pm.validate_task ──
 
-interface ValidateTaskPayload {
-  taskId: string;
-}
-
 registerCommand("pm", "validate_task", async (_userId, payload) => {
-  const body = payload as ValidateTaskPayload;
-  if (!body.taskId) throw new Error("taskId is required");
-
-  const task = await pmTaskRepo.findById(body.taskId);
+  const body = payload as Record<string, unknown>;
+  const task = await pmTaskRepo.findById(requireString(body.taskId, "taskId"));
   if (!task) throw new Error("Task not found");
 
   const result = validateTask({
@@ -248,240 +205,17 @@ registerCommand("pm", "validate_task", async (_userId, payload) => {
     status: task.status,
   });
 
-  const validationId = uuidv4();
+  const previous = await pmTaskValidationRepo.findLatestByTask(task.id);
   await pmTaskValidationRepo.create({
-    id: validationId,
+    id: uuidv4(),
     taskId: task.id,
     score: result.score,
     issues: result.issues,
     suggestions: result.suggestions,
-    relatedCommits: [],
-    testFiles: [],
+    relatedCommits: previous?.relatedCommits ?? [],
+    testFiles: previous?.testFiles ?? [],
     validatedAt: result.validatedAt,
   });
 
   return result;
 });
-
-// ── Sync Logic (same as routes) ──
-
-interface PMProjectLike {
-  id: string;
-  name: string;
-  source: string;
-  sourceConfig: unknown;
-  lastSyncedAt: string | null;
-}
-
-async function performSync(project: PMProjectLike): Promise<SyncResult> {
-  const result: SyncResult = {
-    created: 0,
-    updated: 0,
-    closed: 0,
-    unchanged: 0,
-    conflicts: 0,
-    errors: [],
-  };
-
-  try {
-    let externalTasks;
-    if (project.source === "github") {
-      const config = project.sourceConfig as unknown as GitHubSourceConfig;
-      externalTasks = await fetchGitHubIssues(config);
-
-      const milestones = await fetchGitHubMilestones(config);
-      for (const ms of milestones) {
-        const existing = await pmMilestoneRepo.findByExternalId(project.id, ms.externalId);
-        if (existing) {
-          await pmMilestoneRepo.update(existing.id, {
-            title: ms.title,
-            description: ms.description,
-            dueDate: ms.dueDate,
-            state: ms.state,
-            externalUpdatedAt: ms.updatedAt,
-          });
-        } else {
-          await pmMilestoneRepo.create({
-            id: uuidv4(),
-            projectId: project.id,
-            externalId: ms.externalId,
-            title: ms.title,
-            description: ms.description,
-            dueDate: ms.dueDate,
-            state: ms.state,
-            externalUpdatedAt: ms.updatedAt,
-          });
-        }
-      }
-    } else {
-      const config = project.sourceConfig as unknown as NotionSourceConfig;
-      externalTasks = await fetchNotionTasks(config);
-    }
-
-    const storedTasks = await pmTaskRepo.findByProject(project.id);
-    const storedMap = new Map(storedTasks.map((t) => [t.externalId, t]));
-
-    const { diffs } = detectAllChanges(
-      externalTasks,
-      storedTasks.map((t) => ({
-        externalId: t.externalId,
-        title: t.title,
-        description: t.description,
-        status: t.status,
-        priority: t.priority,
-        assignees: t.assignees ?? [],
-        labels: t.labels ?? [],
-        dueDate: t.dueDate,
-        milestoneExternalId: t.milestoneExternalId,
-        milestoneName: t.milestoneName,
-        descriptionHash: t.descriptionHash,
-      })),
-    );
-
-    for (const ext of externalTasks) {
-      const stored = storedMap.get(ext.externalId);
-      const diff = diffs.find((d) => d.taskExternalId === ext.externalId);
-
-      if (!stored) {
-        const taskId = uuidv4();
-        await pmTaskRepo.create({
-          id: taskId,
-          projectId: project.id,
-          externalId: ext.externalId,
-          externalUrl: ext.externalUrl,
-          title: ext.title,
-          description: ext.description,
-          status: ext.status,
-          priority: ext.priority,
-          assignees: ext.assignees,
-          labels: ext.labels,
-          dueDate: ext.dueDate,
-          milestoneExternalId: ext.milestoneExternalId,
-          milestoneName: ext.milestoneName,
-          descriptionHash: hashDescription(ext.description),
-          externalUpdatedAt: ext.updatedAt,
-          lastSyncedAt: new Date().toISOString(),
-        });
-
-        await pmTaskSnapshotRepo.create({
-          id: uuidv4(),
-          taskId,
-          changeType: "created",
-          changedFields: {},
-          snapshotData: ext as unknown as Record<string, unknown>,
-          detectedAt: new Date().toISOString(),
-        });
-
-        result.created++;
-      } else if (diff) {
-        const hasLocalChanges = stored.localUpdatedAt && stored.lastSyncedAt &&
-          stored.localUpdatedAt > stored.lastSyncedAt;
-
-        if (hasLocalChanges && stored.dirtyFlag === 1) {
-          const conflictResult = resolveConflict({
-            taskId: stored.id,
-            localVersion: stored as unknown as Record<string, unknown>,
-            externalVersion: ext as unknown as Record<string, unknown>,
-            baseVersion: stored as unknown as Record<string, unknown>,
-          });
-
-          if (conflictResult.resolution === "auto_field_merge") {
-            await pmTaskRepo.update(stored.id, {
-              ...conflictResult.mergedData as Partial<NewPMTask>,
-              descriptionHash: hashDescription(ext.description),
-              externalUpdatedAt: ext.updatedAt,
-              lastSyncedAt: new Date().toISOString(),
-              dirtyFlag: 0,
-            });
-            result.updated++;
-          } else {
-            await pmConflictRepo.create({
-              id: uuidv4(),
-              taskId: stored.id,
-              projectId: project.id,
-              localVersion: stored as unknown as Record<string, unknown>,
-              externalVersion: ext as unknown as Record<string, unknown>,
-              baseVersion: stored as unknown as Record<string, unknown>,
-              resolution: conflictResult.resolution,
-              resolvedData: conflictResult.mergedData,
-              status: "pending",
-              createdAt: new Date().toISOString(),
-            });
-            result.conflicts++;
-          }
-        } else {
-          await pmTaskRepo.update(stored.id, {
-            title: ext.title,
-            description: ext.description,
-            status: ext.status,
-            priority: ext.priority,
-            assignees: ext.assignees,
-            labels: ext.labels,
-            dueDate: ext.dueDate,
-            milestoneExternalId: ext.milestoneExternalId,
-            milestoneName: ext.milestoneName,
-            descriptionHash: hashDescription(ext.description),
-            externalUpdatedAt: ext.updatedAt,
-            lastSyncedAt: new Date().toISOString(),
-          });
-
-          const changedFields: Record<string, { before: unknown; after: unknown }> = {};
-          for (const change of diff.changes) {
-            changedFields[change.field] = { before: change.before, after: change.after };
-          }
-
-          await pmTaskSnapshotRepo.create({
-            id: uuidv4(),
-            taskId: stored.id,
-            changeType: diff.changeType,
-            changedFields,
-            snapshotData: ext as unknown as Record<string, unknown>,
-            detectedAt: new Date().toISOString(),
-          });
-
-          if (diff.changeType === "closed") result.closed++;
-          else result.updated++;
-        }
-      } else {
-        result.unchanged++;
-      }
-    }
-
-    // 書き戻し
-    const dirtyTasks = await pmTaskRepo.findDirty(project.id);
-    if (dirtyTasks.length > 0) {
-      const writebackResult = await pushDirtyTasks(
-        {
-          id: project.id,
-          source: project.source,
-          sourceConfig: project.sourceConfig as Record<string, string>,
-        },
-        dirtyTasks.map((t) => ({
-          id: t.id,
-          externalId: t.externalId,
-          title: t.title,
-          description: t.description,
-          status: t.status,
-          labels: t.labels ?? [],
-          assignees: t.assignees ?? [],
-          milestoneExternalId: t.milestoneExternalId,
-        })),
-      );
-
-      for (const successId of writebackResult.success) {
-        await pmTaskRepo.update(successId, {
-          dirtyFlag: 0,
-          externalUpdatedAt: new Date().toISOString(),
-        });
-      }
-
-      for (const fail of writebackResult.failed) {
-        result.errors.push(`Writeback failed for ${fail.taskId}: ${fail.error}`);
-      }
-    }
-  } catch (err) {
-    result.errors.push(String(err));
-  }
-
-  return result;
-}

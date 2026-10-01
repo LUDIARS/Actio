@@ -103,6 +103,7 @@ export function PMAnalyticsPage() {
             <StatCard label="総タスク数" value={String(progress.totalTasks)} />
             <StatCard label="完了タスク" value={String(progress.completedTasks)} />
             <StatCard label="完了率" value={`${Math.round(progress.completionRate * 100)}%`} />
+            <StatCard label="予測完了日" value={progress.projectedCompletionDate ?? "予測不可 (完了実績なし)"} />
           </div>
 
           {/* 進捗バー */}

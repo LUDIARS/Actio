@@ -25,6 +25,7 @@ const { startTeamSyncTick } = await import("../modules/task/team/cc-sync.js");
 const { startSprintGateTick } = await import("../modules/task/sprint-gates/runtime.js");
 const { startChatTick } = await import("../modules/task/chat/runtime.js");
 const { startNotificationTick } = await import("../modules/task/notifications/tick.js");
+const { startPmTick } = await import("../modules/pm/runtime/tick.js");
 const { initServiceAdapter } = await import("./service-adapter.js");
 
 const { app, injectWebSocket } = createApp();
@@ -61,11 +62,15 @@ startTeamSyncTick();
 
 // ─── タスク通知 (期限前検出 + 送信箱の配送, 1 分 tick, task-integration §2.3) ─
 startNotificationTick();
+
+// ─── PM 定期同期・リマインダー (1 分 tick, spec/feature/pm/completion.md) ──
+const stopPmTick = startPmTick();
 const stopSprintGates = startSprintGateTick(msg => vestigium.writer.write({level:"warn",msg}));
 const stopChat = startChatTick(msg => vestigium.writer.write({level:"warn",msg}));
 const stopSprintGateRuntime = (): void => {
   stopSprintGates();
   stopChat();
+  stopPmTick();
   server.off("close", stopSprintGateRuntime);
   process.off("SIGTERM", stopSprintGateRuntime);
   process.off("SIGINT", stopSprintGateRuntime);
