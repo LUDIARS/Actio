@@ -396,10 +396,9 @@ export function Dashboard() {
     <div>
       <div className="page-header">
         <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-          <h1>Dashboard</h1>
+          <h1>ダッシュボード</h1>
           <HelpButton />
         </div>
-        <p>予定とタスクを中心とした統合ダッシュボード</p>
       </div>
 
       {/* ═════════════════ 予定 (Event) セクション ═════════════════ */}
@@ -645,7 +644,7 @@ export function Dashboard() {
                       {personalCount > 0 && (
                         <div style={{
                           fontSize: "0.6rem",
-                          background: "var(--accent)",
+                          background: "var(--accent-fill)",
                           color: "#000",
                           borderRadius: 2,
                           padding: "0.1rem 0.3rem",
@@ -712,7 +711,7 @@ export function Dashboard() {
         {/* Legend */}
         <div style={{ display: "flex", gap: "1rem", marginTop: "0.75rem", fontSize: "0.7rem", color: "var(--text-muted)", flexWrap: "wrap" }}>
           <span style={{ display: "flex", alignItems: "center", gap: "0.3rem" }}>
-            <span style={{ display: "inline-block", width: 8, height: 8, borderRadius: 2, background: "var(--accent)" }} />
+            <span style={{ display: "inline-block", width: 8, height: 8, borderRadius: 2, background: "var(--accent-fill)" }} />
             個人予定
           </span>
           <span style={{ display: "flex", alignItems: "center", gap: "0.3rem" }}>

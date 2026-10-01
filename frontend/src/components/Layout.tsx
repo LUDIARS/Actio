@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
+import { ThemeToggle } from "./ThemeToggle";
 import { useAuth } from "../contexts/AuthContext";
 import { moduleRegistry, MENU_CATEGORY_LABELS, MENU_CATEGORY_ORDER } from "../lib/module-registry";
 import type { MenuCategory, MenuGroup, MenuItem } from "../lib/module-registry";
@@ -105,29 +106,7 @@ function NavItemRow({
       <NavLink
         to={item.to}
         end={item.to === "/"}
-        style={({ isActive }) => ({
-          padding: "0.4rem 1rem",
-          paddingLeft: "1.5rem",
-          fontSize: "0.8rem",
-          color: isHidden
-            ? "var(--text-muted)"
-            : isActive
-              ? "var(--text)"
-              : "var(--text-muted)",
-          background:
-            isActive && !isHidden
-              ? "var(--bg-surface-2)"
-              : "transparent",
-          borderLeft:
-            isActive && !isHidden
-              ? "2px solid var(--accent)"
-              : "2px solid transparent",
-          textDecoration: isHidden ? "line-through" : "none",
-          opacity: isHidden ? 0.5 : 1,
-          transition: "all 0.15s",
-          flex: 1,
-          display: "block",
-        })}
+        className={({ isActive }) => `sidebar-link${isActive && !isHidden ? " active" : ""}${isHidden ? " is-hidden" : ""}`}
         onClick={(e) => {
           if (editMode && isHidden) {
             e.preventDefault();
@@ -181,6 +160,7 @@ function NavGroupSection({
           color: "var(--text-muted)",
           textAlign: "left",
         }}
+        aria-expanded={!collapsed}
         title={collapsed ? "展開" : "折りたたむ"}
       >
         <span
@@ -250,6 +230,7 @@ function NavCategorySection({
   return (
     <div style={{ marginTop: "0.5rem" }}>
       <button
+        aria-expanded={!collapsed}
         onClick={() => onCategoryCollapseToggle(category)}
         style={{
           display: "flex",
@@ -416,12 +397,15 @@ export function Layout() {
 
   return (
     <div className="layout-root">
+      <a className="skip-link" href="#main-content">本文へ移動</a>
       {/* Fixed header bar - visible only on mobile */}
       <div className="mobile-header">
         <button
           className="hamburger-btn"
           onClick={toggleSidebar}
-          aria-label="メニューを開く"
+          aria-label={sidebarOpen ? "メニューを閉じる" : "メニューを開く"}
+          aria-expanded={sidebarOpen}
+          aria-controls="app-sidebar"
         >
           <span className={`hamburger-icon ${sidebarOpen ? "open" : ""}`}>
             <span />
@@ -437,14 +421,14 @@ export function Layout() {
         <div className="sidebar-overlay" onClick={closeSidebar} />
       )}
 
-      <aside className={`sidebar ${sidebarOpen ? "sidebar--open" : ""}`}>
+      <aside id="app-sidebar" className={`sidebar ${sidebarOpen ? "sidebar--open" : ""}`}>
         <div className="sidebar-header">
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <h2 style={{ fontSize: "1rem", fontWeight: 700 }}>Actio</h2>
+          <div className="sidebar-brand-row">
+            <h2 className="sidebar-brand">Actio</h2>
             <button
               onClick={() => setEditMode((prev) => !prev)}
               style={{
-                background: editMode ? "var(--accent)" : "var(--bg-surface-2)",
+                background: editMode ? "var(--accent-fill)" : "var(--bg-surface-2)",
                 border: "1px solid var(--border)",
                 borderRadius: "var(--radius-sm)",
                 padding: "0.15rem 0.4rem",
@@ -457,16 +441,9 @@ export function Layout() {
               {editMode ? "完了" : "編集"}
             </button>
           </div>
-          <span
-            style={{
-              fontSize: "0.7rem",
-              color: "var(--text-muted)",
-            }}
-          >
-            Scheduling Platform
-          </span>
+          <ThemeToggle />
         </div>
-        <nav style={{ display: "flex", flexDirection: "column", gap: 0, flex: 1, overflowY: "auto" }}>
+        <nav className="sidebar-nav" aria-label="メインメニュー">
           {/* トップレベルアイテム (Dashboard, Profile) */}
           {mainTopItems.map((item) => (
             <NavItemRow
@@ -561,7 +538,7 @@ export function Layout() {
           </div>
         )}
       </aside>
-      <main className="main-content">
+      <main id="main-content" className="main-content" tabIndex={-1}>
         <Outlet />
       </main>
     </div>

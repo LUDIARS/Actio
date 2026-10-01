@@ -159,7 +159,7 @@ export function ModuleManagementPage() {
                       style={{
                         padding: "0.3rem 0.75rem",
                         fontSize: "0.75rem",
-                        background: allHidden ? "var(--accent)" : "var(--bg-surface-2)",
+                        background: allHidden ? "var(--accent-fill)" : "var(--bg-surface-2)",
                         border: "1px solid var(--border)",
                         borderRadius: "var(--radius-sm)",
                         color: allHidden ? "#000" : "var(--text-muted)",

@@ -1,3 +1,4 @@
+import "./TasksPage.css";
 import { useState, useEffect, useCallback } from "react";
 import { tasksApi } from "../lib/api";
 import { TaskPrEvidence } from "../components/TaskPrEvidence";
@@ -24,11 +25,11 @@ const STATUS_LABELS: Record<TaskStatus, string> = {
 };
 
 const STATUS_COLORS: Record<TaskStatus, string> = {
-  open: "#8B949E",
-  in_progress: "#58A6FF",
-  blocked: "#F85149",
-  done: "#3FB950",
-  cancelled: "#6E7681",
+  open: "var(--text-muted)",
+  in_progress: "var(--accent)",
+  blocked: "var(--red)",
+  done: "var(--green)",
+  cancelled: "var(--text-muted)",
 };
 
 const PRIORITY_LABELS: Record<TaskPriority, string> = {
@@ -39,10 +40,10 @@ const PRIORITY_LABELS: Record<TaskPriority, string> = {
 };
 
 const PRIORITY_COLORS: Record<TaskPriority, string> = {
-  low: "#8B949E",
-  medium: "#58A6FF",
-  high: "#D29922",
-  critical: "#F85149",
+  low: "var(--text-muted)",
+  medium: "var(--accent)",
+  high: "var(--orange)",
+  critical: "var(--red)",
 };
 
 type Scope = "owned" | "assigned" | "all";
@@ -241,7 +242,7 @@ export function TasksPage() {
 
   const btnPrimary: React.CSSProperties = {
     padding: "0.4rem 1rem",
-    background: "var(--accent)",
+    background: "var(--accent-fill)",
     color: "#000",
     border: "none",
     borderRadius: "var(--radius-sm)",
@@ -251,16 +252,9 @@ export function TasksPage() {
   };
 
   return (
-    <div style={{ maxWidth: 900, margin: "0 auto", padding: "1rem" }}>
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          marginBottom: "1rem",
-        }}
-      >
-        <h1 style={{ fontSize: "1.3rem", fontWeight: 700 }}>タスク</h1>
+    <div className="tasks-page">
+      <div className="page-header tasks-heading">
+        <h1>タスク</h1>
         <button
           onClick={() => {
             if (showForm) {
@@ -271,7 +265,7 @@ export function TasksPage() {
               setShowForm(true);
             }
           }}
-          style={btnPrimary}
+          className="primary"
         >
           {showForm ? "閉じる" : "+ 新規作成"}
         </button>
@@ -497,7 +491,8 @@ export function TasksPage() {
       )}
 
       {/* 種別フィルタ (タスク / 目標 / 全て) */}
-      <div style={{ display: "flex", gap: "0.5rem", marginBottom: "0.5rem", flexWrap: "wrap" }}>
+      <div className="tasks-filter-row" role="group" aria-label="種別">
+        <span className="tasks-filter-label">種別</span>
         {([
           ["task", "タスク"],
           ["goal", "目標"],
@@ -505,10 +500,11 @@ export function TasksPage() {
         ] as const).map(([k, label]) => (
           <button
             key={k}
+            aria-pressed={kindFilter === k}
             onClick={() => setKindFilter(k)}
             style={{
               padding: "0.25rem 0.7rem",
-              background: kindFilter === k ? "var(--accent)" : "var(--bg-surface-2)",
+              background: kindFilter === k ? "var(--accent-fill)" : "var(--bg-surface-2)",
               color: kindFilter === k ? "#000" : "var(--text-muted)",
               border: "1px solid var(--border)",
               borderRadius: "var(--radius-sm)",
@@ -523,14 +519,16 @@ export function TasksPage() {
       </div>
 
       {/* フィルタ */}
-      <div style={{ display: "flex", gap: "0.5rem", marginBottom: "0.5rem", flexWrap: "wrap" }}>
+      <div className="tasks-filter-row" role="group" aria-label="対象">
+        <span className="tasks-filter-label">対象</span>
         {(["owned", "assigned", "all"] as Scope[]).map((s) => (
           <button
             key={s}
+            aria-pressed={scope === s}
             onClick={() => setScope(s)}
             style={{
               padding: "0.25rem 0.6rem",
-              background: scope === s ? "var(--accent)" : "var(--bg-surface-2)",
+              background: scope === s ? "var(--accent-fill)" : "var(--bg-surface-2)",
               color: scope === s ? "#000" : "var(--text-muted)",
               border: "1px solid var(--border)",
               borderRadius: "var(--radius-sm)",
@@ -542,14 +540,16 @@ export function TasksPage() {
           </button>
         ))}
       </div>
-      <div style={{ display: "flex", gap: "0.5rem", marginBottom: "1rem", flexWrap: "wrap" }}>
+      <div className="tasks-filter-row" role="group" aria-label="ステータス">
+        <span className="tasks-filter-label">状態</span>
         {(["", "open", "in_progress", "blocked", "done", "cancelled"] as const).map((s) => (
           <button
             key={s || "all"}
+            aria-pressed={statusFilter === s}
             onClick={() => setStatusFilter(s as TaskStatus | "")}
             style={{
               padding: "0.25rem 0.6rem",
-              background: statusFilter === s ? "var(--accent)" : "var(--bg-surface-2)",
+              background: statusFilter === s ? "var(--accent-fill)" : "var(--bg-surface-2)",
               color: statusFilter === s ? "#000" : "var(--text-muted)",
               border: "1px solid var(--border)",
               borderRadius: "var(--radius-sm)",
@@ -568,12 +568,13 @@ export function TasksPage() {
       ) : tasks.length === 0 ? (
         <p style={{ color: "var(--text-muted)", fontSize: "0.85rem" }}>タスクはありません</p>
       ) : (
-        <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+        <div className="tasks-list">
           {tasks.map((task) => (
             <div
               key={task.id}
+              className="task-card"
               style={{
-                padding: "0.75rem 1rem",
+                padding: "1.25rem",
                 background: "var(--bg-surface)",
                 border: "1px solid var(--border)",
                 borderRadius: "var(--radius)",
@@ -586,8 +587,9 @@ export function TasksPage() {
                 <span
                   style={{
                     padding: "0.1rem 0.4rem",
-                    background: STATUS_COLORS[task.status],
-                    color: "#fff",
+                    background: "var(--bg-surface-2)",
+                    color: STATUS_COLORS[task.status],
+                    border: `1px solid ${STATUS_COLORS[task.status]}`,
                     borderRadius: "var(--radius-sm)",
                     fontSize: "0.7rem",
                     fontWeight: 600,
@@ -611,7 +613,7 @@ export function TasksPage() {
                   <span
                     style={{
                       padding: "0.1rem 0.4rem",
-                      background: "var(--accent)",
+                      background: "var(--accent-fill)",
                       color: "#000",
                       borderRadius: "var(--radius-sm)",
                       fontSize: "0.7rem",
@@ -651,8 +653,9 @@ export function TasksPage() {
                   <span
                     style={{
                       padding: "0.1rem 0.4rem",
-                      background: "#F85149",
-                      color: "#fff",
+                      background: "var(--bg-surface-2)",
+                      color: "var(--red)",
+                      border: "1px solid var(--red)",
                       borderRadius: "var(--radius-sm)",
                       fontSize: "0.7rem",
                       fontWeight: 600,
@@ -662,7 +665,7 @@ export function TasksPage() {
                   </span>
                 )}
                 {task.criticalPathError === "cycle" && (
-                  <span style={{ fontSize: "0.7rem", color: "#F85149" }}>依存が循環</span>
+                  <span style={{ fontSize: "0.7rem", color: "var(--red)" }}>依存が循環</span>
                 )}
                 <span style={{ fontWeight: 600, fontSize: "0.95rem", flex: 1 }}>{task.title}</span>
                 <span style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>
@@ -711,11 +714,12 @@ export function TasksPage() {
                   {task.requirements}
                 </div>
               )}
-              <div style={{ display: "flex", gap: "0.3rem", flexWrap: "wrap" }}>
+              <div className="task-actions">
                 <select
+                  aria-label={`${task.title}のステータス`}
                   value={task.status}
                   onChange={(e) => handleStatusChange(task, e.target.value as TaskStatus)}
-                  style={{ ...inputStyle, padding: "0.25rem 0.4rem", fontSize: "0.75rem" }}
+                  style={{ ...inputStyle, width: "auto", padding: "0.4rem 0.6rem", fontSize: "0.8rem" }}
                 >
                   {Object.entries(STATUS_LABELS).map(([k, v]) => (
                     <option key={k} value={k}>

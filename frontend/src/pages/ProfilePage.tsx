@@ -220,7 +220,7 @@ export function ProfilePage() {
           disabled={saving}
           style={{
             padding: "0.5rem 1.25rem",
-            background: "var(--accent)",
+            background: "var(--accent-fill)",
             border: "none",
             borderRadius: "var(--radius-sm)",
             color: "#000",
@@ -314,7 +314,7 @@ export function ProfilePage() {
                           disabled={savingRoles}
                           style={{
                             padding: "0.3rem 0.75rem",
-                            background: "var(--accent)",
+                            background: "var(--accent-fill)",
                             border: "none",
                             borderRadius: "var(--radius-sm)",
                             color: "#000",

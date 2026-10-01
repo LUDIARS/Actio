@@ -144,7 +144,7 @@ export function ApiKeysPage() {
             style={{
               padding: "0.4rem 0.8rem",
               fontSize: "0.8rem",
-              background: "var(--accent)",
+              background: "var(--accent-fill)",
               border: "none",
               borderRadius: "var(--radius-sm)",
               color: "#000",
@@ -277,7 +277,7 @@ export function ApiKeysPage() {
               style={{
                 padding: "0.4rem 0.8rem",
                 fontSize: "0.8rem",
-                background: "var(--accent)",
+                background: "var(--accent-fill)",
                 border: "none",
                 borderRadius: "var(--radius-sm)",
                 color: "#000",

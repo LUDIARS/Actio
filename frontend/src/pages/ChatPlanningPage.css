@@ -3,6 +3,6 @@
 .chat-planning input:not([type=checkbox]), .chat-planning select, .chat-planning textarea { display: block; width: 100%; padding: 8px; box-sizing: border-box; }
 .chat-planning textarea { min-height: 80px; }
 .chat-planning pre { white-space: pre-wrap; overflow-wrap: anywhere; font: inherit; }
-.chat-planning article, .chat-planning details, .chat-planning form { border: 1px solid #8886; border-radius: 8px; padding: 12px; margin: 12px 0; }
+.chat-planning article, .chat-planning details, .chat-planning form { background: var(--bg-surface); border: 1px solid var(--border); border-radius: 8px; padding: 12px; margin: 12px 0; }
 .chat-planning button { margin: 4px; padding: 8px 16px; }
-.chat-planning [role=alert] { color: #d33; }
+.chat-planning [role=alert] { color: var(--red); }

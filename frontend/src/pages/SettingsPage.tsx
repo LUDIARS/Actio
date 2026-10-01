@@ -350,7 +350,7 @@ const styles: Record<string, React.CSSProperties> = {
     padding: "0.5rem 1.25rem",
     fontSize: "0.85rem",
     fontWeight: 600,
-    background: "var(--accent)",
+    background: "var(--accent-fill)",
     color: "#000",
     border: "none",
     borderRadius: "var(--radius-sm)",

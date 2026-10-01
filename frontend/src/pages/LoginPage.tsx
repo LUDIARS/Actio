@@ -1,3 +1,4 @@
+import { ThemeToggle } from "../components/ThemeToggle";
 import { useState } from "react";
 import { CompositeLogin, type CompositeAuthApi } from "@ludiars/cernere-composite/ui";
 import { useAuth } from "../contexts/AuthContext";
@@ -95,9 +96,7 @@ export function LoginPage() {
             <h1 style={{ fontSize: "1.5rem", fontWeight: 700, marginBottom: "0.25rem" }}>
               Actio
             </h1>
-            <p style={{ color: "var(--text-muted)", fontSize: "0.85rem" }}>
-              Academic Scheduling System
-            </p>
+            <ThemeToggle />
           </div>
           {error && (
             <div style={{
@@ -134,7 +133,7 @@ export function LoginPage() {
     >
       <div
         style={{
-          width: 400,
+          width: "min(400px, calc(100vw - 32px))",
           background: "var(--bg-surface)",
           border: "1px solid var(--border)",
           borderRadius: "var(--radius)",
@@ -145,9 +144,7 @@ export function LoginPage() {
           <h1 style={{ fontSize: "1.5rem", fontWeight: 700, marginBottom: "0.25rem" }}>
             Actio
           </h1>
-          <p style={{ color: "var(--text-muted)", fontSize: "0.85rem" }}>
-            Academic Scheduling System
-          </p>
+          <ThemeToggle />
         </div>
 
         {error && (
