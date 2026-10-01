@@ -324,7 +324,8 @@ export function createApp() {
       health.db_error = err instanceof Error ? err.message : String(err);
     }
 
-    // Redis ヘルスチェック
+    // Redis は任意 (キャッシュ用途のみ)。止まっていてもプロセス内キャッシュで動くため、
+    // 状態は報告するが degraded にはしない。
     try {
       const { getRedis, redis: configuredRedis } = await import("./db/redis.js");
       const redis = getRedis();
@@ -333,10 +334,8 @@ export function createApp() {
         health.redis_status = "connected";
       } else {
         health.redis_status = configuredRedis ? "disconnected" : "not_configured";
-          if (configuredRedis) health.status = "degraded";
       }
     } catch (err) {
-      health.status = "degraded";
       health.redis_status = "disconnected";
       health.redis_error = err instanceof Error ? err.message : String(err);
     }
