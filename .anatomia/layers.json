@@ -3,7 +3,20 @@
   "layers": [
     { "glob": "modules/task/*", "layer": "application" },
     { "glob": "modules/task/team/*", "layer": "application" },
+    { "glob": "modules/pm/*", "layer": "presentation" },
+    { "glob": "modules/pm/domain/*", "layer": "domain" },
+    { "glob": "modules/pm/analytics/*", "layer": "domain" },
+    { "glob": "modules/pm/reminder/*", "layer": "domain" },
+    { "glob": "modules/pm/validation/*", "layer": "domain" },
+    { "glob": "modules/pm/application/*", "layer": "application" },
+    { "glob": "modules/pm/runtime/*", "layer": "application" },
+    { "glob": "modules/pm/infra/*", "layer": "infrastructure" },
+    { "glob": "modules/pm/llm/*", "layer": "infrastructure" },
+    { "glob": "modules/pm/secret/*", "layer": "infrastructure" },
+    { "glob": "modules/pm/sync/*", "layer": "infrastructure" },
+    { "glob": "frontend/src/components/pm/*", "layer": "presentation" },
     { "glob": "scripts/*", "layer": "infrastructure" },
-    { "glob": "tests/api/*", "layer": "shared" }
+    { "glob": "tests/api/*", "layer": "shared" },
+    { "glob": "tests/unit/*", "layer": "shared" }
   ]
 }
