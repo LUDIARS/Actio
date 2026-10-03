@@ -1,8 +1,9 @@
 # Installation template. Reconcile with the service-owned Actio/excubitor.catalog.yaml.
 # Values below preserve the currently assigned local ports; do not start a worktree.
-# Configure the actio Infisical project mapping in Excubitor (not in Actio).
-# Relay only ACTIO_CONFIG_KEY and needed JWT/Cernere/Pf/OAuth credentials.
-# Ex's secret relay overrides topology; exclude legacy URL/port/local-mode secrets.
+# Configure the actio Vault binding and allowed secret keys in Excubitor (not in Actio).
+# Inject only ACTIO_CONFIG_KEY and needed JWT/Cernere/Pf/OAuth credentials from Vault.
+# Ex precedence: topology < catalog env < encrypted runtime config < Vault.
+# Keep URLs, ports and local-mode settings in topology/catalog, outside Vault.
 services:
   - code: actio
     name: Actio local API

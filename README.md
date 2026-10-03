@@ -31,7 +31,7 @@ JIRA のように、**コアの 2 概念 (Event / Task)** を中心に各種プ�
 | 認証 | Cernere (`@ludiars/cernere-id-cache`, `@ludiars/cernere-composite`) |
 | セッション | Redis (ioredis) |
 | SDK | `@ludiars/schedula-sdk` (module declaration) |
-| シークレット管理 | Excubitor 注入 + 暗号化ローカル config (外部 secret は Infisical / AWS SSM) |
+| シークレット管理 | Excubitor Vault 注入 + 暗号化ローカル config、必要時に Vault secret-agent |
 
 ## プロジェクト構造
 
@@ -87,15 +87,16 @@ Actio/
 ### 前提条件
 
 - Node.js v22+
-- Docker / Docker Compose
+- Excubitor (通常のサービス起動と Vault からの環境注入)
+- Docker / Docker Compose (単体コンテナ運用時のみ)
 - GitHub Packages アクセス (`@ludiars/*` モジュールパッケージ取得用)
-- [Infisical](https://infisical.com/) または AWS SSM (シークレット管理)
+- Excubitor の Vault に必要な secret と Actio の binding を登録済みであること
 
 ### 1. 依存インストール
 
 ```bash
-git clone https://github.com/LUDIARS/Schedula.git
-cd Schedula
+git clone https://github.com/LUDIARS/Actio.git
+cd Actio
 
 # GitHub Packages 認証 (@ludiars/schedula-module-* を取得するため)
 export NODE_AUTH_TOKEN=<your_gh_pat>
@@ -108,7 +109,7 @@ cd frontend && npm install && cd ..
 
 設定はファイルに平文で置かず、次の 2 経路で与えます (仕様: `spec/feature/runtime-modernization.md`)。
 
-- **注入**: Excubitor (またはシェルの環境変数) が secret・ポート・サービス間 URL を渡す
+- **注入**: Excubitor が Vault の secret・ポート・サービス間 URL を渡す。非secret設定は `excubitor.catalog.yaml` の `env:`、ポート・URLはtopologyで管理する
 - **暗号化ローカル config**: DB / Redis 接続文字列などローカル設定だけを保存する
 
 ```bash
@@ -116,59 +117,47 @@ cd frontend && npm install && cd ..
 npm run config:seal < local-settings.json
 ```
 
-優先順位は 注入値 > 暗号化 config > 外部 secret。
+Ex内の優先順位は topology < catalog env < 暗号化 runtime config < Vault。
+Actio内では 注入値 > 暗号化ローカル config > 取得secret の順です。
+通常起動は `SECRETS_PROVIDER=env` を明示します。`ACTIO_SECRET_KEYS` を設定した場合だけ、既存のVault secret-agentから不足分を取得します。
+Actioは `.env` を読みません。env-cliによる設定ファイル生成やInfisicalへの接続は不要です。
 
 ### 3. 開発環境の起動
 
-#### 共有インフラ + 開発サーバー
+#### Excubitor 起動
 
-DB / Redis は共有インフラ (`../infra`) を使用します。
+通常運用は本体checkoutの `excubitor.catalog.yaml` を使い、Excubitor経由で起動します。
+バックエンドの起動コマンドは `node dist/src/bootstrap.js` です。DB / Redisの接続先と必要なsecretを事前に設定してください。
+ポート・URLの正本も同catalogです。
 
-```bash
-# 共有インフラ起動 (PostgreSQL / Redis)
-cd ../infra && docker compose up -d
-
-# バックエンド + フロントエンドを同時起動 (ホットリロード)
-npm run dev
-```
-
-| プロセス | 説明 | ポート |
-|---------|------|--------|
-| Backend (tsx watch) | Hono API サーバー | 3000 |
-| Frontend (Vite) | React 開発サーバー | 5173 |
-
-個別に起動:
-
-```bash
-npm run dev:server   # バックエンドのみ
-npm run dev:front    # フロントエンドのみ
-```
+開発用の `npm run dev` (API + frontend)、`npm run dev:server` (API)、`npm run dev:front` (frontend) は、
+Exによる環境注入を済ませた開発構成から呼ぶ素のコマンドです。設定生成や `.env` 読み込みを挟みません。
 
 #### スタンドアロン (Docker)
 
-共有インフラなしで DB/Redis 込みで単体運用:
+Composeファイルと `env:up` / `env:up:standalone` は、単体コンテナ運用用の互換入口として保持します。
+これらのnpmスクリプトはDocker Composeを呼ぶだけで、env-cliや設定生成とは無関係です。
+
+- `docker-compose.yaml`: アプリのみ。DB/Redisは共有インフラ前提。
+- `docker-compose.standalone.yaml`: DB/Redisを追加するオーバーレイ。
+- 明示的な `env_file` はありません。`${...}` の補間には起動元の環境変数とCompose自身の `.env` 解決が使われます。Actioプロセスの `.env` 読み込みとは別です。
+- base Composeには旧Infisical bootstrap用の変数が残っています。現行Actioはそれによるsecret取得に対応していません。通常運用にはExのVault注入を使用し、Composeの現行secret供給対応は別途整備が必要です。
+
+既存の単体運用コマンド (本タスクではCompose構成の変更・起動確認は行っていません):
 
 ```bash
 npm run env:up:standalone
 ```
 
-#### ローカル開発 (Docker なし / SQLite)
+#### ローカル開発 (SQLite)
 
-```bash
-npm run dev:server
-```
-
-起動前に次の環境変数をシェルで設定:
-
-```bash
-export DB_DIALECT=sqlite
-export DATABASE_PATH=data/actio.db
-export JWT_SECRET=dev-secret
-```
+SQLiteを明示的に選ぶ場合は、Exのcatalog `env:` に `DB_DIALECT=sqlite` と `DATABASE_PATH` を設定します。
+必要なJWT鍵などのsecretはVaultから注入します。固定の開発用secretを設定ファイルに保存しないでください。
 
 ## 環境変数管理
 
-通常起動は Excubitor の注入と暗号化ローカル config を使います。Actio 自身は遠隔 secret を取得しません (`SECRETS_PROVIDER=env`)。
+通常起動は Excubitor のVault注入と暗号化ローカル config を使います (`SECRETS_PROVIDER=env`)。
+secret-agentの任意補完は「設定の投入」を参照してください。既存の `.env` / `.env.secrets` はこの移行では読み取り・削除せず、所有者が移行確認後に整理します。
 
 | コマンド | 説明 |
 |---------|------|

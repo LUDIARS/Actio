@@ -39,7 +39,7 @@ API: `/api/pm`
 - マルチ DB — SQLite / PostgreSQL / MySQL (Drizzle ORM)
 - WebSocket — 破壊的操作は `module_request` 経由、 読み取りは REST
 - 外部 API 連携 — API Key 認証 (`/api/external`)
-- 設定管理 / シークレット管理 (Infisical) / 操作ログ / DB ビューア / プロフィール
+- 設定管理 / シークレット管理 (Excubitor Vault) / 操作ログ / DB ビューア / プロフィール
 
 ## 担わない (他サービスの領分)
 

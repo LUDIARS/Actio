@@ -14,19 +14,27 @@ neco の 2026-09-13 指示: PostgreSQLを維持しPf等の構成に合わせる�
 2. 暗号化configを読み、未注入のローカル設定だけ補う。
 3. Vault secret-agent / SSMは外部シークレットの補完に限る。ローカル設定は遠隔キャッシュから読まない。
 
-通常のEx運用は `SECRETS_PROVIDER=env`。古いInfisical設定が親環境に残ってもサービス自身は取得しない。Exのrelay側で必要なキーだけincludeし、古いURL/ポート/ローカルモード値を注入しない。現在のEx実装はsecretがtopologyより優先するため、このinclude設定が必要。
+通常のEx運用は `SECRETS_PROVIDER=env`。secretはExのVaultに登録・紐付けし、必要なキーだけを注入する。非secret設定はサービス所有catalogの `env:` に置き、URL/ポートはtopologyで管理する。Ex内の優先順位は topology < catalog env < 暗号化runtime config < Vault。Actio内では上記の注入優先順位を維持する。
 
-`src/config/local-config.ts` のallowlistが保存可能な設定の正本。DB/Redis接続文字列はローカルconfigに保存できる。JWT・外部APIトークン・Infisical machine identityは保存対象外。サービス間URL、ポート、ログルート等はExのcatalog/topologyを使う。
+`src/config/local-config.ts` のallowlistが保存可能な設定の正本。DB/Redis接続文字列はローカルconfigに保存できる。JWT・外部APIトークン等のsecretは保存対象外。サービス間URL、ポート、ログルート等はExのcatalog/topologyを使う。
 
 既定の保存先はWindows `%LOCALAPPDATA%/Actio/config.enc`、他OSは `~/.config/Actio/config.enc`。`ACTIO_CONFIG_PATH` で変更可能。暗号方式はAES-256-GCM、毎回ランダムなsalt/nonce、scrypt鍵導出。Exの暗号化実装の方式を参照したが、推測可能なhostname/usernameを鍵には使わない。`ACTIO_CONFIG_KEY` は32バイト以上を外部から注入し、configと同じファイルには保存しない。鍵不一致・改ざん・指定ファイル欠落は起動失敗となる。
 
-JSONを標準入力から `npm run config:seal` に渡す。キー/値をコマンド引数やログに出さず、Infisicalを削除しない。旧設定ファイルからの移入コマンドと生成ツール (env-cli / setup スクリプト / dotenv-cli) は2026-09-21に撤去し、catalogの起動口も `dist/src/bootstrap.js` へ切り替えた。保存は一時ファイルからのrenameで行う。鍵も事前にプロセス環境へ注入する。
+JSONを標準入力から `npm run config:seal` に渡す。キー/値をコマンド引数やログに出さない。旧設定ファイルからの移入コマンドと生成ツールは撤去済みで、catalogの起動口は `node dist/src/bootstrap.js`。Actioは `.env` を読まない。保存は一時ファイルからのrenameで行う。鍵も事前にプロセス環境へ注入する。
 
 ## 起動と旧設定画面
 
 `npm start` は `dist/src/bootstrap.js`。設定初期化の完了後にアプリ・DB・Redis・認証を動的importする。ポートはDB接続前に検証する。外部providerを指定したのに設定や初回取得が不足する場合は起動を止める。公開配備のJWT鍵は必須。明示的なローカルモードだけはプロセス寿命のランダム鍵を利用できる。
 
-認証不要の旧setup APIによる設定ファイル追記、credential登録、remote接続プローブ、SSM書き込みは廃止（410）。`GET /api/setup/status` は互換維持し、注入運用をsetup不足と誤判定しない。旧GUIは案内に変更。管理者向けの外部secret参照は残し、作成・更新・削除は410で拒否する。旧env-cliのinitialize候補からローカル設定と固定の開発用パスワードを外した。
+認証不要の旧setup APIによる設定ファイル追記、credential登録、remote接続プローブ、SSM書き込みは廃止（410）。`GET /api/setup/status` は互換維持し、注入運用をsetup不足と誤判定しない。旧GUIは案内に変更。管理者向けの外部secret参照は残し、作成・更新・削除は410で拒否する。
+
+## 起動設定の整理 (2026-10-03)
+
+関連: actio:d5c70c98-abad-4620-b95f-ebf2fc11732e
+
+- 残置されていた `env-cli.config.json` を撤去する。npmの開発コマンドはExによる環境注入を前提とし、設定生成やdotenv読み込みを追加しない。
+- `env:up` / `env:up:standalone` はCompose用であり、設定生成ではないため保持する。単体運用とCompose独自の `.env` 補間、旧bootstrap変数の残存制約はREADMEに明記する。Compose自体は今回変更しない。
+- Vault対応済みsecret-agent、既存のSSM互換経路、実データ、`.env` / `.env.secrets` は今回の変更対象外。
 
 ## 初回設定画面 (2026-09-21 追加)
 

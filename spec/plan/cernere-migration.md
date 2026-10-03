@@ -23,10 +23,10 @@ Actio は `packages/id-service/`（`@actio/id-service`）を使い、**認証を
 | `src/middleware/auth.ts` | `userContext()` / `requireRole()` ミドルウェア | **大: id-cache に置換** |
 | `src/middleware/getUserId.ts` | `getUserId()` / `getUserRole()` ヘルパー | **中: import 元変更** |
 | `src/config/jwt.ts` | JWT シークレット解決 | **中: ローカル検証用に残すか判断** |
-| `src/config/secrets.ts` | SecretManager (Infisical/SSM/env) | 変更なし |
+| `src/config/secrets.ts` | SecretManager (Excubitor Vault 注入 / secret-agent、互換 SSM) | 認証移行では変更なし |
 | `packages/id-service/` | ローカル認証 SDK 全体 | **大: @cernere/id-cache に置換** |
 | `packages/id-cache/` | 未使用のキャッシュパッケージ | 削除（Cernere 側を使用） |
-| `modules/setup/routes.ts` | 初回セットアップ（Infisical/SSM 設定） | 変更なし |
+| `modules/setup/routes.ts` | 旧セットアップ互換API（credential書き込みは410、現行はローカル設定/Vault） | 認証移行では変更なし |
 | `modules/profile/routes.ts` | プロフィール・プロジェクトロール | **小: userId 取得方法の確認** |
 | `frontend/src/lib/api.ts` | auth セクション全体 | **大: Cernere エンドポイントに変更** |
 | `frontend/src/contexts/AuthContext.tsx` | React 認証状態管理 | **大: Cernere フローに変更** |

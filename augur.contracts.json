@@ -4,6 +4,15 @@
   "importFrom": "../contract-runtime.js",
   "contracts": [
     {
+      "id": "C-4",
+      "criterion": "C-4 readDeploymentPolicySnapshot(): env-cli 設定と生成経路がなく、Ex の直接起動と単体 Compose を保持する",
+      "symbol": "readDeploymentPolicySnapshot",
+      "file": "contracts/deployment-policy.ts",
+      "module": "contracts/remove-env-cli.contract.ts",
+      "mode": "observe",
+      "sample": 1
+    },
+    {
       "id": "C-2",
       "criterion": "C-2 resolveSecretsFromExcubitor(source): Vault の要求キー部分集合だけをメモリへ返す",
       "symbol": "resolveSecretsFromExcubitor",

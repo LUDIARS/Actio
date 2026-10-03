@@ -138,9 +138,11 @@ logActivity(userId, user.name, "アクション", "...");  // user.name は lega
 
 ## 環境変数・シークレット管理
 
-通常起動はExcubitorの注入と暗号化ローカルconfigを使う。仕様は `spec/feature/runtime-modernization.md`。
-`SECRETS_PROVIDER=env` を明示し、Actio自身の遠隔secret取得を止める。
-ローカルの接続先・動作設定をInfisicalへ登録しない。注入値 > 暗号化config > 外部secretの順。
+通常起動はExcubitorのVault注入と暗号化ローカルconfigを使う。仕様は `spec/feature/runtime-modernization.md`。
+Exは `node dist/src/bootstrap.js` を直接起動し、Actioは `.env` を読まない。開発コマンドもExによる環境注入を前提にする。
+`SECRETS_PROVIDER=env` を明示する。`ACTIO_SECRET_KEYS` を指定した場合だけ、既存のVault secret-agentで不足分を補完する。
+secretはExのVaultへ登録・紐付けし、非secret設定は `excubitor.catalog.yaml` の `env:`、ポート・URLはtopologyに置く。
+Ex内の優先順位は topology < catalog env < 暗号化runtime config < Vault。Actio内は注入値 > 暗号化ローカルconfig > 取得secretの順。
 
 - `npm run config:seal`: 標準入力のJSONから暗号化configを保存
 - 鍵 `ACTIO_CONFIG_KEY` はEx等から注入し、平文設定やソースに置かない (Excubitor の runtime-config に入れると `EXCUBITOR_SERVICE_CONFIG_JSON` で届き、起動時に展開される)
@@ -152,6 +154,7 @@ logActivity(userId, user.name, "アクション", "...");  // user.name は lega
 ## Docker Compose
 
 DB / Redis は共有インフラ (`../infra`) を使用する。アプリ単体での運用も可能。
+Composeは単体運用向けの互換構成として保持する。通常のEx起動や設定生成には使わない。残存設定と `.env` の扱いはREADMEの「スタンドアロン (Docker)」を参照する。
 
 | ファイル | 用途 |
 |---------|------|
