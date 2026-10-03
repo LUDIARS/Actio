@@ -3,27 +3,25 @@ import { setupApi, type InitialSetupSettings, type SetupStatus } from "../lib/ap
 
 interface InitialSetupPageProps { onComplete: () => void }
 
-/** 値の入れ方。infisical は「どこから受け取るか」だけを保存し、値は Excubitor 経由で届く。 */
-type SetupMode = "infisical" | "direct";
+/** 値の入れ方。vault は「どこから受け取るか」だけを保存し、値は Excubitor 経由で届く。 */
+type SetupMode = "vault" | "direct";
 
 const ERROR_MESSAGES: Record<string, string> = {
   local_access_required: "この PC から直接開いたときだけ保存できます。",
   config_key_missing: "暗号化の鍵 (ACTIO_CONFIG_KEY) が Excubitor から注入されていません。",
-  invalid_settings: "入力内容を確認してください (ID・環境名・キー名・接続 URL の形式)。",
+  invalid_settings: "入力内容を確認してください (キー名・接続 URL の形式)。",
   save_failed: "暗号化 config の保存に失敗しました。保存先の権限を確認してください。",
-  secret_no_mapping: "設定は保存しました。Excubitor の Config 画面で actio の Infisical マッピング (同じ project ID・環境・取得キー) を登録してから、もう一度保存してください。",
-  mapping_unsupported: "設定は保存しました。この Excubitor は 1 サービス分の登録に対応していないので、Config 画面で actio のマッピングを登録してから、もう一度保存してください。",
-  mapping_rejected: "Excubitor がマッピングの内容を受け付けませんでした。project ID・環境名・取得キーの形式を確認してください。",
-  mapping_failed: "Excubitor へのマッピング登録に失敗しました。Excubitor のログを確認してください。",
-  secret_source_mismatch: "Excubitor 側の actio のマッピングが、ここで入力した project ID / 環境と一致しません。どちらかを直してください。",
-  secret_no_identity: "Excubitor に Infisical の machine identity が登録されていません。Excubitor の Config 画面で設定してください。",
+  secret_no_mapping: "設定は保存しました。Excubitor で actio の Vault binding を設定してください。",
+  secret_key_not_allowed: "取得キーに許可されていない名前があります。Excubitor の actio 用許可キーを確認してください。",
+  secret_source_mismatch: "Excubitor が Vault 以外の取得元を返しました。Excubitor の版と設定を確認してください。",
+  secret_no_identity: "Excubitor のシークレット取得サービスを利用できません。",
   secret_unauthorized: "Excubitor の secret-agent トークンが一致しません。",
-  secret_fetch_failed: "Excubitor が Infisical から値を取得できませんでした。project ID と環境名、Excubitor のログを確認してください。",
+  secret_fetch_failed: "Excubitor が Vault から値を取得できませんでした。Excubitor の Vault 設定を確認してください。",
   secret_bad_response: "Excubitor から想定外の応答が返りました。Excubitor の版を確認してください。",
   excubitor_no_endpoint: "Excubitor の場所 (EXCUBITOR_URL) が注入されていません。Actio を Excubitor から起動してください。",
   excubitor_no_token: "Excubitor の secret-agent トークンが見つかりません。",
   excubitor_unreachable: "Excubitor に接続できませんでした。",
-  database_url_missing: "設定は保存しましたが、データベース接続 URL が届いていません。取得キーに DATABASE_URL を含め、Infisical 側に値があるか確認してください。",
+  database_url_missing: "設定は保存しましたが、データベース接続 URL が届いていません。取得キーに DATABASE_URL を含め、Vault 側に値があるか確認してください。",
 };
 
 const BLOCKED_MESSAGES: Record<string, string> = {
@@ -46,9 +44,7 @@ const labelStyle = { display: "block", marginBottom: "1rem" } as const;
 /** DB 接続先が未設定のローカル配備で最初に出る画面。secret の値そのものは扱わない。 */
 export function InitialSetupPage({ onComplete }: InitialSetupPageProps) {
   const [status, setStatus] = useState<SetupStatus | null>(null);
-  const [mode, setMode] = useState<SetupMode>("infisical");
-  const [projectId, setProjectId] = useState("");
-  const [environment, setEnvironment] = useState("dev");
+  const [mode, setMode] = useState<SetupMode>("vault");
   const [secretKeys, setSecretKeys] = useState(DEFAULT_SECRET_KEYS);
   const [dialect, setDialect] = useState("postgres");
   const [databaseUrl, setDatabaseUrl] = useState("");
@@ -71,8 +67,8 @@ export function InitialSetupPage({ onComplete }: InitialSetupPageProps) {
   }
 
   function buildSettings(): Partial<InitialSetupSettings> {
-    if (mode === "infisical") {
-      return { DB_DIALECT: dialect, ACTIO_SECRET_PROJECT_ID: projectId, ACTIO_SECRET_ENVIRONMENT: environment, ACTIO_SECRET_KEYS: secretKeys };
+    if (mode === "vault") {
+      return { DB_DIALECT: dialect, ACTIO_SECRET_KEYS: secretKeys };
     }
     return dialect === "sqlite"
       ? { DB_DIALECT: dialect, DATABASE_PATH: databasePath }
@@ -113,28 +109,19 @@ export function InitialSetupPage({ onComplete }: InitialSetupPageProps) {
               const next = e.target.value as SetupMode;
               setMode(next);
               // SQLite はファイルパスを直接入力する方法でしか選べない。
-              if (next === "infisical" && dialect === "sqlite") setDialect("postgres");
+              if (next === "vault" && dialect === "sqlite") setDialect("postgres");
             }}
           >
-            <option value="infisical">Infisical から受け取る (Excubitor 経由)</option>
+            <option value="vault">Vault から受け取る (Excubitor 経由)</option>
             <option value="direct">接続先をここに入力する</option>
           </select>
         </label>
 
-        {mode === "infisical" ? (
+        {mode === "vault" ? (
           <>
             <p style={{ color: "var(--text-muted)" }}>
-              保存するのは取得元の指定だけです。Infisical の接続先と認証情報は Excubitor が持ち、Actio には渡りません。
-              保存すると、Excubitor の actio 用マッピングにも同じ内容を登録します。
+              保存するのは受け取るキー名だけです。値は Excubitor が Vault から取得します。
             </p>
-            <label style={labelStyle}>
-              Infisical の project ID
-              <input value={projectId} onChange={(e) => setProjectId(e.target.value)} required autoComplete="off" style={fieldStyle} />
-            </label>
-            <label style={labelStyle}>
-              環境 (environment)
-              <input value={environment} onChange={(e) => setEnvironment(e.target.value)} required autoComplete="off" style={fieldStyle} />
-            </label>
             <label style={labelStyle}>
               受け取るキー (改行またはカンマ区切り)
               <textarea value={secretKeys} onChange={(e) => setSecretKeys(e.target.value)} required rows={8} style={fieldStyle} />

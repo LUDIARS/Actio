@@ -331,7 +331,7 @@ export const MODULE_LIST: readonly ModuleListEntry[] = [
   {
     id: "admin-secrets",
     name: "シークレット",
-    description: "Infisical/AWS SSM シークレット管理",
+    description: "Vault/AWS SSM シークレット参照",
     category: "admin",
     status: "active",
     backendDir: "modules/secrets",

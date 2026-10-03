@@ -12,7 +12,7 @@ neco の 2026-09-13 指示: PostgreSQLを維持しPf等の構成に合わせる�
 
 1. Excubitorの起動環境（明示的な空文字を含む）を最優先する。
 2. 暗号化configを読み、未注入のローカル設定だけ補う。
-3. 明示選択したInfisical/SSMは外部シークレットの補完に限る。ローカル設定は遠隔キャッシュから読まない。
+3. Vault secret-agent / SSMは外部シークレットの補完に限る。ローカル設定は遠隔キャッシュから読まない。
 
 通常のEx運用は `SECRETS_PROVIDER=env`。古いInfisical設定が親環境に残ってもサービス自身は取得しない。Exのrelay側で必要なキーだけincludeし、古いURL/ポート/ローカルモード値を注入しない。現在のEx実装はsecretがtopologyより優先するため、このinclude設定が必要。
 
@@ -26,7 +26,7 @@ JSONを標準入力から `npm run config:seal` に渡す。キー/値をコマ�
 
 `npm start` は `dist/src/bootstrap.js`。設定初期化の完了後にアプリ・DB・Redis・認証を動的importする。ポートはDB接続前に検証する。外部providerを指定したのに設定や初回取得が不足する場合は起動を止める。公開配備のJWT鍵は必須。明示的なローカルモードだけはプロセス寿命のランダム鍵を利用できる。
 
-認証不要の旧setup APIによる設定ファイル追記、credential登録、remote接続プローブ、SSM書き込みは廃止（410）。`GET /api/setup/status` は互換維持し、注入運用をsetup不足と誤判定しない。旧GUIは案内に変更。管理者向けの外部secret管理は残し、ローカル設定の登録は400で拒否する。旧env-cliのinitialize候補からローカル設定と固定の開発用パスワードを外した。
+認証不要の旧setup APIによる設定ファイル追記、credential登録、remote接続プローブ、SSM書き込みは廃止（410）。`GET /api/setup/status` は互換維持し、注入運用をsetup不足と誤判定しない。旧GUIは案内に変更。管理者向けの外部secret参照は残し、作成・更新・削除は410で拒否する。旧env-cliのinitialize候補からローカル設定と固定の開発用パスワードを外した。
 
 ## 初回設定画面 (2026-09-21 追加)
 
@@ -40,16 +40,17 @@ neco の 2026-09-21 指示: 設定されていない場合は初回設定画面�
 - **引き継ぎ**: 保存後は待受を閉じてポートを解放し、同じプロセスで本体を起動する (Excubitorでの再起動は不要)。空文字の注入が保存値を上書きして未設定が続く場合は、画面では直せないので起動失敗にする。
 - 9/13に廃止した旧setup API (credential登録・remoteプローブ・SSM書き込み・設定ファイル追記) は410のまま。復活させたのは上記のローカル設定保存だけ。
 
-## secret の取得元 (2026-09-21 追加)
+## secret の取得元 (2026-10-03 Vault 対応)
 
-neco の 2026-09-21 指示: 暗号化configに「Infisicalから値を取得する」設定を持たせ、初回設定で設定させる。接続情報はExcubitorから渡す。経路は「Exにマッピング登録 + secret-agent」。
+関連: actio:84561cba-3297-419e-83e2-f995028e4dab
 
-- **誰が何を持つか**: Infisicalのmachine identityはExcubitorだけが持ち、Actioへは渡らない (Excubitorは意図的に子へ継承させない)。Actioの暗号化configが持つのは取得元の指定だけ — `ACTIO_SECRET_PROJECT_ID` / `ACTIO_SECRET_ENVIRONMENT` / `ACTIO_SECRET_KEYS`。旧 `INFISICAL_*` とは別名にした (catalogが空文字で固定しており、保存値が上書きされるため)。
-- **受け取り**: 起動時に `src/config/excubitor/secret-agent-client.ts` がExcubitorのsecret-agent (`POST /api/v1/secrets/resolve`、service=`actio`、loopback + token) へ問い合わせる。Excubitorの場所は注入される `EXCUBITOR_URL` だけを使い、ポートをActioに書かない。tokenは `EXCUBITOR_AGENT_TOKEN` かExcubitorのtokenファイルを読むだけで、Actioは保存しない。値は `secretManager` のメモリキャッシュにだけ置き、環境変数にもファイルにも書かない。優先順位は従来どおり 注入値 > 暗号化config > 受け取ったsecret。
-- **照合**: 応答の `project_id` / `environment` が保存した取得元と一致しなければ受け取らない。指定したキー以外も捨てる。ローカル設定キー (URL・ポート・ローカルモード等) は取得キーに指定できない (2026-09-13の衝突の再発防止)。
-- **失敗時**: 取得元が設定されているのに受け取れない場合は起動を止める (secret無しで黙って動かさない)。エラーは分類だけを扱い、上流のメッセージや値を画面・ログへ出さない。
-- **初回設定画面**: 「Infisicalから受け取る」と「接続先をここに入力する」を選べる。前者は取得元を保存した後にその場で受け取りを試し、`DATABASE_URL` が届いて初めて本体を起動する。Excubitor側にマッピングが無い (`no_mapping`) ・別projectを指している (`source_mismatch`) 場合は、保存は残したまま画面に直し方を出す。
-- **Excubitor側のマッピング**: 初回設定画面で保存すると、`src/config/excubitor/mapping-client.ts` がExcubitorの1サービス分だけを差し替える口 (`PUT /api/v1/config/infisical/services/actio`、Excubitor側で2026-09-23に追加) へ同じ内容 (project_id / environment / include、inject=false) を登録してから受け取りを試す。マップ全体を置換するUI用APIは使わない (他サービスの行を消せるため)。その口が無い古いExcubitor (404) では `mapping_unsupported` を返し、Config画面での手動登録を案内する。
+- 暗号化configで指定するのは `ACTIO_SECRET_KEYS` だけ。未設定・空なら取得しない。旧 project/environment 項目は既存ファイルを読めるよう allowlist に残すが、取得には使わず、新規setup入力では拒否する。
+- Excubitor secret-agent の POST /api/v1/secrets/resolve に service=actio と keys を渡す。接続先とtokenは既存の注入・tokenファイル解決を使う。bindingと許可キーの管理はExcubitor側の責務であり、Actioは登録・更新しない。
+- source=vault と secrets オブジェクトを必須とする。project_id/environment は照合しない。要求キーの部分集合（空集合も可）の文字列値だけを受理し、未要求キー、非文字列、配列、不正JSONは応答全体を拒否する。
+- LOCAL_SETTING_KEYS は取得要求の時点で拒否する。値はプロセスメモリのみで、注入値 > 暗号化config > 取得secret の優先順位を維持する。手動更新時も完全な応答検証後にキャッシュを置き換える。
+- 403 は key_not_allowed、404 は no_mapping、502 は fetch_failed。上流エラー本文やsecret値をエラー文へ転記しない。source=vault でなければ source_mismatch とする。
+- 初回設定画面は「Vaultから受け取る」と直接入力を提供する。Vaultでは取得キーのみを保存し、その場で取得を試す。DATABASE_URLが解決できたときに本体起動へ進む。
+- Infisical直接クライアントと旧マッピングAPIへの書き込みを撤去する。SECRETS_PROVIDER=infisical は無効な設定として停止する。env / SSM の既存設定方式は維持する。
 
 ## PostgreSQL
 

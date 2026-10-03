@@ -4,7 +4,7 @@ import { secretManager } from "../../src/config/secrets.js";
 /** Startup configuration is owned by Excubitor and the encrypted local file. */
 export const setupRoutes = new Hono();
 setupRoutes.get("/status", c => c.json({
-  needsSetup: false, infisicalConfigured: secretManager.isInfisicalEnabled(),
+  needsSetup: false, infisicalConfigured: false,
   ssmConfigured: secretManager.isSsmEnabled(), providerType: secretManager.getProviderType(),
   setupSkipped: false, configurationMode: "excubitor",
 }));

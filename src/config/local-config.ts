@@ -12,7 +12,7 @@ export const LOCAL_SETTING_KEYS = new Set([
   "VITE_ALLOWED_HOSTS", "ACTIO_VITE_POLLING", "CORS_ORIGIN", "SECRETS_PROVIDER", "NODE_ENV",
   "DISCUTERE_URL", "ACTIO_CHAT_MODE", "ACTIO_INTAKE_LLM_URL", "ACTIO_INTAKE_LLM_MODEL",
 ]);
-/** Where secrets come from (config/secret-source.ts). A pointer only: never the Infisical credentials. */
+/** Where secrets come from (config/secret-source.ts). Keys only; legacy project/environment names remain readable for existing encrypted files. */
 const SECRET_SOURCE_SETTING_KEYS = ["ACTIO_SECRET_PROJECT_ID", "ACTIO_SECRET_ENVIRONMENT", "ACTIO_SECRET_KEYS"];
 const allowed = new Set([...LOCAL_SETTING_KEYS, "DATABASE_URL", "REDIS_URL", "DISCUTERE_EXTERNAL_DISCUSSION_SECRET",
   "ACTIO_CHAT_SHARED_SECRET", "ACTIO_INTAKE_LLM_KEY", ...SECRET_SOURCE_SETTING_KEYS]);

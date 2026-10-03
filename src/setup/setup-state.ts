@@ -57,9 +57,7 @@ export function parseSetupInput(input: unknown): SetupInputResult {
 
   const usesSecretSource = SECRET_SOURCE_KEYS.some((key) => settings[key] !== undefined);
   if (usesSecretSource) {
-    const source = parseSecretSource(
-      settings.ACTIO_SECRET_PROJECT_ID ?? "", settings.ACTIO_SECRET_ENVIRONMENT ?? "", settings.ACTIO_SECRET_KEYS ?? "",
-    );
+    const source = parseSecretSource(settings.ACTIO_SECRET_KEYS ?? "");
     if (!source.ok) return { ok: false, error: source.error };
     Object.assign(settings, secretSourceSettings(source.source));
   }
@@ -68,7 +66,7 @@ export function parseSetupInput(input: unknown): SetupInputResult {
   if (dialect !== "sqlite") {
     const protocols = URL_DIALECT_PROTOCOLS[dialect];
     if (!protocols) return { ok: false, error: "DB_DIALECT must be postgres, mysql or sqlite" };
-    // With a secret source the database URL may arrive from Infisical; it is checked after the fetch.
+    // With a secret source the database URL may arrive from Vault; it is checked after the fetch.
     if (!settings.DATABASE_URL && !usesSecretSource) return { ok: false, error: "DATABASE_URL is required" };
     if (settings.DATABASE_URL && !hasProtocol(settings.DATABASE_URL, protocols)) {
       return { ok: false, error: `DATABASE_URL must be a ${dialect} connection URL` };

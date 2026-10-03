@@ -4,6 +4,24 @@
   "importFrom": "../contract-runtime.js",
   "contracts": [
     {
+      "id": "C-2",
+      "criterion": "C-2 resolveSecretsFromExcubitor(source): Vault の要求キー部分集合だけをメモリへ返す",
+      "symbol": "resolveSecretsFromExcubitor",
+      "file": "src/config/excubitor/secret-agent-client.ts",
+      "module": "contracts/vault-secret-response.contract.ts",
+      "mode": "observe",
+      "sample": 1
+    },
+    {
+      "id": "C-3",
+      "criterion": "C-3 parseSecretSource(keys): キー指定だけを受理しローカル設定を拒否する",
+      "symbol": "parseSecretSource",
+      "file": "src/config/secret-source.ts",
+      "module": "contracts/vault-secret-source.contract.ts",
+      "mode": "observe",
+      "sample": 1
+    },
+    {
       "id": "C-1",
       "criterion": "C-1 shouldSyncSchema(input): ローカルモードでは同期せず info でスキップし、公開配備で CERNERE_URL があり client id / secret が欠けるときは throw せず warn でスキップし、URL・id・secret が揃った公開配備でだけ同期する",
       "symbol": "shouldSyncSchema",

@@ -7,7 +7,7 @@
  *   - "mysql": MySQL (mysql2)
  *
  * 接続先は DATABASE_URL (postgres/mysql) または DATABASE_PATH (sqlite) で設定。
- * Infisical 設定時はそこから、未設定時は process.env から取得される。
+ * 注入値・暗号化configを優先し、Vault / SSM から補完する。
  */
 
 import { secretManager } from "../config/secrets.js";

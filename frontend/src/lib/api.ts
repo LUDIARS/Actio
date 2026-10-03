@@ -783,11 +783,11 @@ export const activityLogApi = {
   },
 };
 
-// ─── Secrets (シークレット管理: Infisical) ───────────────────
+// ─── Secrets (シークレット参照) ───────────────────
 
 export const secretsApi = {
   getStatus() {
-    return request<{ infisicalEnabled: boolean; ssmEnabled: boolean; providerType: string; cachedSecretCount: number }>("/api/secrets/status");
+    return request<{ infisicalEnabled: boolean; externalProviderEnabled: boolean; ssmEnabled: boolean; providerType: string; cachedSecretCount: number }>("/api/secrets/status");
   },
   listKeys() {
     return request<{ keys: Array<{ key: string; scope: "shared" | "personal"; hasValue: boolean }> }>("/api/secrets/keys");
@@ -1289,9 +1289,7 @@ export interface InitialSetupSettings {
   DATABASE_URL: string;
   DATABASE_PATH: string;
   REDIS_URL: string;
-  /** secret の取得元 (Infisical)。接続先と認証情報は Excubitor が持つので、ここでは指定だけ。 */
-  ACTIO_SECRET_PROJECT_ID: string;
-  ACTIO_SECRET_ENVIRONMENT: string;
+  /** Vaultから受け取るキー名。値はExcubitorが解決する。 */
   ACTIO_SECRET_KEYS: string;
 }
 

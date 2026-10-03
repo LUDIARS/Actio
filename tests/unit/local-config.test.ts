@@ -34,3 +34,11 @@ it("rejects a wrong key, corrupted config and credential keys", () => {
   writeFileSync(process.env.ACTIO_CONFIG_PATH!, "not encrypted", "utf8");
   expect(() => readLocalConfig()).toThrow("Cannot read");
 });
+
+it("keeps legacy source coordinates readable without requiring them for new settings", () => {
+  const legacy = { ACTIO_SECRET_PROJECT_ID: "old-project", ACTIO_SECRET_ENVIRONMENT: "dev", ACTIO_SECRET_KEYS: "JWT_SECRET" };
+  writeLocalConfig(legacy);
+  expect(readLocalConfig()).toEqual(legacy);
+  writeLocalConfig({ ACTIO_SECRET_KEYS: "JWT_SECRET" });
+  expect(readLocalConfig()).toEqual({ ACTIO_SECRET_KEYS: "JWT_SECRET" });
+});

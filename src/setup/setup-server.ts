@@ -4,10 +4,8 @@
  */
 import { serve } from "@hono/node-server";
 import { ExcubitorUnavailableError } from "../config/excubitor/endpoint.js";
-import { MappingRegistrationError, registerSecretSourceWithExcubitor } from "../config/excubitor/mapping-client.js";
 import { SecretAgentError } from "../config/excubitor/secret-agent-client.js";
 import { readLocalConfig, writeLocalConfig } from "../config/local-config.js";
-import { readSecretSource } from "../config/secret-source.js";
 import { secretManager } from "../config/secrets.js";
 import { resolveBackendPort } from "../config/service-endpoints.js";
 import { createSetupApp, SetupSaveError } from "./setup-app.js";
@@ -29,13 +27,9 @@ function createSaver(injectedKeys: ReadonlySet<string>): (settings: SetupSetting
       if (!injectedKeys.has(key)) process.env[key] = value;
     }
     try {
-      // 取得元を指定したときは、Excubitor 側の actio マッピングもここで揃える (別画面での手作業を不要にする)。
-      const source = readSecretSource();
-      if (source) await registerSecretSourceWithExcubitor(source);
       await secretManager.reinit();
     } catch (err) {
-      if (err instanceof MappingRegistrationError) throw new SetupSaveError(`mapping_${err.code}`, err.code === "failed" ? 502 : 409);
-      if (err instanceof SecretAgentError) throw new SetupSaveError(`secret_${err.code}`, err.code === "no_mapping" || err.code === "source_mismatch" ? 409 : 502);
+      if (err instanceof SecretAgentError) throw new SetupSaveError(`secret_${err.code}`, err.code === "no_mapping" || err.code === "source_mismatch" || err.code === "key_not_allowed" ? 409 : 502);
       if (err instanceof ExcubitorUnavailableError) throw new SetupSaveError(`excubitor_${err.code}`, 502);
       throw err;
     }

@@ -31,11 +31,11 @@ describe("initial setup state", () => {
   });
 
   it("accepts a secret source instead of a database URL and normalizes its key list", () => {
-    const parsed = parseSetupInput({ ACTIO_SECRET_PROJECT_ID: "11111111-2222-3333-4444-555555555555", ACTIO_SECRET_ENVIRONMENT: "dev", ACTIO_SECRET_KEYS: "DATABASE_URL\nJWT_SECRET, DATABASE_URL" });
+    const parsed = parseSetupInput({ ACTIO_SECRET_KEYS: "DATABASE_URL\nJWT_SECRET, DATABASE_URL" });
     expect(parsed).toMatchObject({ ok: true, usesSecretSource: true, settings: { ACTIO_SECRET_KEYS: "DATABASE_URL,JWT_SECRET" } });
     // A pointer without keys, or one that tries to pull a deployment setting, is refused.
-    expect(parseSetupInput({ ACTIO_SECRET_PROJECT_ID: "11111111-2222-3333-4444-555555555555", ACTIO_SECRET_ENVIRONMENT: "dev" }).ok).toBe(false);
-    expect(parseSetupInput({ ACTIO_SECRET_PROJECT_ID: "11111111-2222-3333-4444-555555555555", ACTIO_SECRET_ENVIRONMENT: "dev", ACTIO_SECRET_KEYS: "FRONTEND_URL" }).ok).toBe(false);
+    expect(parseSetupInput({ ACTIO_SECRET_KEYS: "" }).ok).toBe(false);
+    expect(parseSetupInput({ ACTIO_SECRET_KEYS: "FRONTEND_URL" }).ok).toBe(false);
     expect(parseSetupInput({ ACTIO_SECRET_PROJECT_ID: "bad id", ACTIO_SECRET_ENVIRONMENT: "dev", ACTIO_SECRET_KEYS: "DATABASE_URL" }).ok).toBe(false);
   });
 });

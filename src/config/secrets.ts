@@ -1,26 +1,7 @@
-/**
- * シークレットマネージャー
- *
- * 以下のプロバイダーからシークレットを取得・管理する:
- *   1. Infisical (INFISICAL_PROJECT_ID 設定時)
- *   2. AWS SSM Parameter Store (SSM_PATH_PREFIX 設定時)
- *   3. process.env フォールバック (上記いずれも未設定時)
- *
- * SECRETS_PROVIDER 環境変数で明示的にプロバイダーを選択可能:
- *   - "infisical" — Infisical を使用
- *   - "ssm"       — AWS SSM Parameter Store を使用
- *   - 未設定      — 設定されている方を自動検出 (両方あれば Infisical 優先)
- *
- * スコープ (Infisical のみ):
- *   - shared:   プロジェクトグローバル (Infisical "/" パス)
- *   - personal: 個人用オーバーライド  (Infisical "/personal" パス)
- *
- * 未設定時は process.env にフォールバックし、従来通り動作する。
- */
+/** Read-only secrets from environment, Excubitor Vault, or SSM. */
 
 import { applyLocalConfig, LOCAL_SETTING_KEYS } from "./local-config.js";
 import { applyExcubitorEndpoints } from "./service-endpoints.js";
-import { type InfisicalClient, createInfisicalClient } from "./infisical.js";
 import { readSecretSource } from "./secret-source.js";
 import { applyExcubitorServiceConfig } from "./excubitor/service-config.js";
 import { resolveSecretsFromExcubitor } from "./excubitor/secret-agent-client.js";
@@ -30,7 +11,7 @@ import {
 } from "./ssm.js";
 
 export type SecretScope = "shared" | "personal";
-export type SecretsProviderType = "infisical" | "ssm" | "env";
+export type SecretsProviderType = "ssm" | "env";
 
 interface CachedSecret {
   value: string;
@@ -39,7 +20,6 @@ interface CachedSecret {
 }
 
 class SecretManager {
-  private infisicalClient: InfisicalClient | null = null;
   private ssmClient: SsmParameterStoreClient | null = null;
   private activeProvider: SecretsProviderType = "env";
   private cache = new Map<string, CachedSecret>();
@@ -58,7 +38,7 @@ class SecretManager {
     applyExcubitorEndpoints();
     applyLocalConfig();
     const explicitProvider = process.env.SECRETS_PROVIDER;
-    if (explicitProvider && !["env", "infisical", "ssm"].includes(explicitProvider)) throw new Error("Invalid SECRETS_PROVIDER");
+    if (explicitProvider && !["env", "ssm"].includes(explicitProvider)) throw new Error("Invalid SECRETS_PROVIDER");
 
     // プロバイダー選択
     if (explicitProvider === "env") {
@@ -68,33 +48,18 @@ class SecretManager {
       if (this.ssmClient) {
         this.activeProvider = "ssm";
       }
-    } else if (explicitProvider === "infisical") {
-      this.infisicalClient = createInfisicalClient();
-      if (this.infisicalClient) {
-        this.activeProvider = "infisical";
-      }
     } else {
-      // 自動検出: Infisical を優先
-      this.infisicalClient = createInfisicalClient();
-      if (this.infisicalClient) {
-        this.activeProvider = "infisical";
-      } else {
-        this.ssmClient = createSsmClient();
-        if (this.ssmClient) {
-          this.activeProvider = "ssm";
-        }
-      }
+      this.ssmClient = createSsmClient();
+      if (this.ssmClient) this.activeProvider = "ssm";
     }
 
     if (explicitProvider && explicitProvider !== "env" && this.activeProvider === "env") throw new Error("Selected secret provider is not configured");
 
     if (this.activeProvider !== "env") {
-      const providerName =
-        this.activeProvider === "infisical" ? "Infisical" : "SSM Parameter Store";
+      const providerName = "SSM Parameter Store";
       console.log(`[secrets] ${providerName} モードで初期化中...`);
       try {
         await this.fetchAll();
-        this.startAutoRefresh();
         console.log(
           `[secrets] ${providerName} から ${this.cache.size} 件のシークレットを取得`
         );
@@ -108,6 +73,7 @@ class SecretManager {
     }
 
     await this.loadSecretSource();
+    if (this.activeProvider !== "env") this.startAutoRefresh();
 
     this.initialized = true;
   }
@@ -121,6 +87,8 @@ class SecretManager {
     const source = readSecretSource();
     if (!source) return;
     const secrets = await resolveSecretsFromExcubitor(source);
+    // Replace only after the whole response has been validated.
+    for (const key of source.keys) this.cache.delete(key);
     for (const [key, value] of secrets) {
       this.cache.set(key, { value, scope: "shared", updatedAt: Date.now() });
     }
@@ -134,41 +102,8 @@ class SecretManager {
    * 全シークレットを取得しキャッシュ更新
    */
   private async fetchAll(): Promise<void> {
-    if (this.activeProvider === "infisical" && this.infisicalClient) {
-      await this.fetchFromInfisical();
-    } else if (this.activeProvider === "ssm" && this.ssmClient) {
+    if (this.activeProvider === "ssm" && this.ssmClient) {
       await this.fetchFromSsm();
-    }
-  }
-
-  /**
-   * Infisical から取得
-   */
-  private async fetchFromInfisical(): Promise<void> {
-    if (!this.infisicalClient) return;
-
-    // Shared secrets (プロジェクトグローバル)
-    const shared = await this.infisicalClient.getSecrets("/");
-    for (const s of shared) {
-      this.cache.set(s.secretKey, {
-        value: s.secretValue,
-        scope: "shared",
-        updatedAt: Date.now(),
-      });
-    }
-
-    // Personal secrets (個人用オーバーライド)
-    try {
-      const personal = await this.infisicalClient.getSecrets("/personal");
-      for (const s of personal) {
-        this.cache.set(s.secretKey, {
-          value: s.secretValue,
-          scope: "personal",
-          updatedAt: Date.now(),
-        });
-      }
-    } catch {
-      // /personal フォルダが存在しない場合は無視
     }
   }
 
@@ -248,17 +183,6 @@ class SecretManager {
   }
 
   /**
-   * Infisical が有効かどうか (後方互換)
-   */
-  isInfisicalEnabled(): boolean {
-    return (
-      this.activeProvider === "infisical" &&
-      this.infisicalClient !== null &&
-      this.infisicalClient.isConfigured()
-    );
-  }
-
-  /**
    * SSM が有効かどうか
    */
   isSsmEnabled(): boolean {
@@ -270,10 +194,10 @@ class SecretManager {
   }
 
   /**
-   * 外部プロバイダーが有効かどうか (Infisical or SSM)
+   * 外部プロバイダーが有効かどうか (Vault or SSM)
    */
   isExternalProviderEnabled(): boolean {
-    return this.activeProvider !== "env";
+    return this.activeProvider !== "env" || readSecretSource() !== null;
   }
 
   /**
@@ -292,54 +216,10 @@ class SecretManager {
     return result;
   }
 
-  // ─── Write API (Infisical が有効な場合のみ) ─────────────────
-
-  /**
-   * 手動リフレッシュ
-   */
+  /** 手動リフレッシュ。Vault の値も再取得する。 */
   async refresh(): Promise<void> {
     await this.fetchAll();
-  }
-
-  /**
-   * Infisical にシークレットを作成/更新
-   */
-  async setSecret(
-    key: string,
-    value: string,
-    scope: SecretScope = "shared"
-  ): Promise<void> {
-    if (LOCAL_SETTING_KEYS.has(key)) throw new Error("Use encrypted local config or Excubitor for deployment settings");
-    if (!this.infisicalClient) {
-      throw new Error("[secrets] Infisical is not configured");
-    }
-
-    const path = scope === "personal" ? "/personal" : "/";
-
-    // 更新を試み、失敗 (存在しない) なら作成
-    try {
-      await this.infisicalClient.updateSecret(key, value, path, scope);
-    } catch {
-      await this.infisicalClient.createSecret(key, value, path, scope);
-    }
-
-    this.cache.set(key, { value, scope, updatedAt: Date.now() });
-  }
-
-  /**
-   * Infisical からシークレットを削除
-   */
-  async deleteSecret(
-    key: string,
-    scope: SecretScope = "shared"
-  ): Promise<void> {
-    if (!this.infisicalClient) {
-      throw new Error("[secrets] Infisical is not configured");
-    }
-
-    const path = scope === "personal" ? "/personal" : "/";
-    await this.infisicalClient.deleteSecret(key, path, scope);
-    this.cache.delete(key);
+    await this.loadSecretSource();
   }
 
   // ─── Lifecycle ──────────────────────────────────────────────
@@ -360,7 +240,6 @@ class SecretManager {
    */
   async reinit(): Promise<void> {
     this.destroy();
-    this.infisicalClient = null;
     this.ssmClient = null;
     this.activeProvider = "env";
     this.cache.clear();

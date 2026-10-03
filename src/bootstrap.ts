@@ -1,7 +1,7 @@
 /**
  * bootstrap entry — 設定ファイル無し運用の起動口。
  *
- * ensureEnv() で必要な env を Excubitor / Infisical から取り込んでから
+ * ensureEnv() で必要な env を Excubitor / Vault から取り込んでから
  * 動的に ./index.js を import (top-level の config 読みを後ろにずらす)。
  * ローカル配備で DB 接続先が未設定のときは、本体の代わりに初回設定画面を先に開く。
  */

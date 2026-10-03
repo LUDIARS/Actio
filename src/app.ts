@@ -240,7 +240,7 @@ export function createApp() {
   // ─── Admin Settings (設定管理) ───────────────────────────────
   app.route("/api/settings", settingsRoutes);
 
-  // ─── Admin Secrets (シークレット管理: Infisical) ────────────
+  // ─── Admin Secrets (シークレット管理: 読み取り専用) ────────────
   app.route("/api/secrets", secretsRoutes);
 
   // ─── Admin: Activity Logs (操作ログ) ────────────────────────
