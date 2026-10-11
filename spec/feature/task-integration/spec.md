@@ -210,6 +210,7 @@ introduced by this compatibility addition.
 
 - Cc から消えたプロジェクトは削除せず `removed_at` を付ける (既存タスクの参照を壊さない)。
 - 取得失敗時はキャッシュのまま続行し、 失敗を警告ログに出す (チーム同期と同じ扱い)。
+- 改名とチーム割り当ての変化はタスクへも波及させる (§6.5)。
 
 ### 6.2 タスクとの紐付け
 
@@ -287,6 +288,33 @@ neco 指示 (2026-09-26「スプリントも可視化しよう」)。 Actio タ�
 - **除外する情報**: タスクの id・タイトル・説明・要件・担当者 (id / 名前)・fingerprint は出さない。 件数と、
   スプリントの id / 名前 / ゴール / 日付 / 容量 / revision だけを返す。 チームの id / 名前は Cc 同期キャッシュ由来。
 - 書き込みはしない。 集計はリクエストごとに行い、 キャッシュしない。
+
+### 6.5 改名とチーム割り当てをタスクへ波及させる
+
+Concordia `spec/faq/actio-cc-task-project-sync.md` §4.2 の Actio 側。 Actio タスク参照: `actio:1b5567ad-f9a6-4436-ab03-fd6927c599c6`。
+Cc の project_codes が正本で、 Actio はプロジェクトを持つタスクの参照を追従させる。
+
+| 変化 | 判定 (`modules/task/team/cc-project-plan.ts`) | タスクへの反映 |
+|---|---|---|
+| code の改名 | Cc 応答の `entries[].renamed_from` (文字列か文字列配列) にある旧 code。 旧 code が Cc にまだ登録されていれば付け替えない。 code は大文字小文字を区別する | `project_id = 旧 code` のタスクを新 code へ付け替える |
+| チーム割り当て | 同期前の `project_refs.team_ids` と比べて変わり、 かつチームが 1 つになったプロジェクト (未登録の code は「チーム無し」から変わったとみなす) | `project_id = code` で `team_id` と `sprint_id` が空のタスクにそのチームを付ける |
+
+- `renamed_from` は任意項目。 無い・形が違うときは付け替えをせず、 従来どおり旧 code に `removed_at` を付けるだけ (同期は止めない)。
+- チームが複数のプロジェクト (Cr / KD など) は、 どのチームか決められないので触らない。 チームが外れたときも既存タスクは触らない。
+- 反映の順序は「付け替え → チーム付与 → `project_refs` の upsert → `removed_at`」(`cc-project-apply.ts`)。
+  `project_refs` を最後に書くので、 途中で失敗しても次の tick で同じ差分を検出してやり直す。
+- 同期結果 (`syncProjectsFromCc`) は `renamedTasks` / `teamBoundTasks` に件数を返す。 タスクの `updated_at` は更新する。
+
+### 6.6 既存のずれを直す移行 (dry-run 既定)
+
+§6.5 は Cc 側の「変化」しか波及させないので、 それ以前から残るずれ (Concordia FAQ §5 の M2 / M3) は
+`scripts/cc-project-backfill.ts` で一覧にしてから人が承認して直す。
+
+- 計画は純粋関数 `modules/task/team/cc-project-backfill-plan.ts`。 入力は Actio `GET /api/projects/cc` と
+  `GET /api/tasks?scope=all&kind=all`、 改名は Cc の `renamed_from` と `--rename OLD=NEW` 引数。
+- 出力 (`logs/cc-project-backfill-<時刻>.json`、 `--out` で変更) は `renames` (M2) / `teamBindings` (M3、 チーム 1 つ) /
+  `multiTeam` (M3、 チーム複数で人が選ぶ) の 3 一覧。 スプリントに入っているタスクと `team_id` があるタスクは対象外。
+- 既定は dry-run。 `--apply` のときだけ Actio API (`PATCH /api/tasks/:id`) で反映する。 DB へ直接は書かない。
 
 ## 7. DB migration
 

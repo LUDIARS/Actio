@@ -2506,6 +2506,35 @@ export const taskRepo = {
     await db.update(schema.tasks).set(fields).where(eq(schema.tasks.id, id));
     notifyTaskWrite();
   },
+
+  /** Cc の code 改名に追従する (task-integration §6.5)。 付け替えた件数を返す。 */
+  async reassignProject(fromCode: string, toCode: string): Promise<number> {
+    const rows = await db.select({ id: schema.tasks.id }).from(schema.tasks).where(eq(schema.tasks.projectId, fromCode));
+    if (rows.length === 0) return 0;
+    await db.update(schema.tasks)
+      .set({ projectId: toCode, updatedAt: new Date() })
+      .where(inArray(schema.tasks.id, rows.map((row: { id: string }) => row.id)));
+    notifyTaskWrite();
+    return rows.length;
+  },
+
+  /**
+   * プロジェクトへのチーム割り当てを teamId 空のタスクへ反映する (task-integration §6.5)。
+   * スプリントはチーム単位なので、 スプリントに入っているタスクは対象外。 付けた件数を返す。
+   */
+  async bindTeamToProjectTasks(projectCode: string, teamId: string): Promise<number> {
+    const rows = await db.select({ id: schema.tasks.id }).from(schema.tasks).where(and(
+      eq(schema.tasks.projectId, projectCode),
+      isNull(schema.tasks.teamId),
+      isNull(schema.tasks.sprintId),
+    ));
+    if (rows.length === 0) return 0;
+    await db.update(schema.tasks)
+      .set({ teamId, updatedAt: new Date() })
+      .where(and(inArray(schema.tasks.id, rows.map((row: { id: string }) => row.id)), isNull(schema.tasks.teamId)));
+    notifyTaskWrite();
+    return rows.length;
+  },
 };
 
 // ─── Task Category Repository (Memoria 個人タスク移植) ────────
@@ -2625,6 +2654,11 @@ export const projectRefRepo = {
 
   async listActive(): Promise<ProjectRef[]> {
     return db.select().from(schema.projectRefs).where(isNull(schema.projectRefs.removedAt)).orderBy(schema.projectRefs.code);
+  },
+
+  /** 同期前の team_ids を比べるため、 removed_at 付きも含めて全件を読む。 */
+  async listAll(): Promise<ProjectRef[]> {
+    return db.select().from(schema.projectRefs).orderBy(schema.projectRefs.code);
   },
 
   /** team_ids は JSON 列で方言ごとに包含演算子が違うため、 件数の少ないキャッシュを JS で絞る。 */

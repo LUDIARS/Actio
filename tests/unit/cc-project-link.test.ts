@@ -11,10 +11,22 @@ describe("parseCcProjects", () => {
       ],
     });
     expect(parsed).toEqual([
-      { code: "At", name: "Actio", teamIds: ["t1"] },
-      { code: "Mm", name: "Memoria", teamIds: [] },
+      { code: "At", name: "Actio", teamIds: ["t1"], renamedFrom: [] },
+      { code: "Mm", name: "Memoria", teamIds: [], renamedFrom: [] },
     ]);
     expect(JSON.stringify(parsed)).not.toContain("github");
+  });
+
+  it("reads renamed_from as an optional string or string list", () => {
+    const parsed = parseCcProjects({
+      entries: [
+        { code: "LP", project: "Ludellus-Praeforma", renamed_from: ["LwP", "LwP", "LP", "bad code", 3] },
+        { code: "Ab", project: "Single", renamed_from: "Aa" },
+        { code: "Ac", project: "Odd", renamed_from: { code: "Old" } },
+        { code: "Ad", project: "Null", renamed_from: null },
+      ],
+    });
+    expect(parsed?.map((project) => project.renamedFrom)).toEqual([["LwP"], ["Aa"], [], []]);
   });
 
   it("rejects malformed payloads as a whole", () => {

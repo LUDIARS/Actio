@@ -1,6 +1,6 @@
 {
   "service": "actio",
-  "include": ["src/**/*.ts"],
+  "include": ["src/**/*.ts", "modules/task/team/*.ts"],
   "exclude": ["**/*.test.ts"],
   "rules": {
     "entry-runtime": false,

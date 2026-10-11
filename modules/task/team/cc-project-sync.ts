@@ -4,17 +4,18 @@
  * チーム同期と同じ tick で Cc `GET /v1/project-codes/admin` を読み、 `project_refs` へ upsert する。
  * - 保存するのは code / name / team_ids だけ。 repo_origin / repo_path は保存しない。
  * - Cc から消えた code は削除せず removed_at を付ける (既存タスクの参照を壊さない)。
+ * - renamed_from の付け替えと team_ids 変更のタスクへの反映は cc-project-apply.ts (§6.5)。 renamed_from が無ければ付け替えない。
  * - CONCORDIA_URL 未設定は skip + 警告ログ、 Cc 不達はキャッシュのまま続行する (チーム同期と同じ扱い)。
  */
 
 import { secretManager } from "../../../src/config/secrets.js";
-import { projectRefRepo } from "../../../src/db/repository.js";
+import { applyCcProjects, type ProjectApplyCounts } from "./cc-project-apply.js";
 import { parseCcProjects } from "./cc-project-parse.js";
 
 const PROJECT_SYNC_TIMEOUT_MS = 10_000;
 
 export type ProjectSyncResult =
-  | { ok: true; synced: number }
+  | ({ ok: true; synced: number } & ProjectApplyCounts)
   | { ok: false; reason: "unconfigured" | "unreachable" | "malformed" | "persistence" };
 
 export async function syncProjectsFromCc(fetchImpl: typeof fetch = fetch): Promise<ProjectSyncResult> {
@@ -40,15 +41,12 @@ export async function syncProjectsFromCc(fetchImpl: typeof fetch = fetch): Promi
     console.warn("[project-sync] Cc /v1/project-codes/admin の応答形が想定外のため同期を skip します");
     return { ok: false, reason: "malformed" };
   }
-  const now = new Date();
+  let counts: ProjectApplyCounts;
   try {
-    for (const project of projects) {
-      await projectRefRepo.upsertFromCc({ code: project.code, name: project.name, teamIds: project.teamIds, syncedAt: now });
-    }
-    await projectRefRepo.markRemovedExcept(projects.map((project) => project.code), now);
+    counts = await applyCcProjects(projects, new Date());
   } catch {
     console.warn("[project-sync] プロジェクトキャッシュの保存に失敗しました。次回 tick で再試行します");
     return { ok: false, reason: "persistence" };
   }
-  return { ok: true, synced: projects.length };
+  return { ok: true, synced: projects.length, ...counts };
 }

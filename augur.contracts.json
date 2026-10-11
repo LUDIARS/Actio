@@ -4,38 +4,38 @@
   "importFrom": "../contract-runtime.js",
   "contracts": [
     {
-      "id": "C-4",
-      "criterion": "C-4 readDeploymentPolicySnapshot(): env-cli 設定と生成経路がなく、Ex の直接起動と単体 Compose を保持する",
-      "symbol": "readDeploymentPolicySnapshot",
-      "file": "contracts/deployment-policy.ts",
-      "module": "contracts/remove-env-cli.contract.ts",
+      "id": "C-5",
+      "criterion": "C-5 parseCcProjects(payload): renamed_from が無い・崩れた値なら従来どおり code/name/team_ids を返し、文字列か文字列配列なら自分以外の旧 code を renamedFrom に入れる",
+      "symbol": "parseCcProjects",
+      "file": "modules/task/team/cc-project-parse.ts",
+      "module": "contracts/cc-project-parse.contract.ts",
       "mode": "observe",
       "sample": 1
     },
     {
-      "id": "C-2",
-      "criterion": "C-2 resolveSecretsFromExcubitor(source): Vault の要求キー部分集合だけをメモリへ返す",
-      "symbol": "resolveSecretsFromExcubitor",
-      "file": "src/config/excubitor/secret-agent-client.ts",
-      "module": "contracts/vault-secret-response.contract.ts",
+      "id": "C-6",
+      "criterion": "C-6 planProjectRenames(projects): Cc にまだ登録されている code は付け替えず、それ以外の renamed_from を旧 code → 新 code の組にする",
+      "symbol": "planProjectRenames",
+      "file": "modules/task/team/cc-project-plan.ts",
+      "module": "contracts/cc-project-rename-plan.contract.ts",
       "mode": "observe",
       "sample": 1
     },
     {
-      "id": "C-3",
-      "criterion": "C-3 parseSecretSource(keys): キー指定だけを受理しローカル設定を拒否する",
-      "symbol": "parseSecretSource",
-      "file": "src/config/secret-source.ts",
-      "module": "contracts/vault-secret-source.contract.ts",
+      "id": "C-7",
+      "criterion": "C-7 planTeamBindings(projects, previous): team_ids が変わってチームが 1 つになったプロジェクトだけを teamId 空タスクの付与対象にし、複数チームは触らない",
+      "symbol": "planTeamBindings",
+      "file": "modules/task/team/cc-project-plan.ts",
+      "module": "contracts/cc-project-team-plan.contract.ts",
       "mode": "observe",
       "sample": 1
     },
     {
-      "id": "C-1",
-      "criterion": "C-1 shouldSyncSchema(input): ローカルモードでは同期せず info でスキップし、公開配備で CERNERE_URL があり client id / secret が欠けるときは throw せず warn でスキップし、URL・id・secret が揃った公開配備でだけ同期する",
-      "symbol": "shouldSyncSchema",
-      "file": "src/plugins/schema-sync-policy.ts",
-      "module": "contracts/should-sync-schema.contract.ts",
+      "id": "C-8",
+      "criterion": "C-8 planProjectBackfill(tasks, projects, renames): 既存データの付け替えとチーム付与を一覧にし、複数チームのプロジェクトは人が選ぶ一覧へ分ける",
+      "symbol": "planProjectBackfill",
+      "file": "modules/task/team/cc-project-backfill-plan.ts",
+      "module": "contracts/cc-project-backfill-plan.contract.ts",
       "mode": "observe",
       "sample": 1
     }
