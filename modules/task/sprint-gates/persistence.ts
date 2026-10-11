@@ -4,11 +4,11 @@ import { sprintPhaseFingerprint, type SprintPhaseState, type SprintPhaseSnapshot
 import { PlanningError } from "../planning/contracts.js";
 import { one, exec, type Program } from "./query.js";
 import type { GateRow, Projection } from "./contracts.js";
+import { dialogueSummary } from "./dialogue-summary.js";
 export function projection(teamId: string, state: SprintPhaseState, snapshot: SprintPhaseSnapshot, reason: string): Projection {
     const current = snapshot.sprint;
-    const next = snapshot.nextPlan;
     return { version: 1, dialogueKey: dialogueKey(teamId, current.id), teamId, sprintId: current.id, sprintName: current.name, phase: state.phase, revision: state.revision, sourceFingerprint: state.sourceFingerprint, held: state.held, closed: current.status === "closed", reason,
-        summary: boundedSummary([current.goal ?? "", `期間: ${current.startsOn} ～ ${current.endsOn} / 容量: ${current.capacityMinutes ?? "未設定"} 分`, ...snapshot.tasks.map(t => `[${t.status}] ${t.id}: ${t.title}`), `振り返り: ${snapshot.retrospective || "未記入"}`, next ? `次計画: ${next.sprint.name} / ${next.sprint.goal ?? "未設定"} / ${next.sprint.startsOn} ～ ${next.sprint.endsOn} / ${next.sprint.capacityMinutes ?? "未設定"} 分 / ${next.tasks.map(t => t.id + ": " + t.title).join("; ")}` : "次計画: 未選択"].join("\n")), taskIds: snapshot.tasks.map(t => t.id), actioPath: `/tasks/planning?teamId=${encodeURIComponent(teamId)}&sprintId=${encodeURIComponent(current.id)}` };
+        summary: boundedSummary(dialogueSummary(snapshot)), taskIds: snapshot.tasks.map(t => t.id), actioPath: `/tasks/planning?teamId=${encodeURIComponent(teamId)}&sprintId=${encodeURIComponent(current.id)}` };
 }
 export function dialogueKey(teamId: string, sprintId: string): string { return `actio:${teamId}:${sprintId}`; }
 export function* persist(row: GateRow, state: SprintPhaseState, snapshot: SprintPhaseSnapshot, action: string, actor: string | null, reason: string, now: Date, eventId: string = randomUUID()): Program<void> {
