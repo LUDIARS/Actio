@@ -4,6 +4,7 @@ import { initialSprintPhase, sprintPhaseState, type SprintPhaseState, type Sprin
 import { PlanningError } from "../planning/contracts.js";
 import { one, all, exec, type Program } from "./query.js";
 import type { GateRow, GateTask, GateSnapshot } from "./contracts.js";
+import { toEpochSeconds } from "./db-time.js";
 const sprintFields = "id, team_id AS teamId, name, goal, starts_on AS startsOn, ends_on AS endsOn, original_ends_on AS originalEndsOn, cadence_days AS cadenceDays, buffer_ends_on AS bufferEndsOn, status, capacity_minutes AS capacityMinutes, revision";
 export function* loadSprint(teamId: string, id: string): Program<Sprint> {
     const row = yield* one<Sprint>(`SELECT ${sprintFields} FROM sprints WHERE team_id = ? AND id = ?`, teamId, id);
@@ -19,7 +20,8 @@ export function* loadTasks(teamId: string, id: string): Program<GateTask[]> {
     }>(`SELECT t.id,t.team_id AS teamId,t.title,t.description,t.requirements,t.status,t.priority,t.assignee_id AS assigneeId,t.project_id AS projectId,t.deadline,t.estimated_minutes AS estimatedMinutes,t.sprint_id AS sprintId,t.category,NULL AS groupId,0 AS position,t.updated_at AS updatedAt,t.completion_evidence AS completionEvidence FROM tasks t WHERE t.sprint_id = ? ORDER BY t.id`, id);
     if (rows.some(t => t.teamId !== teamId))
         throw new PlanningError("スプリントの所属とタスクのチームが一致しません");
-    return rows.map(({ teamId: _team, completionEvidence, ...task }) => {
+    return rows.map(({ teamId: _team, completionEvidence, ...raw }) => {
+        const task = { ...raw, deadline: toEpochSeconds(raw.deadline), updatedAt: toEpochSeconds(raw.updatedAt) };
         const evidence = completionEvidence == null ? null : typeof completionEvidence === "string" ? completionEvidence : JSON.stringify(completionEvidence);
         return { ...task, completionEvidence: evidence, fingerprint: createHash("sha256").update(JSON.stringify({ ...task, completionEvidence: evidence })).digest("hex") };
     });
