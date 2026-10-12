@@ -17,7 +17,7 @@ export function* loadTasks(teamId: string, id: string): Program<GateTask[]> {
     const rows = yield* all<Omit<BacklogTask, "fingerprint"> & {
         teamId: string;
         completionEvidence: unknown;
-    }>(`SELECT t.id,t.team_id AS teamId,t.title,t.description,t.requirements,t.status,t.priority,t.assignee_id AS assigneeId,t.project_id AS projectId,t.deadline,t.estimated_minutes AS estimatedMinutes,t.sprint_id AS sprintId,t.category,NULL AS groupId,0 AS position,t.updated_at AS updatedAt,t.completion_evidence AS completionEvidence FROM tasks t WHERE t.sprint_id = ? ORDER BY t.id`, id);
+    }>(`SELECT t.id,t.team_id AS teamId,t.title,t.description,t.requirements,t.status,t.priority,t.assignee_id AS assigneeId,t.project_id AS projectId,t.deadline,t.estimated_minutes AS estimatedMinutes,t.sprint_id AS sprintId,t.category,t.executor_type AS executorType,NULL AS groupId,0 AS position,t.updated_at AS updatedAt,t.completion_evidence AS completionEvidence FROM tasks t WHERE t.sprint_id = ? ORDER BY t.id`, id);
     if (rows.some(t => t.teamId !== teamId))
         throw new PlanningError("スプリントの所属とタスクのチームが一致しません");
     return rows.map(({ teamId: _team, completionEvidence, ...raw }) => {

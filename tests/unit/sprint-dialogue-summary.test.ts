@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { SprintPhaseSnapshot } from "@ludiars/terpsichore";
-import { dialogueSummary, taskBullet } from "../../modules/task/sprint-gates/dialogue-summary.js";
+import { dialogueSummary, humanMarks, taskBullet } from "../../modules/task/sprint-gates/dialogue-summary.js";
 
 type Task = SprintPhaseSnapshot["tasks"][number];
 const sprint = { id: "sprint-1", teamId: "team", name: "Sprint 1", goal: "ゴール", startsOn: "2026-10-12", endsOn: "2026-10-25", originalEndsOn: "2026-10-25", bufferEndsOn: "2026-10-27", cadenceDays: 14, status: "planning" as const, capacityMinutes: null, revision: 5 };
@@ -29,6 +29,20 @@ describe("sprint dialogue summary", () => {
         const next = { sprint: { ...sprint, id: "sprint-2", name: "Sprint 2" }, tasks: [task("b", "次の作業", "Lw")], complete: true };
         const text = dialogueSummary(snapshot([task("a", "今の作業", "Lw", "done")], { retrospective: "  良かった  ", nextPlan: next }));
         expect(text).toBe("- 今の作業 (Lw・完了)\n\n振り返り:\n良かった\n\n次スプリント Sprint 2 のタスク:\n- 次の作業 (Lw・未着手)");
+    });
+    it("emphasizes tasks that need a human to work or confirm", () => {
+        const human = { ...task("h", "QUIC realtime の本番起動", "Ll"), executorType: "human" };
+        const review = { ...task("r", "動作確認", "Lw"), executorType: "ai", category: "確認作業" };
+        const both = { ...task("b", "実機で疎通確認", "Ln"), executorType: "human", category: "確認作業" };
+        const ai = { ...task("a", "CMake CI", "Ln"), executorType: "ai", category: "実装" };
+        expect(humanMarks(human)).toEqual(["人の作業"]);
+        expect(humanMarks(ai)).toEqual([]);
+        expect(dialogueSummary(snapshot([human, review, both, ai]))).toBe([
+            "- **【人の作業】QUIC realtime の本番起動** (Ll・未着手)",
+            "- **【確認】動作確認** (Lw・未着手)",
+            "- **【人の作業・確認】実機で疎通確認** (Ln・未着手)",
+            "- CMake CI (Ln・未着手)",
+        ].join("\n"));
     });
     it("says so when the sprint has no tasks", () => {
         expect(dialogueSummary(snapshot([]))).toBe("- (タスクなし)");

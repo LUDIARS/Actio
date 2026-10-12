@@ -13,11 +13,24 @@ function shortTitle(title: string): string {
     return trimmed.length <= TITLE_LIMIT ? trimmed : trimmed.slice(0, TITLE_LIMIT - 1) + "…";
 }
 
-/** 1 タスク 1 行。ID は出さず、題名・プロジェクト・状態だけを見せる。 */
+/** 人の手が要る理由。実行者が人間なら「人の作業」、カテゴリが確認作業なら「確認」。 */
+export function humanMarks(task: SnapshotTask): string[] {
+    const marks: string[] = [];
+    if (task.executorType === "human") marks.push("人の作業");
+    if (task.category?.includes("確認")) marks.push("確認");
+    return marks;
+}
+
+/**
+ * 1 タスク 1 行。ID は出さず、題名・プロジェクト・状態だけを見せる。
+ * 人の作業・確認が要るタスクは【】の印を付けて太字にし、AI で進むタスクと見分けられるようにする。
+ */
 export function taskBullet(task: SnapshotTask): string {
     const status = STATUS_LABELS[task.status] ?? task.status;
     const meta = [task.projectId, status].filter(Boolean).join("・");
-    return `- ${shortTitle(task.title)} (${meta})`;
+    const marks = humanMarks(task);
+    if (marks.length === 0) return `- ${shortTitle(task.title)} (${meta})`;
+    return `- **【${marks.join("・")}】${shortTitle(task.title)}** (${meta})`;
 }
 
 /**
