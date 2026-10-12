@@ -15,9 +15,19 @@ Actio が計画・実装・受入確認・振り返り・次計画の正本を�
 
 ## スプリントフェーズの本人認証
 
-直接 API は Cernere の人間セッションを要求する。api_client の X-Decided-By、anonymous、actio-local / local mode は人間の承認証跡に使わない。閲覧は既存チーム member 権限に従う。
+直接 API は Cernere の人間セッションを要求する。api_client の X-Decided-By、anonymous、actio-local / local mode は人間の承認証跡に使わない (Cc 経由の管理者判断は下の節)。閲覧は既存チーム member 権限に従う。
 
 Cc の人間イベントは外部から作成できない Cc キューをポーリングする。Discord 本人 ID は Cernere project WS managed_project.resolve_user_by_claim(claim=discord_id) で逆引きし、Actio の team leader を transaction 内で検証する。Cernere 管理者が Actio project の identity_claims に discord_id を許可する必要がある。未連携・資格情報不足・接続不能は明示的な未反映理由と Actio ログイン導線を返す。Actio に Discord ID、表示名、トークンを保管しない。
+
+### Cc 管理者の判断 (Cernere で照合できないとき)
+
+Cernere で本人を照合できない (未連携・資格情報不足・接続不能) Discord 判断でも、その Discord ID が設定 `ACTIO_SPRINT_CC_ADMINS` (`別名:DiscordユーザーID` のカンマ区切り) に載っていれば、管理者の判断として反映する (neco 指示 2026-10-12「管理者が Discord の Cc で OK を出したら始まる」)。
+
+- 根拠: Discord の本人 ID を確定するのは Cc で、判断イベントのキューは外部から書けない。Actio は Cc が付けた Discord ID を設定と照合するだけ。
+- 主体は `cc-admin:<別名>` として記録し、team leader 行は要求しない (Actio 管理者と同じ扱い)。Discord ID は設定にだけ置き、DB に保存しない。
+- 設定は秘密ではないが個人に結び付く値なので、catalog (リポジトリ) ではなく Excubitor の runtime config / Vault で注入する。
+- 書式が 1 つでも不正なら一覧全体を無効にする (fail closed)。Cernere で照合できた人は従来どおり leader 検証を通る。
+- 照合できず管理者でもない判断は、従来どおり理由付きで拒否する。
 
 ## スプリントフェーズの永続化と復旧
 

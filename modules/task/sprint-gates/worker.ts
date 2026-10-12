@@ -3,10 +3,13 @@ import type { SprintGateStore } from "./store.js";
 import type { CcEvent, Projection, DecisionOutcome } from "./contracts.js";
 import { dialogueKey } from "./persistence.js";
 import { SprintDialogueClient } from "./concordia-client.js";
+import { ccAdminActor, type CcAdmins } from "./cc-admins.js";
 export interface GateCycleDependencies {
     store: Pick<SprintGateStore, "eventOutcome" | "rejectExternal" | "decide" | "candidates" | "view" | "pending" | "delivery">;
     concordia: () => SprintDialogueClient;
     resolveIdentity: (discordUserId: string) => Promise<string | null>;
+    /** Cernere で本人を照合できないとき、Cc の Discord 判断を管理者として受け付ける相手 (Discord ID → 別名)。 */
+    ccAdmins?: CcAdmins;
     now: () => Date;
     signal: AbortSignal;
     warn: (message: string) => void;
@@ -20,17 +23,28 @@ async function handleEvent(deps: GateCycleDependencies, event: CcEvent): Promise
     const reject = (reason: string) => deps.store.rejectExternal(event.teamId, event.sprintId, "cc:" + event.eventId, reason, deps.now());
     if (event.dialogueKey !== dialogueKey(event.teamId, event.sprintId))
         return reject("会話の対象が一致しません。Actio の最新フェーズを確認してください");
+    const decision = { eventId: "cc:" + event.eventId, action: event.action, expectedRevision: event.revision, sourceFingerprint: event.sourceFingerprint, reason: event.reason, taskIds: event.taskIds };
     let actor: string | null;
+    let identityError: string | null = null;
     try {
         actor = await deps.resolveIdentity(event.actor.discordUserId);
     }
     catch {
-        return reject("Cernere の本人照合を利用できません。Actio にログインして /tasks/planning から判断してください（接続設定・identity_claims の discord_id 宣言を確認）");
+        actor = null;
+        identityError = "Cernere の本人照合を利用できません。Actio にログインして /tasks/planning から判断してください（接続設定・identity_claims の discord_id 宣言を確認）";
     }
-    if (!actor)
-        return reject("Discord と Cernere の本人連携を確認できません。Actio にログインして /tasks/planning から判断してください");
-    deps.signal.throwIfAborted();
-    return deps.store.decide(event.teamId, event.sprintId, actor, { eventId: "cc:" + event.eventId, action: event.action, expectedRevision: event.revision, sourceFingerprint: event.sourceFingerprint, reason: event.reason, taskIds: event.taskIds }, deps.now(), true);
+    if (actor) {
+        deps.signal.throwIfAborted();
+        return deps.store.decide(event.teamId, event.sprintId, actor, decision, deps.now(), true);
+    }
+    // Cc owns the Discord identity and its event queue cannot be written from outside, so a configured
+    // administrator's answer is accepted as an administrator decision (no team leader row required).
+    const adminAlias = deps.ccAdmins?.get(event.actor.discordUserId);
+    if (adminAlias) {
+        deps.signal.throwIfAborted();
+        return deps.store.decide(event.teamId, event.sprintId, ccAdminActor(adminAlias), decision, deps.now(), false);
+    }
+    return reject(identityError ?? "Discord と Cernere の本人連携を確認できません。Actio にログインして /tasks/planning から判断してください");
 }
 /** Recoverable owner: phase/state commit precedes external delivery, event outcome precedes ack. */
 export async function runSprintGateCycle(deps: GateCycleDependencies): Promise<void> {
