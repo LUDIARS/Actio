@@ -11,7 +11,7 @@
       "pathPattern": "(^|/)modules/task/planning/(?!project-sprint-summary\\.ts$).*\\.ts$"
     },
     {
-      "pathPattern": "(^|/)tests/unit/(?:sprint-gate-(?:store|worker|routes)|planning-store)\\.test\\.ts$"
+      "pathPattern": "(^|/)tests/unit/(?:sprint-gate-(?:store|worker|routes|db-time|cc-admin)|sprint-dialogue-summary|planning-store)\\.test\\.ts$"
     }
   ],
   "specRefs": [

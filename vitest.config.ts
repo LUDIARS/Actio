@@ -1,6 +1,13 @@
+import { fileURLToPath } from "node:url";
 import { defineConfig } from "vitest/config";
 
 export default defineConfig({
+  resolve: {
+    // The in-repo Terpsichore package exports only its built dist, which `npm test` builds in
+    // `pretest`. Revisor/Augur run vitest directly on registered files without that step, so the
+    // tests read the package source instead and never depend on a stale or missing dist.
+    alias: [{ find: /^@ludiars\/terpsichore$/, replacement: fileURLToPath(new URL("./lib/terpsichore/src/index.ts", import.meta.url)) }],
+  },
   test: {
     globals: true,
     environment: "node",

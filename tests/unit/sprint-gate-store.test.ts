@@ -18,7 +18,7 @@ beforeEach(() => {
     db.pragma("foreign_keys=ON");
     db.exec(`CREATE TABLE team_refs(id TEXT PRIMARY KEY);INSERT INTO team_refs VALUES('team');
  CREATE TABLE team_members(team_id TEXT,user_id TEXT,role TEXT);INSERT INTO team_members VALUES('team','leader','leader');
- CREATE TABLE tasks(id TEXT PRIMARY KEY,team_id TEXT,sprint_id TEXT,title TEXT,description TEXT,requirements TEXT,status TEXT,priority TEXT,assignee_id TEXT,project_id TEXT,deadline INTEGER,estimated_minutes INTEGER,category TEXT,updated_at INTEGER,lane TEXT DEFAULT 'backlog',created_at INTEGER,carried_from_sprint_id TEXT,completion_evidence TEXT);
+ CREATE TABLE tasks(id TEXT PRIMARY KEY,team_id TEXT,sprint_id TEXT,title TEXT,description TEXT,requirements TEXT,status TEXT,priority TEXT,assignee_id TEXT,project_id TEXT,deadline INTEGER,estimated_minutes INTEGER,category TEXT,executor_type TEXT NOT NULL DEFAULT 'human',updated_at INTEGER,lane TEXT DEFAULT 'backlog',created_at INTEGER,carried_from_sprint_id TEXT,completion_evidence TEXT);
  `);
     migratePlanning(db);
     sprints = new SprintStore(db);
