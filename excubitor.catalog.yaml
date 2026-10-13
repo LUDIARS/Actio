@@ -43,8 +43,12 @@ services:
     port: 17881
     repo: LUDIARS/Actio
     runtime: node
-    cwd: ${ARS_ROOT}/Actio/frontend
-    command: node node_modules/vite/bin/vite.js preview --strictPort
+    cwd: ${ARS_ROOT}/Actio
+    # 常駐は事前コンパイルした JS 1 本 (vite preview は使わない)。frontend/dist を配信し、
+    # /api・/ws・/.well-known を actio へ中継する (src/web-server/)。
+    # build_command で backend の dist (web-server を含む) と frontend/dist を起動前に作る。
+    build_command: npm run build && npm --prefix frontend run build
+    command: node dist/src/web-server/main.js
     depends_on: [actio]
     autostart: false
     restart_policy: "no"
@@ -60,7 +64,7 @@ services:
       NODE_ENV: production
       ACTIO_LOCAL_MODE: "1"
       ACTIO_CLOUDFLARE_ENABLED: "1"
-      # Vite accepts this public host in local mode (the backend does the Access verification).
+      # The web server accepts this public host in local mode (the backend does the Access verification).
       ACTIO_CF_PUBLIC_ORIGIN: https://actio.ai-run-do.com
     provides:
       ACTIO_FRONTEND_URL: http://127.0.0.1:${port}

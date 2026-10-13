@@ -41,8 +41,9 @@ services:
     component: frontend
     repo: LUDIARS/Actio
     runtime: node
-    cwd: ${ARS_ROOT}/Actio/frontend
-    command: node node_modules/vite/bin/vite.js preview --host 127.0.0.1 --port 17881 --strictPort
+    cwd: ${ARS_ROOT}/Actio
+    build_command: npm run build && npm --prefix frontend run build
+    command: node dist/src/web-server/main.js
     port: 17881
     provides:
       ACTIO_FRONTEND_URL: http://127.0.0.1:${port}

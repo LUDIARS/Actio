@@ -38,6 +38,33 @@
       "module": "contracts/cc-project-backfill-plan.contract.ts",
       "mode": "observe",
       "sample": 1
+    },
+    {
+      "id": "C-9",
+      "criterion": "C-9 resolveStaticPath(distDir, pathname): dist 配下のファイルだけを返し、拡張子の無いパスは index.html へフォールバックし、dist の外へ出るパスは null を返す",
+      "symbol": "resolveStaticPath",
+      "file": "src/web-server/static-files.ts",
+      "module": "contracts/web-static-path.contract.ts",
+      "mode": "observe",
+      "sample": 1
+    },
+    {
+      "id": "C-10",
+      "criterion": "C-10 isAllowedHost(host, allowed): loopback と設定した公開 host だけを受け付け、Host の無い要求は拒否する (vite preview の allowedHosts と同じ)",
+      "symbol": "isAllowedHost",
+      "file": "src/web-server/host-guard.ts",
+      "module": "contracts/web-host-guard.contract.ts",
+      "mode": "observe",
+      "sample": 1
+    },
+    {
+      "id": "C-11",
+      "criterion": "C-11 isProxiedPath(pathname): /api・/ws・/.well-known だけを actio 本体へ中継し、それ以外は静的配信にする",
+      "symbol": "isProxiedPath",
+      "file": "src/web-server/proxy.ts",
+      "module": "contracts/web-proxy-route.contract.ts",
+      "mode": "observe",
+      "sample": 1
     }
   ]
 }

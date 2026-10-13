@@ -81,10 +81,13 @@ neco 2026-09-26 指示「Actio のチームに既存のチームを登録しよ�
 - Cc service 経路 (api_client + `X-Decided-By`) は対象外で、従来どおり `team_members` で判定する。
 - admin のバイパス (`userRole=admin`) とは別枠。持ち主のロールは `general` のままで、チーム以外の admin 機能は開かない。
 
-## 5. Vite (actio-web)
+## 5. 静的配信サーバ (actio-web)
 
-- ローカルモードでも `ACTIO_CF_PUBLIC_ORIGIN` のホストを `allowedHosts` に加える。
-- backend への proxy は Host と Cloudflare ヘッダーを保ったまま転送する (既存の `changeOrigin: false`)。
+actio-web は vite preview ではなく、事前コンパイルした `node dist/src/web-server/main.js` 1 本で `frontend/dist` を配信する (AIFormat RULE_TECH_STACK.md「常駐プロセスの起動形」)。Cloudflare のルート (`→ 127.0.0.1:17881`) と `ACTIO_FRONTEND_URL` を変えないため、actio 本体へは統合せず別ポートのまま置く。
+
+- ローカルモードでも `ACTIO_CF_PUBLIC_ORIGIN` のホストを許可ホストに加える (loopback・IP 直指定・`VITE_ALLOWED_HOSTS`・`LUDIARS_ALLOWED_HOSTS` と合わせて、それ以外の Host は 403)。
+- `/api`・`/ws` (WebSocket)・`/.well-known` を backend へ中継する。ローカルモードでは Host と Cloudflare ヘッダーを保ったまま転送し、それ以外では Host を backend に書き換える (vite の `changeOrigin` と同じ)。
+- 静的ファイルは 実ファイル → `<path>.html` → `<path>/index.html` → 拡張子の無いパスは `index.html` の順で解決し、dist の外へ出るパスは 404 にする。
 
 ## 6. 公開の手順 (人間 / 共有インフラ側)
 
