@@ -14,7 +14,7 @@
       "pathPattern": "(^|/)src/shared/(?:.*/)?[^/]+$"
     },
     {
-      "pathPattern": "(^|/)src/(?:index|app|bootstrap|activity-logger|service-adapter)\\.ts$"
+      "pathPattern": "(^|/)src/(?:index|app|bootstrap|activity-logger|service-adapter|contract-runtime)\\.ts$"
     },
     {
       "pathPattern": "(^|/)tests?/(?:.*/)?[^/]+$"

@@ -2,6 +2,7 @@
   "version": 1,
   "contractsDir": "contracts",
   "importFrom": "../contract-runtime.js",
+  "runtimeFile": "src/contract-runtime.ts",
   "contracts": [
     {
       "id": "C-5",
