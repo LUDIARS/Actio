@@ -327,6 +327,13 @@
       "contracts": [
         "AT-PM-SECRET"
       ]
+    },
+    {
+      "source": "src/lib/connection-drop-guard.ts",
+      "tests": [
+        "tests/unit/connection-drop-guard.test.ts"
+      ],
+      "contracts": []
     }
   ]
 }

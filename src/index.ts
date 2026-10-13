@@ -3,12 +3,17 @@ import { logger } from "hono/logger";
 import { install as installVestigium } from "@ludiars/vestigium";
 import { secretManager, initSecrets } from "./config/secrets.js";
 import { resolveBackendPort } from "./config/service-endpoints.js";
+import { installConnectionDropGuard } from "./lib/connection-drop-guard.js";
 
 const vestigium = installVestigium({
   serviceCode: "actio",
   captureConsole: true,
   pinoTransport: false,
 });
+
+// 依存先 (PostgreSQL / Redis / 外部 fetch) の接続断を、処理されない Promise のまま
+// プロセス終了にしない。接続断以外の unhandledRejection は従来どおり落とす。
+installConnectionDropGuard(process);
 
 // Load injected secrets and encrypted local settings before application imports.
 await initSecrets();

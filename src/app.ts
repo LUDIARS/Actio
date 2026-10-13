@@ -340,6 +340,11 @@ export function createApp() {
       health.redis_error = err instanceof Error ? err.message : String(err);
     }
 
+    // 処理されないまま受け止めた接続断。落ちずに続行した事実と、どの接続断かを見せる。
+    const { lastConnectionDrop } = await import("./lib/connection-drop-guard.js");
+    const drop = lastConnectionDrop();
+    if (drop) health.last_connection_drop = drop;
+
     const statusCode = health.status === "ok" ? 200 : 503;
     return c.json(health, statusCode);
   };
