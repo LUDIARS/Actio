@@ -334,6 +334,183 @@
         "tests/unit/connection-drop-guard.test.ts"
       ],
       "contracts": []
+    },
+    {
+      "source": "modules/public-issues/types.ts",
+      "tests": [
+        "tests/unit/public-issues-view.test.ts",
+        "tests/unit/public-issues-routes.test.ts"
+      ],
+      "contracts": [
+        "AT-PUBLIC-ISSUES"
+      ]
+    },
+    {
+      "source": "modules/public-issues/public-view.ts",
+      "tests": [
+        "tests/unit/public-issues-view.test.ts",
+        "tests/unit/public-issues-routes.test.ts"
+      ],
+      "contracts": [
+        "AT-PUBLIC-ISSUES"
+      ]
+    },
+    {
+      "source": "modules/public-issues/cc-public-parse.ts",
+      "tests": [
+        "tests/unit/public-issues-cc-client.test.ts"
+      ],
+      "contracts": [
+        "AT-PUBLIC-ISSUES"
+      ]
+    },
+    {
+      "source": "modules/public-issues/cc-public-client.ts",
+      "tests": [
+        "tests/unit/public-issues-cc-client.test.ts"
+      ],
+      "contracts": [
+        "AT-PUBLIC-ISSUES"
+      ]
+    },
+    {
+      "source": "modules/public-issues/ttl-cache.ts",
+      "tests": [
+        "tests/unit/public-issues-cc-client.test.ts"
+      ],
+      "contracts": [
+        "AT-PUBLIC-ISSUES"
+      ]
+    },
+    {
+      "source": "modules/public-issues/project-code.ts",
+      "tests": [
+        "tests/unit/public-issues-routes.test.ts"
+      ],
+      "contracts": [
+        "AT-PUBLIC-ISSUES"
+      ]
+    },
+    {
+      "source": "modules/public-issues/service.ts",
+      "tests": [
+        "tests/unit/public-issues-routes.test.ts",
+        "tests/api/public-issues.test.ts"
+      ],
+      "contracts": [
+        "AT-PUBLIC-ISSUES"
+      ]
+    },
+    {
+      "source": "modules/public-issues/routes.ts",
+      "tests": [
+        "tests/unit/public-issues-routes.test.ts",
+        "tests/api/public-issues.test.ts"
+      ],
+      "contracts": [
+        "AT-PUBLIC-ISSUES"
+      ]
+    },
+    {
+      "source": "src/auth/local-mode-policy.ts",
+      "tests": [
+        "tests/unit/public-issues-routes.test.ts"
+      ],
+      "contracts": [
+        "AT-PUBLIC-ISSUES"
+      ]
+    },
+    {
+      "source": "src/auth/local-mode.ts",
+      "tests": [
+        "tests/api/public-issues.test.ts"
+      ],
+      "contracts": [
+        "AT-PUBLIC-ISSUES"
+      ]
+    },
+    {
+      "source": "src/app.ts",
+      "tests": [
+        "tests/api/public-issues.test.ts"
+      ],
+      "contracts": [
+        "AT-PUBLIC-ISSUES"
+      ]
+    },
+    {
+      "source": "modules/task/validation/public-issue-fields.ts",
+      "tests": [
+        "tests/unit/public-issue-fields.test.ts",
+        "tests/api/public-issues.test.ts"
+      ],
+      "contracts": [
+        "AT-PUBLIC-ISSUES"
+      ]
+    },
+    {
+      "source": "modules/task/validation/team-task-request.ts",
+      "tests": [
+        "tests/unit/public-issue-fields.test.ts",
+        "tests/api/public-issues.test.ts"
+      ],
+      "contracts": [
+        "AT-PUBLIC-ISSUES"
+      ]
+    },
+    {
+      "source": "modules/task/personal.ts",
+      "tests": [
+        "tests/unit/public-issue-fields.test.ts"
+      ],
+      "contracts": [
+        "AT-PUBLIC-ISSUES"
+      ]
+    },
+    {
+      "source": "modules/task/routes.ts",
+      "tests": [
+        "tests/api/public-issues.test.ts"
+      ],
+      "contracts": [
+        "AT-PUBLIC-ISSUES"
+      ]
+    },
+    {
+      "source": "src/db/issue-kind-migration.ts",
+      "tests": [
+        "tests/unit/public-issue-fields.test.ts"
+      ],
+      "contracts": [
+        "AT-PUBLIC-ISSUES"
+      ]
+    },
+    {
+      "source": "src/db/repository.ts",
+      "tests": [
+        "tests/api/public-issues.test.ts"
+      ],
+      "contracts": [
+        "AT-PUBLIC-ISSUES"
+      ]
+    },
+    {
+      "source": "src/db/schema.ts",
+      "tests": [
+        "tests/api/public-issues.test.ts"
+      ],
+      "contracts": [
+        "AT-PUBLIC-ISSUES"
+      ]
+    },
+    {
+      "source": "frontend/src/lib/public-issues-format.ts",
+      "tests": [
+        "frontend/src/lib/public-issues-format.test.ts"
+      ],
+      "contracts": [
+        "AT-PUBLIC-ISSUES"
+      ]
     }
   ]
 }

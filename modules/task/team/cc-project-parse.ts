@@ -15,7 +15,8 @@ export interface CcProject {
   renamedFrom: string[];
 }
 
-const CODE_PATTERN = /^[A-Za-z0-9._-]{1,64}$/;
+/** Cc のプロジェクトコードの形式。 公開面の `project` 検証でも使う (public-issues/project-code.ts)。 */
+export const CODE_PATTERN = /^[A-Za-z0-9._-]{1,64}$/;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);

@@ -1,4 +1,6 @@
 import { isIP } from "node:net";
+import { contract } from '../contract-runtime.js'; /* augur-inject:import:d0695759 */
+import augurContract_75568ebe from '../../contracts/public-read-boundary.contract.ts'; /* augur-inject:contract-predicate:ef9bba28 */
 
 /** Cloudflare Access 経由を通すための設定 (spec/feature/local-mode-cf-access.md §1)。 */
 export interface CfAccessConfig {
@@ -116,3 +118,15 @@ export function cfAccessAssertion(peer: string | undefined, request: Request, co
   const assertion = request.headers.get("cf-access-jwt-assertion")?.trim();
   return assertion ? assertion : null;
 }
+
+/**
+ * 認証なしで公開する読み取り (パブリックイシュー, spec/feature/public-issues.md §4)。
+ * ローカルモードの境界の外に出すのは、 この一覧の path への GET / HEAD だけ。 書き込みは常に境界の内に残す。
+ */
+const PUBLIC_READ_PATHS: ReadonlySet<string> = new Set(["/api/public/issues"]);
+
+export function isPublicReadRequest(method: string, path: string): boolean {
+  return (method === "GET" || method === "HEAD") && PUBLIC_READ_PATHS.has(path);
+}
+// @ts-expect-error augur-inject
+isPublicReadRequest = contract(isPublicReadRequest, { ...augurContract_75568ebe, contractId: 'C-13', mode: 'observe', sample: 1, where: 'src/auth/local-mode-policy.ts:126', rule: 'contract-wrap', id: '75568ebe' }); /* augur-inject:contract-wrap:75568ebe */

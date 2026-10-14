@@ -9,6 +9,7 @@ import * as schema from "../schema.js";
 import * as curriculumSchema from "../curriculum-schema.js";
 import { secretManager } from "../../config/secrets.js";
 import { migratePlanning } from "../planning-migration.js";
+import { LEGACY_BUG_REPORT_TO_ISSUE_SQL } from "../issue-kind-migration.js";
 
 export { schema, curriculumSchema };
 
@@ -256,9 +257,11 @@ export function createConnection(): { db: ReturnType<typeof drizzle>; sqlite: Sq
   }
   // completedAt 単体 INDEX (velocity Θ_p 集計のフルスキャン回避)
   sqlite.exec(`CREATE INDEX IF NOT EXISTS idx_task_completed_at ON tasks(completed_at)`);
-  for (const statement of ["team_id TEXT", "lane TEXT NOT NULL DEFAULT 'daily'", "sprint_id TEXT", "source TEXT", "source_ref TEXT", "completion_score REAL", "completion_evidence TEXT", "completed_by TEXT", "duration_days INTEGER", "estimate_source TEXT", "deadline_source TEXT", "story_points INTEGER", "blocked_by TEXT NOT NULL DEFAULT '[]'", "carried_from_sprint_id TEXT", "actual_minutes INTEGER NOT NULL DEFAULT 0", "executor_type TEXT NOT NULL DEFAULT 'human'", "ai_executor TEXT", "is_critical_path INTEGER NOT NULL DEFAULT 0", "slack_days REAL", "critical_path_error TEXT", "critical_path_computed_at INTEGER"]) {
+  for (const statement of ["team_id TEXT", "lane TEXT NOT NULL DEFAULT 'daily'", "sprint_id TEXT", "source TEXT", "source_ref TEXT", "completion_score REAL", "completion_evidence TEXT", "completed_by TEXT", "duration_days INTEGER", "estimate_source TEXT", "deadline_source TEXT", "story_points INTEGER", "blocked_by TEXT NOT NULL DEFAULT '[]'", "carried_from_sprint_id TEXT", "actual_minutes INTEGER NOT NULL DEFAULT 0", "executor_type TEXT NOT NULL DEFAULT 'human'", "ai_executor TEXT", "is_critical_path INTEGER NOT NULL DEFAULT 0", "slack_days REAL", "critical_path_error TEXT", "critical_path_computed_at INTEGER", "public_hidden INTEGER NOT NULL DEFAULT 0", "public_summary TEXT"]) {
     try { sqlite.exec(`ALTER TABLE tasks ADD COLUMN ${statement}`); } catch { /* already exists */ }
   }
+  // kind 列が無い古い DB では移す対象が無い (migrate-sqlite で kind を足したあとに移す)
+  try { sqlite.exec(LEGACY_BUG_REPORT_TO_ISSUE_SQL); } catch { /* kind column not yet migrated */ }
   sqlite.exec(`
     CREATE INDEX IF NOT EXISTS idx_task_team ON tasks(team_id);
     CREATE INDEX IF NOT EXISTS idx_task_sprint ON tasks(sprint_id);

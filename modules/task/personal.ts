@@ -10,7 +10,9 @@
 
 import type { Context } from "hono";
 import { getUserId } from "../../src/middleware/getUserId.js";
-import type { TaskStatus } from "../../src/shared/types.js";
+import type { TaskKind, TaskStatus } from "../../src/shared/types.js";
+import { contract } from '../../src/contract-runtime.js'; /* augur-inject:import:ae6e9231 */
+import augurContract_0f35bdc3 from '../../contracts/task-kind.contract.ts'; /* augur-inject:contract-predicate:ff839344 */
 
 /**
  * 認証未配線フェーズの既定オーナー。 Memoria は単一ユーザ運用なので
@@ -51,10 +53,12 @@ export function normalizeStatus(input: unknown): TaskStatus | undefined {
     : undefined;
 }
 
-/** kind の正規化 (task/goal 以外は task 扱い) */
-export function normalizeKind(input: unknown): "task" | "goal" {
-  return input === "goal" ? "goal" : "task";
+/** kind の正規化 (task/goal/issue 以外は task 扱い) */
+export function normalizeKind(input: unknown): TaskKind {
+  return input === "goal" || input === "issue" ? input : "task";
 }
+// @ts-expect-error augur-inject
+normalizeKind = contract(normalizeKind, { ...augurContract_0f35bdc3, contractId: 'C-12', mode: 'observe', sample: 1, where: 'modules/task/personal.ts:55', rule: 'contract-wrap', id: '0f35bdc3' }); /* augur-inject:contract-wrap:0f35bdc3 */
 
 /** creator_type の正規化 (ai 以外は human 扱い) */
 export function normalizeCreatorType(input: unknown): "human" | "ai" {

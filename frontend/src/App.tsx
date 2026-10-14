@@ -23,6 +23,8 @@ import { PMDashboardPage } from "./pages/PMDashboardPage";
 import { PMProjectPage } from "./pages/PMProjectPage";
 import { PMAnalyticsPage } from "./pages/PMAnalyticsPage";
 import { ModuleManagementPage } from "./pages/ModuleManagementPage";
+import { PublicIssuesPage } from "./pages/PublicIssuesPage";
+import { isPublicPath } from "./lib/public-issues-format";
 import { setupApi } from "./lib/api";
 import { registerAllModules } from "./lib/modules";
 import "./global.css";
@@ -84,7 +86,7 @@ function AppRoutes() {
   );
 }
 
-function App() {
+function PrivateApp() {
   const [setupChecking, setSetupChecking] = useState(true);
   const [needsSetup, setNeedsSetup] = useState(false);
 
@@ -120,6 +122,12 @@ function App() {
       </AuthProvider>
     </BrowserRouter>
   );
+}
+
+/** パブリックイシューは認証・初回設定の確認の外で描画する (spec/feature/public-issues.md §4) */
+function App() {
+  if (isPublicPath(window.location.pathname)) return <PublicIssuesPage />;
+  return <PrivateApp />;
 }
 
 export default App;

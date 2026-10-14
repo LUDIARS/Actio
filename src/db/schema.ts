@@ -1123,6 +1123,10 @@ export const tasks = sqliteTable(
     status: text("status").notNull().default("open"),
     /** 種別: task(通常) / goal(長期目標)。 Memoria 個人タスク移植 */
     kind: text("kind").notNull().default("task"),
+    /** kind=issue をパブリックイシューに出さない (spec/feature/public-issues.md) */
+    publicHidden: integer("public_hidden", { mode: "boolean" }).notNull().default(false),
+    /** パブリックイシューに出す要約 (任意)。本文 (description / requirements) は公開しない */
+    publicSummary: text("public_summary"),
     /** 作成主体: human / ai(エージェント委譲)。 Memoria 個人タスク移植 */
     creatorType: text("creator_type").notNull().default("human"),
     /** カテゴリ (カンマ区切り複数可, 例 "開発, 学習")。 Memoria 個人タスク移植 */

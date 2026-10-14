@@ -2469,6 +2469,20 @@ export const taskRepo = {
     return row;
   },
 
+  /** パブリックイシュー: 公開プロジェクトの kind=issue で「公開しない」でないタスク (spec/feature/public-issues.md) */
+  async findPublicIssues(projectCode: string, limit = 500): Promise<Task[]> {
+    return await db.select().from(schema.tasks)
+      .where(and(eq(schema.tasks.projectId, projectCode), eq(schema.tasks.kind, "issue"), eq(schema.tasks.publicHidden, false)))
+      .orderBy(desc(schema.tasks.createdAt))
+      .limit(limit);
+  },
+
+  async findBySourceRefs(source: string, sourceRefs: readonly string[]): Promise<Task[]> {
+    if (sourceRefs.length === 0) return [];
+    return await db.select().from(schema.tasks)
+      .where(and(eq(schema.tasks.source, source), inArray(schema.tasks.sourceRef, [...sourceRefs])));
+  },
+
   async isTeamMember(teamId: string, userId: string): Promise<boolean> {
     const [row] = await db.select({ userId: schema.teamMembers.userId }).from(schema.teamMembers).where(and(eq(schema.teamMembers.teamId, teamId), eq(schema.teamMembers.userId, userId)));
     return row !== undefined;

@@ -416,8 +416,8 @@ export interface EventPlugin {
 
 export type TaskStatus = "open" | "in_progress" | "blocked" | "done" | "cancelled";
 export type TaskPriority = "low" | "medium" | "high" | "critical";
-/** タスク種別: task(通常) / goal(長期目標)。 Memoria 個人タスク移植 */
-export type TaskKind = "task" | "goal";
+/** タスク種別: task(通常) / goal(長期目標) / issue(バグ・不具合・改善要望。パブリックイシューに並ぶ) */
+export type TaskKind = "task" | "goal" | "issue";
 /** 作成主体: human / ai(エージェント委譲)。 Memoria 個人タスク移植 */
 export type TaskCreatorType = "human" | "ai";
 
@@ -432,8 +432,12 @@ export interface CoreTask {
   description: string | null;
   requirements: string | null;
   status: TaskStatus;
-  /** 種別: task / goal */
+  /** 種別: task / goal / issue */
   kind: TaskKind;
+  /** パブリックイシューに出さない (kind=issue のとき) */
+  publicHidden: boolean;
+  /** パブリックイシューに出す要約 (任意。本文は公開しない) */
+  publicSummary: string | null;
   /** 作成主体: human / ai */
   creatorType: TaskCreatorType;
   /** カテゴリ (カンマ区切り複数可) */
@@ -482,8 +486,14 @@ export interface CreateTaskInput {
   story_points?: number | null;
   /** open/in_progress/blocked/done/cancelled。 todo/doing/done エイリアスも受理 */
   status?: TaskStatus | "todo" | "doing";
-  /** 種別: task(既定) / goal */
+  /** 種別: task(既定) / goal / issue */
   kind?: TaskKind;
+  /** パブリックイシューに出さない */
+  publicHidden?: boolean;
+  public_hidden?: boolean;
+  /** パブリックイシューに出す要約 */
+  publicSummary?: string | null;
+  public_summary?: string | null;
   /** 作成主体: human(既定) / ai */
   creatorType?: TaskCreatorType;
   /** 作業者: human(既定) / ai。 creatorType とは別 (task-integration §4) */

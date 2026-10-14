@@ -3,6 +3,7 @@
  * npm run db:init で実行
  */
 import { createConnection } from "./dialects/sqlite.js";
+import { LEGACY_BUG_REPORT_TO_ISSUE_SQL } from "./issue-kind-migration.js";
 
 const { sqlite } = createConnection();
 
@@ -533,7 +534,8 @@ sqlite.exec(`
   CREATE TABLE IF NOT EXISTS adjustment_proposals (id TEXT PRIMARY KEY, team_id TEXT NOT NULL, proposal TEXT NOT NULL, status TEXT NOT NULL, created_at INTEGER NOT NULL);
   CREATE TABLE IF NOT EXISTS gantt_snapshots (id TEXT PRIMARY KEY, team_id TEXT NOT NULL, data TEXT NOT NULL, created_at INTEGER NOT NULL);
 `);
-for (const statement of ["team_id TEXT", "lane TEXT NOT NULL DEFAULT 'daily'", "sprint_id TEXT", "source TEXT", "source_ref TEXT", "completion_score REAL", "completion_evidence TEXT", "completed_by TEXT", "duration_days INTEGER", "estimate_source TEXT", "deadline_source TEXT", "story_points INTEGER", "blocked_by TEXT NOT NULL DEFAULT '[]'", "carried_from_sprint_id TEXT", "actual_minutes INTEGER NOT NULL DEFAULT 0", "executor_type TEXT NOT NULL DEFAULT 'human'", "ai_executor TEXT", "is_critical_path INTEGER NOT NULL DEFAULT 0", "slack_days REAL", "critical_path_error TEXT", "critical_path_computed_at INTEGER"]) { try { sqlite.exec(`ALTER TABLE tasks ADD COLUMN ${statement}`); } catch { /* already exists */ } }
+for (const statement of ["team_id TEXT", "lane TEXT NOT NULL DEFAULT 'daily'", "sprint_id TEXT", "source TEXT", "source_ref TEXT", "completion_score REAL", "completion_evidence TEXT", "completed_by TEXT", "duration_days INTEGER", "estimate_source TEXT", "deadline_source TEXT", "story_points INTEGER", "blocked_by TEXT NOT NULL DEFAULT '[]'", "carried_from_sprint_id TEXT", "actual_minutes INTEGER NOT NULL DEFAULT 0", "executor_type TEXT NOT NULL DEFAULT 'human'", "ai_executor TEXT", "is_critical_path INTEGER NOT NULL DEFAULT 0", "slack_days REAL", "critical_path_error TEXT", "critical_path_computed_at INTEGER", "public_hidden INTEGER NOT NULL DEFAULT 0", "public_summary TEXT"]) { try { sqlite.exec(`ALTER TABLE tasks ADD COLUMN ${statement}`); } catch { /* already exists */ } }
+sqlite.exec(LEGACY_BUG_REPORT_TO_ISSUE_SQL);
 sqlite.exec(`
   CREATE TABLE IF NOT EXISTS project_refs (code TEXT PRIMARY KEY, name TEXT NOT NULL, team_ids TEXT NOT NULL, synced_at INTEGER NOT NULL, removed_at INTEGER);
   CREATE TABLE IF NOT EXISTS task_notifications (id TEXT PRIMARY KEY, task_id TEXT, team_id TEXT, event TEXT NOT NULL, channel TEXT NOT NULL, dedupe_key TEXT NOT NULL UNIQUE, payload TEXT NOT NULL, status TEXT NOT NULL, attempts INTEGER NOT NULL DEFAULT 0, last_error TEXT, created_at INTEGER NOT NULL, sent_at INTEGER);

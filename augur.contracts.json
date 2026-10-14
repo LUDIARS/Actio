@@ -66,6 +66,60 @@
       "module": "contracts/web-proxy-route.contract.ts",
       "mode": "observe",
       "sample": 1
+    },
+    {
+      "id": "C-12",
+      "criterion": "C-12 normalizeKind(input): issue と goal はそのまま、それ以外は task にする",
+      "symbol": "normalizeKind",
+      "file": "modules/task/personal.ts",
+      "module": "contracts/task-kind.contract.ts",
+      "mode": "observe",
+      "sample": 1
+    },
+    {
+      "id": "C-13",
+      "criterion": "C-13 isPublicReadRequest(method, path): GET/HEAD の /api/public/issues だけをローカルモード境界の外に出し、他のメソッド・パスは境界の内に残す",
+      "symbol": "isPublicReadRequest",
+      "file": "src/auth/local-mode-policy.ts",
+      "module": "contracts/public-read-boundary.contract.ts",
+      "mode": "observe",
+      "sample": 1
+    },
+    {
+      "id": "C-14",
+      "criterion": "C-14 parsePublicReports(payload): spec §8 の公開項目だけを取り出し、原文・受付口・プラットフォームの id・判定の理由を落とす",
+      "symbol": "parsePublicReports",
+      "file": "modules/public-issues/cc-public-parse.ts",
+      "module": "contracts/public-reports-parse.contract.ts",
+      "mode": "observe",
+      "sample": 1
+    },
+    {
+      "id": "C-15",
+      "criterion": "C-15 toPublicTaskIssue(task): 題名・公開用の要約・状態・優先度・作成と完了の時刻だけを返し、本文・要件・担当者・作成者を出さない",
+      "symbol": "toPublicTaskIssue",
+      "file": "modules/public-issues/public-view.ts",
+      "module": "contracts/public-task-issue.contract.ts",
+      "mode": "observe",
+      "sample": 1
+    },
+    {
+      "id": "C-16",
+      "criterion": "C-16 composeProjectIssues(input): source concordia.bounty.v1 のタスクはバウンティの行にまとめて二重に並べず、Cc に届かないときはバウンティ欄を取得不可にする",
+      "symbol": "composeProjectIssues",
+      "file": "modules/public-issues/public-view.ts",
+      "module": "contracts/public-issues-compose.contract.ts",
+      "mode": "observe",
+      "sample": 1
+    },
+    {
+      "id": "C-17",
+      "criterion": "C-17 readPublicIssueFields(body): public_hidden は真偽値、public_summary は 1000 文字以下の文字列か null だけを受け、それ以外は誤りにする",
+      "symbol": "readPublicIssueFields",
+      "file": "modules/task/validation/public-issue-fields.ts",
+      "module": "contracts/public-issue-fields.contract.ts",
+      "mode": "observe",
+      "sample": 1
     }
   ]
 }

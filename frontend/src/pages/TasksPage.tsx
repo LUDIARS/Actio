@@ -47,11 +47,12 @@ const PRIORITY_COLORS: Record<TaskPriority, string> = {
 };
 
 type Scope = "owned" | "assigned" | "all";
-type KindFilter = "task" | "goal" | "all";
+type KindFilter = "task" | "goal" | "issue" | "all";
 
 const KIND_LABELS: Record<TaskKind, string> = {
   task: "タスク",
   goal: "目標",
+  issue: "イシュー",
 };
 
 const EMPTY_FORM: CreateTaskInput = {
@@ -60,6 +61,8 @@ const EMPTY_FORM: CreateTaskInput = {
   requirements: "",
   status: "open",
   kind: "task",
+  publicHidden: false,
+  publicSummary: "",
   category: "",
   priority: "medium",
   deadline: null,
@@ -160,6 +163,8 @@ export function TasksPage() {
       requirements: task.requirements ?? "",
       status: task.status,
       kind: task.kind,
+      publicHidden: task.publicHidden ?? false,
+      publicSummary: task.publicSummary ?? "",
       category: task.category ?? "",
       priority: task.priority,
       deadline: task.deadline,
@@ -184,6 +189,8 @@ export function TasksPage() {
       requirements: form.requirements?.toString().trim() || null,
       status: form.status,
       kind: form.kind ?? "task",
+      publicHidden: form.publicHidden ?? false,
+      publicSummary: form.publicSummary?.toString().trim() || null,
       category: form.category?.toString().trim() || null,
       priority: form.priority,
       deadline: form.deadline ? new Date(form.deadline).toISOString() : null,
@@ -326,6 +333,26 @@ export function TasksPage() {
             rows={2}
             style={{ ...inputStyle, resize: "vertical" }}
           />
+          {form.kind === "issue" && (
+            <div style={{ display: "flex", flexDirection: "column", gap: "0.3rem" }}>
+              <textarea
+                placeholder="公開用の要約 (任意。パブリックイシューには本文・要件の代わりにこれだけを出します)"
+                value={form.publicSummary ?? ""}
+                onChange={(e) => setForm({ ...form, publicSummary: e.target.value })}
+                maxLength={1000}
+                rows={2}
+                style={{ ...inputStyle, resize: "vertical" }}
+              />
+              <label style={{ display: "flex", alignItems: "center", gap: "0.4rem", fontSize: "0.8rem" }}>
+                <input
+                  type="checkbox"
+                  checked={form.publicHidden ?? false}
+                  onChange={(e) => setForm({ ...form, publicHidden: e.target.checked })}
+                />
+                パブリックイシューに出さない
+              </label>
+            </div>
+          )}
           <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
             <label style={{ display: "flex", flexDirection: "column", gap: "0.2rem", flex: 1, minWidth: 100 }}>
               <span style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>種別</span>
@@ -496,6 +523,7 @@ export function TasksPage() {
         {([
           ["task", "タスク"],
           ["goal", "目標"],
+          ["issue", "イシュー"],
           ["all", "全て"],
         ] as const).map(([k, label]) => (
           <button
@@ -621,6 +649,20 @@ export function TasksPage() {
                     }}
                   >
                     目標
+                  </span>
+                )}
+                {task.kind === "issue" && (
+                  <span
+                    style={{
+                      padding: "0.1rem 0.4rem",
+                      border: "1px solid var(--orange)",
+                      color: "var(--orange)",
+                      borderRadius: "var(--radius-sm)",
+                      fontSize: "0.7rem",
+                      fontWeight: 600,
+                    }}
+                  >
+                    {task.publicHidden ? "イシュー (非公開)" : "イシュー"}
                   </span>
                 )}
                 {task.creatorType === "ai" && (

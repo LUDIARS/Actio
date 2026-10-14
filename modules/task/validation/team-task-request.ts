@@ -9,6 +9,7 @@ const TASK_SOURCES = [
   "memoria-import",
   "sprint-plan",
   "praeforma-review",
+  "concordia.bounty.v1",
 ] as const;
 
 function isLocationReference(value: string): boolean {

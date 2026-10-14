@@ -716,6 +716,8 @@ export const tasks = mysqlTable(
     status: varchar("status", { length: 32 }).notNull().default("open"),
     /** 種別: task(通常) / goal(長期目標)。 Memoria 個人タスク移植 */
     kind: varchar("kind", { length: 32 }).notNull().default("task"),
+    publicHidden: boolean("public_hidden").notNull().default(false),
+    publicSummary: text("public_summary"),
     /** 作成主体: human / ai(エージェント委譲)。 Memoria 個人タスク移植 */
     creatorType: varchar("creator_type", { length: 32 }).notNull().default("human"),
     /** カテゴリ (カンマ区切り複数可)。 Memoria 個人タスク移植 */

@@ -3,7 +3,7 @@ import type { Context } from "hono";
 import { createMiddleware } from "hono/factory";
 import { secretManager } from "../config/secrets.js";
 import { createCfAccessVerifier } from "./cf-access-verify.js";
-import { allowsLocalRequest, cfAccessAssertion, readLocalMode, type LocalModeConfig } from "./local-mode-policy.js";
+import { allowsLocalRequest, cfAccessAssertion, isPublicReadRequest, readLocalMode, type LocalModeConfig } from "./local-mode-policy.js";
 
 export const LOCAL_USER = Object.freeze({
   id: "actio-local", name: "Local user", email: "", role: "general",
@@ -67,7 +67,8 @@ export function isLocalModeRequest(c: Context): boolean {
 export function localModeBoundary() {
   localModeEnabled(); // Validate deployment configuration while constructing the app.
   return createMiddleware(async (c, next) => {
-    if (localModeEnabled()) {
+    // The public issue list is read-only and carries no personal data, so it stays reachable without local access.
+    if (localModeEnabled() && !isPublicReadRequest(c.req.method, c.req.path)) {
       c.header("Cache-Control", "no-store");
       const access = await resolveLocalAccess(c);
       if (!access) return c.json({ error: "local_access_required" }, 403);

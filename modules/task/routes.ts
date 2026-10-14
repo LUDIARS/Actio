@@ -30,6 +30,7 @@ import { teamTaskRoutes } from "./team-routes.js";
 import { readTeamInputMode } from "./team/settings.js";
 import { validateLaneTransition, validateTeamTask } from "./validation/team-task.js";
 import { readTeamTaskRequestFields, validateTeamTaskMetadata } from "./validation/team-task-request.js";
+import { readPublicIssueFields } from "./validation/public-issue-fields.js";
 import { isExecutorType, readExecutorFields, resolveExecutor } from "./validation/executor.js";
 import { validateTeamProject } from "./validation/team-project.js";
 import { isTaskView, selectCurrentSprintView } from "./views/current-sprint-view.js";
@@ -220,6 +221,8 @@ taskRoutes.post("/", async (c) => {
 
   const body = await c.req.json<CreateTaskInput>();
   const teamFields = readTeamTaskRequestFields(body);
+  const publicFields = readPublicIssueFields(body as unknown as Record<string, unknown>);
+  if (!publicFields.ok) return c.json({ error: publicFields.error }, 400);
   if (!body.title) {
     return c.json({ error: "title is required" }, 400);
   }
@@ -302,6 +305,8 @@ taskRoutes.post("/", async (c) => {
     requirements: body.requirements ?? null,
     status,
     kind: normalizeKind(body.kind),
+    publicHidden: publicFields.value.publicHidden ?? false,
+    publicSummary: publicFields.value.publicSummary ?? null,
     creatorType: normalizeCreatorType(readCreatorType(body)),
     executorType: executor.value.executorType,
     aiExecutor: executor.value.aiExecutor,
@@ -349,6 +354,8 @@ taskRoutes.on(["PUT", "PATCH"], "/:id", async (c) => {
 
   const body = await c.req.json<Partial<CreateTaskInput>>();
   const teamFields = readTeamTaskRequestFields(body);
+  const publicFields = readPublicIssueFields(body as unknown as Record<string, unknown>);
+  if (!publicFields.ok) return c.json({ error: publicFields.error }, 400);
   if (teamFields.sprintId !== undefined && teamFields.sprintId !== existing.sprintId) {
     return c.json({ error: "Change sprint membership through the sprint planning API" }, 400);
   }
@@ -378,6 +385,8 @@ taskRoutes.on(["PUT", "PATCH"], "/:id", async (c) => {
     updates.projectId = typeof projectIdInput === "string" ? projectIdInput : null;
   }
   if (body.kind !== undefined) updates.kind = normalizeKind(body.kind);
+  if (publicFields.value.publicHidden !== undefined) updates.publicHidden = publicFields.value.publicHidden;
+  if (publicFields.value.publicSummary !== undefined) updates.publicSummary = publicFields.value.publicSummary;
   if (body.category !== undefined) {
     updates.category =
       typeof body.category === "string" ? body.category.trim() || null : null;

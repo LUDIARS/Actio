@@ -429,6 +429,8 @@ export function initTestDatabase() {
       requirements TEXT,
       status TEXT NOT NULL DEFAULT 'open',
       kind TEXT NOT NULL DEFAULT 'task',
+      public_hidden INTEGER NOT NULL DEFAULT 0,
+      public_summary TEXT,
       creator_type TEXT NOT NULL DEFAULT 'human',
       category TEXT,
       priority TEXT NOT NULL DEFAULT 'medium',
