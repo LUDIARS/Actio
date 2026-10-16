@@ -14,7 +14,7 @@ export const LOCAL_SETTING_KEYS = new Set([
 ]);
 /** Where secrets come from (config/secret-source.ts). Keys only; legacy project/environment names remain readable for existing encrypted files. */
 const SECRET_SOURCE_SETTING_KEYS = ["ACTIO_SECRET_PROJECT_ID", "ACTIO_SECRET_ENVIRONMENT", "ACTIO_SECRET_KEYS"];
-const allowed = new Set([...LOCAL_SETTING_KEYS, "DATABASE_URL", "REDIS_URL", "DISCUTERE_EXTERNAL_DISCUSSION_SECRET",
+const allowed = new Set([...LOCAL_SETTING_KEYS, "DATABASE_URL", "REDIS_URL", "REDIS_PASSWORD", "DISCUTERE_EXTERNAL_DISCUSSION_SECRET",
   "ACTIO_CHAT_SHARED_SECRET", "ACTIO_INTAKE_LLM_KEY", ...SECRET_SOURCE_SETTING_KEYS]);
 const settingsSchema = z.record(z.string(), z.string()).superRefine((settings, ctx) => {
   for (const key of Object.keys(settings)) {

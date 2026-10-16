@@ -1,7 +1,7 @@
 /**
  * Redis接続モジュール
  *
- * REDIS_URL が設定されていれば Redis に接続する。Redis はキャッシュ専用で必須ではない。
+ * REDIS_URL が設定されていれば Redis に接続する。パスワードは REDIS_PASSWORD で別に渡す。Redis はキャッシュ専用で必須ではない。
  * 未設定・停止中・応答しない場合は getRedis() が null を返すか、コマンドが短時間で失敗し、
  * 呼び出し元はキャッシュ無しで処理を続ける。振る舞いの根拠は redis-policy.ts。
  */
@@ -10,6 +10,7 @@ import Redis from "ioredis";
 import { secretManager } from "../config/secrets.js";
 import {
   isRedisUsable,
+  redisAuthOptions,
   redisReconnectDelay,
   REDIS_COMMAND_TIMEOUT_MS,
   REDIS_CONNECT_TIMEOUT_MS,
@@ -17,12 +18,14 @@ import {
 } from "./redis-policy.js";
 
 const REDIS_URL = secretManager.getOrDefault("REDIS_URL", "");
+const REDIS_PASSWORD = secretManager.getOrDefault("REDIS_PASSWORD", "");
 
 let redis: Redis | null = null;
 
 if (REDIS_URL) {
   try {
     redis = new Redis(REDIS_URL, {
+      ...redisAuthOptions(REDIS_PASSWORD),
       // 切断中のコマンドは溜めずに即失敗させる (待たせない)
       enableOfflineQueue: false,
       maxRetriesPerRequest: 1,

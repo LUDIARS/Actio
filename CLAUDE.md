@@ -154,7 +154,7 @@ Ex内の優先順位は topology < catalog env < 暗号化runtime config < Vault
 ## Docker Compose
 
 DB / Redis は共有インフラ (`../infra`) を使用する。アプリ単体での運用も可能。
-Redis はキャッシュ専用で任意。未設定・停止・無応答でも Actio は止まらずキャッシュ無しで動き、Redis が戻れば自動で再接続する (`src/db/redis-policy.ts`)。セッション等の正本は Redis に置かない。
+Redis はキャッシュ専用で任意。未設定・停止・無応答でも Actio は止まらずキャッシュ無しで動き、Redis が戻れば自動で再接続する (`src/db/redis-policy.ts`)。セッション等の正本は Redis に置かない。パスワードは `REDIS_URL` に埋め込まず `REDIS_PASSWORD` で別に渡す (どちらも共有 Vault)。
 Composeは単体運用向けの互換構成として保持する。通常のEx起動や設定生成には使わない。残存設定と `.env` の扱いはREADMEの「スタンドアロン (Docker)」を参照する。
 
 | ファイル | 用途 |

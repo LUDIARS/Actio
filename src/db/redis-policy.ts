@@ -29,3 +29,12 @@ export function shouldLogReconnect(times: number): boolean {
 export function isRedisUsable(status: string): boolean {
   return status === "ready";
 }
+
+/**
+ * 接続時の認証オプション。パスワードは REDIS_URL に埋め込まず REDIS_PASSWORD で別に渡す
+ * (URL を共有 Vault の共通値のまま使い回すため)。空なら URL 側の指定 (無ければ認証無し) に任せる。
+ * ioredis は URL にパスワードがあればそちらを優先するので、REDIS_URL にはパスワードを入れない。
+ */
+export function redisAuthOptions(password: string | undefined): { password?: string } {
+  return password ? { password } : {};
+}

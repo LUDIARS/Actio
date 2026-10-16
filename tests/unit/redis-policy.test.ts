@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   isRedisUsable,
+  redisAuthOptions,
   redisReconnectDelay,
   REDIS_MAX_RECONNECT_DELAY_MS,
   shouldLogReconnect,
@@ -26,5 +27,11 @@ describe("redis-policy (Redis is an optional cache)", () => {
     expect([1, 2, 3].every(shouldLogReconnect)).toBe(true);
     expect(shouldLogReconnect(4)).toBe(false);
     expect(shouldLogReconnect(40)).toBe(true);
+  });
+
+  it("passes REDIS_PASSWORD separately and leaves URL auth alone when it is empty", () => {
+    expect(redisAuthOptions("s3cret")).toEqual({ password: "s3cret" });
+    expect(redisAuthOptions("")).toEqual({});
+    expect(redisAuthOptions(undefined)).toEqual({});
   });
 });
