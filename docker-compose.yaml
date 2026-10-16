@@ -1,12 +1,12 @@
 ## ─── Docker Compose ────────────────────────────────────────
 ##
-## アプリケーションのみ。DB / Redis は共有インフラ (../infra) を使用。
+## アプリケーションのみ。DB は共有インフラ (../infra) を使用。
 ##
 ## Usage:
 ##   cd ../infra && docker compose up -d   # 共有インフラ起動
 ##   npm run env:up                        # アプリ起動 (値は起動元の環境変数)
 ##
-## 単体運用 (DB/Redis 込み):
+## 単体運用 (DB 込み):
 ##   npm run env:up:standalone
 ## ─────────────────────────────────────────────────────────────
 
@@ -24,7 +24,6 @@ services:
       BACKEND_PORT: ${BACKEND_PORT:-3000}
       DB_DIALECT: ${DB_DIALECT:-postgres}
       DATABASE_URL: ${DATABASE_URL:-postgresql://actio_user:actio@host.docker.internal:5432/actio}
-      REDIS_URL: ${REDIS_URL:-redis://host.docker.internal:6379}
       FRONTEND_URL: ${FRONTEND_URL:-}
       # ─ Infisical bootstrap (バックエンドが SecretManager で残りを取得) ─
       SECRETS_PROVIDER: ${SECRETS_PROVIDER:-}

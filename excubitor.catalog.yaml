@@ -17,7 +17,7 @@ services:
     restart_policy: "no"
     health:
       type: http
-      # 死活は DB/Redis を引かない liveness で見る。依存の確認は /api/ready。
+      # 死活は DB を引かない liveness で見る。依存の確認は /api/ready。
       # (/api/health は共有 DB の遅延で 1 秒の probe を超え、down 誤報が続いた)
       url: http://127.0.0.1:17880/api/health/live
       interval_sec: 30

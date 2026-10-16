@@ -2,7 +2,6 @@
  * Id Cache — ユーザー情報キャッシュクライアント
  *
  * Id Service API の結果をインメモリ (TTL付き) にキャッシュする。
- * Redis が渡された場合は Redis をキャッシュバックエンドに使う。
  */
 
 import jwt from "jsonwebtoken";

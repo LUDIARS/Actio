@@ -2,7 +2,7 @@
  * 初回設定モードの HTTP 面。本体 (DB / 認証) を読み込めない間だけ使う最小アプリ。
  *
  * 保存を受け付けるのは「この PC からの直接アクセス」だけ。トンネル経由や LAN からは
- * 状態の参照しかできない。secret は受け付けず、DB / Redis の接続先だけを扱う。
+ * 状態の参照しかできない。secret は受け付けず、DB の接続先だけを扱う。
  */
 import { getConnInfo } from "@hono/node-server/conninfo";
 import { Hono, type Context } from "hono";

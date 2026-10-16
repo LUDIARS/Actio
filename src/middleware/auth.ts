@@ -14,7 +14,7 @@ import { createMiddleware } from "hono/factory";
 import { getCookie } from "hono/cookie";
 import jwt from "jsonwebtoken";
 import { secretManager } from "../config/secrets.js";
-import { getSessionUser, saveSessionUser } from "../auth/session-cache.js";
+import { getSessionUser, saveSessionUser, type SessionUser } from "../auth/session-cache.js";
 import { verifyPasetoToken } from "../auth/paseto-verify.js";
 import { isLocalModeRequest, LOCAL_USER } from "../auth/local-mode.js";
 import { ensureLocalModeUser } from "../auth/local-user-anchor.js";
@@ -33,6 +33,17 @@ function extractToken(c: Parameters<Parameters<typeof createMiddleware>[0]>[0]):
   const cookieToken = getCookie(c, TOKEN_COOKIE);
   if (cookieToken) return cookieToken;
   return null;
+}
+
+/**
+ * トークン由来のユーザーとキャッシュを突き合わせる。role はトークンが正本で、
+ * キャッシュの role と食い違えばトークン側で上書きする (権限変更を TTL まで遅らせない)。
+ */
+async function resolveSessionUser(fromToken: SessionUser): Promise<SessionUser> {
+  const cached = await getSessionUser(fromToken.id);
+  if (cached && cached.role === fromToken.role) return cached;
+  await saveSessionUser(fromToken);
+  return fromToken;
 }
 
 function setAnonymous(c: Parameters<Parameters<typeof createMiddleware>[0]>[0]) {
@@ -58,16 +69,12 @@ export function userContext() {
       // ─── 1) PASETO V4 (Cernere user_for_project token, Hub 経由) ───
       const pasetoId = await verifyPasetoToken(token);
       if (pasetoId) {
-        let sessionUser = await getSessionUser(pasetoId.userId);
-        if (!sessionUser) {
-          sessionUser = {
-            id: pasetoId.userId,
-            name: pasetoId.displayName ?? "",
-            email: "",
-            role: pasetoId.role,
-          };
-          await saveSessionUser(sessionUser);
-        }
+        const sessionUser = await resolveSessionUser({
+          id: pasetoId.userId,
+          name: pasetoId.displayName ?? "",
+          email: "",
+          role: pasetoId.role,
+        });
         c.set("userId" as never, sessionUser.id as never);
         c.set("userRole" as never, sessionUser.role as never);
         c.set("user" as never, sessionUser as never);
@@ -87,16 +94,12 @@ export function userContext() {
           };
           const userId = payload.sub ?? payload.userId;
           if (userId) {
-            let sessionUser = await getSessionUser(userId);
-            if (!sessionUser) {
-              sessionUser = {
-                id: userId,
-                name: payload.name ?? "",
-                email: payload.email ?? "",
-                role: payload.role ?? "general",
-              };
-              await saveSessionUser(sessionUser);
-            }
+            const sessionUser = await resolveSessionUser({
+              id: userId,
+              name: payload.name ?? "",
+              email: payload.email ?? "",
+              role: payload.role ?? "general",
+            });
             c.set("userId" as never, sessionUser.id as never);
             c.set("userRole" as never, sessionUser.role as never);
             c.set("user" as never, sessionUser as never);

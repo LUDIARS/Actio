@@ -30,7 +30,7 @@ const BLOCKED_MESSAGES: Record<string, string> = {
 };
 
 const DEFAULT_SECRET_KEYS = [
-  "DATABASE_URL", "REDIS_URL", "JWT_SECRET",
+  "DATABASE_URL", "JWT_SECRET",
   "CERNERE_PROJECT_CLIENT_ID", "CERNERE_PROJECT_CLIENT_SECRET", "CERNERE_PROJECT_ID", "CERNERE_PROJECT_SECRET",
 ].join("\n");
 
@@ -49,7 +49,6 @@ export function InitialSetupPage({ onComplete }: InitialSetupPageProps) {
   const [dialect, setDialect] = useState("postgres");
   const [databaseUrl, setDatabaseUrl] = useState("");
   const [databasePath, setDatabasePath] = useState("data/actio.db");
-  const [redisUrl, setRedisUrl] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -72,7 +71,7 @@ export function InitialSetupPage({ onComplete }: InitialSetupPageProps) {
     }
     return dialect === "sqlite"
       ? { DB_DIALECT: dialect, DATABASE_PATH: databasePath }
-      : { DB_DIALECT: dialect, DATABASE_URL: databaseUrl, REDIS_URL: redisUrl };
+      : { DB_DIALECT: dialect, DATABASE_URL: databaseUrl };
   }
 
   async function handleSubmit(event: FormEvent) {
@@ -154,13 +153,6 @@ export function InitialSetupPage({ onComplete }: InitialSetupPageProps) {
                 onChange={(e) => setDatabaseUrl(e.target.value)}
                 placeholder={dialect === "mysql" ? "mysql://user:password@host:3306/actio" : "postgresql://user:password@host:5432/actio"}
                 style={fieldStyle}
-              />
-            </label>
-            <label style={labelStyle}>
-              Redis 接続 URL (任意。空なら DB で代替)
-              <input
-                type="password" autoComplete="off" value={redisUrl}
-                onChange={(e) => setRedisUrl(e.target.value)} placeholder="redis://host:6379" style={fieldStyle}
               />
             </label>
           </>

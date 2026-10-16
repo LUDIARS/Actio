@@ -14,8 +14,13 @@ export const LOCAL_SETTING_KEYS = new Set([
 ]);
 /** Where secrets come from (config/secret-source.ts). Keys only; legacy project/environment names remain readable for existing encrypted files. */
 const SECRET_SOURCE_SETTING_KEYS = ["ACTIO_SECRET_PROJECT_ID", "ACTIO_SECRET_ENVIRONMENT", "ACTIO_SECRET_KEYS"];
-const allowed = new Set([...LOCAL_SETTING_KEYS, "DATABASE_URL", "REDIS_URL", "DISCUTERE_EXTERNAL_DISCUSSION_SECRET",
-  "ACTIO_CHAT_SHARED_SECRET", "ACTIO_INTAKE_LLM_KEY", ...SECRET_SOURCE_SETTING_KEYS]);
+/**
+ * Keys that existing encrypted files may still hold but Actio no longer uses. They stay readable
+ * so an old config does not stop startup, and are never applied. REDIS_URL: Redis dropped 2026-10-16.
+ */
+const RETIRED_SETTING_KEYS = new Set(["REDIS_URL"]);
+const allowed = new Set([...LOCAL_SETTING_KEYS, "DATABASE_URL", "DISCUTERE_EXTERNAL_DISCUSSION_SECRET",
+  "ACTIO_CHAT_SHARED_SECRET", "ACTIO_INTAKE_LLM_KEY", ...SECRET_SOURCE_SETTING_KEYS, ...RETIRED_SETTING_KEYS]);
 const settingsSchema = z.record(z.string(), z.string()).superRefine((settings, ctx) => {
   for (const key of Object.keys(settings)) {
     if (!allowed.has(key) && !/^ACTIO_DISCORD_[A-Z0-9_]+$/.test(key)) ctx.addIssue({ code: "custom", message: `Unsupported local setting: ${key}` });
@@ -68,7 +73,8 @@ export function writeLocalConfig(input: unknown): void {
 
 export function applyLocalConfig(): void {
   for (const [key, value] of Object.entries(readLocalConfig())) {
-    // Explicit empty injection also overrides a stored value (e.g. disabling Redis).
+    if (RETIRED_SETTING_KEYS.has(key)) continue;
+    // Explicit empty injection also overrides a stored value.
     if (process.env[key] === undefined) process.env[key] = value;
   }
 }

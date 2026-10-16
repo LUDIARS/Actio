@@ -19,13 +19,14 @@ describe("initial setup state", () => {
   });
 
   it("accepts connection settings and rejects secrets or malformed URLs", () => {
-    expect(parseSetupInput({ DATABASE_URL: " postgresql://db.invalid/actio ", REDIS_URL: "" }))
+    expect(parseSetupInput({ DATABASE_URL: " postgresql://db.invalid/actio " }))
       .toEqual({ ok: true, settings: { DATABASE_URL: "postgresql://db.invalid/actio" }, usesSecretSource: false });
     expect(parseSetupInput({ DB_DIALECT: "sqlite", DATABASE_PATH: "data/actio.db" }).ok).toBe(true);
     expect(parseSetupInput({ DATABASE_URL: "postgresql://db.invalid/actio", JWT_SECRET: "x" }).ok).toBe(false);
     expect(parseSetupInput({ DATABASE_URL: "https://db.invalid/actio" }).ok).toBe(false);
     expect(parseSetupInput({ DB_DIALECT: "mysql", DATABASE_URL: "postgresql://db.invalid/actio" }).ok).toBe(false);
-    expect(parseSetupInput({ DATABASE_URL: "postgresql://db.invalid/actio", REDIS_URL: "http://cache.invalid" }).ok).toBe(false);
+    // Redis は廃止済み (2026-10-16)。接続先を受け付けない。
+    expect(parseSetupInput({ DATABASE_URL: "postgresql://db.invalid/actio", REDIS_URL: "redis://cache.invalid" }).ok).toBe(false);
     expect(parseSetupInput({}).ok).toBe(false);
     expect(parseSetupInput(null).ok).toBe(false);
   });

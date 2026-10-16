@@ -65,7 +65,7 @@ export function createAuthRoutes(config: IdServiceConfig) {
     pluginRegistry,
   } = config;
 
-  const sessionStore: SessionStore = createSessionStore(config.sessionRepo, config.getRedis);
+  const sessionStore: SessionStore = createSessionStore(config.sessionRepo);
 
   const auth = new Hono();
 

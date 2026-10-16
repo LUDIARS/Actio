@@ -18,7 +18,6 @@ process.env.NODE_ENV = "test";
 process.env.DATABASE_PATH = testDbPath;
 process.env.DB_DIALECT = "sqlite";
 process.env.JWT_SECRET = "test-secret-key-for-testing";
-process.env.REDIS_URL = ""; // Redis無効化
 
 import { afterAll } from "vitest";
 import { unlinkSync, existsSync } from "fs";

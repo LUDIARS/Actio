@@ -29,7 +29,7 @@ JIRA のように、**コアの 2 概念 (Event / Task)** を中心に各種プ�
 | フロントエンド | React 19 + Vite + React Router 7 |
 | ORM | Drizzle ORM (SQLite / PostgreSQL / MySQL) |
 | 認証 | Cernere (`@ludiars/cernere-id-cache`, `@ludiars/cernere-composite`) |
-| セッション | Redis (ioredis) |
+| セッション | DB (キャッシュはプロセス内、Redis 不要) |
 | SDK | `@ludiars/schedula-sdk` (module declaration) |
 | シークレット管理 | Excubitor Vault 注入 + 暗号化ローカル config、必要時に Vault secret-agent |
 
@@ -76,7 +76,7 @@ Actio/
 │   ├── src/components/   # Layout, UIBlockRenderer など
 │   └── src/lib/          # api, ws-client, module-registry など
 ├── tests/                # Vitest テスト
-├── scripts/              # ci-check.sh, migrate-*, redis-*, setup.sh
+├── scripts/              # ci-check.sh, migrate-*, setup.sh
 ├── spec/                 # 仕様書
 ├── docs/                 # 設計ドキュメント
 └── CLAUDE.md             # 開発ルール (AI エージェント向け)
@@ -110,7 +110,7 @@ cd frontend && npm install && cd ..
 設定はファイルに平文で置かず、次の 2 経路で与えます (仕様: `spec/feature/runtime-modernization.md`)。
 
 - **注入**: Excubitor が Vault の secret・ポート・サービス間 URL を渡す。非secret設定は `excubitor.catalog.yaml` の `env:`、ポート・URLはtopologyで管理する
-- **暗号化ローカル config**: DB / Redis 接続文字列などローカル設定だけを保存する
+- **暗号化ローカル config**: DB 接続文字列などローカル設定だけを保存する
 
 ```bash
 # ACTIO_CONFIG_KEY (32 バイト以上) を環境に注入した上で、JSON を標準入力から渡す
@@ -127,7 +127,7 @@ Actioは `.env` を読みません。env-cliによる設定ファイル生成や
 #### Excubitor 起動
 
 通常運用は本体checkoutの `excubitor.catalog.yaml` を使い、Excubitor経由で起動します。
-バックエンドの起動コマンドは `node dist/src/bootstrap.js` です。DB / Redisの接続先と必要なsecretを事前に設定してください。
+バックエンドの起動コマンドは `node dist/src/bootstrap.js` です。DB の接続先と必要なsecretを事前に設定してください。
 ポート・URLの正本も同catalogです。
 
 開発用の `npm run dev` (API + frontend)、`npm run dev:server` (API)、`npm run dev:front` (frontend) は、
@@ -138,8 +138,8 @@ Exによる環境注入を済ませた開発構成から呼ぶ素のコマンド
 Composeファイルと `env:up` / `env:up:standalone` は、単体コンテナ運用用の互換入口として保持します。
 これらのnpmスクリプトはDocker Composeを呼ぶだけで、env-cliや設定生成とは無関係です。
 
-- `docker-compose.yaml`: アプリのみ。DB/Redisは共有インフラ前提。
-- `docker-compose.standalone.yaml`: DB/Redisを追加するオーバーレイ。
+- `docker-compose.yaml`: アプリのみ。DBは共有インフラ前提。
+- `docker-compose.standalone.yaml`: DBを追加するオーバーレイ。
 - 明示的な `env_file` はありません。`${...}` の補間には起動元の環境変数とCompose自身の `.env` 解決が使われます。Actioプロセスの `.env` 読み込みとは別です。
 - base Composeには旧Infisical bootstrap用の変数が残っています。現行Actioはそれによるsecret取得に対応していません。通常運用にはExのVault注入を使用し、Composeの現行secret供給対応は別途整備が必要です。
 
@@ -163,14 +163,14 @@ secret-agentの任意補完は「設定の投入」を参照してください�
 |---------|------|
 | `npm run config:seal` | 標準入力の JSON から暗号化 config を保存 |
 | `npm run env:up` | 共有インフラ前提でアプリのみ Docker 起動 (値は起動元の環境変数から) |
-| `npm run env:up:standalone` | DB / Redis 込みで単体 Docker 起動 |
+| `npm run env:up:standalone` | DB 込みで単体 Docker 起動 |
 
 ## 認証
 
 認証は [Cernere](https://github.com/LUDIARS/Cernere) に委譲しています。
 
 - フロント: `@ludiars/cernere-composite` で popup / redirect ログイン
-- バックエンド: `@ludiars/cernere-id-cache` で JWT 検証 (Redis cache)
+- バックエンド: `@ludiars/cernere-id-cache` で JWT 検証 (プロセス内 cache)
 - `CERNERE_URL` が未設定時はローカル JWT 検証にフォールバック
 - 個人データ (name/email/role) は Cernere が単一情報源 (GDPR 対応)
 
@@ -185,7 +185,7 @@ secret-agentの任意補完は「設定の投入」を参照してください�
 | `npm start` | 本番サーバー |
 | `npm test` | Vitest テスト実行 |
 | `npm run env:up` | 共有インフラ前提でアプリ起動 (Docker) |
-| `npm run env:up:standalone` | DB/Redis 込みで単体起動 (Docker) |
+| `npm run env:up:standalone` | DB 込みで単体起動 (Docker) |
 | `npm run ci-check` | CI チェック一式 (build + test + lint + frontend build) |
 | `npm run db:push` | Drizzle スキーマ同期 |
 | `npm run db:generate` | マイグレーション生成 |

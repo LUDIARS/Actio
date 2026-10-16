@@ -10,7 +10,7 @@ type Env = Record<string, string | undefined>;
 type Lookup = (key: string) => string | undefined;
 
 /** 初回設定画面が受け付けるキー。secret そのものは含めない (取得元の指定だけ)。 */
-export const SETUP_SETTING_KEYS = ["DB_DIALECT", "DATABASE_URL", "DATABASE_PATH", "REDIS_URL", ...SECRET_SOURCE_KEYS] as const;
+export const SETUP_SETTING_KEYS = ["DB_DIALECT", "DATABASE_URL", "DATABASE_PATH", ...SECRET_SOURCE_KEYS] as const;
 export type SetupSettingKey = (typeof SETUP_SETTING_KEYS)[number];
 export type SetupSettings = Partial<Record<SetupSettingKey, string>>;
 
@@ -71,9 +71,6 @@ export function parseSetupInput(input: unknown): SetupInputResult {
     if (settings.DATABASE_URL && !hasProtocol(settings.DATABASE_URL, protocols)) {
       return { ok: false, error: `DATABASE_URL must be a ${dialect} connection URL` };
     }
-  }
-  if (settings.REDIS_URL && !hasProtocol(settings.REDIS_URL, ["redis:", "rediss:"])) {
-    return { ok: false, error: "REDIS_URL must be a redis connection URL" };
   }
   return { ok: true, settings, usesSecretSource };
 }

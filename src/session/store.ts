@@ -1,14 +1,15 @@
 /**
  * セッションストア — @actio/id-service に委譲
+ *
+ * セッションは DB (sessionRepo) だけに置く。Redis は使わない (2026-10-16 廃止)。
  */
 
 import { createSessionStore } from "@ludiars/cernere-id-service";
 import { sessionRepo } from "../db/repository.js";
-import { getRedis } from "../db/redis.js";
 
 export type { SessionData } from "@ludiars/cernere-id-service";
 
-const store = createSessionStore(sessionRepo, getRedis);
+const store = createSessionStore(sessionRepo, () => null);
 
 export const createSession = store.createSession;
 export const findByRefreshToken = store.findByRefreshToken;

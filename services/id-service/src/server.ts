@@ -2,17 +2,15 @@
  * Id Service — スタンドアロンサーバー
  *
  * 独立した認証サービスとして起動する。
- * KVS (Redis or InMemory) でユーザーデータを管理。
+ * インメモリ KVS でユーザーデータを管理。
  */
 
 import { serve } from "@hono/node-server";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
-import Redis from "ioredis";
 import path from "path";
 import { loadSchemas } from "./schema-parser.js";
 import {
-  createRedisKvs,
   createMemoryKvs,
   UserKvsRepo,
   SessionKvsRepo,
@@ -21,24 +19,14 @@ import {
 import { createIdServiceRoutes } from "./routes.js";
 
 const PORT = parseInt(process.env.ID_SERVICE_PORT || "8079", 10);
-const REDIS_URL = process.env.REDIS_URL || "";
 const JWT_SECRET = process.env.JWT_SECRET || "id-service-dev-secret";
 const FRONTEND_URL = process.env.FRONTEND_URL || "http://localhost:8080";
 const SCHEMA_DIR = process.env.ID_SCHEMA_DIR || path.resolve(import.meta.dirname, "../schema");
 
 // ─── KVS 初期化 ──────────────────────────────────────────
 
-let kvs;
-if (REDIS_URL) {
-  const redis = new Redis(REDIS_URL, { maxRetriesPerRequest: 3 });
-  redis.on("connect", () => console.log("[id-service] Redis 接続成功"));
-  redis.on("error", (err) => console.error("[id-service] Redis エラー:", err.message));
-  kvs = createRedisKvs(redis);
-  console.log("[id-service] KVS: Redis");
-} else {
-  kvs = createMemoryKvs();
-  console.log("[id-service] KVS: InMemory (REDIS_URL 未設定)");
-}
+const kvs = createMemoryKvs();
+console.log("[id-service] KVS: InMemory");
 
 // ─── スキーマ読み込み ────────────────────────────────────
 

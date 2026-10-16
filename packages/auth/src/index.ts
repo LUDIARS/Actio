@@ -30,7 +30,6 @@ export {
   type IdAppSettingsRepo,
   type IdSecretManager,
   type IdServiceConfig,
-  type GetRedis,
   type LogActivity,
   type UserRole,
 

@@ -107,7 +107,7 @@ Cernere を単一情報源 (single source of truth) とし、Actio 側は `id` �
 ### やること
 
 1. ユーザー情報の取得は `src/auth/user-info.ts` の `getUserInfo(userId)` /
-   `getUserInfos(userIds)` を使用する (Redis cache + Cernere fetch)
+   `getUserInfos(userIds)` を使用する (プロセス内 cache + Cernere fetch)
 2. 新規スキーマ追加時、ユーザー個人データ用カラムを作らない
 3. 既存 legacy カラム (`users.name` / `email` / `role` / `password_hash` /
    `google_*` / `last_login_at`) は **読み書き禁止**。残置されているのは
@@ -148,23 +148,23 @@ Ex内の優先順位は topology < catalog env < 暗号化runtime config < Vault
 - 鍵 `ACTIO_CONFIG_KEY` はEx等から注入し、平文設定やソースに置かない (Excubitor の runtime-config に入れると `EXCUBITOR_SERVICE_CONFIG_JSON` で届き、起動時に展開される)
 - `npm start`: `dist/src/bootstrap.js`。設定完了後にアプリ/DBをimportする
 - DB既定はPostgreSQL。SQLiteは明示選択時のみ。`db:init` は選択したDBを初期化する
-- ローカル配備でDB接続先が未設定なら、本体の代わりに初回設定画面 (`src/setup/`) が同じポートで開く。保存できるのはこのPCからの直接アクセスだけで、DB/Redis接続先のみ (secretは不可)
+- ローカル配備でDB接続先が未設定なら、本体の代わりに初回設定画面 (`src/setup/`) が同じポートで開く。保存できるのはこのPCからの直接アクセスだけで、DB接続先のみ (secretは不可)
 - 旧ブラウザsetup APIのcredential保存は410。配備は本体フォルダからEx経由で行う
 
 ## Docker Compose
 
-DB / Redis は共有インフラ (`../infra`) を使用する。アプリ単体での運用も可能。
+DB は共有インフラ (`../infra`) を使用する。Redis には依存しない (2026-10-16 廃止、キャッシュはプロセス内)。アプリ単体での運用も可能。
 Composeは単体運用向けの互換構成として保持する。通常のEx起動や設定生成には使わない。残存設定と `.env` の扱いはREADMEの「スタンドアロン (Docker)」を参照する。
 
 | ファイル | 用途 |
 |---------|------|
-| `docker-compose.yaml` | アプリのみ (Backend + Frontend)。DB/Redis は共有インフラ前提 |
-| `docker-compose.standalone.yaml` | DB + Redis を追加するオーバーレイ (単体運用用) |
+| `docker-compose.yaml` | アプリのみ (Backend + Frontend)。DB は共有インフラ前提 |
+| `docker-compose.standalone.yaml` | DB を追加するオーバーレイ (単体運用用) |
 
 | コマンド | 用途 |
 |---------|------|
 | `npm run env:up` | 共有インフラ前提でアプリのみ起動 |
-| `npm run env:up:standalone` | DB/Redis 込みで単体起動 |
+| `npm run env:up:standalone` | DB 込みで単体起動 |
 
 ## CI テスト必須ルール
 

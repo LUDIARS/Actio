@@ -16,7 +16,7 @@ neco の 2026-09-13 指示: PostgreSQLを維持しPf等の構成に合わせる�
 
 通常のEx運用は `SECRETS_PROVIDER=env`。secretはExのVaultに登録・紐付けし、必要なキーだけを注入する。非secret設定はサービス所有catalogの `env:` に置き、URL/ポートはtopologyで管理する。Ex内の優先順位は topology < catalog env < 暗号化runtime config < Vault。Actio内では上記の注入優先順位を維持する。
 
-`src/config/local-config.ts` のallowlistが保存可能な設定の正本。DB/Redis接続文字列はローカルconfigに保存できる。JWT・外部APIトークン等のsecretは保存対象外。サービス間URL、ポート、ログルート等はExのcatalog/topologyを使う。
+`src/config/local-config.ts` のallowlistが保存可能な設定の正本。DB接続文字列はローカルconfigに保存できる (旧 `REDIS_URL` は既存ファイルの読込だけ許し、適用しない)。JWT・外部APIトークン等のsecretは保存対象外。サービス間URL、ポート、ログルート等はExのcatalog/topologyを使う。
 
 既定の保存先はWindows `%LOCALAPPDATA%/Actio/config.enc`、他OSは `~/.config/Actio/config.enc`。`ACTIO_CONFIG_PATH` で変更可能。暗号方式はAES-256-GCM、毎回ランダムなsalt/nonce、scrypt鍵導出。Exの暗号化実装の方式を参照したが、推測可能なhostname/usernameを鍵には使わない。`ACTIO_CONFIG_KEY` は32バイト以上を外部から注入し、configと同じファイルには保存しない。鍵不一致・改ざん・指定ファイル欠落は起動失敗となる。
 
@@ -24,7 +24,7 @@ JSONを標準入力から `npm run config:seal` に渡す。キー/値をコマ�
 
 ## 起動と旧設定画面
 
-`npm start` は `dist/src/bootstrap.js`。設定初期化の完了後にアプリ・DB・Redis・認証を動的importする。ポートはDB接続前に検証する。外部providerを指定したのに設定や初回取得が不足する場合は起動を止める。公開配備のJWT鍵は必須。明示的なローカルモードだけはプロセス寿命のランダム鍵を利用できる。
+`npm start` は `dist/src/bootstrap.js`。設定初期化の完了後にアプリ・DB・認証を動的importする。ポートはDB接続前に検証する。外部providerを指定したのに設定や初回取得が不足する場合は起動を止める。公開配備のJWT鍵は必須。明示的なローカルモードだけはプロセス寿命のランダム鍵を利用できる。
 
 認証不要の旧setup APIによる設定ファイル追記、credential登録、remote接続プローブ、SSM書き込みは廃止（410）。`GET /api/setup/status` は互換維持し、注入運用をsetup不足と誤判定しない。旧GUIは案内に変更。管理者向けの外部secret参照は残し、作成・更新・削除は410で拒否する。
 
@@ -43,7 +43,7 @@ neco の 2026-09-21 指示: 設定されていない場合は初回設定画面�
 - **判定**: 注入値と暗号化configを適用した後も、URL方言 (postgres / mysql) の `DATABASE_URL` が空なら未設定。判定は `src/setup/setup-state.ts` の1か所に置く。JWT等のsecret不足は対象外で、従来どおり起動失敗。
 - **対象**: `ACTIO_LOCAL_MODE=1` のローカル配備だけ。公開配備の設定不足は起動失敗のまま (画面で補わない)。
 - **動作**: `bootstrap` は本体 (DB・認証) を読み込まず、同じポート・loopbackだけで設定用の最小サーバー (`src/setup/`) を待ち受ける。`/api/health` は `needs_setup` で503、`/api/setup/status` は `needsSetup: true` と不足キー・保存可否を返し、それ以外は503。無言の劣化ではなく、Excubitorからは未設定として観測できる。
-- **保存**: `POST /api/setup/local-config`。受け付けるのはソケットがloopbackでproxyヘッダの無い直接アクセスだけ (`allowsLocalRequest`、Cloudflare経由とLANは403)。キーは `DB_DIALECT` / `DATABASE_URL` / `DATABASE_PATH` / `REDIS_URL` に限り、secretは拒否する。接続URLはprotocolを検証し、値はログにも応答にも出さない。既存の暗号化configの他キーは保持する。
+- **保存**: `POST /api/setup/local-config`。受け付けるのはソケットがloopbackでproxyヘッダの無い直接アクセスだけ (`allowsLocalRequest`、Cloudflare経由とLANは403)。キーは `DB_DIALECT` / `DATABASE_URL` / `DATABASE_PATH` に限り、secretは拒否する。接続URLはprotocolを検証し、値はログにも応答にも出さない。既存の暗号化configの他キーは保持する。
 - **鍵**: `ACTIO_CONFIG_KEY` が未注入なら保存は409で、画面にその旨を出す。鍵を画面から受け取ることはしない。 鍵の置き場所はExcubitorのruntime-config (サービス別の暗号化config)。Excubitorはそれを `EXCUBITOR_SERVICE_CONFIG_JSON` 1変数にJSONでまとめて渡すので、Actioは起動時 (`src/config/excubitor/service-config.ts`) に展開する。明示注入された環境変数が優先。壊れたJSONは起動失敗 (2026-09-25追加)。
 - **引き継ぎ**: 保存後は待受を閉じてポートを解放し、同じプロセスで本体を起動する (Excubitorでの再起動は不要)。空文字の注入が保存値を上書きして未設定が続く場合は、画面では直せないので起動失敗にする。
 - 9/13に廃止した旧setup API (credential登録・remoteプローブ・SSM書き込み・設定ファイル追記) は410のまま。復活させたのは上記のローカル設定保存だけ。
@@ -70,7 +70,7 @@ tasksの不足列・計画テーブル・PMテーブルは加算的なトラン�
 
 ## ほかの修正と境界
 
-- Redis設定済みで切断中ならreadinessは503。未設定と区別する。
+- Redis には依存しない (2026-10-16 廃止)。readiness は DB だけを見る。
 - Vite proxyはExの `ACTIO_URL` を優先。ファイル監視pollingは明示選択に変更。
 - packageの古いSchedula/local-proxy repository情報をActioに修正。
 - 予定/カレンダーの大規模改修は既存のSchedula移管方針を守り対象外。これらの旧DDLやMySQL全体の刷新までは完了としない。
