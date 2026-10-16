@@ -5,6 +5,7 @@
  * サービス固有のプロフィール情報は ProfilePlugin で拡張する。
  */
 
+import type Redis from "ioredis";
 
 // ─── Core User (全サービス共通) ────────────────────────────
 
@@ -100,6 +101,9 @@ export interface IdSecretManager {
   getOrDefault(key: string, defaultValue: string): string;
 }
 
+// ─── Redis ─────────────────────────────────────────────────
+
+export type GetRedis = () => Redis | null;
 
 // ─── Activity Logger ───────────────────────────────────────
 

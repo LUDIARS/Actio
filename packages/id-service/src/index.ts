@@ -17,6 +17,7 @@ export type {
   IdGroupRepo,
   IdAppSettingsRepo,
   IdSecretManager,
+  GetRedis,
   LogActivity,
   UserRole,
 } from "./core/types.js";

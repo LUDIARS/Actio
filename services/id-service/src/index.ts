@@ -10,7 +10,7 @@ export { loadSchemas, getPublicFields, getIndexPatterns } from "./schema-parser.
 export type { CoreSchema, ServiceSchema, FieldDef, FieldType, ParsedSchemas } from "./schema-parser.js";
 
 // KVS
-export { createMemoryKvs, UserKvsRepo, SessionKvsRepo, ProfileKvsRepo } from "./kvs.js";
+export { createRedisKvs, createMemoryKvs, UserKvsRepo, SessionKvsRepo, ProfileKvsRepo } from "./kvs.js";
 export type { KvsEngine, UserData, SessionData } from "./kvs.js";
 
 // Routes

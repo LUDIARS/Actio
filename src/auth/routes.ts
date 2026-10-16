@@ -82,7 +82,7 @@ compositeAuthRoutes.post("/exchange", async (c) => {
     const result = await exchangeAuthCode(body.authCode);
     console.log(`[trace:actio-exchange] step=cernere-ok userId=${result.user.id} hasServiceToken=${!!result.serviceToken}`);
     await ensureLocalUser(result.user.id);
-    // セッションユーザー情報をプロセス内にキャッシュ
+    // Redis にセッションユーザー情報をキャッシュ
     await saveSessionUser({
       id: result.user.id,
       name: result.user.displayName ?? "",
@@ -100,7 +100,7 @@ compositeAuthRoutes.post("/exchange", async (c) => {
   }
 });
 
-// ログアウト: Cookie を削除 + セッションユーザーキャッシュ無効化
+// ログアウト: Cookie を削除 + Redis セッション無効化
 compositeAuthRoutes.post("/logout", async (c) => {
   const { getCookie } = await import("hono/cookie");
   const token = getCookie(c, TOKEN_COOKIE);

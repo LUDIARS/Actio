@@ -1,7 +1,8 @@
 /**
  * KVS ストレージエンジン
  *
- * ユーザーデータをインメモリ KVS に格納する (Redis 実装は 2026-10-16 に廃止)。
+ * ユーザーデータを KVS (Redis) に格納する。
+ * Redis が無い場合はインメモリ Map をフォールバックに使用。
  *
  * キー設計:
  *   user:{id}                  → JSON (コアユーザーデータ)
@@ -12,6 +13,8 @@
  *   profile:{serviceId}:{id}   → JSON (サービス固有プロフィール)
  *   id:user:count              → ユーザー数
  */
+
+import type Redis from "ioredis";
 
 // ─── Types ─────────────────────────────────────────────────
 
@@ -24,7 +27,36 @@ export interface KvsEngine {
   decr(key: string): Promise<number>;
 }
 
-// ─── In-Memory Implementation ──────────────────────────────
+// ─── Redis Implementation ──────────────────────────────────
+
+export function createRedisKvs(redis: Redis): KvsEngine {
+  return {
+    async get(key) {
+      return redis.get(key);
+    },
+    async set(key, value, ttlSeconds) {
+      if (ttlSeconds) {
+        await redis.set(key, value, "EX", ttlSeconds);
+      } else {
+        await redis.set(key, value);
+      }
+    },
+    async del(key) {
+      await redis.del(key);
+    },
+    async keys(pattern) {
+      return redis.keys(pattern);
+    },
+    async incr(key) {
+      return redis.incr(key);
+    },
+    async decr(key) {
+      return redis.decr(key);
+    },
+  };
+}
+
+// ─── In-Memory Implementation (フォールバック) ─────────────
 
 export function createMemoryKvs(): KvsEngine {
   const store = new Map<string, { value: string; expiresAt?: number }>();

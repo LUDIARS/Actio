@@ -1288,6 +1288,7 @@ export interface InitialSetupSettings {
   DB_DIALECT: string;
   DATABASE_URL: string;
   DATABASE_PATH: string;
+  REDIS_URL: string;
   /** Vaultから受け取るキー名。値はExcubitorが解決する。 */
   ACTIO_SECRET_KEYS: string;
 }

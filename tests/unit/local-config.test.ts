@@ -19,21 +19,12 @@ it("keeps Japanese settings encrypted and round-trips them", () => {
   expect(readFileSync(process.env.ACTIO_CONFIG_PATH!, "utf8")).not.toContain("データ");
 });
 it("retains explicit injected values including empty strings", () => {
-  writeLocalConfig({ CORS_ORIGIN: "http://stored.invalid", FRONTEND_URL: "http://stored.invalid" });
-  vi.stubEnv("CORS_ORIGIN", "");
+  writeLocalConfig({ REDIS_URL: "redis://stored.invalid", FRONTEND_URL: "http://stored.invalid" });
+  vi.stubEnv("REDIS_URL", "");
   vi.stubEnv("FRONTEND_URL", "http://injected.invalid");
   applyLocalConfig();
-  expect(process.env.CORS_ORIGIN).toBe("");
+  expect(process.env.REDIS_URL).toBe("");
   expect(process.env.FRONTEND_URL).toBe("http://injected.invalid");
-});
-it("still reads a config that holds the retired REDIS_URL but never applies it", () => {
-  writeLocalConfig({ REDIS_URL: "redis://stored.invalid", DB_DIALECT: "postgres" });
-  vi.stubEnv("REDIS_URL", undefined);
-  vi.stubEnv("DB_DIALECT", undefined);
-  expect(readLocalConfig()).toEqual({ REDIS_URL: "redis://stored.invalid", DB_DIALECT: "postgres" });
-  applyLocalConfig();
-  expect(process.env.REDIS_URL).toBeUndefined();
-  expect(process.env.DB_DIALECT).toBe("postgres");
 });
 it("rejects a wrong key, corrupted config and credential keys", () => {
   expect(() => writeLocalConfig({ JWT_SECRET: "do-not-store-here" })).toThrow();

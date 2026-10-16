@@ -2,12 +2,12 @@
  * ユーザー情報サービス
  *
  * Actio は個人データ (name, email, role など) を DB に保管しない。
- * すべて Cernere を単一情報源 (single source of truth) とし、プロセス内の
- * 揮発キャッシュ (session-cache) を前に置く。
+ * すべて Cernere を単一情報源 (single source of truth) とし、Redis を
+ * 揮発キャッシュとして利用する。
  *
  * 取得順序:
- *   1. session-cache から取得
- *   2. miss なら Cernere (`fetchCernereProfile`) → session-cache 書き戻し
+ *   1. Redis (session-cache) から取得
+ *   2. miss なら Cernere (`fetchCernereProfile`) → Redis 書き戻し
  *   3. 失敗時は userId 由来のプレースホルダを返す (UI 劣化を許容)
  */
 

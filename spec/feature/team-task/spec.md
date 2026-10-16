@@ -421,7 +421,7 @@ score = clamp( w_pr * has_merged_pr
   (id / slug / name / cc_settings。`repo_ids` を含む)。 Cc 由来フィールドは読み取り専用で、
   Actio 固有の `settings` は保持する。
 - メンバーとロールは Actio 正本 (`team_members`)。 Cc participants (Discord handle) と Actio user の
-  対応は Cernere の identity API で解決し、必要ならプロセス内の揮発キャッシュだけに置く。
+  対応は Cernere の identity API で解決し、必要なら Redis の揮発キャッシュだけに置く。
   `user_preferences` は個人識別情報の保管に使わない。Cc からの裁定 (`decided_by`) はこの経路で解決する。
 
 ### 8.3 報告の出口 (Actio → Cc)

@@ -1,7 +1,8 @@
 /**
  * セッションストア — @actio/id-service に委譲
  *
- * セッションは DB (sessionRepo) だけに置く。Redis は使わない (2026-10-16 廃止)。
+ * セッションは DB (sessionRepo) だけに置く。Redis はキャッシュ専用で、止まると中身が消えてよい
+ * ものしか置かない。Redis に置くと Redis 停止でログイン状態が失われるため、ここでは渡さない。
  */
 
 import { createSessionStore } from "@ludiars/cernere-id-service";

@@ -39,7 +39,7 @@ import { taskChangeNotifications } from "./notifications/events.js";
 import { enqueueNotificationsSafely } from "./notifications/enqueue.js";
 import { toTaskSnapshot } from "./notifications/snapshot.js";
 import { notificationAdminRoutes } from "./notifications/admin-routes.js";
-import { taskListCache } from "./cache/shared-task-list-cache.js";
+import { taskListCache } from "./cache/redis-task-list-cache.js";
 import { planningRepositories } from "../../src/db/planning-repository.js";
 import { dialect } from "../../src/db/connection.js";
 import { canActAsTeamMember } from "./team/access.js";

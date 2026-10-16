@@ -12,6 +12,7 @@ import type {
   IdGroupMemberRepo,
   IdGroupRepo,
   IdSecretManager,
+  GetRedis,
   LogActivity,
 } from "./core/types.js";
 import type { PluginRegistry } from "./plugin/registry.js";
@@ -21,6 +22,8 @@ export interface IdServiceConfig {
   jwtSecret: string;
   /** Secret Manager */
   secretManager: IdSecretManager;
+  /** Redis getter */
+  getRedis: GetRedis;
 
   // ─── Repositories ────────────────────────────────────
   userRepo: IdUserRepo;

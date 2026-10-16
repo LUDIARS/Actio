@@ -302,7 +302,7 @@ export function createApp() {
     });
   });
 
-  // ─── Readiness check (DB 接続確認) ───────────────────────
+  // ─── Readiness check (DB / Redis 接続確認) ───────────────
   // 依存サービスの準備が整っているかチェック。k8s readiness probe 用。
   // 既存の /api/health は後方互換のため /api/ready のエイリアスとして残す。
   const readinessHandler = async (c: Context) => {
@@ -327,6 +327,22 @@ export function createApp() {
       health.status = "degraded";
       health.db_status = "disconnected";
       health.db_error = err instanceof Error ? err.message : String(err);
+    }
+
+    // Redis は任意 (キャッシュ用途のみ)。止まっていてもプロセス内キャッシュで動くため、
+    // 状態は報告するが degraded にはしない。
+    try {
+      const { getRedis, redis: configuredRedis } = await import("./db/redis.js");
+      const redis = getRedis();
+      if (redis) {
+        await redis.ping();
+        health.redis_status = "connected";
+      } else {
+        health.redis_status = configuredRedis ? "disconnected" : "not_configured";
+      }
+    } catch (err) {
+      health.redis_status = "disconnected";
+      health.redis_error = err instanceof Error ? err.message : String(err);
     }
 
     // 処理されないまま受け止めた接続断。落ちずに続行した事実と、どの接続断かを見せる。

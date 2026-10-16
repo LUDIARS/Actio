@@ -103,7 +103,7 @@ Cernere は次の 2 経路で `INSERT INTO project_data_actio (user_id) VALUES (
 }
 ```
 
-Actio は `src/auth/user-info.ts` の `getUserInfo(userId)` / `getUserInfos(ids)` でこれを取得し、プロセス内キャッシュ (`session-cache.ts`) に置く。Cernere 未接続時はプレースホルダ (`user-${id.slice(0,8)}` / `${id}@unknown.local`) を返す (UI 劣化を許容)。
+Actio は `src/auth/user-info.ts` の `getUserInfo(userId)` / `getUserInfos(ids)` でこれを取得し、Redis キャッシュ (`session-cache.ts`) する。Cernere 未接続時はプレースホルダ (`user-${id.slice(0,8)}` / `${id}@unknown.local`) を返す (UI 劣化を許容)。
 
 ---
 
@@ -187,7 +187,7 @@ sequenceDiagram
     autonumber
     participant U as ブラウザ
     participant A as Actio Server
-    participant Cache as プロセス内キャッシュ (session-cache)
+    participant Cache as Redis (session-cache)
     participant CS as Cernere Server
     participant DB as Actio DB
 
