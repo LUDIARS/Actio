@@ -15,6 +15,7 @@ import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 import { migratePmPostgres } from "../pm-postgres-migration.js";
 import { migratePlanningPostgres } from "../planning-postgres-migration.js";
+import { migrateGroupPostgres } from "../group-postgres-migration.js";
 import { secretManager } from "../../config/secrets.js";
 
 // ─── Users (FK アンカー + Actio 固有のみ) ────────────────────
@@ -1337,6 +1338,15 @@ export async function createConnectionWithRetry() {
     if (!msg.includes("already exists")) {
       console.warn("[db:postgres] テーブル自動作成エラー:", msg);
     }
+  }
+
+  // グループテーブル (holidays / group_events など groups を参照するテーブルより先に作る)
+  try {
+    await migrateGroupPostgres(client);
+    console.log("[db:postgres] groups/group_members/group_schedules テーブル確認完了");
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.warn("[db:postgres] groups テーブル自動作成エラー:", msg);
   }
 
   // 休日テーブル
