@@ -1,6 +1,8 @@
 import { useState, useCallback, useEffect } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { ThemeToggle } from "./ThemeToggle";
+import { installDraftSafeResumeRecovery } from "../lib/draft-safe-resume";
+import { wsClient } from "../lib/ws-client";
 import { useAuth } from "../contexts/AuthContext";
 import { moduleRegistry, MENU_CATEGORY_LABELS, MENU_CATEGORY_ORDER } from "../lib/module-registry";
 import type { MenuCategory, MenuGroup, MenuItem } from "../lib/module-registry";
@@ -307,6 +309,8 @@ function NavCategorySection({
 }
 
 export function Layout() {
+  // RequireAuth mounts this shell only after identity resolution; login is excluded.
+  useEffect(() => installDraftSafeResumeRecovery(document.body, () => !wsClient.connected), []);
   const { user, logout } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [editMode, setEditMode] = useState(false);

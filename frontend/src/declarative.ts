@@ -17,6 +17,7 @@
 // localStorage Bearer は使わない。
 
 import { renderPanel } from './corpus-renderer/renderer.ts';
+import { installDraftSafeResumeRecovery } from './lib/draft-safe-resume';
 import type {
   PanelDescriptor,
   RenderContext,
@@ -143,6 +144,9 @@ async function main(): Promise<void> {
     const root = $('#root');
     root.innerHTML = '';
     renderPanel(root, panel.ui, ctx);
+    // This standalone entry uses HTTP, not the React shell's WebSocket.
+    const disposeRecovery = installDraftSafeResumeRecovery(document.body, () => false);
+    import.meta.hot?.dispose(disposeRecovery);
 
     const headerTitle = document.getElementById('header-title');
     if (headerTitle) headerTitle.textContent = panel.title;
