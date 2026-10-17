@@ -12,7 +12,7 @@
 import { Hono } from "hono";
 import type { Context } from "hono";
 import { v4 as uuidv4 } from "uuid";
-import { projectRefRepo, taskRepo, taskCategoryRepo, teamRefRepo, type TaskListFilter } from "../../src/db/repository.js";
+import { projectRefRepo, taskRepo, taskCategoryRepo, taskListPageRepo, teamRefRepo, type TaskListFilter } from "../../src/db/repository.js";
 import { getUserRole } from "../../src/middleware/getUserId.js";
 import { getTaskPlugins } from "../../src/task-plugins.js";
 import type {
@@ -44,6 +44,9 @@ import { planningRepositories } from "../../src/db/planning-repository.js";
 import { dialect } from "../../src/db/connection.js";
 import { canActAsTeamMember } from "./team/access.js";
 import { classifyUnassignedIntake } from "./unassigned-intake.js";
+import { parseTaskListPageQuery } from "./list/page-query.js";
+import { buildTaskListPage } from "./list/page.js";
+import { toTaskSummary } from "./list/summary.js";
 
 function findProjectRef(code: string) {
   return projectRefRepo.findByCode(code);
@@ -107,16 +110,19 @@ taskRoutes.get("/plugins", (c) => {
 });
 
 // ─── GET /api/tasks ───────────────────────────────────────
-// 一覧取得 (filter: ownerId / assigneeId / groupId / status / kind / pluginId)
+// 一覧取得 (spec/feature/task-list-api.md)。 要約 (本文なし) をキーセットでページ分けして返す。
 // scope: owned (default) | assigned | group | all
 // kind: task / goal / all。 sort=personal で個人タスクボード順 (status→期限→作成)
+// limit (既定 100, 上限 500) / cursor / include=description / q / status (カンマ区切り) /
+// category / assignee / updated_since / due_after。 view=current_sprint はページ分けしない。
 taskRoutes.get("/", async (c) => {
   const userId = resolveUserId(c);
+  const page = parseTaskListPageQuery(c.req.query());
+  if (!page.ok) return c.json({ error: page.error }, 400);
 
   const filter: TaskListFilter = {};
   const groupId = c.req.query("groupId");
   const project = c.req.query("project");
-  const status = c.req.query("status");
   const kind = c.req.query("kind");
   const pluginId = c.req.query("pluginId");
   const dueBefore = c.req.query("dueBefore");
@@ -153,7 +159,12 @@ taskRoutes.get("/", async (c) => {
     if (!teamId) return c.json({ error: "view=current_sprint requires team_id" }, 400);
     if (dialect === "mysql") return c.json({ error: "スプリント表示は PostgreSQL または SQLite 配備で利用できます" }, 501);
   }
-  if (status) filter.status = normalizeStatus(status) ?? status;
+  if (page.value.statuses.length) filter.statuses = page.value.statuses;
+  if (page.value.q) filter.q = page.value.q;
+  if (page.value.category) filter.category = page.value.category;
+  if (page.value.assignee) filter.assignee = page.value.assignee;
+  if (page.value.updatedSince) filter.updatedSince = page.value.updatedSince;
+  if (page.value.dueAfter) filter.dueAfter = page.value.dueAfter;
   if (kind) filter.kind = kind; // "task" | "goal" | "all"
   if (pluginId) filter.pluginId = pluginId;
   if (sort === "personal") filter.sort = "personal";
@@ -165,10 +176,19 @@ taskRoutes.get("/", async (c) => {
   const format = c.req.query("format");
   if (view === undefined) {
     // Cc のワークフローが同じ一覧を短時間に繰り返し引くため、 本文を短期キャッシュする。
+    // キーにはページ (limit / cursor / include) と全絞り込みを含める。
     // format=memoria: 既存 Memoria 消費者向け互換 shape ({items}, todo/doing/done)
-    const body = await taskListCache.getOrLoad({ ...filter, format }, async () => {
-      const listed = await taskRepo.list(filter);
-      return JSON.stringify(format === "memoria" ? { items: listed.map(toMemoriaShape) } : { tasks: listed });
+    const { limit, after, includeDescription } = page.value;
+    const order = page.value.sort;
+    const cacheKey = { ...filter, format, order, limit, cursor: c.req.query("cursor"), includeDescription };
+    const body = await taskListCache.getOrLoad(cacheKey, async () => {
+      const rows = await taskListPageRepo.listPage({ filter, sort: order, limit, after, includeDescription });
+      const { tasks, nextCursor } = buildTaskListPage(rows, limit, order);
+      if (format === "memoria") {
+        const items = tasks.map((task) => toMemoriaShape({ ...task, description: task.description ?? null }));
+        return JSON.stringify({ items, nextCursor });
+      }
+      return JSON.stringify({ tasks: tasks.map((task) => toTaskSummary(task, includeDescription)), nextCursor });
     });
     return c.body(body, 200, { "content-type": "application/json; charset=UTF-8" });
   }

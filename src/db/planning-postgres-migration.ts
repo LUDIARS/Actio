@@ -2,6 +2,7 @@ import { implementationDdl, implementationPostgresTriggers } from "./implementat
 import { sprintGateDdl } from "./sprint-gate-migration.js";
 import { chatDdl } from "./chat-migration.js";
 import { LEGACY_BUG_REPORT_TO_ISSUE_SQL } from "./issue-kind-migration.js";
+import { TASK_LIST_INDEX_DDL } from "./task-list-indexes.js";
 import type postgres from "postgres";
 
 /** Additive, atomic task migration; independent of optional calendar module DDL. */
@@ -90,6 +91,7 @@ export async function migratePlanningPostgres(pool: postgres.Sql): Promise<void>
     await sql.unsafe(`CREATE INDEX IF NOT EXISTS idx_task_spec_reviews ON task_spec_reviews(task_id,created_at)`);
     await sql.unsafe(`CREATE INDEX IF NOT EXISTS idx_task_team_lane ON tasks(team_id,lane)`);
     await sql.unsafe(`CREATE INDEX IF NOT EXISTS idx_task_sprint ON tasks(sprint_id)`);
+    for (const ddl of TASK_LIST_INDEX_DDL) await sql.unsafe(ddl);
     await sql.unsafe(`CREATE UNIQUE INDEX IF NOT EXISTS uniq_task_source_ref ON tasks(source,source_ref) WHERE source IS NOT NULL AND source_ref IS NOT NULL`);
     // Do not collapse existing duplicates; incompatible data fails the migration for review.
     await sql.unsafe(`CREATE UNIQUE INDEX IF NOT EXISTS idx_pf_review_source ON tasks(source_ref) WHERE source = 'praeforma-review'`);

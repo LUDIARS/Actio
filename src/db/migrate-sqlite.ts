@@ -4,6 +4,7 @@
  */
 import { createConnection } from "./dialects/sqlite.js";
 import { LEGACY_BUG_REPORT_TO_ISSUE_SQL } from "./issue-kind-migration.js";
+import { TASK_LIST_INDEX_DDL } from "./task-list-indexes.js";
 
 const { sqlite } = createConnection();
 
@@ -542,6 +543,7 @@ sqlite.exec(`
   CREATE INDEX IF NOT EXISTS idx_task_notifications_status ON task_notifications(status);
 `);
 sqlite.exec(`CREATE INDEX IF NOT EXISTS idx_task_team ON tasks(team_id); CREATE INDEX IF NOT EXISTS idx_task_sprint ON tasks(sprint_id); CREATE UNIQUE INDEX IF NOT EXISTS uniq_task_source_ref ON tasks(source, source_ref) WHERE source IS NOT NULL AND source_ref IS NOT NULL;`);
+for (const ddl of TASK_LIST_INDEX_DDL) sqlite.exec(ddl);
 
 // ─── Placement Module (GPS 場所登録 + enter/leave トリガー) ──
 sqlite.exec(`

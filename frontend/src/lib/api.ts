@@ -1516,6 +1516,7 @@ export const pmApi = {
 export interface TaskListQuery {
   scope?: "owned" | "assigned" | "group" | "all";
   groupId?: string;
+  /** カンマ区切りで複数指定可 */
   status?: string;
   /** "task" | "goal" | "all"。 Memoria 個人タスク移植 */
   kind?: string;
@@ -1528,8 +1529,21 @@ export interface TaskListQuery {
   teamId?: string;
   /** 作業者: human / ai */
   executorType?: "human" | "ai";
-  /** current_sprint: 進行中スプリント + 未割付バックログ (teamId 必須) */
+  /** current_sprint: 進行中スプリント + 未割付バックログ (teamId 必須)。 ページ分けしない */
   view?: "current_sprint";
+  /** 1 ページの件数 (既定 100, 上限 500) */
+  limit?: number;
+  /** 前ページの nextCursor */
+  cursor?: string;
+  /** title の部分一致 (大文字小文字無視) */
+  q?: string;
+  category?: string;
+  /** 担当者のユーザ ID */
+  assignee?: string;
+  /** ISO 8601 string */
+  updatedSince?: string;
+  /** ISO 8601 string */
+  dueAfter?: string;
 }
 
 export const tasksApi = {
@@ -1545,6 +1559,13 @@ export const tasksApi = {
     if (query.teamId) params.set("team_id", query.teamId);
     if (query.executorType) params.set("executor_type", query.executorType);
     if (query.view) params.set("view", query.view);
+    if (query.limit) params.set("limit", String(query.limit));
+    if (query.cursor) params.set("cursor", query.cursor);
+    if (query.q) params.set("q", query.q);
+    if (query.category) params.set("category", query.category);
+    if (query.assignee) params.set("assignee", query.assignee);
+    if (query.updatedSince) params.set("updated_since", query.updatedSince);
+    if (query.dueAfter) params.set("due_after", query.dueAfter);
     const qs = params.toString();
     return request<TaskListResponse>(`/api/tasks${qs ? `?${qs}` : ""}`);
   },

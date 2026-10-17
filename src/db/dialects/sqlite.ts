@@ -10,6 +10,7 @@ import * as curriculumSchema from "../curriculum-schema.js";
 import { secretManager } from "../../config/secrets.js";
 import { migratePlanning } from "../planning-migration.js";
 import { LEGACY_BUG_REPORT_TO_ISSUE_SQL } from "../issue-kind-migration.js";
+import { TASK_LIST_INDEX_DDL } from "../task-list-indexes.js";
 
 export { schema, curriculumSchema };
 
@@ -272,6 +273,8 @@ export function createConnection(): { db: ReturnType<typeof drizzle>; sqlite: Sq
     CREATE TABLE IF NOT EXISTS task_notifications (id TEXT PRIMARY KEY, task_id TEXT, team_id TEXT, event TEXT NOT NULL, channel TEXT NOT NULL, dedupe_key TEXT NOT NULL UNIQUE, payload TEXT NOT NULL, status TEXT NOT NULL, attempts INTEGER NOT NULL DEFAULT 0, last_error TEXT, created_at INTEGER NOT NULL, sent_at INTEGER);
     CREATE INDEX IF NOT EXISTS idx_task_notifications_status ON task_notifications(status);
   `);
+  // GET /api/tasks のキーセットページ分け (team_id は上の ALTER で足した後に張る)
+  for (const ddl of TASK_LIST_INDEX_DDL) sqlite.exec(ddl);
 
   migratePlanning(sqlite);
 

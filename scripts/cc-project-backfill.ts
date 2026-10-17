@@ -49,6 +49,19 @@ async function getJson(url: string): Promise<unknown> {
   return response.json();
 }
 
+// GET /api/tasks は要約をページ分けして返す (spec/feature/task-list-api.md)。 nextCursor を辿って全件読む
+async function listAllTasks(actioBase: string): Promise<ActioTask[]> {
+  const tasks: ActioTask[] = [];
+  let cursor: string | null = null;
+  do {
+    const query = `scope=all&kind=all&limit=500${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ""}`;
+    const page = await getJson(`${actioBase}/api/tasks?${query}`) as { tasks: ActioTask[]; nextCursor?: string | null };
+    tasks.push(...page.tasks);
+    cursor = page.nextCursor ?? null;
+  } while (cursor);
+  return tasks;
+}
+
 async function readCcRenames(): Promise<ProjectRename[]> {
   const baseUrl = (process.env.CONCORDIA_URL ?? "").replace(/\/+$/, "");
   if (!baseUrl) return [];
@@ -72,7 +85,7 @@ async function main(): Promise<void> {
   const apply = process.argv.includes("--apply");
 
   const { projects } = await getJson(`${actioBase}/api/projects/cc`) as { projects: BackfillProject[] };
-  const { tasks } = await getJson(`${actioBase}/api/tasks?scope=all&kind=all`) as { tasks: ActioTask[] };
+  const tasks = await listAllTasks(actioBase);
   const renames = [...parseRenameArgs(), ...await readCcRenames()];
   const plan = planProjectBackfill(tasks, projects, renames);
 

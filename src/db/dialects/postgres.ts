@@ -785,6 +785,10 @@ export const tasks = pgTable(
     index("idx_task_kind").on(t.kind),
     index("idx_task_deadline").on(t.deadline),
     index("idx_task_plugin").on(t.pluginId),
+    index("idx_task_owner_updated").on(t.ownerId, t.updatedAt, t.id),
+    index("idx_task_assignee_updated").on(t.assigneeId, t.updatedAt, t.id),
+    index("idx_task_team_updated").on(t.teamId, t.updatedAt, t.id),
+    index("idx_task_updated").on(t.updatedAt, t.id),
     index("idx_task_completed_at").on(t.completedAt),
   ]
 );

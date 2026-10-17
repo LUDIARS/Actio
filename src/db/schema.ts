@@ -1165,6 +1165,10 @@ export const tasks = sqliteTable(
     index("idx_task_kind").on(table.kind),
     index("idx_task_deadline").on(table.deadline),
     index("idx_task_plugin").on(table.pluginId),
+    index("idx_task_owner_updated").on(table.ownerId, table.updatedAt, table.id),
+    index("idx_task_assignee_updated").on(table.assigneeId, table.updatedAt, table.id),
+    index("idx_task_team_updated").on(table.teamId, table.updatedAt, table.id),
+    index("idx_task_updated").on(table.updatedAt, table.id),
     index("idx_task_completed_at").on(table.completedAt),
   ]
 );

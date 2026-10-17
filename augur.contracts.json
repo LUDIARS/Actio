@@ -120,6 +120,42 @@
       "module": "contracts/public-issue-fields.contract.ts",
       "mode": "observe",
       "sample": 1
+    },
+    {
+      "id": "C-18",
+      "criterion": "C-18 parseTaskListPageQuery(query): limit は既定 100・1〜500 の整数だけを受け、status のカンマ区切り・updated_since・due_after・include・cursor の不正値は誤りにする",
+      "symbol": "parseTaskListPageQuery",
+      "file": "modules/task/list/page-query.ts",
+      "module": "contracts/task-list-page-query.contract.ts",
+      "mode": "observe",
+      "sample": 1
+    },
+    {
+      "id": "C-19",
+      "criterion": "C-19 decodeTaskListCursor(raw, sort): encodeTaskListCursor が作った同じ並び順のカーソルだけを元のキーに戻し、壊れた値・別の並び順のカーソルは null にする",
+      "symbol": "decodeTaskListCursor",
+      "file": "modules/task/list/cursor.ts",
+      "module": "contracts/task-list-cursor.contract.ts",
+      "mode": "observe",
+      "sample": 1
+    },
+    {
+      "id": "C-20",
+      "criterion": "C-20 toTaskSummary(task, includeDescription): description・requirements・completionEvidence・publicSummary を外し (description は includeDescription のときだけ残す)、pluginPayload を含むそれ以外の項目はそのまま返す",
+      "symbol": "toTaskSummary",
+      "file": "modules/task/list/summary.ts",
+      "module": "contracts/task-summary.contract.ts",
+      "mode": "observe",
+      "sample": 1
+    },
+    {
+      "id": "C-21",
+      "criterion": "C-21 buildTaskListPage(rows, limit, sort): limit を超える行があれば limit 件に切って最後の行のカーソルを nextCursor にし、超えなければ nextCursor を null にする",
+      "symbol": "buildTaskListPage",
+      "file": "modules/task/list/page.ts",
+      "module": "contracts/task-list-page.contract.ts",
+      "mode": "observe",
+      "sample": 1
     }
   ]
 }

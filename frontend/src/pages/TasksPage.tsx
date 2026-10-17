@@ -1,9 +1,14 @@
 import "./TasksPage.css";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { tasksApi } from "../lib/api";
 import { TaskPrEvidence } from "../components/TaskPrEvidence";
+import { TaskDetailToggle } from "../components/TaskDetailToggle";
+import { TaskSearchFilters } from "../components/TaskSearchFilters";
+import { EMPTY_TASK_SEARCH, type TaskSearchValues } from "../lib/task-search";
+import { useTaskListPages } from "../hooks/useTaskListPages";
 import type {
   CoreTask,
+  CoreTaskSummary,
   CreateTaskInput,
   TaskExecutorType,
   TaskKind,
@@ -100,8 +105,7 @@ function toLocalInputValue(iso: string | null | undefined): string {
 }
 
 export function TasksPage() {
-  const [tasks, setTasks] = useState<CoreTask[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -110,28 +114,28 @@ export function TasksPage() {
   const [statusFilter, setStatusFilter] = useState<TaskStatus | "">("");
   const [kindFilter, setKindFilter] = useState<KindFilter>("task");
   const [categories, setCategories] = useState<string[]>([]);
+  const [search, setSearch] = useState<TaskSearchValues>(EMPTY_TASK_SEARCH);
 
   const showMsg = (msg: string) => {
     setMessage(msg);
     setTimeout(() => setMessage(""), 4000);
   };
 
-  const fetchTasks = useCallback(async () => {
-    try {
-      setLoading(true);
-      const res = await tasksApi.list({
-        scope,
-        status: statusFilter || undefined,
-        kind: kindFilter,
-        sort: "personal",
-      });
-      setTasks(res.tasks);
-    } catch (e: unknown) {
-      showMsg(`Error: ${(e as Error).message}`);
-    } finally {
-      setLoading(false);
-    }
-  }, [scope, statusFilter, kindFilter]);
+  // 一覧は要約 (本文なし) を 100 件ずつ。 説明・要件は詳細 (GET /api/tasks/:id) で取る
+  const listQuery = useMemo(() => ({
+    scope,
+    status: statusFilter || undefined,
+    kind: kindFilter,
+    sort: "personal" as const,
+    q: search.q || undefined,
+    category: search.category || undefined,
+    assignee: search.assignee || undefined,
+  }), [scope, statusFilter, kindFilter, search]);
+  const { tasks, nextCursor, loading: listLoading, reload: fetchTasks, loadMore } = useTaskListPages(
+    listQuery,
+    (error) => showMsg(`Error: ${error}`),
+  );
+  const loading = saving || listLoading;
 
   const fetchCategories = useCallback(async () => {
     try {
@@ -143,10 +147,6 @@ export function TasksPage() {
   }, []);
 
   useEffect(() => {
-    fetchTasks();
-  }, [fetchTasks]);
-
-  useEffect(() => {
     fetchCategories();
   }, [fetchCategories]);
 
@@ -156,7 +156,18 @@ export function TasksPage() {
     setShowForm(false);
   };
 
-  const handleEdit = (task: CoreTask) => {
+  // 一覧の要約には説明・要件が無いので、 編集前に全文を取り直す (空のまま保存して消さないため)
+  const handleEdit = async (summary: CoreTaskSummary) => {
+    let task: CoreTask;
+    try {
+      setSaving(true);
+      task = (await tasksApi.get(summary.id)).task;
+    } catch (e: unknown) {
+      showMsg(`Error: ${(e as Error).message}`);
+      return;
+    } finally {
+      setSaving(false);
+    }
     setForm({
       title: task.title,
       description: task.description ?? "",
@@ -200,7 +211,7 @@ export function TasksPage() {
     };
 
     try {
-      setLoading(true);
+      setSaving(true);
       if (editingId) {
         await tasksApi.update(editingId, payload);
         showMsg("タスクを更新しました");
@@ -214,7 +225,7 @@ export function TasksPage() {
     } catch (e: unknown) {
       showMsg(`Error: ${(e as Error).message}`);
     } finally {
-      setLoading(false);
+      setSaving(false);
     }
   };
 
@@ -229,7 +240,7 @@ export function TasksPage() {
     }
   };
 
-  const handleStatusChange = async (task: CoreTask, status: TaskStatus) => {
+  const handleStatusChange = async (task: CoreTaskSummary, status: TaskStatus) => {
     try {
       await tasksApi.update(task.id, { status });
       await fetchTasks();
@@ -590,6 +601,8 @@ export function TasksPage() {
         ))}
       </div>
 
+      <TaskSearchFilters value={search} categories={categories} onChange={setSearch} />
+
       {/* 一覧 */}
       {loading && tasks.length === 0 ? (
         <p style={{ color: "var(--text-muted)", fontSize: "0.85rem" }}>読み込み中...</p>
@@ -736,26 +749,7 @@ export function TasksPage() {
                   ))}
                 </div>
               )}
-              {task.description && (
-                <div style={{ fontSize: "0.8rem", color: "var(--text-muted)", whiteSpace: "pre-wrap" }}>
-                  {task.description}
-                </div>
-              )}
-              {task.requirements && (
-                <div
-                  style={{
-                    fontSize: "0.75rem",
-                    color: "var(--text-muted)",
-                    whiteSpace: "pre-wrap",
-                    padding: "0.4rem 0.6rem",
-                    background: "var(--bg-surface-2)",
-                    borderRadius: "var(--radius-sm)",
-                  }}
-                >
-                  <strong style={{ color: "var(--text)" }}>要件: </strong>
-                  {task.requirements}
-                </div>
-              )}
+              <TaskDetailToggle taskId={task.id} updatedAt={task.updatedAt} />
               <div className="task-actions">
                 <select
                   aria-label={`${task.title}のステータス`}
@@ -770,7 +764,7 @@ export function TasksPage() {
                   ))}
                 </select>
                 <button
-                  onClick={() => handleEdit(task)}
+                  onClick={() => void handleEdit(task)}
                   style={{
                     padding: "0.25rem 0.6rem",
                     background: "var(--bg-surface-2)",
@@ -800,6 +794,13 @@ export function TasksPage() {
               </div>
             </div>
           ))}
+        </div>
+      )}
+      {nextCursor && (
+        <div className="tasks-load-more">
+          <button onClick={() => void loadMore()} disabled={listLoading}>
+            {listLoading ? "読み込み中..." : "さらに読み込む"}
+          </button>
         </div>
       )}
     </div>

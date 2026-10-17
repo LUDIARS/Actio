@@ -1225,8 +1225,16 @@ export interface TaskResponse {
   task: CoreTask;
 }
 
+/** GET /api/tasks の一覧要素。 本文 (description / requirements / publicSummary) は GET /api/tasks/:id で取る */
+export type CoreTaskSummary = Omit<CoreTask, "description" | "requirements" | "publicSummary"> & {
+  /** include=description を指定したときだけ載る */
+  description?: string | null;
+};
+
 export interface TaskListResponse {
-  tasks: CoreTask[];
+  tasks: CoreTaskSummary[];
+  /** 次ページのカーソル。 null なら最終ページ */
+  nextCursor: string | null;
 }
 
 export interface TaskPluginInfo {

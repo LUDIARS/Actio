@@ -5,6 +5,7 @@ import Database from "better-sqlite3";
 import { resolve } from "path";
 import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
+import { TASK_LIST_INDEX_DDL } from "../src/db/task-list-indexes.js";
 
 const JWT_SECRET = process.env.JWT_SECRET || "test-secret-key-for-testing";
 
@@ -548,6 +549,7 @@ export function initTestDatabase() {
     CREATE INDEX IF NOT EXISTS idx_wf_target
       ON workflow_transitions(target_type, target_id, performed_at);
   `);
+  for (const ddl of TASK_LIST_INDEX_DDL) sqlite.exec(ddl);
 
   sqlite.close();
 }
@@ -597,6 +599,35 @@ export function insertTestUser(data: {
        VALUES (?, ?, ?, ?, ?, ?, ?)`
     )
     .run(data.id, data.name, data.email, data.role || "general", data.passwordHash || null, now, now);
+  sqlite.close();
+}
+
+/** テスト用タスクをDBに一括で直接挿入 (時刻は秒単位で保存される) */
+export function insertTestTasks(rows: Array<{
+  id: string;
+  ownerId: string;
+  title: string;
+  description?: string | null;
+  status?: string;
+  category?: string | null;
+  assigneeId?: string | null;
+  deadline?: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
+}>) {
+  const dbPath = process.env.DATABASE_PATH || resolve("data", "test.db");
+  const sqlite = new Database(dbPath);
+  const insert = sqlite.prepare(
+    `INSERT INTO tasks (id, owner_id, assignee_id, title, description, status, category, deadline, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+  );
+  const seconds = (d: Date) => Math.floor(d.getTime() / 1000);
+  sqlite.transaction(() => {
+    for (const r of rows) {
+      insert.run(r.id, r.ownerId, r.assigneeId ?? null, r.title, r.description ?? null, r.status ?? "open",
+        r.category ?? null, r.deadline ? seconds(r.deadline) : null, seconds(r.createdAt), seconds(r.updatedAt));
+    }
+  })();
   sqlite.close();
 }
 

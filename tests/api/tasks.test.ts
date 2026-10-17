@@ -373,7 +373,8 @@ describe("Memoria compat shim", () => {
       token,
       body: { title: "compat", creator_type: "ai", status: "doing", details: "メモ", category: "Mm" },
     });
-    const res = await request(app, "GET", "/api/tasks?format=memoria", { token });
+    // 一覧は要約。 details (description) は include=description の明示 opt-in で載る
+    const res = await request(app, "GET", "/api/tasks?format=memoria&include=description", { token });
     expect(res.status).toBe(200);
     expect(Array.isArray(res.json.items)).toBe(true);
     const item = res.json.items.find((t: { title: string }) => t.title === "compat");

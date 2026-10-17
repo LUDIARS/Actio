@@ -120,6 +120,7 @@ introduced by this compatibility addition.
 ### 3.1 API
 
 `GET /api/tasks?team_id=<id>&view=current_sprint` を追加する (`view` は新パラメタ、 `team_id` 必須)。
+通常の一覧と違い、 この表示はページ分けせず要約にもしない (一覧 API の契約は `spec/feature/task-list-api.md`)。
 
 返すタスク:
 
@@ -311,7 +312,7 @@ Cc の project_codes が正本で、 Actio はプロジェクトを持つタス�
 `scripts/cc-project-backfill.ts` で一覧にしてから人が承認して直す。
 
 - 計画は純粋関数 `modules/task/team/cc-project-backfill-plan.ts`。 入力は Actio `GET /api/projects/cc` と
-  `GET /api/tasks?scope=all&kind=all`、 改名は Cc の `renamed_from` と `--rename OLD=NEW` 引数。
+  `GET /api/tasks?scope=all&kind=all&limit=500` を `nextCursor` が null になるまで辿った全件 (`spec/feature/task-list-api.md`)、 改名は Cc の `renamed_from` と `--rename OLD=NEW` 引数。
 - 出力 (`logs/cc-project-backfill-<時刻>.json`、 `--out` で変更) は `renames` (M2) / `teamBindings` (M3、 チーム 1 つ) /
   `multiTeam` (M3、 チーム複数で人が選ぶ) の 3 一覧。 スプリントに入っているタスクと `team_id` があるタスクは対象外。
 - 既定は dry-run。 `--apply` のときだけ Actio API (`PATCH /api/tasks/:id`) で反映する。 DB へ直接は書かない。

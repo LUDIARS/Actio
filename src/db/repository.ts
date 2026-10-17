@@ -9,6 +9,8 @@ import { eq, and, count, inArray, notInArray, desc, like, gte, lte, or, isNull, 
 import type { SQL } from "drizzle-orm";
 import { db, schema, curriculumSchema, pmSchema } from "./connection.js";
 import { notifyTaskWrite } from "./task-write-listeners.js";
+import { buildTaskListConditions, type TaskListFilter } from "./task-list-conditions.js";
+import { PERSONAL_STATUS_ORDER } from "./task-list-keyset.js";
 
 // ─── Types ──────────────────────────────────────────────────
 
@@ -2390,37 +2392,11 @@ export const eventRepo = {
 export type Task = typeof schema.tasks.$inferSelect;
 export type NewTask = typeof schema.tasks.$inferInsert;
 
-export interface TaskListFilter {
-  ownerId?: string;
-  assigneeId?: string;
-  groupId?: string;
-  /** 外部プロジェクトの不透明参照 (EducationLab glab_project.id 等)。 ?project=<id> フィルタ用 */
-  projectId?: string;
-  teamId?: string;
-  lane?: string;
-  sprintId?: string;
-  status?: string;
-  pluginId?: string;
-  /** 種別フィルタ: "task" / "goal" / "all"(両方)。 省略時は全件 (互換) */
-  kind?: string;
-  /** 作業者種別: "human" / "ai" (task-integration §4.3) */
-  executorType?: string;
-  /** deadline <= dueBefore */
-  dueBefore?: Date;
-  /**
-   * 並び順。 "personal" = 個人タスクボード用
-   * (status todo→doing→done, 次に期限 昇順 nulls last, 次に作成日時 降順)。
-   * 省略時は従来どおり作成日時 降順。
-   */
-  sort?: "personal";
-}
+export type { TaskListFilter } from "./task-list-conditions.js";
+export { taskListPageRepo, type TaskListRow } from "./task-list-page-repository.js";
+export type { TaskListCursorKey, TaskListSort } from "./task-list-keyset.js";
 
-// 個人タスクボードの並び: open/todo→0, in_progress/doing→1, done→2, その他→3。
-// 次に期限 (null は最後)、 次に作成日時 降順。
-const PERSONAL_STATUS_ORDER = sql`CASE ${schema.tasks.status}
-  WHEN 'open' THEN 0 WHEN 'todo' THEN 0
-  WHEN 'in_progress' THEN 1 WHEN 'doing' THEN 1
-  WHEN 'done' THEN 2 ELSE 3 END`;
+// 個人タスクボードの並び: status 順 (task-list-keyset.ts)、 次に期限 (null は最後)、 次に作成日時 降順。
 const PERSONAL_DEADLINE_ORDER = sql`COALESCE(${schema.tasks.deadline}, 99999999999999)`;
 
 export const taskRepo = {
@@ -2433,19 +2409,7 @@ export const taskRepo = {
   },
 
   async list(filter: TaskListFilter = {}): Promise<Task[]> {
-    const conditions: SQL[] = [];
-    if (filter.ownerId) conditions.push(eq(schema.tasks.ownerId, filter.ownerId));
-    if (filter.assigneeId) conditions.push(eq(schema.tasks.assigneeId, filter.assigneeId));
-    if (filter.groupId) conditions.push(eq(schema.tasks.groupId, filter.groupId));
-    if (filter.projectId) conditions.push(eq(schema.tasks.projectId, filter.projectId));
-    if (filter.teamId) conditions.push(eq(schema.tasks.teamId, filter.teamId));
-    if (filter.lane) conditions.push(eq(schema.tasks.lane, filter.lane));
-    if (filter.sprintId) conditions.push(eq(schema.tasks.sprintId, filter.sprintId));
-    if (filter.status) conditions.push(eq(schema.tasks.status, filter.status));
-    if (filter.pluginId) conditions.push(eq(schema.tasks.pluginId, filter.pluginId));
-    if (filter.kind && filter.kind !== "all") conditions.push(eq(schema.tasks.kind, filter.kind));
-    if (filter.executorType) conditions.push(eq(schema.tasks.executorType, filter.executorType));
-    if (filter.dueBefore) conditions.push(lte(schema.tasks.deadline, filter.dueBefore));
+    const conditions = buildTaskListConditions(filter);
 
     const order =
       filter.sort === "personal"
