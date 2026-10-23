@@ -40,6 +40,18 @@ describe("task source concordia.bounty.v1", () => {
   });
 });
 
+describe("task source ingenium.playtest.v1", () => {
+  const fields = (source: string): TeamTaskRequestFields => ({
+    teamId: undefined, lane: undefined, sprintId: undefined, durationDays: undefined,
+    source, sourceRef: "run-1#bug-1", blockedBy: undefined, storyPoints: undefined,
+  });
+
+  it("is accepted with the playtest run sourceRef", () => {
+    expect(validateTeamTaskMetadata(fields("ingenium.playtest.v1"))).toBeUndefined();
+    expect(validateTeamTaskMetadata(fields("ingenium.playtest.v2"))).toMatch(/source must be one of/);
+  });
+});
+
 describe("LEGACY_BUG_REPORT_TO_ISSUE_SQL", () => {
   it("moves only cc-command bug:* tasks of kind task to issue", () => {
     const sqlite = new Database(":memory:");
