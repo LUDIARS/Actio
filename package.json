@@ -13,7 +13,7 @@
     "dev:front": "npm run dev --prefix frontend",
     "prebuild": "npm run sdk:build && npm run terpsichore:build",
     "build": "tsc",
-    "typecheck": "npm run terpsichore:build && tsc --noEmit",
+    "typecheck": "npm run sdk:build && npm run terpsichore:build && tsc --noEmit",
     "start": "node dist/src/bootstrap.js",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
