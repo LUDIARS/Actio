@@ -43,7 +43,8 @@ export class SprintStore {
     })();
   }
 
-  change(teamId: string, id: string, actor: string, input: z.infer<typeof sprintChange>, now: Date): Sprint {
+  /** `membershipFreeAssignee`: the verified local owner, who may be the assignee without a team_members row (spec/feature/local-mode-cf-access.md §4.1). */
+  change(teamId: string, id: string, actor: string, input: z.infer<typeof sprintChange>, now: Date, membershipFreeAssignee?: string): Sprint {
     return this.db.transaction(() => {
       const before = this.find(teamId, id);
       if (before.revision !== input.revision) throw new PlanningError("計画が変更されています。再読み込みしてください");
@@ -65,7 +66,7 @@ export class SprintStore {
         this.db.prepare("UPDATE sprints SET starts_on = ?, ends_on = ?, buffer_ends_on = ?, cadence_days = ?, capacity_minutes = ? WHERE id = ?")
           .run(input.startsOn, input.endsOn, input.bufferEndsOn, input.cadenceDays, input.capacityMinutes, id);
       } else {
-        this.assign(teamId, before, input, now);
+        this.assign(teamId, before, input, now, membershipFreeAssignee);
       }
       this.db.prepare("UPDATE sprints SET revision = revision + 1, updated_at = ? WHERE id = ?").run(Math.floor(now.getTime() / 1000), id);
       const after = this.find(teamId, id);
@@ -74,14 +75,15 @@ export class SprintStore {
     })();
   }
 
-  private assign(teamId: string, sprint: Sprint, input: Extract<z.infer<typeof sprintChange>, { action: "assign" | "remove" }>, now: Date): void {
+  private assign(teamId: string, sprint: Sprint, input: Extract<z.infer<typeof sprintChange>, { action: "assign" | "remove" }>, now: Date, membershipFreeAssignee?: string): void {
     const task = this.db.prepare("SELECT team_id, lane, sprint_id, status, assignee_id FROM tasks WHERE id = ?").get(input.taskId) as
       { team_id: string; lane: string; sprint_id: string | null; status: string; assignee_id: string | null } | undefined;
     if (!task || task.team_id !== teamId || task.lane !== "backlog") throw new PlanningError("同じチームのバックログを選んでください", 400);
     if (input.action === "assign") {
       if (task.sprint_id) throw new PlanningError("割付済みのタスクです。先に現在のスプリントから戻してください");
       if (["done", "cancelled"].includes(task.status)) throw new PlanningError("完了済みタスクは割り付けられません", 400);
-      if (!task.assignee_id || !this.db.prepare("SELECT 1 FROM team_members WHERE team_id = ? AND user_id = ?").get(teamId, task.assignee_id)) throw new PlanningError("有効なチーム担当者を設定してください", 400);
+      const ownerAssigned = task.assignee_id !== null && task.assignee_id === membershipFreeAssignee;
+      if (!task.assignee_id || (!ownerAssigned && !this.db.prepare("SELECT 1 FROM team_members WHERE team_id = ? AND user_id = ?").get(teamId, task.assignee_id))) throw new PlanningError("有効なチーム担当者を設定してください", 400);
     } else if (task.sprint_id !== sprint.id) throw new PlanningError("このスプリントに所属していません", 400);
     this.db.prepare("UPDATE tasks SET sprint_id = ?, updated_at = ? WHERE id = ?")
       .run(input.action === "assign" ? sprint.id : null, Math.floor(now.getTime() / 1000), input.taskId);

@@ -36,7 +36,8 @@ export class PostgresSprintStore {
             return sprint;
         }, teamId);
     }
-    async change(teamId: string, id: string, actor: string, input: z.infer<typeof sprintChange>, now: Date): Promise<Sprint> {
+    /** `membershipFreeAssignee`: the verified local owner, who may be the assignee without a team_members row (spec/feature/local-mode-cf-access.md §4.1). */
+    async change(teamId: string, id: string, actor: string, input: z.infer<typeof sprintChange>, now: Date, membershipFreeAssignee?: string): Promise<Sprint> {
         return await this.db.transaction(async () => {
             const before = (await this.find(teamId, id));
             if (before.revision !== input.revision)
@@ -66,7 +67,7 @@ export class PostgresSprintStore {
                     .run(input.startsOn, input.endsOn, input.bufferEndsOn, input.cadenceDays, input.capacityMinutes, id));
             }
             else {
-                (await this.assign(teamId, before, input, now));
+                (await this.assign(teamId, before, input, now, membershipFreeAssignee));
             }
             (await this.db.prepare("UPDATE sprints SET revision = revision + 1, updated_at = ? WHERE id = ?").run(this.db.timestamp(now), id));
             const after = (await this.find(teamId, id));
@@ -76,7 +77,7 @@ export class PostgresSprintStore {
     }
     private async assign(teamId: string, sprint: Sprint, input: Extract<z.infer<typeof sprintChange>, {
         action: "assign" | "remove";
-    }>, now: Date): Promise<void> {
+    }>, now: Date, membershipFreeAssignee?: string): Promise<void> {
         const task = (await this.db.prepare("SELECT team_id, lane, sprint_id, status, assignee_id FROM tasks WHERE id = ?").get(input.taskId)) as {
             team_id: string;
             lane: string;
@@ -91,7 +92,8 @@ export class PostgresSprintStore {
                 throw new PlanningError("割付済みのタスクです。先に現在のスプリントから戻してください");
             if (["done", "cancelled"].includes(task.status))
                 throw new PlanningError("完了済みタスクは割り付けられません", 400);
-            if (!task.assignee_id || !(await this.db.prepare("SELECT 1 FROM team_members WHERE team_id = ? AND user_id = ?").get(teamId, task.assignee_id)))
+            const ownerAssigned = task.assignee_id !== null && task.assignee_id === membershipFreeAssignee;
+            if (!task.assignee_id || (!ownerAssigned && !(await this.db.prepare("SELECT 1 FROM team_members WHERE team_id = ? AND user_id = ?").get(teamId, task.assignee_id))))
                 throw new PlanningError("有効なチーム担当者を設定してください", 400);
         }
         else if (task.sprint_id !== sprint.id)

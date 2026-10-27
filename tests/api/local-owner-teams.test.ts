@@ -1,4 +1,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import Database from "better-sqlite3";
+import { resolve } from "node:path";
 import { clearTestDatabase, initTestDatabase, insertTestTeamRef } from "../helpers.js";
 
 type App = ReturnType<typeof import("../../src/app.js").createApp>["app"];
@@ -76,6 +78,30 @@ describe("local mode owner — teams synced from Cc", () => {
     const created = await call("POST", "/api/teams/team-1/planning/sprints", { body: sprint });
     expect(created.status).toBe(201);
     expect(created.json.sprint.name).toBe("Sprint 1");
+  });
+
+  it("assigns and removes an owner-assigned backlog task without a membership row", async () => {
+    const task = await call("POST", "/api/tasks", { body: { title: "Bug candidate", teamId: "team-1", assigneeId: "actio-local", lane: "backlog" } });
+    expect(task.status, JSON.stringify(task.json)).toBe(201);
+    const created = await call("POST", "/api/teams/team-1/planning/sprints", { body: sprint });
+    const path = `/api/teams/team-1/planning/sprints/${created.json.sprint.id}`;
+    const assigned = await call("PATCH", path, { body: { action: "assign", revision: 0, taskId: task.json.task.id, reason: "triage" } });
+    expect(assigned.status, JSON.stringify(assigned.json)).toBe(200);
+    const removed = await call("PATCH", path, { body: { action: "remove", revision: 1, taskId: task.json.task.id, reason: "triage" } });
+    expect(removed.status, JSON.stringify(removed.json)).toBe(200);
+    expect((await call("GET", "/api/teams/team-1/members")).json.members).toEqual([]);
+  });
+
+  it("still requires membership for an assignee other than the owner", async () => {
+    const task = await call("POST", "/api/tasks", { body: { title: "Bug candidate", teamId: "team-1", assigneeId: "actio-local", lane: "backlog" } });
+    const sqlite = new Database(process.env.DATABASE_PATH || resolve("data", "test.db"));
+    sqlite.prepare("UPDATE tasks SET assignee_id = 'someone-else' WHERE id = ?").run(task.json.task.id);
+    sqlite.close();
+    const created = await call("POST", "/api/teams/team-1/planning/sprints", { body: sprint });
+    const assigned = await call("PATCH", `/api/teams/team-1/planning/sprints/${created.json.sprint.id}`,
+      { body: { action: "assign", revision: 0, taskId: task.json.task.id, reason: "triage" } });
+    expect(assigned.status).toBe(400);
+    expect(assigned.json.error).toBe("有効なチーム担当者を設定してください");
   });
 
   it("rejects teams that are not in team_refs", async () => {

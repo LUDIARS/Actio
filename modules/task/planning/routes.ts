@@ -4,6 +4,7 @@ import { Hono } from "hono";
 import { z } from "zod";
 import { dialect } from "../../../src/db/connection.js";
 import { requireTeamRole } from "../../../src/auth/team-role.js";
+import { isLocalOwnerRequest } from "../../../src/auth/local-owner.js";
 import { newSprint, sprintChange, groupInput, orderInput, PlanningError, PLANNING_UNSUPPORTED_MESSAGE } from "./contracts.js";
 import { planningRepositories } from "../../../src/db/planning-repository.js";
 import { sprintImpact } from "./impact.js";
@@ -37,7 +38,9 @@ planningRoutes.post("/:teamId/planning/sprints", requireTeamRole("leader"), asyn
 });
 planningRoutes.patch("/:teamId/planning/sprints/:id", requireTeamRole("leader"), async c => {
   const input = sprintChange.parse(await c.req.json().catch(() => null));
-  const sprint = await planningStores().sprints.change(c.req.param("teamId"), c.req.param("id"), c.get("actingUserId" as never) as string, input, new Date());
+  const actor = c.get("actingUserId" as never) as string;
+  // requireTeamRole has already limited the local owner to teams in team_refs.
+  const sprint = await planningStores().sprints.change(c.req.param("teamId"), c.req.param("id"), actor, input, new Date(), isLocalOwnerRequest(c) ? actor : undefined);
   return c.json({ sprint });
 });
 planningRoutes.get("/:teamId/planning/sprints/:id/history", requireTeamRole("member"), async c =>
