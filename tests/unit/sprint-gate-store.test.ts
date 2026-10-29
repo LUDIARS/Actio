@@ -117,8 +117,13 @@ describe("Sprint human lifecycle persistence", () => {
         expect((await restored.view("team", id, now)).tasks.map(t => t.id)).toEqual(["a"]);
         expect((await restored.pending()).map(row => row.sprintId).sort()).toEqual([id, next.id].sort());
     });
-    it("does not automatically approve an empty scope or invent a historical approval", async () => {
-        expect((await act("approve")).outcome).toBe("rejected");
+    it("starts an empty plan only on explicit approval", async () => {
+        // 計画は走りながら変わる (neco 2026-10-30): 対象 0 件でも本人の承認で開始できる。自動では進めない。
+        expect((await store.view("team", id, now)).state.phase).toBe("planning");
+        expect((await act("approve")).outcome).toBe("applied");
+        expect((await store.view("team", id, now)).state.phase).toBe("implementation");
+    });
+    it("never invents a historical approval for a legacy active sprint", async () => {
         db.prepare("UPDATE sprints SET status='active' WHERE id=?").run(id);
         db.prepare("DELETE FROM sprint_gates WHERE sprint_id=?").run(id);
         const legacy = await store.view("team", id, now);
