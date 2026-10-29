@@ -55,6 +55,7 @@ export interface ActiveSprintSummary {
 export interface PlanningSprintSummary {
   id: string;
   name: string;
+  goal: string | null;
   startsOn: string;
   endsOn: string;
 }
@@ -137,7 +138,7 @@ function summarizeTeam(team: ProjectSprintTeamInput, project: string, now: Date)
     planningSprints: team.sprints
       .filter((sprint) => sprint.status === "planning")
       .sort(compareSprintOrder)
-      .map((sprint) => ({ id: sprint.id, name: sprint.name, startsOn: sprint.startsOn, endsOn: sprint.endsOn })),
+      .map((sprint) => ({ id: sprint.id, name: sprint.name, goal: sprint.goal, startsOn: sprint.startsOn, endsOn: sprint.endsOn })),
     backlogUnassigned: {
       total: unassigned.length,
       project: unassigned.filter((task) => task.projectId === project).length,

@@ -108,9 +108,9 @@ describe("summarizeProjectSprints", () => {
       sprint("a", "planning", "2026-10-06"), sprint("past", "closed", "2026-09-01"),
     ], [])], now);
     expect(summary.teams[0].planningSprints).toEqual([
-      { id: "a", name: "Sprint a", startsOn: "2026-10-06", endsOn: "2026-10-06" },
-      { id: "b", name: "Sprint b", startsOn: "2026-10-06", endsOn: "2026-10-06" },
-      { id: "later", name: "Sprint later", startsOn: "2026-10-20", endsOn: "2026-10-20" },
+      { id: "a", name: "Sprint a", goal: "goal a", startsOn: "2026-10-06", endsOn: "2026-10-06" },
+      { id: "b", name: "Sprint b", goal: "goal b", startsOn: "2026-10-06", endsOn: "2026-10-06" },
+      { id: "later", name: "Sprint later", goal: "goal later", startsOn: "2026-10-20", endsOn: "2026-10-20" },
     ]);
   });
 

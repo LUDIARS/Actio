@@ -266,7 +266,7 @@ neco 指示 (2026-09-26「スプリントも可視化しよう」)。 Actio タ�
           "estimatedMinutes": 4200, "doneMinutes": 1500
         }
       },
-      "planningSprints": [ { "id": "sprint_y", "name": "Sprint 13", "startsOn": "2026-10-06", "endsOn": "2026-10-19" } ],
+      "planningSprints": [ { "id": "sprint_y", "name": "Sprint 13", "goal": "OB会", "startsOn": "2026-10-06", "endsOn": "2026-10-19" } ],
       "backlogUnassigned": { "total": 25, "project": 9 }
     }
   ]
@@ -283,7 +283,7 @@ neco 指示 (2026-09-26「スプリントも可視化しよう」)。 Actio タ�
 | `overdue` | 未完了かつ `deadline` が `generatedAt` より前のタスク数 |
 | `estimatedMinutes` | cancelled 以外のタスクの見積合計 (未完了分は `sprintImpact` と同じ、 見積の無いタスクは 0) |
 | `doneMinutes` | done タスクの見積合計 |
-| `planningSprints` | status `planning` のスプリントを `startsOn`, `id` の順に。 `id` / `name` / `startsOn` / `endsOn` だけ |
+| `planningSprints` | status `planning` のスプリントを `startsOn`, `id` の順に。 `id` / `name` / `goal` / `startsOn` / `endsOn` だけ。 `goal` は節目 (マイルストーン) の名前としても使う |
 | `backlogUnassigned` | スプリント未割付の未完了バックログ (§3.1 の未割付条件)。 `project` はそのうち `project_id = :code` の数 |
 
 - **除外する情報**: タスクの id・タイトル・説明・要件・担当者 (id / 名前)・fingerprint は出さない。 件数と、

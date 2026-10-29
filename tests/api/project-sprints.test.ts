@@ -87,7 +87,7 @@ describe("GET /api/projects/cc/:code/sprints", () => {
         tasks: { total: 2, byStatus: { open: 1, done: 1 }, project: { total: 1, byStatus: { open: 1 } }, overdue: 1,
           byExecutor: { human: 2, ai: 0 }, estimatedMinutes: 60, doneMinutes: 30 },
       },
-      planningSprints: [{ id: "sprint-next", name: "Sprint sprint-next", startsOn: "2026-10-06", endsOn: "2026-10-05" }],
+      planningSprints: [{ id: "sprint-next", name: "Sprint sprint-next", goal: "goal sprint-next", startsOn: "2026-10-06", endsOn: "2026-10-05" }],
       backlogUnassigned: { total: 1, project: 1 },
     });
     const serialized = JSON.stringify(res.json);
