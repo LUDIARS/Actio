@@ -3,6 +3,8 @@ import {
   initTestDatabase,
   clearTestDatabase,
   insertTestUser,
+  insertTestTasks,
+  insertTestTeamMember,
   generateTestToken,
   request,
 } from "../helpers.js";
@@ -30,12 +32,59 @@ describe("GET /api/tasks", () => {
     expect(json.tasks).toEqual([]);
   });
 
-  // 認証は当面未配線 (ユーザ指示)。 無認証アクセスは既定の個人ユーザ
-  // (PERSONAL_USER_ID) にフォールバックし、 その owner のタスクを返す。
-  it("falls back to the personal user when unauthenticated", async () => {
-    const { status, json } = await request(app, "GET", "/api/tasks");
+  // 通常モードは Cernere ログインで運用する (task-visibility.md §2)。 匿名は個人ユーザへ落とさず 401。
+  it("rejects unauthenticated requests", async () => {
+    const { status } = await request(app, "GET", "/api/tasks");
+    expect(status).toBe(401);
+  });
+});
+
+describe("task-visibility — 一覧と 1 件取得の閲覧範囲", () => {
+  const now = new Date();
+  beforeEach(() => {
+    insertTestUser({ id: "user-3", name: "Admin", email: "admin@test.com" });
+    insertTestTasks([
+      { id: "own", ownerId: "user-1", title: "mine", createdAt: now, updatedAt: now },
+      { id: "assigned", ownerId: "user-2", assigneeId: "user-1", title: "for me", createdAt: now, updatedAt: now },
+      { id: "team-in", ownerId: "user-2", teamId: "team-a", title: "my team", createdAt: now, updatedAt: now },
+      { id: "team-out", ownerId: "user-2", teamId: "team-b", title: "other team", createdAt: now, updatedAt: now },
+      { id: "private", ownerId: "user-2", title: "someone else", createdAt: now, updatedAt: now },
+    ]);
+    insertTestTeamMember({ teamId: "team-a", userId: "user-1" });
+  });
+
+  const ids = (json: { tasks: Array<{ id: string }> }) => json.tasks.map((t) => t.id).sort();
+
+  it("scope=all は自分・担当・所属チームのタスクだけを返す", async () => {
+    const { status, json } = await request(app, "GET", "/api/tasks?scope=all", { token });
     expect(status).toBe(200);
-    expect(Array.isArray(json.tasks)).toBe(true);
+    expect(ids(json)).toEqual(["assigned", "own", "team-in"]);
+  });
+
+  it("scope=group も同じ範囲に絞る", async () => {
+    const { json } = await request(app, "GET", "/api/tasks?scope=group", { token });
+    expect(ids(json)).toEqual(["assigned", "own", "team-in"]);
+  });
+
+  it("管理者は scope=all で全件を見る", async () => {
+    const admin = generateTestToken("user-3", "admin");
+    const { json } = await request(app, "GET", "/api/tasks?scope=all", { token: admin });
+    expect(ids(json)).toEqual(["assigned", "own", "private", "team-in", "team-out"]);
+  });
+
+  it("他人の個人タスクと所属外チームのタスクは 1 件取得でも 403", async () => {
+    expect((await request(app, "GET", "/api/tasks/private", { token })).status).toBe(403);
+    expect((await request(app, "GET", "/api/tasks/team-out", { token })).status).toBe(403);
+  });
+
+  it("同期済みプロジェクト一覧は匿名に出さない", async () => {
+    expect((await request(app, "GET", "/api/projects/cc")).status).toBe(401);
+    expect((await request(app, "GET", "/api/projects/cc", { token })).status).toBe(200);
+  });
+
+  it("担当・所属チームのタスクは 1 件取得できる", async () => {
+    expect((await request(app, "GET", "/api/tasks/assigned", { token })).status).toBe(200);
+    expect((await request(app, "GET", "/api/tasks/team-in", { token })).status).toBe(200);
   });
 });
 

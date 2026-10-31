@@ -7,9 +7,16 @@ import {
   initTestDatabase,
   clearTestDatabase,
   generateTestToken,
+  insertTestTasks,
   insertTestUser,
   request,
 } from "../helpers.js";
+
+/** 拡張データは実在し閲覧できるタスクにだけ付く (task-visibility.md §4) ので、 u1 のタスクを用意する */
+function insertOwnedTasks(ownerId: string, ids: string[]) {
+  const now = new Date();
+  insertTestTasks(ids.map((id) => ({ id, ownerId, title: id, createdAt: now, updatedAt: now })));
+}
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 let app: any;
@@ -24,6 +31,7 @@ beforeAll(async () => {
 beforeEach(() => {
   clearTestDatabase();
   insertTestUser({ id: "u1", name: "User1", email: "u1@test.com" });
+  insertOwnedTasks("u1", ["task-A", "task-B", "x", "y", "t1"]);
 });
 
 describe("Issue #111 D3 — /api/links", () => {
@@ -148,5 +156,57 @@ describe("Issue #111 D1 — /api/custom-fields", () => {
     const r = await request(app, "GET", "/api/custom-fields/definitions", { token });
     expect(r.status).toBe(200);
     expect(Array.isArray(r.json.fields)).toBe(true);
+  });
+});
+
+describe("task-visibility §4 — 拡張データは対象タスクを見られる人だけ", () => {
+  beforeEach(() => {
+    insertTestUser({ id: "u2", name: "User2", email: "u2@test.com" });
+  });
+
+  it("他人の個人タスクのコメントは読めず書けない", async () => {
+    const owner = generateTestToken("u1");
+    const other = generateTestToken("u2");
+    await request(app, "POST", "/api/comments", { token: owner, body: { targetType: "task", targetId: "t1", body: "secret" } });
+
+    expect((await request(app, "GET", "/api/comments/task/t1", { token: other })).status).toBe(403);
+    const write = await request(app, "POST", "/api/comments", { token: other, body: { targetType: "task", targetId: "t1", body: "x" } });
+    expect(write.status).toBe(403);
+  });
+
+  it("存在しないタスクへのコメントは 404", async () => {
+    const token = generateTestToken("u1");
+    const r = await request(app, "POST", "/api/comments", { token, body: { targetType: "task", targetId: "missing", body: "x" } });
+    expect(r.status).toBe(404);
+  });
+
+  it("他人のタスク間のリンクは作れず、消せず、見えない", async () => {
+    const owner = generateTestToken("u1");
+    const other = generateTestToken("u2");
+    const created = await request(app, "POST", "/api/links", {
+      token: owner,
+      body: { fromType: "task", fromId: "task-A", toType: "task", toId: "task-B", linkType: "relates_to" },
+    });
+    expect(created.status).toBe(200);
+
+    expect((await request(app, "GET", "/api/links/task/task-A", { token: other })).status).toBe(403);
+    const create = await request(app, "POST", "/api/links", {
+      token: other,
+      body: { fromType: "task", fromId: "task-A", toType: "task", toId: "x", linkType: "relates_to" },
+    });
+    expect(create.status).toBe(403);
+    expect((await request(app, "DELETE", `/api/links/${created.json.id}`, { token: other })).status).toBe(404);
+    expect((await request(app, "DELETE", `/api/links/${created.json.id}`, { token: owner })).status).toBe(200);
+  });
+
+  it("他人のタスクのカスタム項目は読めず消せない", async () => {
+    const other = generateTestToken("u2");
+    expect((await request(app, "GET", "/api/custom-fields/task/t1", { token: other })).status).toBe(403);
+    expect((await request(app, "DELETE", "/api/custom-fields/some-mod/priority/task/t1", { token: other })).status).toBe(403);
+  });
+
+  it("管理者は他人のタスクのコメントも読める", async () => {
+    const admin = generateTestToken("u2", "admin");
+    expect((await request(app, "GET", "/api/comments/task/t1", { token: admin })).status).toBe(200);
   });
 });

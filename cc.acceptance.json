@@ -511,6 +511,89 @@
       "contracts": [
         "AT-PUBLIC-ISSUES"
       ]
+    },
+    {
+      "source": "src/auth/task-visibility.ts",
+      "tests": [
+        "tests/unit/task-visibility.test.ts",
+        "tests/api/tasks.test.ts",
+        "tests/api/plugin-ext-api.test.ts"
+      ],
+      "contracts": [
+        "AT-TASK-VISIBILITY"
+      ]
+    },
+    {
+      "source": "src/db/task-list-conditions.ts",
+      "tests": [
+        "tests/api/tasks.test.ts"
+      ],
+      "contracts": [
+        "AT-TASK-VISIBILITY"
+      ]
+    },
+    {
+      "source": "modules/task/routes.ts",
+      "tests": [
+        "tests/api/tasks.test.ts"
+      ],
+      "contracts": [
+        "AT-TASK-VISIBILITY"
+      ]
+    },
+    {
+      "source": "modules/task/team/project-routes.ts",
+      "tests": [
+        "tests/api/tasks.test.ts"
+      ],
+      "contracts": [
+        "AT-TASK-VISIBILITY"
+      ]
+    },
+    {
+      "source": "src/plugins/task-target-access.ts",
+      "tests": [
+        "tests/api/plugin-ext-api.test.ts"
+      ],
+      "contracts": [
+        "AT-TASK-VISIBILITY"
+      ]
+    },
+    {
+      "source": "src/plugins/comments-routes.ts",
+      "tests": [
+        "tests/api/plugin-ext-api.test.ts"
+      ],
+      "contracts": [
+        "AT-TASK-VISIBILITY"
+      ]
+    },
+    {
+      "source": "src/plugins/links-routes.ts",
+      "tests": [
+        "tests/api/plugin-ext-api.test.ts"
+      ],
+      "contracts": [
+        "AT-TASK-VISIBILITY"
+      ]
+    },
+    {
+      "source": "src/plugins/custom-fields-routes.ts",
+      "tests": [
+        "tests/api/plugin-ext-api.test.ts"
+      ],
+      "contracts": [
+        "AT-TASK-VISIBILITY"
+      ]
+    },
+    {
+      "source": "src/plugins/extensions-repo.ts",
+      "tests": [
+        "tests/api/plugin-ext-api.test.ts"
+      ],
+      "contracts": [
+        "AT-TASK-VISIBILITY"
+      ]
     }
   ]
 }

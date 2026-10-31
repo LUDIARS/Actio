@@ -13,6 +13,7 @@ import { z } from "zod";
 import { getUserId } from "../middleware/getUserId.js";
 import { customFieldRegistry } from "./custom-fields.js";
 import { customFieldValueRepo } from "./extensions-repo.js";
+import { checkTargetAccess, targetAccessResponse } from "./task-target-access.js";
 
 const TargetTypeSchema = z.enum(["event", "task"]);
 
@@ -29,6 +30,8 @@ customFieldRoutes.get("/:type/:id", async (c) => {
   if (!userId) return c.json({ error: "Authentication required" }, 401);
   const type = TargetTypeSchema.safeParse(c.req.param("type"));
   if (!type.success) return c.json({ error: "invalid type" }, 400);
+  const access = await checkTargetAccess(c, userId, type.data, c.req.param("id"));
+  if (access !== "ok") return targetAccessResponse(c, access);
   const rows = await customFieldValueRepo.listForTarget(type.data, c.req.param("id"));
   return c.json({ values: rows });
 });
@@ -38,6 +41,8 @@ customFieldRoutes.put("/:moduleId/:fieldId/:type/:id", async (c) => {
   if (!userId) return c.json({ error: "Authentication required" }, 401);
   const type = TargetTypeSchema.safeParse(c.req.param("type"));
   if (!type.success) return c.json({ error: "invalid type" }, 400);
+  const access = await checkTargetAccess(c, userId, type.data, c.req.param("id"));
+  if (access !== "ok") return targetAccessResponse(c, access);
 
   const moduleId = c.req.param("moduleId");
   const fieldId  = c.req.param("fieldId");
@@ -65,6 +70,8 @@ customFieldRoutes.delete("/:moduleId/:fieldId/:type/:id", async (c) => {
   if (!userId) return c.json({ error: "Authentication required" }, 401);
   const type = TargetTypeSchema.safeParse(c.req.param("type"));
   if (!type.success) return c.json({ error: "invalid type" }, 400);
+  const access = await checkTargetAccess(c, userId, type.data, c.req.param("id"));
+  if (access !== "ok") return targetAccessResponse(c, access);
   const ok = await customFieldValueRepo.delete(
     c.req.param("moduleId"),
     c.req.param("fieldId"),

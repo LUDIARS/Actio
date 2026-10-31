@@ -10,6 +10,7 @@ import { requireTeamRole } from "../../../src/auth/team-role.js";
 import { requireLoopbackOrAdmin } from "../../../src/auth/loopback-or-admin.js";
 import { dialect } from "../../../src/db/connection.js";
 import { projectRefRepo } from "../../../src/db/repository.js";
+import { getUserId } from "../../../src/middleware/getUserId.js";
 import { PLANNING_UNSUPPORTED_MESSAGE } from "../planning/contracts.js";
 import { queryProjectSprints } from "./project-sprint-query.js";
 
@@ -23,6 +24,8 @@ teamProjectRoutes.get("/:teamId/projects", requireTeamRole("member"), async (c) 
 export const ccProjectRoutes = new Hono();
 
 ccProjectRoutes.get("/cc", async (c) => {
+  // プロジェクト名も組織の情報なので匿名には出さない (task-visibility.md §5)
+  if (!getUserId(c)) return c.json({ error: "Authentication required" }, 401);
   const projects = await projectRefRepo.listActive();
   return c.json({ projects: projects.map((project) => ({ code: project.code, name: project.name, teamIds: project.teamIds, syncedAt: project.syncedAt })) });
 });

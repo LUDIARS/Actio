@@ -5,7 +5,7 @@
  * 方言差 (LIKE の ESCAPE 句・文字列連結) はここで吸収する。
  */
 
-import { and, eq, gte, inArray, lte, sql } from "drizzle-orm";
+import { and, eq, gte, inArray, lte, or, sql } from "drizzle-orm";
 import type { SQL } from "drizzle-orm";
 import { dialect, schema } from "./connection.js";
 
@@ -44,6 +44,18 @@ export interface TaskListFilter {
    * 省略時は従来どおり作成日時 降順 (ページ取得では updated_at 降順)。
    */
   sort?: "personal";
+  /**
+   * 閲覧範囲 (spec/feature/task-visibility.md)。 指定時は「owner か assignee が userId」
+   * または「team_id が teamIds のどれか」のタスクに限る。 管理者・ローカル持ち主は付けない。
+   */
+  visibleTo?: { userId: string; teamIds: readonly string[] };
+}
+
+function visibleToCondition(visibleTo: { userId: string; teamIds: readonly string[] }): SQL {
+  const t = schema.tasks;
+  const own = [eq(t.ownerId, visibleTo.userId), eq(t.assigneeId, visibleTo.userId)];
+  const teams = visibleTo.teamIds.length ? [inArray(t.teamId, [...visibleTo.teamIds])] : [];
+  return or(...own, ...teams) as SQL;
 }
 
 /** LIKE の特殊文字 (\ % _) を \ でエスケープする */
@@ -93,6 +105,7 @@ export function buildTaskListConditions(filter: TaskListFilter): SQL[] {
   if (filter.updatedSince) conditions.push(gte(t.updatedAt, filter.updatedSince));
   if (filter.q) conditions.push(titleContains(filter.q));
   if (filter.category) conditions.push(categoryIncludes(filter.category));
+  if (filter.visibleTo) conditions.push(visibleToCondition(filter.visibleTo));
   return conditions;
 }
 

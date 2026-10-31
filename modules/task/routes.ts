@@ -13,7 +13,8 @@ import { Hono } from "hono";
 import type { Context } from "hono";
 import { v4 as uuidv4 } from "uuid";
 import { projectRefRepo, taskRepo, taskCategoryRepo, taskListPageRepo, teamRefRepo, type TaskListFilter } from "../../src/db/repository.js";
-import { getUserRole } from "../../src/middleware/getUserId.js";
+import { getUserId, getUserRole } from "../../src/middleware/getUserId.js";
+import { canViewTask, resolveTaskViewer } from "../../src/auth/task-visibility.js";
 import { getTaskPlugins } from "../../src/task-plugins.js";
 import type {
   CreateTaskInput,
@@ -92,6 +93,11 @@ async function getTeamInputMode(teamId: string | null): Promise<"minimal" | "ful
 }
 
 export const taskRoutes = new Hono();
+// 匿名はタスクに触れない (spec/feature/task-visibility.md §2)。 ローカルモードは userContext が持ち主を入れるので通る。
+taskRoutes.use("*", async (c, next) => {
+  if (!getUserId(c)) return c.json({ error: "Authentication required" }, 401);
+  await next();
+});
 taskRoutes.route("/", teamTaskRoutes);
 // /notifications は /:id より前に登録する (Hono は登録順に照合する)。
 taskRoutes.route("/", notificationAdminRoutes);
@@ -139,6 +145,11 @@ taskRoutes.get("/", async (c) => {
     filter.assigneeId = userId;
   } else if (scope === "owned") {
     filter.ownerId = userId;
+  }
+  // scope=all / groupId は管理者・ローカル持ち主以外では「見てよいタスク」に限る (task-visibility.md §3)
+  if (!teamId && (groupId || (scope !== "assigned" && scope !== "owned"))) {
+    const viewer = await resolveTaskViewer(c, userId);
+    if (viewer.kind === "scoped") filter.visibleTo = { userId: viewer.userId, teamIds: viewer.teamIds };
   }
   // project は既存 owned/assigned/group スコープと併用可能な追加フィルタ
   // (EducationLab×Calliope PM 連携。 project_id 指定でプロジェクト単位のタスクを引く)
@@ -229,7 +240,7 @@ taskRoutes.get("/:id", async (c) => {
   const userId = resolveUserId(c);
   const task = await taskRepo.findById(c.req.param("id"));
   if (!task) return c.json({ error: "Task not found" }, 404);
-  if (task.teamId && !await canAccessTeam(c, task.teamId, userId)) {
+  if (!canViewTask(await resolveTaskViewer(c, userId), task)) {
     return c.json({ error: "Forbidden" }, 403);
   }
   return c.json({ task });

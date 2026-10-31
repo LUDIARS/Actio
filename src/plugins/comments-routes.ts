@@ -16,6 +16,7 @@ import { z } from "zod";
 import { getUserId } from "../middleware/getUserId.js";
 import { commentRepo } from "./extensions-repo.js";
 import { pluginEventBus } from "./event-bus.js";
+import { checkTargetAccess, targetAccessResponse } from "./task-target-access.js";
 
 const TargetTypeSchema = z.enum(["event", "task"]);
 
@@ -37,6 +38,8 @@ commentRoutes.get("/:type/:id", async (c) => {
   if (!userId) return c.json({ error: "Authentication required" }, 401);
   const type = TargetTypeSchema.safeParse(c.req.param("type"));
   if (!type.success) return c.json({ error: "invalid type" }, 400);
+  const access = await checkTargetAccess(c, userId, type.data, c.req.param("id"));
+  if (access !== "ok") return targetAccessResponse(c, access);
   const rows = await commentRepo.listForTarget(type.data, c.req.param("id"));
   return c.json({ comments: rows });
 });
@@ -46,6 +49,8 @@ commentRoutes.post("/", async (c) => {
   if (!userId) return c.json({ error: "Authentication required" }, 401);
   const parsed = CreateBody.safeParse(await c.req.json().catch(() => null));
   if (!parsed.success) return c.json({ error: "invalid body", issues: parsed.error.issues }, 400);
+  const access = await checkTargetAccess(c, userId, parsed.data.targetType, parsed.data.targetId);
+  if (access !== "ok") return targetAccessResponse(c, access);
 
   const id = await commentRepo.create({
     targetType: parsed.data.targetType,

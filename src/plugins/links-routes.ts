@@ -12,7 +12,8 @@ import { Hono } from "hono";
 import { z } from "zod";
 
 import { getUserId } from "../middleware/getUserId.js";
-import { issueLinkRepo } from "./extensions-repo.js";
+import { issueLinkRepo, type TargetType } from "./extensions-repo.js";
+import { checkTargetAccess, checkTargetsAccess, targetAccessResponse } from "./task-target-access.js";
 
 const TargetTypeSchema = z.enum(["event", "task"]);
 const LinkTypeSchema = z.enum(["blocks", "blocked_by", "relates_to", "duplicates"]);
@@ -33,6 +34,8 @@ issueLinkRoutes.get("/:type/:id", async (c) => {
   const type = TargetTypeSchema.safeParse(c.req.param("type"));
   if (!type.success) return c.json({ error: "invalid type" }, 400);
   const id = c.req.param("id");
+  const access = await checkTargetAccess(c, userId, type.data, id);
+  if (access !== "ok") return targetAccessResponse(c, access);
   const { outgoing, incoming } = await issueLinkRepo.listForTarget(type.data, id);
   return c.json({ outgoing, incoming });
 });
@@ -48,6 +51,8 @@ issueLinkRoutes.post("/", async (c) => {
   if (fromType === toType && fromId === toId) {
     return c.json({ error: "self-link not allowed" }, 400);
   }
+  const access = await checkTargetsAccess(c, userId, [{ type: fromType, id: fromId }, { type: toType, id: toId }]);
+  if (access !== "ok") return targetAccessResponse(c, access);
 
   // 既に同じ向きで存在するなら冪等に OK.
   const exists = await issueLinkRepo.exists(fromType, fromId, toType, toId, linkType);
@@ -75,7 +80,15 @@ issueLinkRoutes.post("/", async (c) => {
 issueLinkRoutes.delete("/:id", async (c) => {
   const userId = getUserId(c);
   if (!userId) return c.json({ error: "Authentication required" }, 401);
-  const deleted = await issueLinkRepo.delete(c.req.param("id"));
+  const link = await issueLinkRepo.findById(c.req.param("id"));
+  if (!link) return c.json({ error: "not found" }, 404);
+  const access = await checkTargetsAccess(c, userId, [
+    { type: link.fromType as TargetType, id: link.fromId },
+    { type: link.toType as TargetType, id: link.toId },
+  ]);
+  // 見えないリンクの存在を漏らさない
+  if (access !== "ok") return c.json({ error: "not found" }, 404);
+  const deleted = await issueLinkRepo.delete(link.id);
   if (!deleted) return c.json({ error: "not found" }, 404);
   return c.json({ ok: true });
 });

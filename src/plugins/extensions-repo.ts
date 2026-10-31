@@ -35,6 +35,11 @@ export const issueLinkRepo = {
     return id;
   },
 
+  async findById(id: string) {
+    const [row] = await db.select().from(schema.issueLinks).where(eq(schema.issueLinks.id, id));
+    return row;
+  },
+
   /** 片方向を削除。双方向で管理したい呼び出し元は inverse 側も呼ぶ. */
   async delete(id: string): Promise<boolean> {
     const rows = await db.delete(schema.issueLinks)

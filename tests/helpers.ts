@@ -611,6 +611,7 @@ export function insertTestTasks(rows: Array<{
   status?: string;
   category?: string | null;
   assigneeId?: string | null;
+  teamId?: string | null;
   deadline?: Date | null;
   createdAt: Date;
   updatedAt: Date;
@@ -618,13 +619,13 @@ export function insertTestTasks(rows: Array<{
   const dbPath = process.env.DATABASE_PATH || resolve("data", "test.db");
   const sqlite = new Database(dbPath);
   const insert = sqlite.prepare(
-    `INSERT INTO tasks (id, owner_id, assignee_id, title, description, status, category, deadline, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    `INSERT INTO tasks (id, owner_id, assignee_id, team_id, title, description, status, category, deadline, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   );
   const seconds = (d: Date) => Math.floor(d.getTime() / 1000);
   sqlite.transaction(() => {
     for (const r of rows) {
-      insert.run(r.id, r.ownerId, r.assigneeId ?? null, r.title, r.description ?? null, r.status ?? "open",
+      insert.run(r.id, r.ownerId, r.assigneeId ?? null, r.teamId ?? null, r.title, r.description ?? null, r.status ?? "open",
         r.category ?? null, r.deadline ? seconds(r.deadline) : null, seconds(r.createdAt), seconds(r.updatedAt));
     }
   })();
