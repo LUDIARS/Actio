@@ -1,6 +1,7 @@
 import { Hono, type Context } from "hono";
 import { cors } from "hono/cors";
 import { userContext, requireRole } from "./middleware/auth.js";
+import { actingForAudit } from "./auth/acting-for.js";
 import { requestId } from "./middleware/request-id.js";
 import { localModeBoundary } from "./auth/local-mode.js";
 import { setupWebSocket } from "./ws/handler.js";
@@ -151,6 +152,8 @@ export function createApp() {
 
   app.route("/api/chat/commands", chatCommandRoutes);
   app.use("/api/*", userContext());
+  // Cc の書き込みに付いた「だれの指示か」を操作ログへ残す (spec/feature/cc-acting-for.md)。
+  app.use("/api/*", actingForAudit());
 
   // ─── Module Admin API (プラグインモジュール管理) ─────────────
   app.route("/api/admin", moduleAdminRoutes);

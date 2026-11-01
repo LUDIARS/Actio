@@ -622,6 +622,24 @@
       "contracts": [
         "AT-TUNNEL-LOGIN"
       ]
+    },
+    {
+      "source": "src/auth/acting-for.ts",
+      "tests": [
+        "tests/unit/cc-acting-for.test.ts"
+      ],
+      "contracts": [
+        "AT-CC-ACTING-FOR"
+      ]
+    },
+    {
+      "source": "src/app.ts",
+      "tests": [
+        "tests/unit/cc-acting-for.test.ts"
+      ],
+      "contracts": [
+        "AT-CC-ACTING-FOR"
+      ]
     }
   ]
 }
