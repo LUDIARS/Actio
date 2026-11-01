@@ -9,6 +9,16 @@ export interface CfAccessConfig {
   audiences: string[];
   publicOrigin: string;
   publicHost: string;
+  /** cf-access = Access を通った人を持ち主にする (従来)、 cernere = Cernere ログインで識別する (spec/feature/tunnel-cernere-login.md)。 */
+  tunnelAuth: TunnelAuth;
+}
+
+export type TunnelAuth = "cf-access" | "cernere";
+
+export function readTunnelAuth(value: string | undefined): TunnelAuth {
+  const mode = value?.trim() || "cf-access";
+  if (mode !== "cf-access" && mode !== "cernere") throw new Error("ACTIO_TUNNEL_AUTH must be cf-access or cernere");
+  return mode;
 }
 
 export interface LocalModeConfig {
@@ -61,7 +71,10 @@ function readCfAccess(get: (key: string) => string | undefined): CfAccessConfig 
     || isLocalUrl(origin.href)) {
     throw new Error("ACTIO_CF_PUBLIC_ORIGIN must be a public https origin without a path");
   }
-  return { teamDomain: teamDomain.toLowerCase(), audiences, publicOrigin: origin.origin, publicHost: origin.host.toLowerCase() };
+  return {
+    teamDomain: teamDomain.toLowerCase(), audiences, publicOrigin: origin.origin, publicHost: origin.host.toLowerCase(),
+    tunnelAuth: readTunnelAuth(get("ACTIO_TUNNEL_AUTH")),
+  };
 }
 
 /** Explicit local deployment; conflicting public/tunnel settings are errors. */
@@ -107,14 +120,23 @@ function isSameOriginFetch(request: Request): boolean {
  * 経路は同じ PC の cloudflared (ループバックのソケット) に限り、 Host / Origin は公開 origin に一致させる。
  */
 export function cfAccessAssertion(peer: string | undefined, request: Request, config: CfAccessConfig): string | null {
-  if (!isLoopbackAddress(peer)) return null;
+  if (!isTunnelRequest(peer, request, config)) return null;
+  return assertionHeader(request);
+}
+
+/** トンネル (同じ PC の cloudflared) を通って公開 hostname に来た same-origin の要求か。 識別はしない。 */
+export function isTunnelRequest(peer: string | undefined, request: Request, config: CfAccessConfig): boolean {
+  if (!isLoopbackAddress(peer)) return false;
   let url: URL;
-  try { url = new URL(request.url); } catch { return null; }
-  if (url.host.toLowerCase() !== config.publicHost) return null;
-  if (request.headers.get("host")?.toLowerCase() !== config.publicHost) return null;
+  try { url = new URL(request.url); } catch { return false; }
+  if (url.host.toLowerCase() !== config.publicHost) return false;
+  if (request.headers.get("host")?.toLowerCase() !== config.publicHost) return false;
   const origin = request.headers.get("origin");
-  if (origin !== null && origin !== config.publicOrigin) return null;
-  if (!isSameOriginFetch(request)) return null;
+  if (origin !== null && origin !== config.publicOrigin) return false;
+  return isSameOriginFetch(request);
+}
+
+export function assertionHeader(request: Request): string | null {
   const assertion = request.headers.get("cf-access-jwt-assertion")?.trim();
   return assertion ? assertion : null;
 }

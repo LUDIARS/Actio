@@ -21,6 +21,8 @@ interface ExchangeResult {
 }
 
 let cernereUrl = "";
+/** 利用者の端末が開くログイン画面の URL。 無ければ cernereUrl。 */
+let cernereLoginBase = "";
 let jwtSecret = "";
 const TOKEN_EXPIRES_IN_SECONDS = 900;
 
@@ -28,6 +30,7 @@ const TOKEN_EXPIRES_IN_SECONDS = 900;
 export function initComposite(): void {
   cernereUrl = secretManager.getOrDefault("CERNERE_URL", "");
   jwtSecret = secretManager.getOrDefault("JWT_SECRET", "");
+  cernereLoginBase = (secretManager.getOrDefault("CERNERE_FRONTEND_URL", "") || cernereUrl).replace(/\/+$/, "");
 
   if (!cernereUrl || !jwtSecret) {
     console.warn("[composite] Cernere Composite 設定が不完全です。スキップします。");
@@ -42,7 +45,7 @@ export function initComposite(): void {
 /** Cernere Composite ログイン URL を返す */
 export function getLoginUrl(origin: string): string | null {
   if (!cernereUrl) return null;
-  return `${cernereUrl}/composite/login?origin=${encodeURIComponent(origin)}`;
+  return `${cernereLoginBase || cernereUrl}/composite/login?origin=${encodeURIComponent(origin)}`;
 }
 
 /** auth_code を Cernere で交換し、service_token を発行する */

@@ -9,6 +9,7 @@ const config: CfAccessConfig = {
   audiences: ["abc123"],
   publicOrigin: "https://actio.example.com",
   publicHost: "actio.example.com",
+  tunnelAuth: "cf-access",
 };
 const ISSUER = "https://ludiars.cloudflareaccess.com";
 

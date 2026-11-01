@@ -19,10 +19,15 @@ installConnectionDropGuard(process);
 await initSecrets();
 const port = resolveBackendPort();
 
-const { localModeEnabled } = await import("./auth/local-mode.js");
+const { localModeEnabled, tunnelRequiresLogin } = await import("./auth/local-mode.js");
 localModeEnabled();
 secretManager.getRequired("FRONTEND_URL");
 if (!localModeEnabled()) secretManager.getRequired("JWT_SECRET");
+// トンネル経由を Cernere ログインで識別する配備は、 ログインに要る値が欠けたら起動しない (tunnel-cernere-login.md §2)。
+if (tunnelRequiresLogin()) {
+  secretManager.getRequired("JWT_SECRET");
+  secretManager.getRequired("CERNERE_URL");
+}
 const { createApp } = await import("./app.js");
 const { initComposite } = await import("./auth/composite.js");
 const { startPasetoVerify } = await import("./auth/paseto-verify.js");

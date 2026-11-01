@@ -594,6 +594,34 @@
       "contracts": [
         "AT-TASK-VISIBILITY"
       ]
+    },
+    {
+      "source": "src/auth/local-mode-policy.ts",
+      "tests": [
+        "tests/unit/local-mode-tunnel-login.test.ts",
+        "tests/auth/local-mode-policy.test.ts"
+      ],
+      "contracts": [
+        "AT-TUNNEL-LOGIN"
+      ]
+    },
+    {
+      "source": "src/auth/local-mode.ts",
+      "tests": [
+        "tests/unit/local-mode-tunnel-login.test.ts"
+      ],
+      "contracts": [
+        "AT-TUNNEL-LOGIN"
+      ]
+    },
+    {
+      "source": "src/auth/composite.ts",
+      "tests": [
+        "tests/unit/local-mode-tunnel-login.test.ts"
+      ],
+      "contracts": [
+        "AT-TUNNEL-LOGIN"
+      ]
     }
   ]
 }

@@ -34,6 +34,7 @@ describe("local mode deployment", () => {
       audiences: ["abc123"],
       publicOrigin: "https://actio.example.com",
       publicHost: "actio.example.com",
+      tunnelAuth: "cf-access",
     });
     // Who may pass is the Access policy's job: AUD is optional and there is no email allowlist.
     const withoutAud: Record<string, string> = { ...CF_ENV, ACTIO_CF_ACCESS_AUD: "" };
@@ -92,7 +93,7 @@ describe("local request boundary", () => {
 describe("Cloudflare Access request shape", () => {
   const config: CfAccessConfig = {
     teamDomain: "ludiars.cloudflareaccess.com", audiences: ["abc123"],
-    publicOrigin: "https://actio.example.com", publicHost: "actio.example.com",
+    publicOrigin: "https://actio.example.com", publicHost: "actio.example.com", tunnelAuth: "cf-access",
   };
   function tunnelRequest(headers: Record<string, string> = {}): Request {
     return new Request("http://actio.example.com/api/tasks", {

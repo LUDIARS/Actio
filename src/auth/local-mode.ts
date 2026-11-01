@@ -3,7 +3,10 @@ import type { Context } from "hono";
 import { createMiddleware } from "hono/factory";
 import { secretManager } from "../config/secrets.js";
 import { createCfAccessVerifier } from "./cf-access-verify.js";
-import { allowsLocalRequest, cfAccessAssertion, isPublicReadRequest, readLocalMode, type LocalModeConfig } from "./local-mode-policy.js";
+import {
+  allowsLocalRequest, assertionHeader, cfAccessAssertion, isPublicReadRequest, isTunnelRequest, readLocalMode,
+  type CfAccessConfig, type LocalModeConfig,
+} from "./local-mode-policy.js";
 
 export const LOCAL_USER = Object.freeze({
   id: "actio-local", name: "Local user", email: "", role: "general",
@@ -38,7 +41,8 @@ export async function resolveLocalAccess(c: Context): Promise<LocalAccessKind | 
   try { peer = getConnInfo(c).remote.address; }
   catch { return null; }
   if (allowsLocalRequest(peer, c.req.raw)) return "loopback";
-  if (!config.cfAccess) return null;
+  // cernere 配備ではトンネル経由を持ち主にしない (境界で admitTunnelVisitor が別に通す)。
+  if (!config.cfAccess || config.cfAccess.tunnelAuth === "cernere") return null;
   const assertion = cfAccessAssertion(peer, c.req.raw, config.cfAccess);
   if (!assertion) return null;
   verifier ??= createCfAccessVerifier(config.cfAccess);
@@ -63,6 +67,35 @@ export function isLocalModeRequest(c: Context): boolean {
   return localAccessKind(c) !== null;
 }
 
+/** トンネル経由を持ち主にせず Cernere ログインで識別する配備か (spec/feature/tunnel-cernere-login.md)。 */
+export function tunnelRequiresLogin(): boolean {
+  return readDeployment().cfAccess?.tunnelAuth === "cernere";
+}
+
+/** トンネルの形をした要求か。 cernere 配備でだけ境界を通す (識別は userContext)。 */
+function admitTunnelVisitor(c: Context): boolean {
+  const config = readDeployment().cfAccess;
+  if (!config || config.tunnelAuth !== "cernere") return false;
+  let peer: string | undefined;
+  try { peer = getConnInfo(c).remote.address; }
+  catch { return false; }
+  if (!isTunnelRequest(peer, c.req.raw, config)) return false;
+  const assertion = assertionHeader(c.req.raw);
+  if (assertion) auditTunnelAssertion(config, assertion);
+  return true;
+}
+
+/** Access のアサーションは監査ログ用。 応答を待たせず、 失敗しても通す (識別は Cernere)。 */
+function auditTunnelAssertion(config: CfAccessConfig, assertion: string): void {
+  verifier ??= createCfAccessVerifier(config);
+  void verifier.verify(assertion).then((identity) => {
+    const label = identity?.email;
+    if (!label || loggedAccessEmails.has(label)) return;
+    loggedAccessEmails.add(label);
+    console.info(`[tunnel-access] via=cf-access email=${label}`);
+  }).catch(() => undefined);
+}
+
 /** Local mode never exposes the legacy anonymous routes to a proxy or LAN. */
 export function localModeBoundary() {
   localModeEnabled(); // Validate deployment configuration while constructing the app.
@@ -71,8 +104,8 @@ export function localModeBoundary() {
     if (localModeEnabled() && !isPublicReadRequest(c.req.method, c.req.path)) {
       c.header("Cache-Control", "no-store");
       const access = await resolveLocalAccess(c);
-      if (!access) return c.json({ error: "local_access_required" }, 403);
-      c.set(LOCAL_ACCESS_KEY as never, access as never);
+      if (access) c.set(LOCAL_ACCESS_KEY as never, access as never);
+      else if (!admitTunnelVisitor(c)) return c.json({ error: "local_access_required" }, 403);
     }
     await next();
   });
