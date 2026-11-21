@@ -1,7 +1,10 @@
+// @spec Cc連携と永続化
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import { PlanningError } from "../planning/contracts.js";
 import { executionManifest, type ExecutionManifest, type ExecutionRecord } from "@ludiars/terpsichore";
+import { assertNoAutonomousTasks } from "../autonomous-sprint/manual-execution.js";
+import { one, type GateDatabase, type Query } from "../sprint-gates/query.js";
 
 interface ExecutionDatabase { prepare(sql: string): { get(...args: unknown[]): unknown | Promise<unknown>; run(...args: unknown[]): unknown | Promise<unknown> } }
 const fields = "id, team_id AS teamId, project_id AS projectId, state, run_id AS runId, task_ids AS taskIdsJson, created_at AS createdAt";
@@ -10,16 +13,21 @@ function decode(row: Row): ExecutionRecord { const { taskIdsJson, ...record } = 
 
 /** Persist the send intent before invoking Cc so a lost response never triggers an automatic retry. */
 export class ExecutionStore {
-  constructor(private readonly db: ExecutionDatabase) {}
+  constructor(private readonly db: ExecutionDatabase, private readonly gateDb: GateDatabase) {}
   async latest(teamId: string, projectId: string): Promise<ExecutionRecord | null> {
     const row = await this.db.prepare(`SELECT ${fields} FROM terpsichore_runs WHERE team_id = ? AND project_id = ?
       ORDER BY CASE WHEN state IN ('submitting', 'running', 'unknown') THEN 0 ELSE 1 END, created_at DESC, id DESC LIMIT 1`).get(teamId, projectId) as Row | undefined;
     return row ? decode(row) : null;
   }
   async reserve(teamId: string, actorId: string, manifest: ExecutionManifest, now: Date): Promise<ExecutionRecord> {
-    const row = await this.db.prepare(`INSERT INTO terpsichore_runs(id, team_id, project_id, actor_id, task_ids, manifest_json, state, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, 'submitting', ?) ON CONFLICT DO NOTHING RETURNING ${fields}`)
-      .get(randomUUID(), teamId, manifest.projectId, actorId, JSON.stringify(manifest.tasks.map(t => t.id)), JSON.stringify(manifest), now.toISOString()) as Row | undefined;
+    const sql = `INSERT INTO terpsichore_runs(id, team_id, project_id, actor_id, task_ids, manifest_json, state, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, 'submitting', ?) ON CONFLICT DO NOTHING RETURNING ${fields}`;
+    const taskIds = manifest.tasks.map(task => task.id);
+    const args: Query["args"] = [randomUUID(), teamId, manifest.projectId, actorId, JSON.stringify(taskIds), JSON.stringify(manifest), now.toISOString()];
+    const row = await this.gateDb.transaction(teamId, function* () {
+      yield* assertNoAutonomousTasks(teamId, taskIds);
+      return yield* one<Row>(sql, ...args);
+    });
     if (!row) throw new PlanningError("このプロジェクトは実行中、または受付結果の確認待ちです。状態を確認してください", 409);
     return decode(row);
   }

@@ -9,7 +9,7 @@ import { createMiddleware } from "hono/factory";
 import bcrypt from "bcryptjs";
 import { apiClientRepo } from "../../src/db/repository.js";
 
-type ApiScope = "calendar" | "reminders" | "schedules" | "tasks";
+type ApiScope = "calendar" | "reminders" | "schedules" | "tasks" | "autonomous-sprint";
 
 /**
  * APIキー認証ミドルウェア
@@ -48,7 +48,7 @@ export function requireApiKey(...requiredScopes: ApiScope[]) {
     // スコープチェック
     const clientScopes = client.scopes as string[];
     for (const scope of requiredScopes) {
-      if (!clientScopes.includes(scope)) {
+      if (!Array.isArray(clientScopes) || !clientScopes.includes(scope)) {
         return c.json(
           {
             error: "Insufficient scope",

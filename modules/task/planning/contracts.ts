@@ -47,5 +47,5 @@ export interface BacklogTask {
 /** MySQL 方言では計画機能を提供しない (501)。 */
 export const PLANNING_UNSUPPORTED_MESSAGE = "計画機能は PostgreSQL または SQLite 配備で利用できます";
 export class PlanningError extends Error {
-  constructor(message: string, public readonly status: 400 | 404 | 409 = 409) { super(message); }
+  constructor(message: string, public readonly status: 400 | 403 | 404 | 409 = 409) { super(message); }
 }

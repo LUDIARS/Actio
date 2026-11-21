@@ -21,9 +21,12 @@ async function executionSource(teamId: string, projectId: string) {
   const stores = planningRepositories();
   const saved = await stores.guidance.load(teamId, projectId, null);
   if (!saved) throw new PlanningError("対象プロジェクトの全スプリント支援計画を先に保存してください", 409);
-  const [tasks, sprints] = await Promise.all([stores.backlog.list(teamId), stores.sprints.list(teamId)]);
+  const [tasks, sprints, autonomousSprintId] = await Promise.all([
+    stores.backlog.list(teamId), stores.sprints.list(teamId), stores.autonomousControl.ownedSprintId(teamId),
+  ]);
   const report = assessGuidance(guidanceInput.parse(saved.input), tasks, sprints, new Date());
-  return { saved, report, selected: executionCandidates(tasks, report) };
+  const eligible = autonomousSprintId ? tasks.filter(task => task.sprintId !== autonomousSprintId || task.status === "done") : tasks;
+  return { saved, report, selected: executionCandidates(eligible, report) };
 }
 executionRoutes.onError((error, c) => {
   if (error instanceof ConcordiaExecutionError) return c.json({ error: error.message }, error.status);

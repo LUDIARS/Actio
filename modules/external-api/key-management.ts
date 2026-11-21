@@ -15,6 +15,7 @@ import { logActivity } from "../../src/activity-logger.js";
 import { userRepo } from "../../src/db/repository.js";
 
 const keyManagement = new Hono();
+const validScopes = ["calendar", "reminders", "schedules", "tasks", "autonomous-sprint"];
 
 /** ランダムなクライアントIDを生成 (プレフィックス付き) */
 function generateClientId(): string {
@@ -62,7 +63,6 @@ keyManagement.post("/", async (c) => {
     return c.json({ error: "name is required" }, 400);
   }
 
-  const validScopes = ["calendar", "reminders", "schedules", "tasks"];
   // "tasks" は project_id 経由で他ユーザのタスクにも read/write できる
   // 強い権限のため、 scopes 省略時の既定セットには含めない (opt-in のみ)。
   const defaultScopes = ["calendar", "reminders", "schedules"];
@@ -163,7 +163,6 @@ keyManagement.put("/:id", async (c) => {
     isActive?: boolean;
   }>();
 
-  const validScopes = ["calendar", "reminders", "schedules", "tasks"];
   if (body.scopes) {
     for (const s of body.scopes) {
       if (!validScopes.includes(s)) {

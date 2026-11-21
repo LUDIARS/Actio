@@ -20,7 +20,7 @@ export function* assertEffect(teamId: string, id: string, effect: SprintPhaseDec
             throw new PlanningError("次スプリントは保留されていない計画中のものを選んでください");
     }
 }
-export function* applyEffect(teamId: string, id: string, actor: string, effect: SprintPhaseDecision["effect"], nextId: string | null, now: Date, db: GateDatabase): Program<void> {
+export function* applyEffect(teamId: string, id: string, actor: string, effect: SprintPhaseDecision["effect"], nextId: string | null, now: Date, db: GateDatabase, mode: "manual" | "autonomous" = "manual"): Program<void> {
     if (effect === "none")
         return;
     const active = yield* one<{
@@ -44,5 +44,8 @@ export function* applyEffect(teamId: string, id: string, actor: string, effect: 
     const state = initialSprintPhase(nextId, "implementation");
     state.revision = next.row.revision;
     const observed = decideSprintPhase({ state, snapshot: after.snapshot, command: { action: "observe" }, now });
-    yield* persist(next.row, observed.state, after.snapshot, "approved_next_start", actor, "前スプリントの次計画として人間が承認しました", now);
+    yield* persist(next.row, observed.state, after.snapshot,
+        mode === "manual" ? "approved_next_start" : "autonomous_next_start", actor,
+        mode === "manual" ? "前スプリントの次計画として人間が承認しました" : "自律スプリントのポリシーに従い開始しました",
+        now, undefined, mode === "manual" ? "manual" : "close");
 }

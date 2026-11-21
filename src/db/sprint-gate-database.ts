@@ -18,7 +18,7 @@ export function sqliteGateDatabase(db: SqliteDatabase): GateDatabase {
         } };
 }
 export function postgresGateDatabase(db: PlanningPostgres): GateDatabase {
-    return { timestamp: now => db.timestamp(now), transaction<T>(teamId: string, work: () => Program<T>, options?: {
+    return { rowShareLock: " FOR SHARE", timestamp: now => db.timestamp(now), transaction<T>(teamId: string, work: () => Program<T>, options?: {
             lockTasks: boolean;
         }): Promise<T> {
             return db.transaction(async () => {

@@ -11,7 +11,7 @@ export function projection(teamId: string, state: SprintPhaseState, snapshot: Sp
         summary: boundedSummary(dialogueSummary(snapshot)), taskIds: snapshot.tasks.map(t => t.id), actioPath: `/tasks/planning?teamId=${encodeURIComponent(teamId)}&sprintId=${encodeURIComponent(current.id)}` };
 }
 export function dialogueKey(teamId: string, sprintId: string): string { return `actio:${teamId}:${sprintId}`; }
-export function* persist(row: GateRow, state: SprintPhaseState, snapshot: SprintPhaseSnapshot, action: string, actor: string | null, reason: string, now: Date, eventId: string = randomUUID()): Program<void> {
+export function* persist(row: GateRow, state: SprintPhaseState, snapshot: SprintPhaseSnapshot, action: string, actor: string | null, reason: string, now: Date, eventId: string = randomUUID(), dialogue: "manual" | "close" | "silent" = "manual"): Program<void> {
     state = { ...state, sourceFingerprint: sprintPhaseFingerprint(snapshot) };
     const updated = yield* one<{
         revision: number;
@@ -19,7 +19,13 @@ export function* persist(row: GateRow, state: SprintPhaseState, snapshot: Sprint
     if (!updated)
         throw new PlanningError("別の判断が先に反映されました。最新の状態を確認してください");
     yield* exec("INSERT INTO sprint_gate_history(event_id,team_id,sprint_id,action,actor_id,reason,phase,revision,created_at,state_json,snapshot_json) VALUES(?,?,?,?,?,?,?,?,?,?,?)", eventId, row.teamId, row.sprintId, action, actor, reason, state.phase, state.revision, now.toISOString(), JSON.stringify(state), JSON.stringify(snapshot));
-    const payload = JSON.stringify(projection(row.teamId, state, snapshot, reason));
+    if (dialogue === "silent") return;
+    const payload = JSON.stringify({ ...projection(row.teamId, state, snapshot, reason), ...(dialogue === "close" ? { closed: true } : {}) });
+    if (dialogue === "close") {
+        // Disable an existing human dialogue without creating a thread for an autonomous sprint.
+        yield* exec("UPDATE sprint_gate_outbox SET revision=?,payload_json=?,status='pending',last_error=NULL WHERE team_id=? AND sprint_id=?", state.revision, payload, row.teamId, row.sprintId);
+        return;
+    }
     yield* exec(`INSERT INTO sprint_gate_outbox(team_id,sprint_id,revision,payload_json,status,thread_url,last_error) VALUES(?,?,?,?,'pending',NULL,NULL)
  ON CONFLICT(team_id,sprint_id) DO UPDATE SET revision=excluded.revision,payload_json=excluded.payload_json,status='pending',last_error=NULL`, row.teamId, row.sprintId, state.revision, payload);
 }

@@ -45,6 +45,7 @@ export interface GateView extends GateSnapshot {
     nextSprintId: string | null;
     history: GateHistory[];
     delivery: Delivery;
+    autonomous?: boolean;
     allowedToDecide?: boolean;
 }
 export interface Projection {

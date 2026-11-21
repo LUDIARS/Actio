@@ -10,6 +10,7 @@ export function* one<T>(sql: string, ...args: Query["args"]): Program<T | undefi
 export function* all<T>(sql: string, ...args: Query["args"]): Program<T[]> { return (yield { sql, args, mode: "all" }) as T[]; }
 export function* exec(sql: string, ...args: Query["args"]): Program<void> { yield { sql, args, mode: "run" }; }
 export interface GateDatabase {
+    rowShareLock?: " FOR SHARE";
     transaction<T>(teamId: string, work: () => Program<T>, options?: {
         lockTasks: boolean;
     }): Promise<T>;

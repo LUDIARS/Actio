@@ -17,6 +17,7 @@ export interface SprintPhaseView extends Omit<SprintPhaseSnapshot, "tasks" | "ne
   history: SprintPhaseHistory[];
   delivery: { status: "pending" | "delivered" | "failed" | "unknown"; threadUrl: string | null; lastError: string | null };
   allowedToDecide: boolean;
+  autonomous?: boolean;
 }
 export type SprintHumanDecision = Exclude<SprintPhaseCommand, { action: "observe" }> & { eventId: string };
 export interface SprintContextChange {

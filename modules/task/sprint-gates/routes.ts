@@ -19,7 +19,7 @@ export const sprintGateRoutes = new Hono();
 sprintGateRoutes.use(base + "/*", bodyLimit({ maxSize: 131072 }));
 sprintGateRoutes.get(base, requireTeamRole("member"), async (c) => {
     const view = await planningRepositories().gates.view(param(c, "teamId"), param(c, "id"), new Date());
-    return c.json({ ...view, allowedToDecide: human(c) && ["leader", "admin"].includes(c.get("teamRole" as never) as string) } satisfies GateView);
+    return c.json({ ...view, allowedToDecide: !view.autonomous && human(c) && ["leader", "admin"].includes(c.get("teamRole" as never) as string) } satisfies GateView);
 });
 sprintGateRoutes.use(base + "/*", async (c, next) => {
     if (!human(c))

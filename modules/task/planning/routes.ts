@@ -1,5 +1,6 @@
 import { SprintPhaseError } from "@ludiars/terpsichore";
 import { sprintGateRoutes } from "../sprint-gates/routes.js";
+import { autonomousSprintRoutes } from "../autonomous-sprint/routes.js";
 import { Hono } from "hono";
 import { z } from "zod";
 import { dialect } from "../../../src/db/connection.js";
@@ -63,3 +64,4 @@ planningRoutes.route("/", praeformaRoutes);
 planningRoutes.route("/", terpsichoreRoutes);
 
 planningRoutes.route("/", sprintGateRoutes);
+planningRoutes.route("/", autonomousSprintRoutes);

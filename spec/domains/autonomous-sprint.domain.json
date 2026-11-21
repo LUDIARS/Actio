@@ -1,0 +1,15 @@
+{
+  "name": "autonomous-sprint",
+  "description": "チームの明示参加で開始する自律スプリントと dots 管制",
+  "presetRules": [],
+  "templateRules": [],
+  "membership": [
+    { "pathPattern": "(^|/)modules/task/autonomous-sprint/.*\\.ts$" },
+    { "pathPattern": "(^|/)src/db/autonomous-sprint-migration\\.ts$" },
+    { "pathPattern": "(^|/)contracts/autonomous-sprint-.*\\.contract\\.ts$" },
+    { "pathPattern": "(^|/)tests/unit/autonomous-sprint-.*\\.test\\.ts$" },
+    { "pathPattern": "(^|/)frontend/src/(components/planning/AutonomousSprintPanel\\.tsx|lib/autonomous-sprint-api\\.ts)$" }
+  ],
+  "specRefs": ["spec/feature/autonomous-sprint.md", "spec/feature/sprint-human-gates.md", "spec/feature/terpsichore.md"],
+  "rationale": "スプリント所有権、クラウド管制、サーキットブレーカーと進行の整合性を同じ境界で扱う。"
+}

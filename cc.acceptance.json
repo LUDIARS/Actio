@@ -2,6 +2,16 @@
   "version": 1,
   "implementations": [
     {
+      "source": "modules/task/autonomous-sprint/runner-store.ts",
+      "tests": ["tests/unit/autonomous-sprint-store.test.ts", "tests/unit/autonomous-sprint-breaker.test.ts"],
+      "contracts": ["AT-AUTONOMOUS-SPRINT"]
+    },
+    {
+      "source": "modules/task/autonomous-sprint/routes.ts",
+      "tests": ["tests/unit/autonomous-sprint-routes.test.ts"],
+      "contracts": ["AT-AUTONOMOUS-SPRINT"]
+    },
+    {
       "source": "frontend/src/lib/api-types.ts",
       "tests": [
         "frontend/src/lib/task-pr-evidence.test.ts"

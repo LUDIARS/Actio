@@ -7,6 +7,7 @@ import { useAuth } from "../../contexts/AuthContext";
 import { useSprintPhase } from "./useSprintPhase";
 import { SprintPhaseEvidence } from "./SprintPhaseEvidence";
 import { SprintNextPlan } from "./SprintNextPlan";
+import { AutonomousSprintPanel } from "./AutonomousSprintPanel";
 import "./SprintPhasePanel.css";
 
 const phases: { id: SprintPhase; label: string; guidance: string; approval: string }[] = [
@@ -74,15 +75,16 @@ function SprintPhaseWorkspace({ ownerId, team, sprintId, sprints, projects, onCh
     <header><h2>スプリントの進行と人間の判断</h2><button className="btn" disabled={busy} onClick={() => void workspace.refresh()}>最新状態を確認</button></header>
     <ol className="sprint-phase-steps" aria-label="スプリントのフェーズ">{phases.map(item => <li key={item.id} aria-current={!closed && item.id === view.state.phase ? "step" : undefined}>{item.label}</li>)}</ol>
     <p role="status"><strong>{closed ? "このスプリントは終了しました" : `${current?.label}${view.state.held ? "（保留中）" : ""}`}</strong> ／確認する版 {view.state.revision}</p>
-    {!closed && <p>{view.state.held ? "進行は保留中です。再開するには明示的に保留を解除してください。" : current?.guidance}</p>}
+    {!closed && !view.autonomous && <p>{view.state.held ? "進行は保留中です。再開するには明示的に保留を解除してください。" : current?.guidance}</p>}
+    {!closed && <AutonomousSprintPanel team={team} sprintId={sprintId} planning={view.sprint.status === "planning"} onChanged={workspace.refresh} />}
     {workspace.error && <p role="alert">{workspace.error}</p>}
     {workspace.notice && <p role="status">{workspace.notice}</p>}
-    <div className="sprint-phase-delivery"><p>{deliveryLabel[view.delivery.status]}</p>
+    {!view.autonomous && <div className="sprint-phase-delivery"><p>{deliveryLabel[view.delivery.status]}</p>
       {thread && <a className="btn" href={thread} target="_blank" rel="noopener noreferrer">Ccで相談・判断する</a>}
       <p>各フェーズの相談は同じCcスレッドに残ります。会話だけでは承認されません。</p>
       {view.delivery.lastError && <p role="alert">{view.delivery.lastError}</p>}
       {view.delivery.threadUrl && !thread && <p role="alert">Ccの会話リンクを確認できません。通知の状態を再確認してください。</p>}
-    </div>
+    </div>}
     <SprintPhaseEvidence sprint={view.sprint} tasks={view.tasks} complete={view.complete} projects={projects} />
     {view.state.reworkTaskIds.length > 0 && <div className="sprint-phase-rework"><h3>再提出が必要な対象</h3>
       <ul>{view.state.reworkTaskIds.map(id => <li key={id}>{view.tasks.find(task => task.id === id)?.title ?? `${id}（現在の対象にありません）`}</li>)}</ul>
@@ -97,7 +99,7 @@ function SprintPhaseWorkspace({ ownerId, team, sprintId, sprints, projects, onCh
         {dirty && <button type="button" className="btn" disabled={locked} onClick={workspace.discardDraft}>編集中の変更を取り消す</button>}</>}
       {dirty && <p role="status">未保存の内容があります。保存して確認するまで、フェーズの判断は送信できません。</p>}
     </form>}
-    {!view.allowedToDecide && !closed && <p>人間のCernereアカウントでログインして判断してください。このチームの判断権限も必要です。Ccの相談スレッドからも確認できます。</p>}
+    {!view.allowedToDecide && !view.autonomous && !closed && <p>人間のCernereアカウントでログインして判断してください。このチームの判断権限も必要です。Ccの相談スレッドからも確認できます。</p>}
     {pending && <section className="sprint-phase-pending" aria-label="結果未確認の判断"><h3>送信した判断の結果を確認してください</h3>
       <p>{actionLabel[pending.action]} ／確認する版 {pending.expectedRevision}</p><p>{pending.reason}</p>
       <p>新しい判断は送信できません。同じ内容の再送は一度の判断として扱われます。</p>
@@ -120,7 +122,7 @@ function SprintPhaseWorkspace({ ownerId, team, sprintId, sprints, projects, onCh
     <details><summary>フェーズと判断の履歴（{view.history.length}件）</summary>
       <ol className="sprint-phase-history">{view.history.map(item => <li key={item.eventId}>
         <p>{item.createdAt} ／ {actionLabel[item.action] ?? item.action} → {phaseLabel(item.phase)}（版 {item.revision}）</p>
-        <p>{item.reason}</p><p>{item.actorId ? "人間の判断" : "進捗の自動確認"}</p>
+        <p>{item.reason}</p><p>{item.actorId?.startsWith("autonomous-sprint:") ? "自律モード" : item.actorId ? "人間の判断" : "進捗の自動確認"}</p>
       </li>)}</ol>
     </details>
     {busy && <p role="status">処理中…</p>}

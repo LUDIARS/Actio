@@ -6,13 +6,15 @@ import { all, one, exec, type GateDatabase, type Program } from "./query.js";
 import { loadGate } from "./snapshot.js";
 import { persist } from "./persistence.js";
 import { applyEffect, assertEffect } from "./effects.js";
+import { assertManualSprint, findLoop } from "../autonomous-sprint/persistence.js";
 import type { GateRow, GateView, GateHistory, OutboxRow, HumanDecision, ContextChange, DecisionOutcome, StoredEvent, Delivery } from "./contracts.js";
 export class SprintGateStore {
     constructor(private readonly db: GateDatabase) { }
     async view(teamId: string, id: string, now: Date): Promise<GateView> { return this.db.transaction(teamId, () => this.read(teamId, id, now)); }
     private *read(teamId: string, id: string, now: Date): Program<GateView> {
         let loaded = yield* loadGate(teamId, id);
-        if (loaded.snapshot.sprint.status !== "closed") {
+        const autonomous = (yield* findLoop(teamId))?.sprintId === id;
+        if (!autonomous && loaded.snapshot.sprint.status !== "closed") {
             const decision = decideSprintPhase({ ...loaded, command: { action: "observe" }, now });
             if (decision.changed) {
                 yield* persist(loaded.row, decision.state, loaded.snapshot, "observe", null, decision.reason, now);
@@ -21,7 +23,7 @@ export class SprintGateStore {
         }
         const history = yield* all<GateHistory>("SELECT event_id AS eventId,action,actor_id AS actorId,reason,phase,revision,created_at AS createdAt FROM sprint_gate_history WHERE team_id=? AND sprint_id=? ORDER BY revision DESC", teamId, id);
         const delivery = yield* one<Delivery>("SELECT status,thread_url AS threadUrl,last_error AS lastError FROM sprint_gate_outbox WHERE team_id=? AND sprint_id=?", teamId, id);
-        return { ...loaded.snapshot, state: loaded.state, nextSprintId: loaded.row.nextSprintId, history, delivery: delivery ?? { status: "pending", threadUrl: null, lastError: null } };
+        return { ...loaded.snapshot, state: loaded.state, nextSprintId: loaded.row.nextSprintId, history, delivery: delivery ?? { status: "pending", threadUrl: null, lastError: null }, ...(autonomous ? { autonomous: true } : {}) };
     }
     async context(teamId: string, id: string, actor: string, input: ContextChange, now: Date, requireLeader = false): Promise<GateView> {
         return this.db.transaction(teamId, function* () {
@@ -32,6 +34,7 @@ export class SprintGateStore {
                 if (member?.role !== "leader")
                     throw new PlanningError("このチームのリーダー権限がありません", 400);
             }
+            yield* assertManualSprint(teamId, id);
             const current = yield* loadGate(teamId, id);
             if (current.snapshot.sprint.status === "closed")
                 throw new PlanningError("終了したスプリントは変更できません");
@@ -81,11 +84,15 @@ export class SprintGateStore {
                     if (member?.role !== "leader")
                         throw new PlanningError("このチームのリーダー権限がありません", 400);
                 }
+                yield* assertManualSprint(teamId, id);
                 const loaded = yield* loadGate(teamId, id);
                 if (loaded.snapshot.sprint.status === "closed")
                     throw new PlanningError("このスプリントはすでに終了しています");
                 const { eventId: _event, ...command } = input;
                 const decision = decideSprintPhase({ ...loaded, command, now });
+                if (decision.effect === "start_next_sprint" && loaded.row.nextSprintId) {
+                    yield* assertManualSprint(teamId, loaded.row.nextSprintId);
+                }
                 yield* assertEffect(teamId, id, decision.effect, loaded.row.nextSprintId);
                 prepared = { loaded, decision };
             }
@@ -114,7 +121,9 @@ export class SprintGateStore {
             return yield* all<{
                 teamId: string;
                 id: string;
-            }>("SELECT team_id AS teamId,id FROM sprints WHERE status <> 'closed' ORDER BY team_id,id");
+            }>(`SELECT team_id AS teamId,id FROM sprints WHERE status <> 'closed'
+                AND NOT EXISTS (SELECT 1 FROM autonomous_sprint_runs r WHERE r.team_id=sprints.team_id AND r.sprint_id=sprints.id)
+                ORDER BY team_id,id`);
         }, { lockTasks: false });
     }
     async pending(): Promise<OutboxRow[]> { return this.db.transaction("outbox", function* () { return yield* all<OutboxRow>("SELECT team_id AS teamId,sprint_id AS sprintId,revision,payload_json AS payloadJson,status,thread_url AS threadUrl,last_error AS lastError FROM sprint_gate_outbox ORDER BY team_id,sprint_id"); }, { lockTasks: false }); }

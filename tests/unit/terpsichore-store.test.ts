@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, expect, it } from "vitest";
 import Database from "better-sqlite3";
 import { migratePlanning } from "../../src/db/planning-migration.js";
+import { sqliteGateDatabase } from "../../src/db/sprint-gate-database.js";
 import { GuidancePlanStore } from "../../modules/task/terpsichore/plan-store.js";
 import { ExecutionStore } from "../../modules/task/terpsichore/execution-store.js";
 import { assessGuidance } from "../../modules/task/terpsichore/guidance.js";
@@ -22,7 +23,7 @@ it("preserves independent team/sprint scopes and rejects stale plan saves", asyn
   expect((await store.load("team", "At", null))?.revision).toBe(2);
 });
 it("keeps lost sends reserved, preserves immutable scope and cannot resurrect a terminal execution", async () => {
-  const store = new ExecutionStore(db), plan = input(), tasks = [task("a")];
+  const store = new ExecutionStore(db, sqliteGateDatabase(db)), plan = input(), tasks = [task("a")];
   const manifest = buildExecutionManifest(plan, 1, tasks, assessGuidance(plan, tasks, [], now));
   const record = await store.reserve("team", "leader", manifest, now);
   await store.observe(record.id, null, "unknown");

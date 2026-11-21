@@ -1,5 +1,6 @@
 import { implementationDdl, implementationPostgresTriggers } from "./implementation-migration.js";
 import { sprintGateDdl } from "./sprint-gate-migration.js";
+import { autonomousSprintDdl } from "./autonomous-sprint-migration.js";
 import { chatDdl } from "./chat-migration.js";
 import { LEGACY_BUG_REPORT_TO_ISSUE_SQL } from "./issue-kind-migration.js";
 import { TASK_LIST_INDEX_DDL } from "./task-list-indexes.js";
@@ -9,7 +10,7 @@ import type postgres from "postgres";
 export async function migratePlanningPostgres(pool: postgres.Sql): Promise<void> {
   await pool.begin(async sql => {
     await sql.unsafe(`SELECT pg_advisory_xact_lock(hashtextextended('actio-planning-schema', 0))`);
-    for (const ddl of [...sprintGateDdl, ...chatDdl]) await sql.unsafe(ddl);
+    for (const ddl of [...sprintGateDdl, ...chatDdl, ...autonomousSprintDdl]) await sql.unsafe(ddl);
     await sql.unsafe(`CREATE TABLE IF NOT EXISTS terpsichore_runs (
       id TEXT PRIMARY KEY, team_id TEXT NOT NULL, project_id TEXT NOT NULL, actor_id TEXT NOT NULL,
       task_ids TEXT NOT NULL, manifest_json TEXT NOT NULL, state TEXT NOT NULL, run_id TEXT, created_at TEXT NOT NULL

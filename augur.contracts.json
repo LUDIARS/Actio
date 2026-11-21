@@ -156,6 +156,33 @@
       "module": "contracts/task-list-page.contract.ts",
       "mode": "observe",
       "sample": 1
+    },
+    {
+      "id": "C-22",
+      "criterion": "C-22 interpretBreakerStatus(status): 200 だけを許可し、409 を遮断、未設定・接続不能・その他応答を保留とする",
+      "symbol": "interpretBreakerStatus",
+      "file": "modules/task/autonomous-sprint/breaker.ts",
+      "module": "contracts/autonomous-sprint-breaker.contract.ts",
+      "mode": "observe",
+      "sample": 1
+    },
+    {
+      "id": "C-23",
+      "criterion": "C-23 canAdvanceLoop(status, effect, breaker): running のみ進行し、新規着手と引継ぎには Concordia の許可が必要",
+      "symbol": "canAdvanceLoop",
+      "file": "modules/task/autonomous-sprint/advance.ts",
+      "module": "contracts/autonomous-sprint-advance.contract.ts",
+      "mode": "observe",
+      "sample": 1
+    },
+    {
+      "id": "C-24",
+      "criterion": "C-24 ownsLoop(clientId, boundClientId): 認証済み API クライアントの内部 ID がループに登録された ID と一致するときだけ dots 管制を許可する",
+      "symbol": "ownsLoop",
+      "file": "modules/task/autonomous-sprint/access.ts",
+      "module": "contracts/autonomous-sprint-access.contract.ts",
+      "mode": "observe",
+      "sample": 1
     }
   ]
 }
