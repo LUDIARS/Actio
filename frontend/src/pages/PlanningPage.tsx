@@ -14,16 +14,41 @@ function criticalPathText(task: PlanningTask): string {
   if (task.isCriticalPath) return "★ クリティカルパス";
   return task.slackDays != null ? `余裕 ${task.slackDays} 日` : "—";
 }
-import { request } from "../lib/api";
+import { ApiRequestError, request } from "../lib/api";
+import { useAuth } from "../contexts/AuthContext";
 import { SprintForm, SprintAdjustment } from "../components/planning/SprintForm";
 import { PraeformaBacklog } from "../components/planning/PraeformaBacklog";
 import { TerpsichorePanel } from "../components/planning/TerpsichorePanel";
 import { SprintPhasePanel } from "../components/planning/SprintPhasePanel";
+import { MusaBacklogStatus } from "../components/planning/MusaBacklogStatus";
 import "./PlanningPage.css";
 
 export function PlanningPage() {
+  const { user } = useAuth();
+  return <PlanningTeams key={user?.id} />;
+}
+
+type Snapshot = { data: PlanningData; current: CurrentSprintView };
+function PlanningTeams() {
+  const [params] = useSearchParams();
+  const selected = params.get("teamId") ?? params.get("team") ?? "";
+  const cache = useRef(new Map<string, Snapshot>()).current;
+  const [teams, setTeams] = useState<Team[]>([]);
+  const [error, setError] = useState("");
+  useEffect(() => {
+    let active = true;
+    void planningApi.teams().then(result => { if (active) setTeams(result.teams); })
+      .catch(e => { if (active) setError(e.message); });
+    return () => { active = false; };
+  }, []);
+  const team = teams.some(t => t.id === selected) ? selected : "";
+  return <TeamPlanning key={team} team={team} teams={teams} cache={cache} teamsError={error} />;
+}
+
+function TeamPlanning({ team, teams, cache, teamsError }: {
+  team: string; teams: Team[]; cache: Map<string, Snapshot>; teamsError: string;
+}) {
   const [searchParams, setSearchParams] = useSearchParams();
-  const team = searchParams.get("teamId") ?? searchParams.get("team") ?? "";
   const sprintId = searchParams.get("sprintId") ?? searchParams.get("sprint") ?? "";
   const setTeam = (value: string): void => {
     const query = new URLSearchParams(searchParams);
@@ -37,10 +62,9 @@ export function PlanningPage() {
     if (value) query.set("sprintId", value); else query.delete("sprintId");
     setSearchParams(query);
   };
-  const [teams, setTeams] = useState<Team[]>([]);
   const currentTeam = useRef(team);
-  currentTeam.current = team;
-  const [data, setData] = useState<PlanningData | null>(null);
+  useEffect(() => { currentTeam.current = team; return () => { currentTeam.current = ""; }; }, [team]);
+  const [data, setData] = useState<PlanningData | null>(() => cache.get(team)?.data ?? null);
   const [members, setMembers] = useState<string[]>([]);
   const currentSprint = useRef(sprintId);
   currentSprint.current = sprintId;
@@ -50,23 +74,30 @@ export function PlanningPage() {
   const [busy, setBusy] = useState(false);
   const [history, setHistory] = useState<Awaited<ReturnType<typeof planningApi.history>>["changes"]>([]);
   const [view, setView] = useState<BoardView>("current");
-  const [current, setCurrent] = useState<CurrentSprintView | null>(null);
+  const [current, setCurrent] = useState<CurrentSprintView | null>(() => cache.get(team)?.current ?? null);
   const [projects, setProjects] = useState<TeamProject[]>([]);
+  const [validated, setValidated] = useState(false);
   const [executorType, setExecutorType] = useState<"human" | "ai">("human");
-  useEffect(() => { let active = true; void planningApi.teams().then(r => { if (active) setTeams(r.teams); }).catch(e => { if (active) setError(e.message); }); return () => { active = false; }; }, []);
   const refresh = useCallback(async () => {
     if (!team) return;
     const [result, currentView] = await Promise.all([planningApi.load(team), planningApi.currentView(team)]);
     if (currentTeam.current !== team) return;
+    cache.set(team, { data: result, current: currentView });
     setData(result); setCurrent(currentView); setSelected([]); setHistory([]);
-  }, [team]);
+  }, [team, cache]);
   useEffect(() => {
-    let active = true; setData(null); setCurrent(null); setProjects([]); setSelected([]); setHistory([]); setMembers([]); setError("");
+    let active = true;
     if (team) { setBusy(true); void Promise.all([planningApi.load(team), planningApi.members(team), planningApi.currentView(team), planningApi.teamProjects(team)]).then(([d, m, cv, p]) => {
-      if (active) { setData(d); setMembers(m.members.map(x => x.userId)); setCurrent(cv); setProjects(p.projects); }
-    }).catch(e => { if (active) setError(e.message); }).finally(() => { if (active) setBusy(false); }); }
+      if (active) { cache.set(team, { data: d, current: cv }); setData(d); setMembers(m.members.map(x => x.userId)); setCurrent(cv); setProjects(p.projects); setValidated(true); }
+    }).catch(e => {
+      if (!active) return;
+      if (e instanceof ApiRequestError && [401, 403].includes(e.status)) {
+        cache.delete(team); setData(null); setCurrent(null);
+      }
+      setError(e.message);
+    }).finally(() => { if (active) setBusy(false); }); }
     return () => { active = false; };
-  }, [team]);
+  }, [team, cache]);
   const currentIds = new Set(current?.tasks.map(t => t.id) ?? []);
   const visibleTasks = data ? (view === "current" && current ? data.tasks.filter(t => currentIds.has(t.id)) : data.tasks) : [];
   const run = async (fn: () => Promise<unknown>) => {
@@ -74,7 +105,7 @@ export function PlanningPage() {
     try { await fn(); await refresh(); } catch (e) { if (currentTeam.current === team) setError((e as Error).message); }
     finally { if (currentTeam.current === team) setBusy(false); }
   };
-  const canEdit = ["leader", "admin"].includes(teams.find(t => t.id === team)?.role ?? "");
+  const canEdit = validated && ["leader", "admin"].includes(teams.find(t => t.id === team)?.role ?? "");
   const sprint = data?.sprints.find(s => s.id === sprintId);
   const group = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault(); const form = new FormData(event.currentTarget);
@@ -94,10 +125,12 @@ export function PlanningPage() {
   return <div className="page-container planning-page">
     <h1>バックログとスプリント</h1>
     <p><Link to={`/tasks/chat?teamId=${encodeURIComponent(team)}`}>チャット受付・議論参加・会話ログ</Link></p>
-    <label>チーム<select value={team} disabled={busy} onChange={e => setTeam(e.target.value)}><option value="">チームを選択</option>{teams.map(t => <option key={t.id} value={t.id}>{t.name ?? t.id}</option>)}</select></label>
+    <label>チーム<select value={team} onChange={e => setTeam(e.target.value)}><option value="">チームを選択</option>{teams.map(t => <option key={t.id} value={t.id}>{t.name ?? t.id}</option>)}</select></label>
     {teams.length === 0 && <p>所属チームがありません。チーム同期とメンバー登録を確認してください。</p>}
-    {error && <p role="alert">{error}</p>}
+    {(teamsError || error) && <p role="alert">{teamsError || error}</p>}
     {data && <>
+      {!validated && <p role="status">このチームで前回取得したバックログを表示しています。</p>}
+      <MusaBacklogStatus tasks={visibleTasks} />
       <TerpsichorePanel key={team} team={team} sprintId={sprintId} data={data} projects={projects} canEdit={canEdit} onRefresh={refresh} />
       {canEdit && <><SprintForm key={`sprint-${team}`} team={team} onSaved={refresh} /><PraeformaBacklog key={`pf-${team}`} team={team} members={members} onSaved={refresh} />
         <details><summary>バックログを追加</summary><form className="planning-form" onSubmit={createTask}>

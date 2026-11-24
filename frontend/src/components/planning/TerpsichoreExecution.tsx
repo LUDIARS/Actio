@@ -8,11 +8,20 @@ export function TerpsichoreExecution({ team, projectId, revision, enabled, canEd
   const [templates, setTemplates] = useState<ExecutionTemplate[]>([]);
   const [callName, setCallName] = useState("");
   const [status, setStatus] = useState<ExecutionStatus | null>(null);
-  const [busy, setBusy] = useState(false);
+  const [busy, setBusy] = useState(Boolean(projectId));
   const [error, setError] = useState("");
   const [unresolved, setUnresolved] = useState(false);
   const mounted = useRef(false);
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
+  useEffect(() => {
+    if (!projectId) return;
+    let active = true;
+    void terpsichoreApi.executionStatus(team, projectId)
+      .then(result => { if (active) setStatus(result); })
+      .catch(e => { if (active) setError(e instanceof Error ? e.message : "実行状態を取得できませんでした"); })
+      .finally(() => { if (active) setBusy(false); });
+    return () => { active = false; };
+  }, [team, projectId]);
   const active = unresolved || (status?.execution && ["submitting", "running", "unknown"].includes(status.execution.state));
   const perform = async (action: "preview" | "start" | "status") => {
     setBusy(true); setError("");
@@ -32,7 +41,7 @@ export function TerpsichoreExecution({ team, projectId, revision, enabled, canEd
     } catch (e) { if (mounted.current) setError(e instanceof Error ? e.message : "委託状況を取得できませんでした"); }
     finally { if (mounted.current) setBusy(false); }
   };
-  return <section className="terpsichore-execution"><h3>Ccでバックログを順次実装</h3>
+  return <section className="terpsichore-execution"><h3>MUSA の動作状況 · テルプシコラのバックログ実装委託</h3>
     <p>未着手のAIタスクから、目的・受入条件・担当・見積りと依存関係が揃ったものを、一つの委託で順に進めます。人間のタスクや確認待ちは委託対象から外し、バックログに残します。</p>
     {!projectId && <p>対象プロジェクトを選択してください。</p>}
     {projectId && <>
