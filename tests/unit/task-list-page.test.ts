@@ -5,6 +5,7 @@ import { summarizeTaskList, toTaskSummary } from "../../modules/task/list/summar
 import { buildTaskListPage } from "../../modules/task/list/page.js";
 
 const row = (i: number) => ({
+  priority: "medium",
   id: `t${i}`,
   status: "open",
   deadline: null,
@@ -109,6 +110,15 @@ describe("buildTaskListPage", () => {
     const page = buildTaskListPage(rows, 2, "default");
     expect(page.tasks).toEqual([row(3), row(2)]);
     expect(decodeTaskListCursor(page.nextCursor as string, "default")).toEqual({ sort: "default", updatedAt: row(2).updatedAt.getTime(), id: "t2" });
+  });
+
+  it("resumes a priority page with the priority and id of its last row", () => {
+    const page = buildTaskListPage([{ ...row(1), priority: "high" }, row(2)], 1, "priority");
+    const cursor = page.nextCursor as string;
+    expect(parseTaskListPageQuery({ sort: "priority", cursor })).toMatchObject({
+      ok: true, value: { after: { sort: "priority", rank: 1, id: "t1" } },
+    });
+    expect(decodeTaskListCursor(cursor, "personal")).toBeNull();
   });
 
   it("encodes the personal key of the last row", () => {

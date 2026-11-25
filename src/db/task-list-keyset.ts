@@ -13,15 +13,17 @@ import { and, asc, desc, eq, gt, isNull, lt, or, sql } from "drizzle-orm";
 import type { SQL } from "drizzle-orm";
 import { dialect, schema } from "./connection.js";
 
-export type TaskListSort = "default" | "personal";
+export type TaskListSort = "default" | "personal" | "priority";
 
 export type TaskListCursorKey =
   | { sort: "default"; updatedAt: number; id: string }
+  | { sort: "priority"; rank: number; id: string }
   | { sort: "personal"; rank: number; deadline: number | null; createdAt: number; id: string };
 
 /** キーを作るのに要る行の列 */
 export interface TaskListKeyRow {
   id: string;
+  priority: string;
   status: string;
   deadline: Date | null;
   createdAt: Date;
@@ -46,8 +48,13 @@ export const PERSONAL_STATUS_ORDER = sql`CASE ${schema.tasks.status}
 // 期限なしを最後に回す (方言ごとの NULLS LAST 差を避けるため明示の列にする)
 const DEADLINE_NULL_LAST = sql`CASE WHEN ${schema.tasks.deadline} IS NULL THEN 1 ELSE 0 END`;
 
+const PRIORITY_ORDER = sql`CASE ${schema.tasks.priority}
+  WHEN 'critical' THEN 0 WHEN 'high' THEN 1 WHEN 'low' THEN 3 ELSE 2 END`;
+const PRIORITY_RANK: Record<string, number> = { critical: 0, high: 1, medium: 2, low: 3 };
+
 export function taskListOrder(sort: TaskListSort): SQL[] {
   const t = schema.tasks;
+  if (sort === "priority") return [PRIORITY_ORDER, asc(t.id)];
   if (sort === "personal") {
     return [PERSONAL_STATUS_ORDER, DEADLINE_NULL_LAST, asc(t.deadline), desc(t.createdAt), desc(t.id)];
   }
@@ -55,6 +62,7 @@ export function taskListOrder(sort: TaskListSort): SQL[] {
 }
 
 export function taskListCursorKeyOf(row: TaskListKeyRow, sort: TaskListSort): TaskListCursorKey {
+  if (sort === "priority") return { sort, rank: PRIORITY_RANK[row.priority] ?? 2, id: row.id };
   if (sort === "personal") {
     return {
       sort,
@@ -70,6 +78,9 @@ export function taskListCursorKeyOf(row: TaskListKeyRow, sort: TaskListSort): Ta
 /** キーの行より並び順で後ろにある行だけを選ぶ条件 */
 export function taskListAfterCondition(key: TaskListCursorKey): SQL {
   const t = schema.tasks;
+  if (key.sort === "priority") {
+    return sql`(${PRIORITY_ORDER} > ${key.rank} OR (${PRIORITY_ORDER} = ${key.rank} AND ${t.id} > ${key.id}))`;
+  }
   if (key.sort === "default") {
     const updatedAt = new Date(key.updatedAt);
     if (dialect === "postgres") {

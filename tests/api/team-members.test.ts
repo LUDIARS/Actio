@@ -72,6 +72,20 @@ describe("PUT/DELETE /api/teams/:teamId/members/:userId", () => {
     expect(listed.json.members).toContainEqual({ userId: "new-1", role: "leader" });
   });
 
+  it("keeps other memberships and roles when an admin adds or removes one team", async () => {
+    insertTestTeamRef({ id: "team-2", slug: "two", name: "Team Two" });
+    const path = "/api/teams/team-2/members/leader-1";
+    expect((await request(app, "PUT", path, { token: admin(), body: { role: "member" } })).status).toBe(200);
+    const memberships = "/api/teams/memberships/leader-1";
+    const listed = await request(app, "GET", memberships, { token: admin() });
+    expect(listed.json.memberships).toHaveLength(2);
+    expect(listed.json.memberships).toContainEqual({ teamId: "team-2", role: "member" });
+    expect((await request(app, "GET", memberships, { token: member() })).status).toBe(403);
+    expect((await request(app, "DELETE", path, { token: admin() })).status).toBe(200);
+    expect((await request(app, "GET", memberships, { token: admin() })).json.memberships)
+      .toEqual([{ teamId: "team-1", role: "leader" }]);
+  });
+
   it("rejects invalid roles and unknown teams", async () => {
     expect((await request(app, "PUT", "/api/teams/team-1/members/member-1", { token: admin(), body: { role: "owner" } })).status).toBe(400);
     expect((await request(app, "PUT", "/api/teams/no-such/members/member-1", { token: admin(), body: { role: "member" } })).status).toBe(404);

@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { useAuth } from "../contexts/AuthContext";
+import { TeamMembershipEditor } from "../components/TeamMembershipEditor";
 import { adminApi } from "../lib/api";
 
 const ROLE_LABELS: Record<string, string> = {
@@ -37,6 +38,7 @@ export function UserManagementPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [updating, setUpdating] = useState<string | null>(null);
+  const [membershipUser, setMembershipUser] = useState<UserItem | null>(null);
   const [filterGroup, setFilterGroup] = useState<string>("all");
   const [searchText, setSearchText] = useState("");
   const isAdmin = user?.role === "admin";
@@ -110,6 +112,8 @@ export function UserManagementPage() {
           ? "全ユーザーを表示しています。ロールの変更も可能です。"
           : "同じグループに所属するユーザーを表示しています。"}
       </p>
+
+      {isAdmin && membershipUser && <TeamMembershipEditor key={membershipUser.id} user={membershipUser} onClose={() => setMembershipUser(null)} />}
 
       {error && (
         <div
@@ -265,6 +269,7 @@ export function UserManagementPage() {
                 )}
                 {isAdmin && (
                   <td style={{ padding: "0.5rem" }}>
+                    <button onClick={() => setMembershipUser(u)}>所属組織を編集</button>
                     {u.id === user?.id ? (
                       <span style={{ color: "var(--text-muted)", fontSize: "0.8rem" }}>
                         -

@@ -760,7 +760,18 @@ export const profileApi = {
 
 // ─── Admin (ユーザー管理) ──────────────────────────────────────
 
+export interface TeamMembership { teamId: string; role: string }
+
 export const adminApi = {
+  listTeamMemberships(userId: string) {
+    return request<{ memberships: TeamMembership[] }>(`/api/teams/memberships/${encodeURIComponent(userId)}`);
+  },
+  setTeamMembership(teamId: string, userId: string, add: boolean) {
+    const path = `/api/teams/${encodeURIComponent(teamId)}/members/${encodeURIComponent(userId)}`;
+    return request(path, add
+      ? { method: "PUT", body: JSON.stringify({ role: "member" }) }
+      : { method: "DELETE" });
+  },
   listUsers() {
     return request<UserListResponse>("/api/auth/users");
   },
@@ -1522,7 +1533,7 @@ export interface TaskListQuery {
   kind?: string;
   pluginId?: string;
   /** "personal" で個人タスクボード順 (status→期限→作成) */
-  sort?: "personal";
+  sort?: "personal" | "priority";
   /** ISO 8601 string */
   dueBefore?: string;
   /** チーム (Cc team id) */

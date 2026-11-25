@@ -26,6 +26,11 @@ function toKey(payload: Record<string, unknown>): TaskListCursorKey | null {
     if (!isFiniteNumber(payload.updatedAt)) return null;
     return { sort: "default", updatedAt: payload.updatedAt, id: payload.id };
   }
+  if (payload.sort === "priority") {
+    const { rank } = payload;
+    if (typeof rank !== "number" || !Number.isInteger(rank) || rank < 0 || rank > 3) return null;
+    return { sort: "priority", rank, id: payload.id };
+  }
   if (payload.sort === "personal") {
     if (!isFiniteNumber(payload.rank) || !isFiniteNumber(payload.createdAt)) return null;
     if (payload.deadline !== null && !isFiniteNumber(payload.deadline)) return null;

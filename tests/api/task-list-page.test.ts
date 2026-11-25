@@ -114,6 +114,18 @@ describe("GET /api/tasks summary", () => {
 });
 
 describe("GET /api/tasks keyset pagination", () => {
+  it("orders Actio tasks by priority across page boundaries", async () => {
+    const byPriority = new Map<string, string[]>();
+    for (const priority of ["low", "high", "medium", "critical", "high"]) {
+      const result = await request(app, "POST", "/api/tasks", { token, body: { title: priority, priority } });
+      expect(result.status).toBe(201);
+      byPriority.set(priority, [...(byPriority.get(priority) ?? []), result.json.task.id]);
+    }
+    expect(await collectAll("sort=priority&limit=2")).toEqual(
+      ["critical", "high", "medium", "low"].flatMap(priority => byPriority.get(priority)!.sort()),
+    );
+  });
+
   it("defaults to 100 per page ordered by updated_at desc", async () => {
     await seed(130);
     const first = await list("");

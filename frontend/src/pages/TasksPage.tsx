@@ -1,4 +1,5 @@
 import "./TasksPage.css";
+import { PRIORITY_LABELS } from "../lib/task-priority";
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { tasksApi } from "../lib/api";
 import { TaskPrEvidence } from "../components/TaskPrEvidence";
@@ -37,12 +38,6 @@ const STATUS_COLORS: Record<TaskStatus, string> = {
   cancelled: "var(--text-muted)",
 };
 
-const PRIORITY_LABELS: Record<TaskPriority, string> = {
-  low: "低",
-  medium: "中",
-  high: "高",
-  critical: "最優先",
-};
 
 const PRIORITY_COLORS: Record<TaskPriority, string> = {
   low: "var(--text-muted)",

@@ -31,9 +31,10 @@ Actio タスク参照: `actio:997f4c67-a851-46da-8753-d5f77bc535bb`（ページ�
 - `cursor`: 前ページの `nextCursor` をそのまま渡す。中身は不透明 (前ページ最後の行の並びキーと並び順を base64url の JSON にしたもの、
   `modules/task/list/cursor.ts`)。壊れた値・別の並び順 (`sort`) のカーソルは 400。
 - 最終ページは `nextCursor: null`。offset は使わない。
-- 並び順 (`src/db/task-list-keyset.ts`)。どちらも最後に `id` を置いて全順序にし、同じ時刻の行があっても重複・抜けが出ないようにする。
+- 並び順 (`src/db/task-list-keyset.ts`)。いずれも最後に `id` を置いて全順序にし、同じ時刻の行があっても重複・抜けが出ないようにする。
   - 既定: `updated_at desc, id desc`
   - `sort=personal`: 状態の順 (未着手 → 進行中 → 完了 → その他) asc、期限 asc (期限なしは最後)、`created_at desc`、`id desc`
+  - `sort=priority`: 最優先 → 高 → 中 → 低、同順位は `id asc`。ダッシュボードは閲覧可能な未完了タスクをこの順で表示する。
 - 消費側は `nextCursor` が無い (旧 Actio) か null なら最終ページとみなす。
 
 ## 4. 絞り込み

@@ -75,7 +75,7 @@ function optionalText(raw: string | undefined): string | undefined {
 }
 
 export function parseTaskListPageQuery(query: RawQuery): TaskListPageQueryResult {
-  const sort: TaskListSort = query.sort === "personal" ? "personal" : "default";
+  const sort: TaskListSort = query.sort === "personal" || query.sort === "priority" ? query.sort : "default";
   const limit = parseLimit(query.limit);
   if (typeof limit === "string") return { ok: false, error: limit };
   const statuses = parseStatuses(query.status);

@@ -45,6 +45,13 @@ teamMemberRoutes.get("/", async (c) => {
   return c.json({ teams });
 });
 
+const requireMemberAdmin = allowLocalOwnerOr(requireRole("admin"));
+
+teamMemberRoutes.get("/memberships/:userId", requireMemberAdmin, async (c) => {
+  const memberships = await teamMemberRepo.listByUser(c.req.param("userId"));
+  return c.json({ memberships: memberships.map(({ teamId, role }) => ({ teamId, role })) });
+});
+
 // ─── GET /:teamId/members — member 以上 ───────────────────────
 
 teamMemberRoutes.get("/:teamId/members", requireTeamRole("member"), async (c) => {
@@ -53,8 +60,6 @@ teamMemberRoutes.get("/:teamId/members", requireTeamRole("member"), async (c) =>
 });
 
 // ─── PUT/DELETE /:teamId/members/:userId — admin / ローカルモードの持ち主 ──
-
-const requireMemberAdmin = allowLocalOwnerOr(requireRole("admin"));
 
 teamMemberRoutes.put("/:teamId/members/:userId", requireMemberAdmin, async (c) => {
   const teamId = c.req.param("teamId");

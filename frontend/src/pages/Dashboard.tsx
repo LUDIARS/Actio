@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 
 import { calendarApi, groupApi, myPlanApi, pmApi } from "../lib/api";
 import type { PersonalEvent, PMProject } from "../lib/api-types";
+import { DashboardTasks } from "../components/DashboardTasks";
 import { HelpButton } from "../components/HelpOverlay";
 import { DAY_LABELS, getPeriodLabel } from "../lib/constants";
 import {
@@ -745,6 +746,8 @@ export function Dashboard() {
           </Link>
         )}
       </SectionHeader>
+
+      <DashboardTasks />
 
       {/* タスクサマリー */}
       <div
