@@ -2,6 +2,35 @@
   "version": 1,
   "native": [
     {
+      "file": "cpp/src/db/postgres_wire.cpp",
+      "standard": "c++23",
+      "includes": ["cpp/src/db"],
+      "packages": ["portus-142d69e", "libpq-18", "lorica-5e8281b"]
+    },
+    {
+      "file": "cpp/src/db/postgres_connection.cpp",
+      "standard": "c++23",
+      "includes": ["cpp/src/db"],
+      "packages": ["portus-142d69e", "libpq-18"]
+    },
+    {
+      "file": "cpp/src/db/postgres_pool.cpp",
+      "standard": "c++23",
+      "includes": ["cpp/include", "cpp/src/db"],
+      "packages": ["portus-142d69e", "libpq-18"]
+    },
+    {
+      "file": "cpp/tests/postgres.cpp",
+      "standard": "c++23",
+      "includes": ["cpp/include", "cpp/src/db"],
+      "packages": ["portus-142d69e", "libpq-18"]
+    },
+    {
+      "file": "cpp/src/db/postgres_policy.cpp",
+      "standard": "c++23",
+      "includes": ["cpp/include", "cpp/src/db", "cpp/contracts"]
+    },
+    {
       "file": "cpp/src/main.cpp",
       "standard": "c++23",
       "includes": ["cpp/include"],

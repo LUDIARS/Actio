@@ -11,6 +11,15 @@
       "module": "contracts/liveness.hpp",
       "mode": "observe",
       "sample": 1
+    },
+    {
+      "id": "C-29",
+      "criterion": "C-29 postgresPolicy(): 接続上限 10、取得上限 10 秒、文実行上限 7 秒、TCP keepalive 開始 15 秒を返す",
+      "symbol": "postgresPolicy",
+      "file": "src/db/postgres_policy.cpp",
+      "module": "contracts/postgres_policy.hpp",
+      "mode": "observe",
+      "sample": 1
     }
   ]
 }

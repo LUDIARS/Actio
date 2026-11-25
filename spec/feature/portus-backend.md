@@ -21,6 +21,10 @@ Portus の `HttpServer`、`RouteDef`、`Reply` を使う。大きな応答も所
 
 DB アクセスには libpq のパラメーター付きクエリを使う。接続と結果は RAII で解放し、トランザクションの開始から終了まで同じ接続を占有する。接続数上限 10、接続タイムアウト 10 秒、statement_timeout 7 秒は現行の postgresOptions に合わせる。資格情報は現行の Excubitor 注入経路から読み、欠落時は readiness を失敗させる。接続文字列を診断に含めない。スキーマとデータを共用し、切り戻し期間は旧版が読める形式で書く。
 
+接続層の先行 PR は `actio:1b8e85b2-0b76-45d5-bf67-2597f0d0e73e` に対応する。DB を必要とするワーカーは `makeInjectedPostgresPool()` に、既存の起動処理で解決済みの `DATABASE_URL` をプロセス環境から渡す。接続はワーカーが `acquire` した時に作り、取得待ちと接続処理で同じ単調時計の期限を使う。TCP keepalive を 15 秒に設定し、待機中の接続は 30 秒を超えると次回取得時に廃棄する。libpq 内の名前解決が期限を超えても呼び出し側には期限時点で失敗を返し、名前解決が終わるまで接続枠を保持する。
+
+結果は一行ずつ Portus の `DbResult` に渡し、SQL NULL と空文字を区別する。サーバーが応答を完了した SQL エラーは同じ接続でロールバックできる。通信断、クライアント側の期限切れ、応答の上限超過は接続を破棄する。コミットの応答を受け取れなかった場合は対象 ID で結果を確認する。HTTP の readiness と各 API への配線は後続 PR で行う。
+
 タスク一覧の契約は [一覧 API](task-list-api.md) に従う。旧版の nextCursor を新版が引き継げることと、その逆を確認する。limit=500 の約 640 KB の固定データで、通常の読み手と小分けに読む読み手の両方について、受信完了、本文のバイト数、末尾のタスク、次ページを検査する。HTTP 200 の記録だけでは完了の証跡にならない。
 
 Portus の HTTP と WebSocket には独立した listen がある。現行の actio-web は同一 backend に Upgrade を送るため、切り替えまでに同一ポートで /ws を引き渡せる実装が必要になる。Portus 側で共有 listener を追加する場合は、独立した Portus PR で認証コンテキストと接続の所有権移譲を検証する。
@@ -28,6 +32,8 @@ Portus の HTTP と WebSocket には独立した listen がある。現行の ac
 ## Windows でのビルド確認
 
 Revisor の登録コマンド `npm test` は Vitest 成功後に CMake で候補版をビルドし、CTest の `actio_health_response` で死活応答を検査する。審査ホストには CMake 4.2 以上、VS 2026、OpenSSL 3 と Portus・Lorica のソースを用意する。配置の上書きには `PORTUS_SOURCE_DIR` と `LORICA_SOURCE_DIR`、導入済み Lorica には `Lorica_DIR` を使う。
+
+DB 接続層のビルドには Portus `142d69e` 以降、PostgreSQL の開発用ヘッダーと libpq が必要になる。Windows で CMake が既定のインストール先を検出できない場合は `PostgreSQL_ROOT` を指定する。CTest の `actio_postgres_boundary` は外部 DB に接続せず、取得期限、接続ポリシー、設定欠落、SQL NULL と空文字の取り扱いを確認する。
 
 2026-11-25、Portus 9a73450 の cpp を CMake 4.4.4、Visual Studio 18 2026、MSVC 19.52、OpenSSL 3.2.1 で構成した。Release x64 の portus.lib の生成と portus_hello.exe のリンクを確認した。サンプルを実行する検証は反映担当に引き継ぐ。
 
