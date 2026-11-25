@@ -5,8 +5,11 @@
 #include "actio/local_access.hpp"
 #include "actio/local_owner.hpp"
 #include "concordia_catalog.hpp"
+#include "pm_critical_path.hpp"
+#include "pm_project_read.hpp"
 #include "sprint_write.hpp"
 #include "task_critical_path.hpp"
+#include "task_delete.hpp"
 #include "task_read.hpp"
 #include "task_write.hpp"
 #include "write_body.hpp"
@@ -109,6 +112,32 @@ struct LocalRoutes {
         });
     }
 
+    using ProjectRead = portus::Json (*)(portus::DbConnection&, portus::DbDeadline, std::string_view);
+
+    portus::Reply pmProject(const portus::RequestContext& request, ProjectRead operation) {
+        const auto access = authorize(request, "Authentication required");
+        if (access.status != 204) return access;
+        const auto& id = request.params.at("id").as_string();
+        if (id.empty() || id.contains('\0')) return error("Project not found", 404);
+        return run([&](portus::DbConnection& connection, portus::DbDeadline deadline) {
+            const auto result = operation(connection, deadline, id);
+            return result.is_null() ? error("Project not found", 404) : privateJson(result);
+        });
+    }
+
+    portus::Reply removeTask(const portus::RequestContext& request) {
+        const auto access = authorize(request, "Authentication required");
+        if (access.status != 204) return access;
+        try {
+            const auto& id = request.params.at("id").as_string();
+            return run([&id](portus::DbConnection& connection, portus::DbDeadline deadline) {
+                return privateJson(deleteTask(connection, deadline, id));
+            });
+        } catch (const WriteError& invalid) {
+            return error(invalid.what(), invalid.status);
+        }
+    }
+
     template<class Operation>
     portus::Reply write(const portus::RequestContext& request, std::string_view unauthenticated,
                         Operation operation) {
@@ -138,6 +167,14 @@ void addConcordiaReadRoutes(portus::HttpServerOptions& options, bool localMode,
     options.routes.emplace_back("GET", "/api/projects/cc", [reader](portus::RequestContext& request) {
         return reader->read(request, listCcProjects, "Authentication required");
     });
+    options.routes.emplace_back("GET", "/api/pm/projects", [reader](portus::RequestContext& request) {
+        return reader->read(request, listPmProjects, "Authentication required");
+    });
+    options.routes.emplace_back("GET", "/api/pm/projects/{id}", [reader](portus::RequestContext& request) {
+        return reader->pmProject(request, readPmProject);
+    });
+    options.routes.emplace_back("GET", "/api/pm/projects/{id}/analytics/critical-path",
+        [reader](portus::RequestContext& request) { return reader->pmProject(request, readPmCriticalPath); });
     options.routes.emplace_back("GET", "/api/teams/{teamId}/critical-path", [reader](portus::RequestContext& request) {
         return reader->criticalPath(request);
     });
@@ -146,6 +183,9 @@ void addConcordiaReadRoutes(portus::HttpServerOptions& options, bool localMode,
     });
     options.routes.emplace_back("GET", "/api/tasks/{id}", [reader](portus::RequestContext& request) {
         return reader->detail(request);
+    });
+    options.routes.emplace_back("DELETE", "/api/tasks/{id}", [reader](portus::RequestContext& request) {
+        return reader->removeTask(request);
     });
     options.routes.emplace_back("POST", "/api/tasks", [reader](portus::RequestContext& request) {
         return reader->write(request, "Authentication required", [](auto& connection, auto deadline, const auto& input) {

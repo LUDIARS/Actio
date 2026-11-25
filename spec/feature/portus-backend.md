@@ -12,7 +12,7 @@
 | 2 | 認証境界、PostgreSQL 接続、auth/me、projects/cc、teams | loopback と公開経路、Cloudflare Access、既存セッション、チーム所属の成否ごとにステータスと JSON を照合 |
 | 3 | GET /api/tasks と詳細取得。権限フィルタを SQL に適用してからページを切る | 両 sort で同時刻・期限なし・最終ページ・壊れたカーソル、他チームの不可視タスクを確認 |
 | 4 | 作成・更新、スプリント、計画、監査・通知 | 同一入力を隔離した同一初期状態の DB で実行し、応答、更新行、監査、イベントを照合 |
-| 5 | 残りの API、プラグイン、管理・設定、WebSocket | マウント表と利用側の method/path を突合。認可エラー、購読、再接続、配信対象を含める |
+| 5 | 残りの API、予定・カレンダー、プラグイン、管理・設定、WebSocket | マウント表と利用側の method/path を突合。認可エラー、予定操作、購読、再接続、配信対象を含める |
 | 6 | Excubitor の backend command と runtime を更新し、親セッションが反映 | Cc の登録・更新・全ページ取得とフロントのログイン・購読を実経路で確認 |
 
 ## 実装境界
@@ -54,7 +54,7 @@ Cc のタスク一覧・詳細・作成・更新、`GET /api/teams`、`GET /api/
 | 領域・接頭辞 | Node の method / path | 呼び出し元と移行状況 |
 |---|---|---|
 | チームの依存分析 `/api/teams` | GET `/:teamId/critical-path` | Cc のタスク依存参照と開発ツール。今回、直接接続候補に追加 |
-| タスク基本操作 `/api/tasks` | GET `/plugins`、`/categories`、`/notifications`。POST `/categories`。DELETE `/categories/:name`、`/:id`。PATCH `/:id/lane` | フロントのタスク画面・カテゴリ管理・計画操作、通知管理。未移行 |
+| タスク基本操作 `/api/tasks` | GET `/plugins`、`/categories`、`/notifications`。POST `/categories`。DELETE `/categories/:name`、`/:id`。PATCH `/:id/lane` | フロントのタスク画面・カテゴリ管理・計画操作、通知管理。タスク削除を直接接続候補に追加。ほかは未移行 |
 | チーム情報 `/api/teams` | GET `/memberships/:userId`、`/:teamId/{members,settings,projects}`。PUT・DELETE `/:teamId/members/:userId`。PATCH `/:teamId/settings` | フロントのチーム管理・計画。未移行 |
 | Cc プロジェクト `/api/projects` | GET `/cc/:code/sprints` | Cc プロジェクトに紐づくスプリントの参照。未移行 |
 | 計画 `/api/teams/:teamId/planning` | GET 接頭辞直下、`/sprints/:id/history`。POST `/groups`。DELETE `/groups/:id`。PUT `/order` | フロントのスプリント計画・バックログ。未移行 |
@@ -62,7 +62,7 @@ Cc のタスク一覧・詳細・作成・更新、`GET /api/teams`、`GET /api/
 | スプリント判定 `/api/teams/:teamId/planning` | GET `/sprints/:id/phase`、`/autonomous-sprint`、`/autonomous-sprint/dots`。PUT `/sprints/:id/phase/context`。POST `/sprints/:id/phase/decisions`、`/autonomous-sprint`、`/autonomous-sprint/:sprintId/{pause,reconcile,release}`、`/autonomous-sprint/dots/{control,claims}` | フロントの計画と Dots の実行制御。未移行 |
 | Terpsichore `/api/teams/:teamId/planning/terpsichore` | GET・PUT `/plan`。POST `/assess`、`/advice`。GET・POST `/execution`。GET `/execution/{templates,preview,:id/manifest}` | フロントの計画と Cc への実行委託。未移行 |
 | チャット `/api/teams`・`/api/chat/commands` | POST `/api/teams/chat/{local-team,local-project}`。 `/api/teams/:teamId/chat` 配下で GET `/{state,logs/:channel}`、PUT `/{connection,destination,discussion/:channel}`、POST `/{commands,intakes/:id/confirm,outbox/:id/retry}`。POST `/api/chat/commands/{access,discord/:team/interactions}` | フロントのチャット計画と外部コマンド。未移行 |
-| PM `/api/pm` | GET・POST `/projects`。GET・PUT・DELETE `/projects/:id`。POST `/projects/:id/sync`、`/projects/:id/reminders/test`。GET `/projects/:id/{sync/status,tasks,conflicts,analytics/progress,analytics/critical-path,analytics/decomposition,analytics/gompertz,analytics/report}`。GET・PUT `/projects/:id/reminders`、`/tasks/:taskId`。GET `/tasks/:taskId/{history,validation,related-commits,test-coverage}`。POST `/tasks/:taskId/validate`、`/conflicts/:conflictId/{resolve,auto-merge}` | Cc 開発ツールが `GET /projects` と PM の `analytics/critical-path` を使用。フロント PM 画面が残りを使用。未移行 |
+| PM `/api/pm` | GET・POST `/projects`。GET・PUT・DELETE `/projects/:id`。POST `/projects/:id/sync`、`/projects/:id/reminders/test`。GET `/projects/:id/{sync/status,tasks,conflicts,analytics/progress,analytics/critical-path,analytics/decomposition,analytics/gompertz,analytics/report}`。GET・PUT `/projects/:id/reminders`、`/tasks/:taskId`。GET `/tasks/:taskId/{history,validation,related-commits,test-coverage}`。POST `/tasks/:taskId/validate`、`/conflicts/:conflictId/{resolve,auto-merge}` | Cc 開発ツールが使うプロジェクト一覧とクリティカルパス、および PM 画面のプロジェクト詳細を直接接続候補に追加。ほかは未移行 |
 | 課題の共通基盤 | GET `/api/{links,comments}/:type/:id`。POST `/api/{links,comments}`。DELETE `/api/{links,comments}/:id`。PATCH `/api/comments/:id`。GET `/api/custom-fields/{definitions,:type/:id}`。PUT・DELETE `/api/custom-fields/:moduleId/:fieldId/:type/:id`。GET `/api/public/issues` | プラグイン基盤・公開課題フロント。未移行 |
 | 認証とプロフィール | GET `/api/auth/{login-url,ws-token,users,users/list}`。POST `/api/auth/{exchange,logout}`。PUT `/api/auth/users/:id/role`。GET・PUT `/api/profile/me`。GET `/api/profile/{users/:id,me/roles,groups/:groupId/roles}`。PUT `/api/profile/me/roles/:groupId` | フロントの公開・ユーザー経路。トークンと個人情報は Cernere で扱う。未移行 |
 | 管理・設定 | GET・PUT `/api/settings`、GET `/api/settings/export`。GET・PUT `/api/user-prefs`、GET・DELETE `/api/user-prefs/:key`。GET `/api/secrets/{status,keys,value/:key}`、POST `/api/secrets/refresh`、PUT・DELETE `/api/secrets/:key`。GET `/api/admin/{activity-logs,db/tables,db/tables/:tableName,modules,modules/manifests}`、POST `/api/admin/modules/:id/{enable,disable,uninstall}` | フロントの管理と SDK 管理。未移行 |
@@ -74,13 +74,18 @@ Cc のタスク一覧・詳細・作成・更新、`GET /api/teams`、`GET /api/
 
 ### 予定・カレンダーの切り替え判断
 
-| 経路 | 観測結果 | 親セッションへの案 |
-|---|---|---|
-| `/api/events`、`/api/calendar`、`/api/myplans`、`/api/smart-scheduler`、`/api/holidays`、`/api/voting`、`/api/m1`、`/api/m3`、`/api/integrations`、placement・school | Node のマウント表では予定・学校 SDK を解除済み。フロントに旧クライアントが残る | Actio の旧呼び出しを凍結し、必要な画面は Schedula の公開経路へ接続する |
-| GET `/api/timetable`。POST `/api/groups/:id/schedules`、GET・POST `/api/groups/:id/events`、PUT・DELETE `/api/groups/:id/events/:eventId`。 `/api/external` 配下で GET・POST `/calendar/events`、GET・PUT・DELETE `/calendar/events/:id`、GET・POST `/schedules/{plans,myplans}`、DELETE `/schedules/{plans,myplans}/:id`、GET `/reminders/reminders`。group WS の `create_schedule,create_event,update_event,delete_event` | Node に稼働経路が残る。フロントのグループ画面と外部 API が利用し得る | 利用中の経路は Schedula 移植まで旧版で維持し、利用停止を確認できたものは凍結する |
-| `/api/school/facility-booking`、`/api/reservations`、`/api/cocoiru` | フロントに旧経路が残り、Node のマウント表では解除済み | 施設予約は Aedilis、学校機能は Schedula 側で扱う。予約プラグインの旧経路は凍結する |
+2026-11-26 の方針に従い、稼働中の予定・カレンダー機能を Actio に残す。C++ 版で互換性を確認した後に段階 6 へ進む。
 
-今回の候補は認可済みの直接接続について `taskIds`、`totalDays`、`cycles`、`tasks` を返す。既存の書き込み後の再計算と同じグラフ処理を使い、読み取りでは保存済みの派生値を更新しない。取得行数は既存の PostgreSQL 接続層の制限に従う。回帰テストは依存鎖、余裕日数、所要日数の出典、循環と自己参照、空のチーム、未登録チーム、転送経路の拒否を検査する。
+| 経路 | 観測結果 | 移行方針 |
+|---|---|---|
+| `/api/events`、`/api/calendar`、`/api/myplans`、`/api/smart-scheduler`、`/api/holidays`、`/api/voting`、`/api/m1`、`/api/m3`、`/api/integrations`、placement・school | Node のマウント表では予定・学校 SDK を解除済み。フロントに旧クライアントが残る | 解除済みの旧経路は削除予定。画面が使う予定機能は稼働中の C++ 移行対象と照合する |
+| GET `/api/timetable` | Node の共通時間割 | C++ 候補へ移行済み |
+| POST `/api/groups/:id/schedules`、GET・POST `/api/groups/:id/events`、PUT・DELETE `/api/groups/:id/events/:eventId`。 `/api/external` 配下で GET・POST `/calendar/events`、GET・PUT・DELETE `/calendar/events/:id`、GET・POST `/schedules/{plans,myplans}`、DELETE `/schedules/{plans,myplans}/:id`、GET `/reminders/reminders`。group WS の `create_schedule,create_event,update_event,delete_event` | Node に稼働経路が残る。フロントのグループ画面と外部 API が利用し得る | C++ へ移す。認証とグループ権限、外部 API の認可、予定操作後の配信を切り替え前に確認する |
+| `/api/school/facility-booking`、`/api/reservations`、`/api/cocoiru` | フロントに旧経路が残り、Node のマウント表では解除済み | 旧経路は削除予定。施設予約は Aedilis が担当する |
+
+チームのクリティカルパスは認可済みの直接接続について `taskIds`、`totalDays`、`cycles`、`tasks` を返す。既存の書き込み後の再計算と同じグラフ処理を使い、読み取りでは保存済みの派生値を更新しない。取得行数は既存の PostgreSQL 接続層の制限に従う。回帰テストは依存鎖、余裕日数、所要日数の出典、循環と自己参照、空のチーム、未登録チーム、転送経路の拒否を検査する。
+
+`DELETE /api/tasks/:id` は直接接続の持ち主が所有するタスクを行ロック下で削除し、スプリントに割り当て済みなら 409 を返す。確定後は既存のチーム再計算を使う。PM の直接接続では接続トークンを SQL の投影で除外し、`hasToken` を含む既存の応答を返す。PM のクリティカルパスはチーム計画と所要日数・リスク・応答形式が異なるため、PM の計算を移植する。時間割は DB 接続を使わず、曜日と時限を既存の形で返す。回帰テストは `actio_stage5_http_boundary`、観測契約は C-38〜C-41。
 
 ## Windows でのビルド確認
 

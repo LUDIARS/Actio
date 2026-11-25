@@ -6,6 +6,7 @@
 #include "actio/liveness.hpp"
 #include "actio/local_access.hpp"
 #include "actio/postgres.hpp"
+#include "actio/timetable.hpp"
 #include "lorica/byte_view.hpp"
 #include "portus/env.hpp"
 #include "portus/http.hpp"
@@ -46,6 +47,7 @@ int main() try {
         if (!databaseUrl.empty()) pool = actio::makePostgresPool(std::move(databaseUrl));
     }
     actio::addConcordiaReadRoutes(options, localMode, std::move(pool));
+    actio::addTimetableRoute(options);
     const int port = listenPort(portus::get_env("ACTIO_PORT"));
     portus::EventLoop loop;
     portus::HttpServer server(loop, std::move(options));

@@ -180,6 +180,36 @@
       "standard": "c++23",
       "includes": ["cpp/include"],
       "packages": ["portus-142d69e"]
+    },
+    {
+      "file": "cpp/src/db/task_delete.cpp",
+      "standard": "c++23",
+      "includes": ["cpp/include", "cpp/src/db", "cpp/contracts"],
+      "packages": ["portus-142d69e"]
+    },
+    {
+      "file": "cpp/src/db/pm_project_read.cpp",
+      "standard": "c++23",
+      "includes": ["cpp/include", "cpp/src/db", "cpp/contracts"],
+      "packages": ["portus-142d69e"]
+    },
+    {
+      "file": "cpp/src/db/pm_critical_path.cpp",
+      "standard": "c++23",
+      "includes": ["cpp/include", "cpp/src/db", "cpp/contracts"],
+      "packages": ["portus-142d69e"]
+    },
+    {
+      "file": "cpp/src/http/timetable.cpp",
+      "standard": "c++23",
+      "includes": ["cpp/include", "cpp/src/http", "cpp/contracts"],
+      "packages": ["portus-142d69e"]
+    },
+    {
+      "file": "cpp/tests/stage5_http.cpp",
+      "standard": "c++23",
+      "includes": ["cpp/include"],
+      "packages": ["portus-142d69e"]
     }
   ]
 }

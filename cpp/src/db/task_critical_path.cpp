@@ -256,19 +256,22 @@ portus::Json readTeamCriticalPath(DbConnection& connection, DbDeadline deadline,
                          {"cycles", std::move(analysis.cycles)}, {"tasks", std::move(tasks)}});
 }, connection, deadline, team); /* augur-inject:contract-end:fb272aa5 */ }
 
+void refreshTeamCriticalPath(DbConnection& connection, DbDeadline deadline, const std::string& team) {
+    if (team.empty()) return;
+    try {
+        refreshTeam(connection, deadline, team);
+    } catch (const std::exception&) {
+        // The original task write is committed; leave derived fields for a later refresh.
+        std::fputs("Actio could not refresh the team critical path\n", stderr);
+    }
+}
+
 void refreshTaskCriticalPath(DbConnection& connection, DbDeadline deadline,
                              const Json& previousTeam, Json& task) {
     const auto currentTeam = task.at("teamId");
     if (previousTeam.is_null() && currentTeam.is_null()) return;
-    for (const auto& team : {previousTeam, currentTeam == previousTeam ? Json() : currentTeam}) {
-        if (team.as_string().empty()) continue;
-        try {
-            refreshTeam(connection, deadline, team.as_string());
-        } catch (const std::exception&) {
-            // The original task write is committed; leave derived fields for a later refresh.
-            std::fputs("Actio could not refresh the team critical path\n", stderr);
-        }
-    }
+    refreshTeamCriticalPath(connection, deadline, previousTeam.as_string());
+    if (currentTeam != previousTeam) refreshTeamCriticalPath(connection, deadline, currentTeam.as_string());
     try {
         auto refreshed = readTaskDetail(connection, deadline, task.at("id").as_string());
         if (!refreshed.is_null()) task = std::move(refreshed);

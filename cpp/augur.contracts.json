@@ -92,6 +92,42 @@
       "module": "contracts/team_critical_path.hpp",
       "mode": "observe",
       "sample": 1
+    },
+    {
+      "id": "C-38",
+      "criterion": "C-38 deleteTask(connection, deadline, id): 削除を確定したタスクに {ok: true} を返す",
+      "symbol": "deleteTask",
+      "file": "src/db/task_delete.cpp",
+      "module": "contracts/task_delete_contract.hpp",
+      "mode": "observe",
+      "sample": 1
+    },
+    {
+      "id": "C-39",
+      "criterion": "C-39 listPmProjects(connection, deadline): プロジェクト一覧では接続トークンを公開せず hasToken を返す",
+      "symbol": "listPmProjects",
+      "file": "src/db/pm_project_read.cpp",
+      "module": "contracts/pm_projects.hpp",
+      "mode": "observe",
+      "sample": 1
+    },
+    {
+      "id": "C-40",
+      "criterion": "C-40 calculatePmCriticalPath(rows, now): 最長経路と日数、完了予定日、リスクを PM の応答形式で返す",
+      "symbol": "calculatePmCriticalPath",
+      "file": "src/db/pm_critical_path.cpp",
+      "module": "contracts/pm_critical_path_contract.hpp",
+      "mode": "observe",
+      "sample": 1
+    },
+    {
+      "id": "C-41",
+      "criterion": "C-41 timetable(): 月曜から日曜までの曜日と 09:30 開始の 11 コマを返す",
+      "symbol": "timetable",
+      "file": "src/http/timetable.cpp",
+      "module": "contracts/timetable_contract.hpp",
+      "mode": "observe",
+      "sample": 1
     }
   ]
 }

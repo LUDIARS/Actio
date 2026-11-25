@@ -7,6 +7,10 @@ namespace actio {
 portus::Json readTeamCriticalPath(portus::DbConnection& connection, portus::DbDeadline deadline,
                                   std::string_view team);
 
+// Refresh a team's persisted graph after the primary write commits.
+void refreshTeamCriticalPath(portus::DbConnection& connection, portus::DbDeadline deadline,
+                             const std::string& team);
+
 // Refresh the old and new team graphs after a write and reload the response projection.
 void refreshTaskCriticalPath(portus::DbConnection& connection, portus::DbDeadline deadline,
                              const portus::Json& previousTeam, portus::Json& task);
