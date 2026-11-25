@@ -58,7 +58,49 @@
     {
       "file": "cpp/src/http/concordia_routes.cpp",
       "standard": "c++23",
-      "includes": ["cpp/include", "cpp/src/http"],
+      "includes": ["cpp/include", "cpp/src/http", "cpp/src/db"],
+      "packages": ["portus-142d69e"]
+    },
+    {
+      "file": "cpp/src/db/task_cursor.cpp",
+      "standard": "c++23",
+      "includes": ["cpp/src/db"],
+      "packages": ["portus-142d69e"]
+    },
+    {
+      "file": "cpp/src/db/task_list_query.cpp",
+      "standard": "c++23",
+      "includes": ["cpp/include", "cpp/src/db"],
+      "packages": ["portus-142d69e", "lorica-5e8281b"]
+    },
+    {
+      "file": "cpp/src/db/task_projection.cpp",
+      "standard": "c++23",
+      "includes": ["cpp/src/db"],
+      "packages": ["portus-142d69e"]
+    },
+    {
+      "file": "cpp/src/db/task_read.cpp",
+      "standard": "c++23",
+      "includes": ["cpp/include", "cpp/contracts", "cpp/src/db"],
+      "packages": ["portus-142d69e"]
+    },
+    {
+      "file": "cpp/src/db/task_read_sql.cpp",
+      "standard": "c++23",
+      "includes": ["cpp/src/db"],
+      "packages": ["portus-142d69e"]
+    },
+    {
+      "file": "cpp/src/db/task_sprint_view.cpp",
+      "standard": "c++23",
+      "includes": ["cpp/src/db"],
+      "packages": ["portus-142d69e"]
+    },
+    {
+      "file": "cpp/tests/task_read.cpp",
+      "standard": "c++23",
+      "includes": ["cpp/include"],
       "packages": ["portus-142d69e"]
     },
     {

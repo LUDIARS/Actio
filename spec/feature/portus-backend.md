@@ -31,6 +31,10 @@ Cloudflare Access と Cernere のトークン処理は、Portus の共通認証�
 
 タスク一覧の契約は [一覧 API](task-list-api.md) に従う。旧版の nextCursor を新版が引き継げることと、その逆を確認する。limit=500 の約 640 KB の固定データで、通常の読み手と小分けに読む読み手の両方について、受信完了、本文のバイト数、末尾のタスク、次ページを検査する。HTTP 200 の記録だけでは完了の証跡にならない。
 
+段階 3 の直接接続候補は `actio:1b8e85b2-0b76-45d5-bf67-2597f0d0e73e` に対応する。認証済みのローカル持ち主には `GET /api/tasks` と `GET /api/tasks/:id` を提供する。一覧は PostgreSQL の絞り込みと順序で最大 limit + 1 行を取得し、Portus のキーセット部品でページ化する。nextCursor は Node 版と共通の v1 JSON の base64url 表現とし、同じ並び順で引き継ぐ。チーム指定時は `team_refs` の存在を確認し、該当チームのタスクだけを取得する。
+
+`view=current_sprint` は進行中スプリントの項目と未割付の未完了バックログを全文付きで返す。PostgreSQL 接続層の応答上限は一クエリ 1,024 行・16 MiB で、上限超過はエラーとして扱う。タスク作成・更新とスプリント計画の操作は段階 4 の移行対象とする。候補の `actio_task_read_boundary` は DB に接続せず、3 種類の旧版カーソル、一覧と詳細の投影、認証、スプリント表示、期限切れ応答を検査する。
+
 Portus の HTTP と WebSocket には独立した listen がある。現行の actio-web は同一 backend に Upgrade を送るため、切り替えまでに同一ポートで /ws を引き渡せる実装が必要になる。Portus 側で共有 listener を追加する場合は、独立した Portus PR で認証コンテキストと接続の所有権移譲を検証する。
 
 ## Windows でのビルド確認

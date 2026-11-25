@@ -38,6 +38,15 @@
       "module": "contracts/local_owner.hpp",
       "mode": "observe",
       "sample": 1
+    },
+    {
+      "id": "C-32",
+      "criterion": "C-32 readTaskPage(connection, deadline, input): 指定上限内のタスク要約を返し、続きの有無を旧版互換の nextCursor で示す",
+      "symbol": "readTaskPage",
+      "file": "src/db/task_read.cpp",
+      "module": "contracts/task_page.hpp",
+      "mode": "observe",
+      "sample": 1
     }
   ]
 }
