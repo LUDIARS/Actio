@@ -13,6 +13,7 @@ import {
 } from "drizzle-orm/pg-core";
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
+import { postgresOptions } from "./postgres-options.js";
 import { migratePmPostgres } from "../pm-postgres-migration.js";
 import { migratePlanningPostgres } from "../planning-postgres-migration.js";
 import { migrateGroupPostgres } from "../group-postgres-migration.js";
@@ -1218,11 +1219,7 @@ export async function waitForPostgres(
       console.log(
         `[db:postgres] 接続試行 ${attempt}/${maxRetries} → ${connectionString.replace(/\/\/.*@/, "//***:***@")}`
       );
-      client = postgres(connectionString, {
-        connect_timeout: 10,
-        max: 10,
-        idle_timeout: 30,
-      });
+      client = postgres(connectionString, postgresOptions());
 
       // 実際にクエリを実行して接続を検証する
       const result = await client`SELECT 1 AS ok`;
@@ -1270,11 +1267,7 @@ export function createConnection() {
   console.log(
     `[db:postgres] createConnection called (lazy — 接続は初回クエリ時に確立されます)`
   );
-  const client = postgres(connectionString, {
-    connect_timeout: 10,
-    max: 10,
-    idle_timeout: 30,
-  });
+  const client = postgres(connectionString, postgresOptions());
   return drizzle(client, { schema: DB_SCHEMA });
 }
 

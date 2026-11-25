@@ -2,6 +2,41 @@
   "version": 1,
   "implementations": [
     {
+      "source": "modules/task/cache/task-list-cache.ts",
+      "tests": ["tests/unit/task-list-cache.test.ts"],
+      "contracts": ["AT-TASK-LIST-STALL"]
+    },
+    {
+      "source": "modules/task/routes.ts",
+      "tests": ["tests/api/task-list-page.test.ts"],
+      "contracts": ["AT-TASK-LIST-STALL"]
+    },
+    {
+      "source": "modules/task/list/timeout.ts",
+      "tests": ["tests/api/task-list-page.test.ts"],
+      "contracts": ["AT-TASK-LIST-STALL"]
+    },
+    {
+      "source": "modules/task/list/timing.ts",
+      "tests": ["tests/unit/task-list-timing.test.ts"],
+      "contracts": ["AT-TASK-LIST-STALL"]
+    },
+    {
+      "source": "src/db/dialects/postgres.ts",
+      "tests": ["tests/unit/postgres-options.test.ts"],
+      "contracts": ["AT-TASK-LIST-STALL"]
+    },
+    {
+      "source": "src/db/dialects/postgres-options.ts",
+      "tests": ["tests/unit/postgres-options.test.ts"],
+      "contracts": ["AT-TASK-LIST-STALL"]
+    },
+    {
+      "source": "src/db/task-list-keyset.ts",
+      "tests": ["tests/unit/task-list-keyset-postgres.test.ts", "tests/api/task-list-page.test.ts"],
+      "contracts": ["AT-TASK-LIST-PAGING", "AT-TASK-LIST-STALL"]
+    },
+    {
       "source": "modules/task/autonomous-sprint/runner-store.ts",
       "tests": ["tests/unit/autonomous-sprint-store.test.ts", "tests/unit/autonomous-sprint-breaker.test.ts"],
       "contracts": ["AT-AUTONOMOUS-SPRINT"]

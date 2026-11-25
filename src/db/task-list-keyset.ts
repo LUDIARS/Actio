@@ -11,7 +11,7 @@
 
 import { and, asc, desc, eq, gt, isNull, lt, or, sql } from "drizzle-orm";
 import type { SQL } from "drizzle-orm";
-import { schema } from "./connection.js";
+import { dialect, schema } from "./connection.js";
 
 export type TaskListSort = "default" | "personal";
 
@@ -72,6 +72,10 @@ export function taskListAfterCondition(key: TaskListCursorKey): SQL {
   const t = schema.tasks;
   if (key.sort === "default") {
     const updatedAt = new Date(key.updatedAt);
+    if (dialect === "postgres") {
+      // A row bound lets the planner seek the composite index at the cursor.
+      return sql`(${t.updatedAt}, ${t.id}) < (${sql.param(updatedAt, t.updatedAt)}, ${sql.param(key.id, t.id)})`;
+    }
     return or(lt(t.updatedAt, updatedAt), and(eq(t.updatedAt, updatedAt), lt(t.id, key.id))) as SQL;
   }
   const sameRank = sql`${PERSONAL_STATUS_ORDER} = ${key.rank}`;

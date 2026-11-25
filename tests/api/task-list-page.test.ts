@@ -1,4 +1,5 @@
-import { describe, it, expect, beforeAll, beforeEach } from "vitest";
+import { describe, it, expect, beforeAll, beforeEach, vi } from "vitest";
+import { TaskListLoadTimeoutError } from "../../modules/task/list/timeout.js";
 import {
   initTestDatabase,
   clearTestDatabase,
@@ -160,6 +161,30 @@ describe("GET /api/tasks keyset pagination", () => {
     expect((await list("limit=501")).status).toBe(400);
     expect((await list("limit=0")).status).toBe(400);
     expect((await list("limit=abc")).status).toBe(400);
+  });
+});
+
+describe("GET /api/tasks timeouts", () => {
+  it.each([
+    ["cache deadline", new TaskListLoadTimeoutError(8_000)],
+    ["PostgreSQL cancellation", new Error("query failed", {
+      cause: Object.assign(new Error("statement timeout"), { code: "57014" }),
+    })],
+  ])("returns 503 for %s and allows the same page to be retried", async (_label, error) => {
+    await seed(2);
+    const { taskListPageRepo } = await import("../../src/db/task-list-page-repository.js");
+    const read = vi.spyOn(taskListPageRepo, "listPage").mockRejectedValueOnce(error);
+    try {
+      const failed = await list("limit=1");
+      expect(failed.status).toBe(503);
+      expect(failed.json).toEqual({ error: "Task list temporarily unavailable" });
+      const retry = await list("limit=1");
+      expect(retry.status).toBe(200);
+      expect(retry.json.tasks).toHaveLength(1);
+      expect(typeof retry.json.nextCursor).toBe("string");
+    } finally {
+      read.mockRestore();
+    }
   });
 });
 

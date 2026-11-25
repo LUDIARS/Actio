@@ -183,6 +183,24 @@
       "module": "contracts/autonomous-sprint-access.contract.ts",
       "mode": "observe",
       "sample": 1
+    },
+    {
+      "id": "C-25",
+      "criterion": "C-25 taskListTimeoutStatus(error): 一覧キャッシュの期限切れと PostgreSQL のクエリ中断を 503 に対応付け、その他のエラーは従来の経路へ渡す",
+      "symbol": "taskListTimeoutStatus",
+      "file": "modules/task/list/timeout.ts",
+      "module": "contracts/task-list-timeout-status.contract.ts",
+      "mode": "observe",
+      "sample": 1
+    },
+    {
+      "id": "C-26",
+      "criterion": "C-26 postgresOptions(): PostgreSQL の文実行期限を 7 秒、TCP keepalive の開始を 15 秒に設定する",
+      "symbol": "postgresOptions",
+      "file": "src/db/dialects/postgres-options.ts",
+      "module": "contracts/postgres-options.contract.ts",
+      "mode": "observe",
+      "sample": 1
     }
   ]
 }

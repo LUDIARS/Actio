@@ -2,7 +2,9 @@
 
 **Requirement ID: `AT-TASK-LIST-PAGING`**
 
-Actio タスク参照: `actio:997f4c67-a851-46da-8753-d5f77bc535bb`。
+**Requirement ID: `AT-TASK-LIST-STALL`**
+
+Actio タスク参照: `actio:997f4c67-a851-46da-8753-d5f77bc535bb`（ページ分け）、`actio:79cf41e0-aff0-4960-8a87-7500633ff325`（ページ読みの停止）。
 
 > 2026-10-17 neco 指示: 「全ての Web/API で応答 1 秒超は不具合」。一覧は要約だけ返す + ページネーション + フィルター。
 
@@ -61,6 +63,10 @@ Actio タスク参照: `actio:997f4c67-a851-46da-8753-d5f77bc535bb`。
 `taskListCache` のキーには、絞り込み・並び順・`limit`・`cursor`・`include` をすべて含める。タスクを書き込むと世代が進み、
 古いページは返らない (`modules/task/cache/task-list-cache.ts`)。
 
+キャッシュにページが無い場合は同一キーの要求で 1 回の生成を共有する。生成は 8 秒で期限切れとし、そのキーの保留を解除する。
+同じキーは次の要求で再生成でき、期限切れになった生成が後から成功してもキャッシュに書き込まない。
+キャッシュ側の最大 2 回の読み込みはそれぞれ 200 ms が上限で、Concordia の 10 秒の待機枠に収まるようにする。
+
 ## 7. 索引
 
 キーセットの先頭ページを索引だけで引けるよう、次の索引を加える (`src/db/task-list-indexes.ts`。MySQL は Drizzle 定義側)。
@@ -70,11 +76,17 @@ Actio タスク参照: `actio:997f4c67-a851-46da-8753-d5f77bc535bb`。
 - `idx_task_team_updated (team_id, updated_at, id)` — `team_id=`
 - `idx_task_updated (updated_at, id)` — `scope=all`
 
+PostgreSQL の既定順の続きは `(updated_at, id) < (cursor.updated_at, cursor.id)` で絞り込む。
+これにより既存の複合索引で続きの境界から走査できる。降順の並びとカーソル形式は従来どおり。
+
 ## 8. 受け入れ
 
 - 1 万件 (1 件あたり約 6KB の本文) の合成データで、既定の呼び出しが 1 秒未満、100 件、応答 200KB 未満であること
   (`tests/api/task-list-page.test.ts`)。
 - 契約 C-18〜C-21 (`augur.contracts.json`): クエリ解析・カーソル・要約・ページ組み立て。
+- 生成が止まった場合は同じキーの待機要求すべてが期限切れになり、次の要求は同じキーを読み直せる。遅れて完了した生成でキャッシュは上書きされない。
+- PostgreSQL のクエリ中断および生成の期限切れは 503 の JSON `{"error":"Task list temporarily unavailable"}` を返す。
+- 契約 C-25〜C-26 (`augur.contracts.json`): 一覧のタイムアウト応答と PostgreSQL 接続設定。
 
 ## 9. 消費側
 
@@ -84,3 +96,18 @@ Actio タスク参照: `actio:997f4c67-a851-46da-8753-d5f77bc535bb`。
 - Concordia (先に反映): `src/taskflow/actio-task-client.ts`・`src/fallback-tasks/actio-client.ts`・
   `src/developer-tools/actio-sync-migration/sources.ts` が旧形式 (description あり・nextCursor なし) と新形式の両方に対応する。
 - 反映順: 1) Concordia の消費側 → 2) Actio の新しい契約。
+
+## 10. ページ読みの停止と計測
+
+2026-11-25 に、500 件ずつ実際の `nextCursor` をたどると、親セッションの 3 回の試行すべてで 1〜5 ページ目のいずれかが 20 秒以上停止した。
+Concordia は 10 秒で待機を打ち切るため、一覧取得に依存する操作も失敗した。期限のないキャッシュ生成は同じキーの後続要求にも停止を広げていた。
+最初の停止が PostgreSQL の実行・ロック、プールや通信の待ち、Actio 内の整形のどこで起きたかは未確定。
+
+キャッシュミスではページの取得待ち (`phase=db_wait`、プール・通信・行デコードを含む) と、要約から JSON 化まで (`phase=format`) を別々に計測する。
+段階が 500 ms 以上かかった時と、キャッシュ生成が期限切れになった時に警告を出す。DB 待ちの途中で期限切れになった場合も `phase=db_wait state=deadline` を記録する。
+警告にはカーソルやタスク本文を含めない。
+PostgreSQL 接続は `statement_timeout=7000` と TCP keepalive の初回プローブまでのアイドル時間 15 秒を設定する。
+文の期限は PostgreSQL に到達してから適用される。プール待ちや通信断で DB が応答しない場合もキャッシュ生成側の期限で待機を解除する。
+同期の整形処理がイベントループを占有するとタイマーの実行も遅れるため、整形の警告で判別する。
+
+回帰テストは追加済み。委託の実行範囲に従い、テスト実行とサービス再現は未実施。

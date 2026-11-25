@@ -48,6 +48,8 @@ import { classifyUnassignedIntake } from "./unassigned-intake.js";
 import { parseTaskListPageQuery } from "./list/page-query.js";
 import { buildTaskListPage } from "./list/page.js";
 import { toTaskSummary } from "./list/summary.js";
+import { measureTaskListPhase } from "./list/timing.js";
+import { taskListTimeoutStatus } from "./list/timeout.js";
 
 function findProjectRef(code: string) {
   return projectRefRepo.findByCode(code);
@@ -192,16 +194,26 @@ taskRoutes.get("/", async (c) => {
     const { limit, after, includeDescription } = page.value;
     const order = page.value.sort;
     const cacheKey = { ...filter, format, order, limit, cursor: c.req.query("cursor"), includeDescription };
-    const body = await taskListCache.getOrLoad(cacheKey, async () => {
-      const rows = await taskListPageRepo.listPage({ filter, sort: order, limit, after, includeDescription });
-      const { tasks, nextCursor } = buildTaskListPage(rows, limit, order);
-      if (format === "memoria") {
-        const items = tasks.map((task) => toMemoriaShape({ ...task, description: task.description ?? null }));
-        return JSON.stringify({ items, nextCursor });
-      }
-      return JSON.stringify({ tasks: tasks.map((task) => toTaskSummary(task, includeDescription)), nextCursor });
-    });
-    return c.body(body, 200, { "content-type": "application/json; charset=UTF-8" });
+    try {
+      const body = await taskListCache.getOrLoad(cacheKey, async (signal) => {
+        const rows = await measureTaskListPhase("db_wait", () =>
+          taskListPageRepo.listPage({ filter, sort: order, limit, after, includeDescription }), signal);
+        signal.throwIfAborted();
+        return measureTaskListPhase("format", () => {
+          const { tasks, nextCursor } = buildTaskListPage(rows, limit, order);
+          if (format === "memoria") {
+            const items = tasks.map((task) => toMemoriaShape({ ...task, description: task.description ?? null }));
+            return JSON.stringify({ items, nextCursor });
+          }
+          return JSON.stringify({ tasks: tasks.map((task) => toTaskSummary(task, includeDescription)), nextCursor });
+        });
+      });
+      return c.body(body, 200, { "content-type": "application/json; charset=UTF-8" });
+    } catch (error) {
+      const status = taskListTimeoutStatus(error);
+      if (status) return c.json({ error: "Task list temporarily unavailable" }, status);
+      throw error;
+    }
   }
 
   // view=current_sprint はスプリント側の変更でも結果が変わるためキャッシュしない (teamId は上で必須化済み)

@@ -10,6 +10,7 @@
  */
 
 import { createHash } from "node:crypto";
+import { TaskListLoadTimeoutError } from "../list/timeout.js";
 
 export interface TaskListCacheStore {
   get(key: string): Promise<string | null>;
@@ -20,12 +21,16 @@ export interface TaskListCacheStore {
 export interface TaskListCacheOptions {
   ttlSec?: number;
   storeTimeoutMs?: number;
+  loadTimeoutMs?: number;
 }
+
+type TaskListLoader = (signal: AbortSignal) => Promise<string>;
 
 const KEY_PREFIX = "actio:task-list:v1";
 const GENERATION_KEY = `${KEY_PREFIX}:gen`;
 const DEFAULT_TTL_SEC = 15;
 const DEFAULT_STORE_TIMEOUT_MS = 200;
+const DEFAULT_LOAD_TIMEOUT_MS = 8_000;
 
 export function taskListCacheKey(parts: Record<string, unknown>): string {
   const stable = JSON.stringify(
@@ -37,9 +42,13 @@ export function taskListCacheKey(parts: Record<string, unknown>): string {
   return createHash("sha1").update(stable).digest("hex");
 }
 
-function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+function withTimeout<T>(
+  promise: Promise<T>,
+  ms: number,
+  timeoutError: () => Error = () => new Error(`task-list cache store timeout (${ms}ms)`),
+): Promise<T> {
   return new Promise<T>((resolve, reject) => {
-    const timer = setTimeout(() => reject(new Error(`task-list cache timeout (${ms}ms)`)), ms);
+    const timer = setTimeout(() => reject(timeoutError()), ms);
     promise.then(
       (value) => { clearTimeout(timer); resolve(value); },
       (err: unknown) => { clearTimeout(timer); reject(err); },
@@ -53,6 +62,7 @@ export function createTaskListCache(
 ) {
   const ttlSec = options.ttlSec ?? DEFAULT_TTL_SEC;
   const timeoutMs = options.storeTimeoutMs ?? DEFAULT_STORE_TIMEOUT_MS;
+  const loadTimeoutMs = options.loadTimeoutMs ?? DEFAULT_LOAD_TIMEOUT_MS;
   // Redis 不在時もプロセス内で世代を進め、 同時要求まとめの取り違えを防ぐ
   let localGeneration = 0;
   const inflight = new Map<string, Promise<string>>();
@@ -67,7 +77,7 @@ export function createTaskListCache(
     }
   }
 
-  async function produce(store: TaskListCacheStore | null, key: string, load: () => Promise<string>): Promise<string> {
+  async function produce(store: TaskListCacheStore | null, key: string, load: TaskListLoader): Promise<string> {
     if (store) {
       try {
         const hit = await withTimeout(store.get(key), timeoutMs);
@@ -76,7 +86,13 @@ export function createTaskListCache(
         // キャッシュ読み失敗は DB へ落とす
       }
     }
-    const body = await load();
+    const deadline = new AbortController();
+    const body = await withTimeout(Promise.resolve().then(() => load(deadline.signal)), loadTimeoutMs, () => {
+      const error = new TaskListLoadTimeoutError(loadTimeoutMs);
+      deadline.abort(error);
+      console.warn(`[task-list] page load timed out timeout_ms=${loadTimeoutMs}`);
+      return error;
+    });
     if (store) {
       withTimeout(store.set(key, body, ttlSec), timeoutMs).catch(() => undefined);
     }
@@ -85,13 +101,15 @@ export function createTaskListCache(
 
   return {
     /** 一覧の JSON 本文を返す。 キャッシュに無ければ load() で作って置く。 */
-    async getOrLoad(parts: Record<string, unknown>, load: () => Promise<string>): Promise<string> {
+    async getOrLoad(parts: Record<string, unknown>, load: TaskListLoader): Promise<string> {
       const store = resolveStore();
       const generation = await readGeneration(store);
       const key = `${KEY_PREFIX}:${generation}:${taskListCacheKey(parts)}`;
       const pending = inflight.get(key);
       if (pending) return pending;
-      const job = produce(store, key, load).finally(() => inflight.delete(key));
+      const job: Promise<string> = produce(store, key, load).finally(() => {
+        if (inflight.get(key) === job) inflight.delete(key);
+      });
       inflight.set(key, job);
       return job;
     },

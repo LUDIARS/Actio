@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { createTaskListCache, taskListCacheKey, type TaskListCacheStore } from "../../modules/task/cache/task-list-cache.js";
+import { TaskListLoadTimeoutError } from "../../modules/task/list/timeout.js";
 
 function memoryStore(): TaskListCacheStore & { data: Map<string, string> } {
   const data = new Map<string, string>();
@@ -64,6 +65,32 @@ describe("task list cache", () => {
 
     await expect(cache.getOrLoad({ ownerId: "u1" }, async () => "{\"tasks\":[]}")).resolves.toBe("{\"tasks\":[]}");
     await expect(cache.invalidate()).resolves.toBeUndefined();
+  });
+
+  it("times out all waiters, reloads the key and discards the expired result", async () => {
+    vi.useFakeTimers();
+    try {
+      const store = memoryStore();
+      const cache = createTaskListCache(() => store, { loadTimeoutMs: 100 });
+      const key = { teamId: "t" };
+      let finish!: (body: string) => void;
+      const load = vi.fn((_signal: AbortSignal) => new Promise<string>((resolve) => { finish = resolve; }));
+
+      const failed = Promise.allSettled([cache.getOrLoad(key, load), cache.getOrLoad(key, load)]);
+      await vi.advanceTimersByTimeAsync(100);
+      expect(load).toHaveBeenCalledTimes(1);
+      expect(load.mock.calls[0][0].aborted).toBe(true);
+      for (const response of await failed) {
+        expect(response).toEqual({ status: "rejected", reason: expect.any(TaskListLoadTimeoutError) });
+      }
+
+      await expect(cache.getOrLoad(key, async () => "fresh")).resolves.toBe("fresh");
+      finish("stale");
+      await vi.advanceTimersByTimeAsync(0);
+      await expect(cache.getOrLoad(key, async () => "unexpected load")).resolves.toBe("fresh");
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("does not wait on a slow store beyond its timeout", async () => {
