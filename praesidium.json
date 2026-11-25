@@ -2,6 +2,12 @@
   "version": 1,
   "native": [
     {
+      "file": "cpp/src/http/local_access.cpp",
+      "standard": "c++23",
+      "includes": ["cpp/include", "cpp/contracts"],
+      "packages": ["portus-142d69e", "lorica-5e8281b"]
+    },
+    {
       "file": "cpp/src/db/postgres_wire.cpp",
       "standard": "c++23",
       "includes": ["cpp/src/db"],
@@ -35,7 +41,31 @@
       "standard": "c++23",
       "includes": ["cpp/include"],
       "defines": ["ACTIO_PACKAGE_VERSION=inspection"],
-      "packages": ["portus-9a73450", "lorica-5e8281b"]
+      "packages": ["portus-142d69e", "lorica-5e8281b"]
+    },
+    {
+      "file": "cpp/src/http/local_owner.cpp",
+      "standard": "c++23",
+      "includes": ["cpp/include", "cpp/contracts"],
+      "packages": ["portus-142d69e"]
+    },
+    {
+      "file": "cpp/src/http/concordia_catalog.cpp",
+      "standard": "c++23",
+      "includes": ["cpp/src/http"],
+      "packages": ["portus-142d69e"]
+    },
+    {
+      "file": "cpp/src/http/concordia_routes.cpp",
+      "standard": "c++23",
+      "includes": ["cpp/include", "cpp/src/http"],
+      "packages": ["portus-142d69e"]
+    },
+    {
+      "file": "cpp/tests/concordia_http.cpp",
+      "standard": "c++23",
+      "includes": ["cpp/include"],
+      "packages": ["portus-142d69e"]
     },
     {
       "file": "cpp/src/liveness.cpp",

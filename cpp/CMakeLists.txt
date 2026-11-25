@@ -32,11 +32,21 @@ if(WIN32)
 endif()
 lorica_harden_target(actio_postgres)
 
+add_library(actio_concordia_http STATIC
+    src/http/local_access.cpp
+    src/http/local_owner.cpp
+    src/http/concordia_catalog.cpp
+    src/http/concordia_routes.cpp)
+target_compile_features(actio_concordia_http PUBLIC cxx_std_23)
+target_include_directories(actio_concordia_http PUBLIC include PRIVATE contracts src/http)
+target_link_libraries(actio_concordia_http PUBLIC portus::portus PRIVATE Lorica::boundary)
+lorica_harden_target(actio_concordia_http)
+
 file(READ "${CMAKE_CURRENT_SOURCE_DIR}/../package.json" package_json)
 string(JSON actio_version GET "${package_json}" version)
 add_executable(actio_backend src/main.cpp)
 target_compile_definitions(actio_backend PRIVATE ACTIO_PACKAGE_VERSION=${actio_version})
-target_link_libraries(actio_backend PRIVATE actio_health Lorica::boundary)
+target_link_libraries(actio_backend PRIVATE actio_health actio_concordia_http actio_postgres Lorica::boundary)
 lorica_harden_target(actio_backend)
 
 include(CTest)
@@ -51,6 +61,10 @@ if(BUILD_TESTING)
     target_link_libraries(actio_postgres_test PRIVATE actio_postgres PostgreSQL::PostgreSQL)
     lorica_harden_target(actio_postgres_test)
     add_test(NAME actio_postgres_boundary COMMAND actio_postgres_test)
+    add_executable(actio_concordia_http_test tests/concordia_http.cpp)
+    target_link_libraries(actio_concordia_http_test PRIVATE actio_concordia_http)
+    lorica_harden_target(actio_concordia_http_test)
+    add_test(NAME actio_concordia_http_boundary COMMAND actio_concordia_http_test)
     if(WIN32)
         find_path(ACTIO_LIBPQ_DLL_DIR NAMES libpq.dll HINTS "${PostgreSQL_LIBRARY_DIRS}/../bin" REQUIRED)
         set_tests_properties(actio_postgres_boundary PROPERTIES

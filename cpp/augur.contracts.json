@@ -20,6 +20,24 @@
       "module": "contracts/postgres_policy.hpp",
       "mode": "observe",
       "sample": 1
+    },
+    {
+      "id": "C-30",
+      "criterion": "C-30 allowsLocalOwner(request): 実ソケットがループバックで、転送を示すヘッダーがなく、ブラウザー経路が許可された要求だけに持ち主を割り当てる",
+      "symbol": "allowsLocalOwner",
+      "file": "src/http/local_access.cpp",
+      "module": "contracts/local_access.hpp",
+      "mode": "observe",
+      "sample": 1
+    },
+    {
+      "id": "C-31",
+      "criterion": "C-31 localOwnerProfile(): Concordia が直接接続を確認できる持ち主 ID、localMode、access と既存の公開プロフィール項目を返す",
+      "symbol": "localOwnerProfile",
+      "file": "src/http/local_owner.cpp",
+      "module": "contracts/local_owner.hpp",
+      "mode": "observe",
+      "sample": 1
     }
   ]
 }

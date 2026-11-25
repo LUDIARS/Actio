@@ -1,7 +1,11 @@
 #include <charconv>
 #include <cstdio>
+#include <span>
 #include <stdexcept>
+#include "actio/concordia_routes.hpp"
 #include "actio/liveness.hpp"
+#include "actio/local_access.hpp"
+#include "actio/postgres.hpp"
 #include "lorica/byte_view.hpp"
 #include "portus/env.hpp"
 #include "portus/http.hpp"
@@ -12,10 +16,10 @@
 
 namespace {
 int listenPort(const std::string& value) {
-    int port = 0;
-    const auto bytes = lorica::byte_view::make(
-        reinterpret_cast<const std::byte*>(value.data()), value.size(), 5);
+    const auto view = std::as_bytes(std::span(value.data(), value.size()));
+    const auto bytes = lorica::byte_view::make(view.data(), view.size(), 5);
     if (bytes) {
+        int port = 0;
         const char* end = value.data() + bytes->size();
         const auto parsed = std::from_chars(value.data(), end, port);
         if (parsed.ec == std::errc{} && parsed.ptr == end && port >= 1 && port <= 65535)
@@ -26,17 +30,24 @@ int listenPort(const std::string& value) {
 }
 
 int main() try {
-    const int port = listenPort(portus::get_env("ACTIO_PORT"));
     const std::string injected = portus::get_env("EXCUBITOR_SERVICE_VERSION");
     const auto trimmed = portus::trim(injected);
     const std::string version(trimmed.empty() ? ACTIO_STRINGIFY(ACTIO_PACKAGE_VERSION) : trimmed);
-    portus::EventLoop loop;
     portus::HttpServerOptions options;
-    options.allowed_hosts = {"localhost", "127.0.0.1"};
+    options.allowed_hosts = {"localhost", "127.0.0.1", "[::1]"};
     options.routes.emplace_back("GET", "/api/health/live",
         [version](portus::RequestContext&) {
             return portus::json(actio::liveStatus(version, portus::now_ms()));
         });
+    const bool localMode = actio::readLocalMode();
+    std::shared_ptr<portus::DbPool> pool;
+    if (localMode) {
+        auto databaseUrl = portus::get_env("DATABASE_URL");
+        if (!databaseUrl.empty()) pool = actio::makePostgresPool(std::move(databaseUrl));
+    }
+    actio::addConcordiaReadRoutes(options, localMode, std::move(pool));
+    const int port = listenPort(portus::get_env("ACTIO_PORT"));
+    portus::EventLoop loop;
     portus::HttpServer server(loop, std::move(options));
     server.listen(port, "127.0.0.1");
     loop.run();

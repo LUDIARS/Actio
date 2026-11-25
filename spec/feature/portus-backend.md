@@ -25,6 +25,10 @@ DB アクセスには libpq のパラメーター付きクエリを使う。接�
 
 結果は一行ずつ Portus の `DbResult` に渡し、SQL NULL と空文字を区別する。サーバーが応答を完了した SQL エラーは同じ接続でロールバックできる。通信断、クライアント側の期限切れ、応答の上限超過は接続を破棄する。コミットの応答を受け取れなかった場合は対象 ID で結果を確認する。HTTP の readiness と各 API への配線は後続 PR で行う。
 
+段階 2 の直接接続候補は `actio:1b8e85b2-0b76-45d5-bf67-2597f0d0e73e` に対応する。候補の待受は IPv4 ループバックに限定し、`ACTIO_LOCAL_MODE=1` の時だけ直接接続を持ち主として扱う。接続元ソケット、Host、Origin、Fetch Metadata と転送を示すヘッダーを検査してから、共有 PostgreSQL に `actio-local` の FK アンカーを競合安全に作る。DB 接続は許可された最初の要求まで遅延し、同じ単調時計の期限を取得・問い合わせに渡す。候補は `GET /api/auth/me` で `localMode: true` と `access: "loopback"` を返し、`GET /api/teams` では全チームの `leader`、`GET /api/projects/cc` では有効なプロジェクトの一覧を返す。
+
+Cloudflare Access と Cernere のトークン処理は、Portus の共通認証部品を追加した後に配線する。公開経路と既存ログインには移行前の backend を使用する。候補の回帰確認 `actio_concordia_http_boundary` は接続を開始せず、持ち主判定、DB 取得前の拒否、DB 障害後の再試行、チームとプロジェクトの応答を検査する。
+
 タスク一覧の契約は [一覧 API](task-list-api.md) に従う。旧版の nextCursor を新版が引き継げることと、その逆を確認する。limit=500 の約 640 KB の固定データで、通常の読み手と小分けに読む読み手の両方について、受信完了、本文のバイト数、末尾のタスク、次ページを検査する。HTTP 200 の記録だけでは完了の証跡にならない。
 
 Portus の HTTP と WebSocket には独立した listen がある。現行の actio-web は同一 backend に Upgrade を送るため、切り替えまでに同一ポートで /ws を引き渡せる実装が必要になる。Portus 側で共有 listener を追加する場合は、独立した Portus PR で認証コンテキストと接続の所有権移譲を検証する。
