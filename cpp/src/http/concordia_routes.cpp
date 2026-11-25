@@ -5,7 +5,11 @@
 #include "actio/local_access.hpp"
 #include "actio/local_owner.hpp"
 #include "concordia_catalog.hpp"
+#include "sprint_write.hpp"
 #include "task_read.hpp"
+#include "task_write.hpp"
+#include "write_body.hpp"
+#include "write_input.hpp"
 
 namespace actio {
 namespace {
@@ -21,7 +25,7 @@ portus::Reply error(std::string_view message, int status) {
     return privateJson(portus::Json::object({{"error", message}}), status);
 }
 
-struct LocalReader {
+struct LocalRoutes {
     bool enabled;
     std::shared_ptr<portus::DbPool> pool;
     std::atomic<bool> ownerProvisioned{false};
@@ -91,12 +95,27 @@ struct LocalReader {
             return privateJson(portus::Json::object({{"task", std::move(task)}}));
         });
     }
+
+    template<class Operation>
+    portus::Reply write(const portus::RequestContext& request, std::string_view unauthenticated,
+                        Operation operation) {
+        const auto access = authorize(request, unauthenticated);
+        if (access.status != 204) return access;
+        try {
+            const auto input = parseWriteBody(request.body);
+            return run([&](portus::DbConnection& connection, portus::DbDeadline deadline) {
+                return operation(connection, deadline, input);
+            });
+        } catch (const WriteError& invalid) {
+            return error(invalid.what(), invalid.status);
+        }
+    }
 };
 }
 
 void addConcordiaReadRoutes(portus::HttpServerOptions& options, bool localMode,
                             std::shared_ptr<portus::DbPool> pool) {
-    auto reader = std::make_shared<LocalReader>(localMode, std::move(pool));
+    auto reader = std::make_shared<LocalRoutes>(localMode, std::move(pool));
     options.routes.emplace_back("GET", "/api/auth/me", [reader](portus::RequestContext& request) {
         return reader->read(request, nullptr, "No token provided");
     });
@@ -111,6 +130,35 @@ void addConcordiaReadRoutes(portus::HttpServerOptions& options, bool localMode,
     });
     options.routes.emplace_back("GET", "/api/tasks/{id}", [reader](portus::RequestContext& request) {
         return reader->detail(request);
+    });
+    options.routes.emplace_back("POST", "/api/tasks", [reader](portus::RequestContext& request) {
+        return reader->write(request, "Authentication required", [](auto& connection, auto deadline, const auto& input) {
+            auto result = createTask(connection, deadline, input);
+            return privateJson(portus::Json::object({{"task", std::move(result.task)}}), result.created ? 201 : 200);
+        });
+    });
+    options.routes.emplace_back("PATCH", "/api/tasks/{id}", [reader](portus::RequestContext& request) {
+        return reader->write(request, "Authentication required", [&](auto& connection, auto deadline, const auto& input) {
+            const auto& id = request.params.at("id").as_string();
+            if (id.empty() || id.contains('\0')) throw WriteError("Task not found", 404);
+            return privateJson(portus::Json::object({{"task", patchTask(connection, deadline, id, input)}}));
+        });
+    });
+    options.routes.emplace_back("POST", "/api/teams/{teamId}/planning/sprints", [reader](portus::RequestContext& request) {
+        return reader->write(request, "Forbidden", [&](auto& connection, auto deadline, const auto& input) {
+            const auto& team = request.params.at("teamId").as_string();
+            if (team.empty() || team.contains('\0')) throw WriteError("teamId is required");
+            return privateJson(portus::Json::object({{"sprint", createSprint(connection, deadline, team, input)}}), 201);
+        });
+    });
+    options.routes.emplace_back("PATCH", "/api/teams/{teamId}/planning/sprints/{id}", [reader](portus::RequestContext& request) {
+        return reader->write(request, "Forbidden", [&](auto& connection, auto deadline, const auto& input) {
+            const auto& team = request.params.at("teamId").as_string();
+            const auto& id = request.params.at("id").as_string();
+            if (team.empty() || team.contains('\0')) throw WriteError("teamId is required");
+            if (id.empty() || id.contains('\0')) throw WriteError("スプリントが見つかりません", 404);
+            return privateJson(portus::Json::object({{"sprint", changeSprint(connection, deadline, team, id, input)}}));
+        });
     });
 }
 }

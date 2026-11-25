@@ -1,17 +1,14 @@
 #include "task_read.hpp"
+#include "sprint_projection.hpp"
 #include "task_projection.hpp"
 #include "task_read_sql.hpp"
 
 namespace actio {
 namespace {
 portus::Json activeSprint(portus::DbConnection& connection, portus::DbDeadline deadline, std::string_view team) {
-    const auto rows = connection.query({R"sql(
-        SELECT json_build_object('id', id, 'teamId', team_id, 'name', name, 'goal', goal,
-            'startsOn', starts_on, 'endsOn', ends_on, 'originalEndsOn', original_ends_on,
-            'cadenceDays', cadence_days, 'bufferEndsOn', buffer_ends_on, 'status', status,
-            'capacityMinutes', capacity_minutes, 'revision', revision)
-        FROM sprints WHERE team_id = $1 AND status = 'active' ORDER BY starts_on, id LIMIT 1
-        )sql", {team}, 1}, deadline);
+    const auto sql = "SELECT " + std::string(sprintDocument)
+        + " FROM sprints WHERE team_id = $1 AND status = 'active' ORDER BY starts_on, id LIMIT 1";
+    const auto rows = connection.query({sql, {team}, 1}, deadline);
     return rows.empty() ? portus::Json() : portus::Json::parse(rows.front().at(0).value());
 }
 }

@@ -33,16 +33,27 @@ endif()
 lorica_harden_target(actio_postgres)
 
 add_library(actio_concordia_http STATIC
+    src/db/sprint_write.cpp
+    src/db/sprint_write_input.cpp
     src/db/task_cursor.cpp
+    src/db/task_critical_path.cpp
     src/db/task_list_query.cpp
     src/db/task_projection.cpp
     src/db/task_read.cpp
     src/db/task_read_sql.cpp
     src/db/task_sprint_view.cpp
+    src/db/task_notifications.cpp
+    src/db/task_write.cpp
+    src/db/task_write_input.cpp
+    src/db/task_write_rules.cpp
     src/http/local_access.cpp
     src/http/local_owner.cpp
     src/http/concordia_catalog.cpp
-    src/http/concordia_routes.cpp)
+    src/http/concordia_routes.cpp
+    src/http/write_body.cpp)
+if(MSVC)
+    target_compile_options(actio_concordia_http PRIVATE /utf-8)
+endif()
 target_compile_features(actio_concordia_http PUBLIC cxx_std_23)
 target_include_directories(actio_concordia_http PUBLIC include PRIVATE contracts src/db src/http)
 target_link_libraries(actio_concordia_http PUBLIC portus::portus PRIVATE Lorica::boundary)
@@ -75,6 +86,10 @@ if(BUILD_TESTING)
     target_link_libraries(actio_task_read_test PRIVATE actio_concordia_http)
     lorica_harden_target(actio_task_read_test)
     add_test(NAME actio_task_read_boundary COMMAND actio_task_read_test)
+    add_executable(actio_task_write_test tests/task_write.cpp)
+    target_link_libraries(actio_task_write_test PRIVATE actio_concordia_http)
+    lorica_harden_target(actio_task_write_test)
+    add_test(NAME actio_task_write_boundary COMMAND actio_task_write_test)
     if(WIN32)
         find_path(ACTIO_LIBPQ_DLL_DIR NAMES libpq.dll HINTS "${PostgreSQL_LIBRARY_DIRS}/../bin" REQUIRED)
         set_tests_properties(actio_postgres_boundary PROPERTIES

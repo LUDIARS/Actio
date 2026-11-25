@@ -33,7 +33,13 @@ Cloudflare Access と Cernere のトークン処理は、Portus の共通認証�
 
 段階 3 の直接接続候補は `actio:1b8e85b2-0b76-45d5-bf67-2597f0d0e73e` に対応する。認証済みのローカル持ち主には `GET /api/tasks` と `GET /api/tasks/:id` を提供する。一覧は PostgreSQL の絞り込みと順序で最大 limit + 1 行を取得し、Portus のキーセット部品でページ化する。nextCursor は Node 版と共通の v1 JSON の base64url 表現とし、同じ並び順で引き継ぐ。チーム指定時は `team_refs` の存在を確認し、該当チームのタスクだけを取得する。
 
-`view=current_sprint` は進行中スプリントの項目と未割付の未完了バックログを全文付きで返す。PostgreSQL 接続層の応答上限は一クエリ 1,024 行・16 MiB で、上限超過はエラーとして扱う。タスク作成・更新とスプリント計画の操作は段階 4 の移行対象とする。候補の `actio_task_read_boundary` は DB に接続せず、3 種類の旧版カーソル、一覧と詳細の投影、認証、スプリント表示、期限切れ応答を検査する。
+`view=current_sprint` は進行中スプリントの項目と未割付の未完了バックログを全文付きで返す。PostgreSQL 接続層の応答上限は一クエリ 1,024 行・16 MiB で、上限超過はエラーとして扱う。候補の `actio_task_read_boundary` は DB に接続せず、3 種類の旧版カーソル、一覧と詳細の投影、認証、スプリント表示、期限切れ応答を検査する。
+
+段階 4 の直接接続候補は `actio:1b8e85b2-0b76-45d5-bf67-2597f0d0e73e` に対応する。`POST /api/tasks` は `{task}` を 201 で返し、閲覧可能な同一 `source/source_ref` の再送は同じタスクを 200 で返す。`PATCH /api/tasks/:id` は持ち主が所有または担当するタスクを行ロック下で更新し、明示 null と省略を区別する。依存関係の更新はチームのクリティカルパスを再計算し、割当・完了・優先度・作業者の変更は既存の通知送信箱に積む。計算と通知は確定済みの更新に付随する処理とする。期限は ISO 日付または日時を受け付け、候補の PostgreSQL 17 で検証して UTC 表記へそろえる。
+
+`POST /api/teams/:teamId/planning/sprints` と `PATCH /api/teams/:teamId/planning/sprints/:id` は `team_refs` にあるチームに対して `{sprint}` を返す。既存のチーム単位の計画ロックを使い、期間の重複、版の競合、計画外からの直接開始・終了、別チームのタスク割当を拒否する。計画変更、割当と監査行は同一トランザクションで確定する。`actio_task_write_boundary` は DB を差し替え、再送、権限、更新応答、通知、版競合と監査のロールバックを確認する。
+
+段階 4 の受け入れ確認では、この回帰テストと既存の死活、PostgreSQL ポリシー、認証、ページ読みテストを審査環境で実行し、C-28〜C-36 の観測を集計する。隔離 PostgreSQL 上での Node 版との応答・更新行・通知の比較は切り替え前に行う。
 
 Portus の HTTP と WebSocket には独立した listen がある。現行の actio-web は同一 backend に Upgrade を送るため、切り替えまでに同一ポートで /ws を引き渡せる実装が必要になる。Portus 側で共有 listener を追加する場合は、独立した Portus PR で認証コンテキストと接続の所有権移譲を検証する。
 

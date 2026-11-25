@@ -120,6 +120,60 @@
       "standard": "c++23",
       "includes": ["cpp/include"],
       "packages": ["portus-9a73450"]
+    },
+    {
+      "file": "cpp/src/db/sprint_write.cpp",
+      "standard": "c++23",
+      "includes": ["cpp/include", "cpp/contracts", "cpp/src/db"],
+      "packages": ["portus-142d69e"]
+    },
+    {
+      "file": "cpp/src/db/sprint_write_input.cpp",
+      "standard": "c++23",
+      "includes": ["cpp/src/db"],
+      "packages": ["portus-142d69e"]
+    },
+    {
+      "file": "cpp/src/db/task_critical_path.cpp",
+      "standard": "c++23",
+      "includes": ["cpp/src/db"],
+      "packages": ["portus-142d69e"]
+    },
+    {
+      "file": "cpp/src/db/task_notifications.cpp",
+      "standard": "c++23",
+      "includes": ["cpp/src/db"],
+      "packages": ["portus-142d69e"]
+    },
+    {
+      "file": "cpp/src/db/task_write.cpp",
+      "standard": "c++23",
+      "includes": ["cpp/include", "cpp/contracts", "cpp/src/db"],
+      "packages": ["portus-142d69e"]
+    },
+    {
+      "file": "cpp/src/db/task_write_input.cpp",
+      "standard": "c++23",
+      "includes": ["cpp/src/db"],
+      "packages": ["portus-142d69e"]
+    },
+    {
+      "file": "cpp/src/db/task_write_rules.cpp",
+      "standard": "c++23",
+      "includes": ["cpp/include", "cpp/src/db"],
+      "packages": ["portus-142d69e"]
+    },
+    {
+      "file": "cpp/src/http/write_body.cpp",
+      "standard": "c++23",
+      "includes": ["cpp/src/http", "cpp/src/db"],
+      "packages": ["portus-142d69e", "lorica-5e8281b"]
+    },
+    {
+      "file": "cpp/tests/task_write.cpp",
+      "standard": "c++23",
+      "includes": ["cpp/include"],
+      "packages": ["portus-142d69e"]
     }
   ]
 }

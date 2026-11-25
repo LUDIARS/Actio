@@ -47,6 +47,42 @@
       "module": "contracts/task_page.hpp",
       "mode": "observe",
       "sample": 1
+    },
+    {
+      "id": "C-33",
+      "criterion": "C-33 createTask(connection, deadline, input): 新規・再送とも保存済みタスクの完全な応答を返す",
+      "symbol": "createTask",
+      "file": "src/db/task_write.cpp",
+      "module": "contracts/task_create.hpp",
+      "mode": "observe",
+      "sample": 1
+    },
+    {
+      "id": "C-34",
+      "criterion": "C-34 patchTask(connection, deadline, id, input): 指定 ID の更新後の完全なタスクを返す",
+      "symbol": "patchTask",
+      "file": "src/db/task_write.cpp",
+      "module": "contracts/task_patch.hpp",
+      "mode": "observe",
+      "sample": 1
+    },
+    {
+      "id": "C-35",
+      "criterion": "C-35 createSprint(connection, deadline, team, input): 指定チームに revision 0 の計画を作る",
+      "symbol": "createSprint",
+      "file": "src/db/sprint_write.cpp",
+      "module": "contracts/sprint_create.hpp",
+      "mode": "observe",
+      "sample": 1
+    },
+    {
+      "id": "C-36",
+      "criterion": "C-36 changeSprint(connection, deadline, team, id, input): 指定計画の revision を一度進める",
+      "symbol": "changeSprint",
+      "file": "src/db/sprint_write.cpp",
+      "module": "contracts/sprint_change.hpp",
+      "mode": "observe",
+      "sample": 1
     }
   ]
 }
