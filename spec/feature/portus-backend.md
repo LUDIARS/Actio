@@ -43,6 +43,45 @@ Cloudflare Access と Cernere のトークン処理は、Portus の共通認証�
 
 Portus の HTTP と WebSocket には独立した listen がある。現行の actio-web は同一 backend に Upgrade を送るため、切り替えまでに同一ポートで /ws を引き渡せる実装が必要になる。Portus 側で共有 listener を追加する場合は、独立した Portus PR で認証コンテキストと接続の所有権移譲を検証する。
 
+## 段階 5 のルート突合
+
+対象は `actio:1b8e85b2-0b76-45d5-bf67-2597f0d0e73e`。Node の `src/app.ts`、マウント先と `src/ws/commands/` を C++ の `cpp/src/main.cpp`、`cpp/src/http/concordia_routes.cpp` と照合した。利用側は Concordia の `src/taskflow/actio-*.ts`、`src/developer-tools/critical-path.ts`、`src/bounty/actio-adapter.ts`、Actio の `frontend/src/lib/api.ts` と計画画面などの個別 API クライアント。actio-web の `src/web-server/{server,proxy}.ts` は `/api`、`/ws`、`/.well-known` を同一の backend に渡す。
+
+Cc のタスク一覧・詳細・作成・更新、`GET /api/teams`、`GET /api/projects/cc` は段階 2〜4 で直接接続候補に実装済み。計画画面が使う `GET /api/tasks?view=current_sprint`、`POST /api/teams/:teamId/planning/sprints`、`PATCH /api/teams/:teamId/planning/sprints/:id` も実装済み。公開・認証付きの経路は別途互換確認が必要。
+
+表のパスは各欄の接頭辞からの相対パス。括弧内は同じ接頭辞のパス末尾を列挙する。
+
+| 領域・接頭辞 | Node の method / path | 呼び出し元と移行状況 |
+|---|---|---|
+| チームの依存分析 `/api/teams` | GET `/:teamId/critical-path` | Cc のタスク依存参照と開発ツール。今回、直接接続候補に追加 |
+| タスク基本操作 `/api/tasks` | GET `/plugins`、`/categories`、`/notifications`。POST `/categories`。DELETE `/categories/:name`、`/:id`。PATCH `/:id/lane` | フロントのタスク画面・カテゴリ管理・計画操作、通知管理。未移行 |
+| チーム情報 `/api/teams` | GET `/memberships/:userId`、`/:teamId/{members,settings,projects}`。PUT・DELETE `/:teamId/members/:userId`。PATCH `/:teamId/settings` | フロントのチーム管理・計画。未移行 |
+| Cc プロジェクト `/api/projects` | GET `/cc/:code/sprints` | Cc プロジェクトに紐づくスプリントの参照。未移行 |
+| 計画 `/api/teams/:teamId/planning` | GET 接頭辞直下、`/sprints/:id/history`。POST `/groups`。DELETE `/groups/:id`。PUT `/order` | フロントのスプリント計画・バックログ。未移行 |
+| 仕様照会 `/api/teams/:teamId/planning/praeforma/projects` | GET 接頭辞直下、`/:pid/specs`、`/:pid/specs/:sid`、`/:pid/implementation`、`/:pid/implementation/service`。POST `/:pid/specs/:sid/backlog`、`/:pid/implementation/:kind/:id` | フロントの計画・仕様取り込みとサービス連携。未移行 |
+| スプリント判定 `/api/teams/:teamId/planning` | GET `/sprints/:id/phase`、`/autonomous-sprint`、`/autonomous-sprint/dots`。PUT `/sprints/:id/phase/context`。POST `/sprints/:id/phase/decisions`、`/autonomous-sprint`、`/autonomous-sprint/:sprintId/{pause,reconcile,release}`、`/autonomous-sprint/dots/{control,claims}` | フロントの計画と Dots の実行制御。未移行 |
+| Terpsichore `/api/teams/:teamId/planning/terpsichore` | GET・PUT `/plan`。POST `/assess`、`/advice`。GET・POST `/execution`。GET `/execution/{templates,preview,:id/manifest}` | フロントの計画と Cc への実行委託。未移行 |
+| チャット `/api/teams`・`/api/chat/commands` | POST `/api/teams/chat/{local-team,local-project}`。 `/api/teams/:teamId/chat` 配下で GET `/{state,logs/:channel}`、PUT `/{connection,destination,discussion/:channel}`、POST `/{commands,intakes/:id/confirm,outbox/:id/retry}`。POST `/api/chat/commands/{access,discord/:team/interactions}` | フロントのチャット計画と外部コマンド。未移行 |
+| PM `/api/pm` | GET・POST `/projects`。GET・PUT・DELETE `/projects/:id`。POST `/projects/:id/sync`、`/projects/:id/reminders/test`。GET `/projects/:id/{sync/status,tasks,conflicts,analytics/progress,analytics/critical-path,analytics/decomposition,analytics/gompertz,analytics/report}`。GET・PUT `/projects/:id/reminders`、`/tasks/:taskId`。GET `/tasks/:taskId/{history,validation,related-commits,test-coverage}`。POST `/tasks/:taskId/validate`、`/conflicts/:conflictId/{resolve,auto-merge}` | Cc 開発ツールが `GET /projects` と PM の `analytics/critical-path` を使用。フロント PM 画面が残りを使用。未移行 |
+| 課題の共通基盤 | GET `/api/{links,comments}/:type/:id`。POST `/api/{links,comments}`。DELETE `/api/{links,comments}/:id`。PATCH `/api/comments/:id`。GET `/api/custom-fields/{definitions,:type/:id}`。PUT・DELETE `/api/custom-fields/:moduleId/:fieldId/:type/:id`。GET `/api/public/issues` | プラグイン基盤・公開課題フロント。未移行 |
+| 認証とプロフィール | GET `/api/auth/{login-url,ws-token,users,users/list}`。POST `/api/auth/{exchange,logout}`。PUT `/api/auth/users/:id/role`。GET・PUT `/api/profile/me`。GET `/api/profile/{users/:id,me/roles,groups/:groupId/roles}`。PUT `/api/profile/me/roles/:groupId` | フロントの公開・ユーザー経路。トークンと個人情報は Cernere で扱う。未移行 |
+| 管理・設定 | GET・PUT `/api/settings`、GET `/api/settings/export`。GET・PUT `/api/user-prefs`、GET・DELETE `/api/user-prefs/:key`。GET `/api/secrets/{status,keys,value/:key}`、POST `/api/secrets/refresh`、PUT・DELETE `/api/secrets/:key`。GET `/api/admin/{activity-logs,db/tables,db/tables/:tableName,modules,modules/manifests}`、POST `/api/admin/modules/:id/{enable,disable,uninstall}` | フロントの管理と SDK 管理。未移行 |
+| グループ `/api/groups` | GET `/my`、`/:id`、`/users/search`。POST 接頭辞直下、`/:id/{join,leave,invite}`。PUT `/:id/members/:memberId/role`。GET・PUT `/:id/modules` | フロントのグループ画面。タスクで使う共通基盤として未移行 |
+| 通知 `/api/m5`・`/api/webhooks` | GET・POST `/webhooks`、PUT・DELETE `/webhooks/:id`、POST `/webhooks/:id/{test,rotate-secret}`、GET `/webhooks/:id/logs`。GET・PUT `/notifications/preferences`、GET `/notifications/history`、POST `/notifications/:id/read`、DELETE `/notifications/:id`。GET・POST `/templates`、GET・PUT・DELETE `/templates/:id`、POST `/templates/preview` と `/test-send` | フロントの通知管理が `/api/m5` を使用。既存通知送信箱への書き込みは段階 4。HTTP の管理経路は未移行 |
+| 外部タスク API `/api/external` | GET `/docs`、GET・POST `/clients`、POST `/clients/:id/regenerate`、PUT・DELETE `/clients/:id`。GET・POST `/tasks`、GET・PUT `/tasks/:id` | フロントのクライアント管理、外部 API キー経路。未移行 |
+| 共通入口 | GET `/`、`/api/ready`、`/api/health`、`/api/setup/status`、`/.well-known/corpus-service.json`、`/api/example/hello`、`/api/example/hello/me`。POST `/api/setup/local-config`、`/api/admin/modules/install-package` | actio-web のプロキシ対象に corpus を含む。設定保存は初回設定専用の入口。ヘルスチェックは `/api/health/live` のみ移行済み |
+| WebSocket | GET `/ws` Upgrade、GET `/api/auth/ws-token`。受信 `pong` と `module_request`。PM の `create_project,update_project,delete_project,sync,update_task,resolve_conflict,validate_task`、group の `create,join,leave,invite,update_member_role,update_modules`、admin の `update_settings,update_user_role` | フロントの接続、PM・グループ画面の購読。未移行。Portus の共有 listener を先行 PR とし、再接続時の再認証・購読の復元とユーザー／グループ単位の配信を確認する |
+
+### 予定・カレンダーの切り替え判断
+
+| 経路 | 観測結果 | 親セッションへの案 |
+|---|---|---|
+| `/api/events`、`/api/calendar`、`/api/myplans`、`/api/smart-scheduler`、`/api/holidays`、`/api/voting`、`/api/m1`、`/api/m3`、`/api/integrations`、placement・school | Node のマウント表では予定・学校 SDK を解除済み。フロントに旧クライアントが残る | Actio の旧呼び出しを凍結し、必要な画面は Schedula の公開経路へ接続する |
+| GET `/api/timetable`。POST `/api/groups/:id/schedules`、GET・POST `/api/groups/:id/events`、PUT・DELETE `/api/groups/:id/events/:eventId`。 `/api/external` 配下で GET・POST `/calendar/events`、GET・PUT・DELETE `/calendar/events/:id`、GET・POST `/schedules/{plans,myplans}`、DELETE `/schedules/{plans,myplans}/:id`、GET `/reminders/reminders`。group WS の `create_schedule,create_event,update_event,delete_event` | Node に稼働経路が残る。フロントのグループ画面と外部 API が利用し得る | 利用中の経路は Schedula 移植まで旧版で維持し、利用停止を確認できたものは凍結する |
+| `/api/school/facility-booking`、`/api/reservations`、`/api/cocoiru` | フロントに旧経路が残り、Node のマウント表では解除済み | 施設予約は Aedilis、学校機能は Schedula 側で扱う。予約プラグインの旧経路は凍結する |
+
+今回の候補は認可済みの直接接続について `taskIds`、`totalDays`、`cycles`、`tasks` を返す。既存の書き込み後の再計算と同じグラフ処理を使い、読み取りでは保存済みの派生値を更新しない。取得行数は既存の PostgreSQL 接続層の制限に従う。回帰テストは依存鎖、余裕日数、所要日数の出典、循環と自己参照、空のチーム、未登録チーム、転送経路の拒否を検査する。
+
 ## Windows でのビルド確認
 
 Revisor の登録コマンド `npm test` は Vitest 成功後に CMake で候補版をビルドし、CTest の `actio_health_response` で死活応答を検査する。審査ホストには CMake 4.2 以上、VS 2026、OpenSSL 3 と Portus・Lorica のソースを用意する。配置の上書きには `PORTUS_SOURCE_DIR` と `LORICA_SOURCE_DIR`、導入済み Lorica には `Lorica_DIR` を使う。

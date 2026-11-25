@@ -83,6 +83,15 @@
       "module": "contracts/sprint_change.hpp",
       "mode": "observe",
       "sample": 1
+    },
+    {
+      "id": "C-37",
+      "criterion": "C-37 readTeamCriticalPath(connection, deadline, team): 応答の totalDays は最早終了日の最大で、taskIds はクリティカルなタスクのみを最早開始順に返す",
+      "symbol": "readTeamCriticalPath",
+      "file": "src/db/task_critical_path.cpp",
+      "module": "contracts/team_critical_path.hpp",
+      "mode": "observe",
+      "sample": 1
     }
   ]
 }

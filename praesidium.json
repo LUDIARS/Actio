@@ -136,7 +136,7 @@
     {
       "file": "cpp/src/db/task_critical_path.cpp",
       "standard": "c++23",
-      "includes": ["cpp/src/db"],
+      "includes": ["cpp/include", "cpp/src/db", "cpp/contracts"],
       "packages": ["portus-142d69e"]
     },
     {
@@ -171,6 +171,12 @@
     },
     {
       "file": "cpp/tests/task_write.cpp",
+      "standard": "c++23",
+      "includes": ["cpp/include"],
+      "packages": ["portus-142d69e"]
+    },
+    {
+      "file": "cpp/tests/team_critical_path.cpp",
       "standard": "c++23",
       "includes": ["cpp/include"],
       "packages": ["portus-142d69e"]

@@ -6,6 +6,7 @@
 #include "actio/local_owner.hpp"
 #include "concordia_catalog.hpp"
 #include "sprint_write.hpp"
+#include "task_critical_path.hpp"
 #include "task_read.hpp"
 #include "task_write.hpp"
 #include "write_body.hpp"
@@ -96,6 +97,18 @@ struct LocalRoutes {
         });
     }
 
+    portus::Reply criticalPath(const portus::RequestContext& request) {
+        const auto& team = request.params.at("teamId").as_string();
+        if (team.empty() || team.contains('\0')) return error("teamId is required", 400);
+        if (!enabled) return error("Forbidden", 403);
+        const auto access = authorize(request, "Forbidden");
+        if (access.status != 204) return access;
+        return run([&team](portus::DbConnection& connection, portus::DbDeadline deadline) {
+            if (!taskTeamExists(connection, deadline, team)) return error("Forbidden", 403);
+            return privateJson(readTeamCriticalPath(connection, deadline, team));
+        });
+    }
+
     template<class Operation>
     portus::Reply write(const portus::RequestContext& request, std::string_view unauthenticated,
                         Operation operation) {
@@ -124,6 +137,9 @@ void addConcordiaReadRoutes(portus::HttpServerOptions& options, bool localMode,
     });
     options.routes.emplace_back("GET", "/api/projects/cc", [reader](portus::RequestContext& request) {
         return reader->read(request, listCcProjects, "Authentication required");
+    });
+    options.routes.emplace_back("GET", "/api/teams/{teamId}/critical-path", [reader](portus::RequestContext& request) {
+        return reader->criticalPath(request);
     });
     options.routes.emplace_back("GET", "/api/tasks", [reader](portus::RequestContext& request) {
         return reader->list(request);
