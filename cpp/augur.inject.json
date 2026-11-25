@@ -1,0 +1,6 @@
+{
+  "service": "actio",
+  "include": ["src/**/*.cpp"],
+  "rules": { "contract-wrap": true },
+  "importFrom": "augur/contract_runtime.hpp"
+}

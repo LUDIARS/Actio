@@ -1,0 +1,24 @@
+{
+  "version": 1,
+  "native": [
+    {
+      "file": "cpp/src/main.cpp",
+      "standard": "c++23",
+      "includes": ["cpp/include"],
+      "defines": ["ACTIO_PACKAGE_VERSION=inspection"],
+      "packages": ["portus-9a73450", "lorica-5e8281b"]
+    },
+    {
+      "file": "cpp/src/liveness.cpp",
+      "standard": "c++23",
+      "includes": ["cpp/include", "cpp/contracts"],
+      "packages": ["portus-9a73450"]
+    },
+    {
+      "file": "cpp/tests/liveness.cpp",
+      "standard": "c++23",
+      "includes": ["cpp/include"],
+      "packages": ["portus-9a73450"]
+    }
+  ]
+}

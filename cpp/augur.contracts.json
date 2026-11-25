@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "contractsDir": "contracts",
+  "importFrom": "augur/contract_runtime.hpp",
+  "contracts": [
+    {
+      "id": "C-28",
+      "criterion": "C-28 liveStatus(version, epochMs): DB 非依存の死活応答にサービス名、稼働版、ok 状態、要求時刻の UTC 表記を含める",
+      "symbol": "liveStatus",
+      "file": "src/liveness.cpp",
+      "module": "contracts/liveness.hpp",
+      "mode": "observe",
+      "sample": 1
+    }
+  ]
+}

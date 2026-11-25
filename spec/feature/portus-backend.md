@@ -27,6 +27,8 @@ Portus の HTTP と WebSocket には独立した listen がある。現行の ac
 
 ## Windows でのビルド確認
 
+Revisor の登録コマンド `npm test` は Vitest 成功後に CMake で候補版をビルドし、CTest の `actio_health_response` で死活応答を検査する。審査ホストには CMake 4.2 以上、VS 2026、OpenSSL 3 と Portus・Lorica のソースを用意する。配置の上書きには `PORTUS_SOURCE_DIR` と `LORICA_SOURCE_DIR`、導入済み Lorica には `Lorica_DIR` を使う。
+
 2026-11-25、Portus 9a73450 の cpp を CMake 4.4.4、Visual Studio 18 2026、MSVC 19.52、OpenSSL 3.2.1 で構成した。Release x64 の portus.lib の生成と portus_hello.exe のリンクを確認した。サンプルを実行する検証は反映担当に引き継ぐ。
 
 ## 切り替えと切り戻し

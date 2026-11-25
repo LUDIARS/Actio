@@ -28,6 +28,7 @@
     "ci-check": "bash scripts/ci-check.sh",
     "pretest": "npm run sdk:build && npm run terpsichore:build",
     "test": "vitest run",
+    "posttest": "node scripts/test-cpp.mjs",
     "test:watch": "vitest",
     "id:scan": "tsx services/id-service/src/migration/cli.ts",
     "id:service": "tsx services/id-service/src/server.ts",
