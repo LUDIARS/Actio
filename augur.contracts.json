@@ -82,7 +82,7 @@
       "file": "src/auth/local-mode-policy.ts",
       "module": "contracts/public-read-boundary.contract.ts",
       "mode": "observe",
-      "sample": 1
+      "sample": 0.01
     },
     {
       "id": "C-14",
@@ -127,7 +127,7 @@
       "file": "modules/task/list/page-query.ts",
       "module": "contracts/task-list-page-query.contract.ts",
       "mode": "observe",
-      "sample": 1
+      "sample": 0.01
     },
     {
       "id": "C-19",
@@ -145,7 +145,7 @@
       "file": "modules/task/list/page.ts",
       "module": "contracts/task-list-page.contract.ts",
       "mode": "observe",
-      "sample": 1
+      "sample": 0.01
     },
     {
       "id": "C-22",

@@ -25,6 +25,78 @@ it("records one verdict for a 500-row page without task data in the log", async 
   }
 });
 
+it("samples successful observations while recording violations and predicate errors", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "actio-contract-runtime-"));
+  const random = vi.spyOn(Math, "random").mockReturnValue(0.5).mockReturnValueOnce(0.49);
+  vi.stubEnv("VESTIGIUM_LOGS_DIR", dir);
+  const spec = { contractId: "sample", where: "test", sample: 0.5 };
+  try {
+    const sync = contract(() => 1, { ...spec, id: "included" });
+    const asyncSuccess = contract(async () => 2, { ...spec, id: "skipped" });
+    const invalid = contract(() => 3, {
+      ...spec,
+      id: "violations",
+      pre: () => "precondition failed",
+      post: () => "postcondition failed",
+    });
+    const throwing = contract(async () => 4, {
+      ...spec,
+      id: "errors",
+      pre: () => { throw new Error("pre"); },
+      post: () => { throw new Error("post"); },
+    });
+
+    expect(sync()).toBe(1);
+    await expect(asyncSuccess()).resolves.toBe(2);
+    expect(invalid()).toBe(3);
+    await expect(throwing()).resolves.toBe(4);
+    expect(random).toHaveBeenCalledTimes(2);
+
+    await flushContractLogs();
+    const [file] = await readdir(dir);
+    const log = await readFile(join(dir, file), "utf8");
+    const events = log.trimEnd().split("\n").map((line) => JSON.parse(line));
+    expect(events).toMatchObject([
+      { msg: "contract observed", ctx: { id: "included", phase: "ok" } },
+      { msg: "contract violated", ctx: { id: "violations", phase: "pre" } },
+      { msg: "contract violated", ctx: { id: "violations", phase: "post" } },
+      { msg: "contract predicate threw", ctx: { id: "errors", phase: "pre" } },
+      { msg: "contract predicate threw", ctx: { id: "errors", phase: "post" } },
+    ]);
+  } finally {
+    random.mockRestore();
+    vi.unstubAllEnvs();
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+it("records every successful observation when sample is missing, invalid, or 1", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "actio-contract-runtime-"));
+  const random = vi.spyOn(Math, "random").mockReturnValue(0.99);
+  vi.stubEnv("VESTIGIUM_LOGS_DIR", dir);
+  try {
+    const samples = [undefined, 0, -0.1, 1, 1.1, Number.NaN, Number.POSITIVE_INFINITY];
+    const spec = { contractId: "sample", where: "test" };
+    for (const sample of samples) {
+      const id = String(sample);
+      contract(() => true, { ...spec, id, sample })();
+    }
+    expect(random).not.toHaveBeenCalled();
+
+    await flushContractLogs();
+    const [file] = await readdir(dir);
+    const log = await readFile(join(dir, file), "utf8");
+    const events = log.trimEnd().split("\n").map((line) => JSON.parse(line));
+    expect(events).toMatchObject(
+      samples.map((sample) => ({ msg: "contract observed", ctx: { id: String(sample), phase: "ok" } })),
+    );
+  } finally {
+    random.mockRestore();
+    vi.unstubAllEnvs();
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
 it("preserves return values and thrown errors when the log directory is unavailable", async () => {
   const dir = await mkdtemp(join(tmpdir(), "actio-contract-runtime-"));
   const file = join(dir, "file");

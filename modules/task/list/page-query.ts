@@ -103,4 +103,4 @@ export function parseTaskListPageQuery(query: RawQuery): TaskListPageQueryResult
   return { ok: true, value };
 }
 // @ts-expect-error augur-inject
-parseTaskListPageQuery = contract(parseTaskListPageQuery, { ...augurContract_f54adb38, contractId: 'C-18', mode: 'observe', sample: 1, where: 'modules/task/list/page-query.ts:75', rule: 'contract-wrap', id: 'f54adb38' }); /* augur-inject:contract-wrap:f54adb38 */
+parseTaskListPageQuery = contract(parseTaskListPageQuery, { ...augurContract_f54adb38, contractId: 'C-18', mode: 'observe', sample: 0.01, where: 'modules/task/list/page-query.ts:75', rule: 'contract-wrap', id: 'f54adb38' }); /* augur-inject:contract-wrap:f54adb38 */

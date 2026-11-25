@@ -151,4 +151,4 @@ export function isPublicReadRequest(method: string, path: string): boolean {
   return (method === "GET" || method === "HEAD") && PUBLIC_READ_PATHS.has(path);
 }
 // @ts-expect-error augur-inject
-isPublicReadRequest = contract(isPublicReadRequest, { ...augurContract_75568ebe, contractId: 'C-13', mode: 'observe', sample: 1, where: 'src/auth/local-mode-policy.ts:126', rule: 'contract-wrap', id: '75568ebe' }); /* augur-inject:contract-wrap:75568ebe */
+isPublicReadRequest = contract(isPublicReadRequest, { ...augurContract_75568ebe, contractId: 'C-13', mode: 'observe', sample: 0.01, where: 'src/auth/local-mode-policy.ts:148', rule: 'contract-wrap', id: '75568ebe' }); /* augur-inject:contract-wrap:75568ebe */

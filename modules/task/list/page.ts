@@ -19,4 +19,4 @@ export function buildTaskListPage<T extends TaskListKeyRow>(rows: T[], limit: nu
   return { tasks, nextCursor: encodeTaskListCursor(taskListCursorKeyOf(tasks[tasks.length - 1], sort)) };
 }
 // @ts-expect-error augur-inject
-buildTaskListPage = contract(buildTaskListPage, { ...augurContract_52f356c3, contractId: 'C-21', mode: 'observe', sample: 1, where: 'modules/task/list/page.ts:14', rule: 'contract-wrap', id: '52f356c3' }); /* augur-inject:contract-wrap:52f356c3 */
+buildTaskListPage = contract(buildTaskListPage, { ...augurContract_52f356c3, contractId: 'C-21', mode: 'observe', sample: 0.01, where: 'modules/task/list/page.ts:14', rule: 'contract-wrap', id: '52f356c3' }); /* augur-inject:contract-wrap:52f356c3 */
