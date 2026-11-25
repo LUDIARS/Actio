@@ -5,6 +5,7 @@
  */
 import { existsSync } from "node:fs";
 import { join } from "node:path";
+import { flushContractLogs } from "../contract-runtime.js";
 import { loadWebServerConfig } from "./config.js";
 import { createWebServer } from "./server.js";
 
@@ -25,7 +26,8 @@ server.listen(config.port, config.host, () => {
 });
 
 const shutdown = (): void => {
-  server.close(() => process.exit(0));
+  void flushContractLogs();
+  server.close(() => { void flushContractLogs().then(() => process.exit(0)); });
   setTimeout(() => process.exit(0), 3000).unref();
 };
 process.on("SIGINT", shutdown);

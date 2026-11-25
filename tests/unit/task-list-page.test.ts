@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { parseTaskListPageQuery } from "../../modules/task/list/page-query.js";
 import { decodeTaskListCursor, encodeTaskListCursor } from "../../modules/task/list/cursor.js";
-import { toTaskSummary } from "../../modules/task/list/summary.js";
+import { summarizeTaskList, toTaskSummary } from "../../modules/task/list/summary.js";
 import { buildTaskListPage } from "../../modules/task/list/page.js";
 
 const row = (i: number) => ({
@@ -88,6 +88,13 @@ describe("toTaskSummary", () => {
 
   it("keeps description on include", () => {
     expect(toTaskSummary(task, true)).toEqual({ id: "t", title: "T", description: "d", pluginPayload: { runs: [] }, status: "open" });
+  });
+
+  it("summarizes a full page without changing its order or fields", () => {
+    const page = Array.from({ length: 500 }, (_, id) => ({ ...task, id: String(id) }));
+    expect(summarizeTaskList(page, true)).toEqual(page.map(({ id }) => ({
+      id, title: "T", description: "d", pluginPayload: { runs: [] }, status: "open",
+    })));
   });
 });
 

@@ -2,6 +2,26 @@
   "version": 1,
   "implementations": [
     {
+      "source": "src/contract-runtime.ts",
+      "tests": ["tests/unit/contract-log-runtime.test.ts"],
+      "contracts": ["AT-TASK-LIST-STALL"]
+    },
+    {
+      "source": "src/contract-log-buffer.ts",
+      "tests": ["tests/unit/contract-log-buffer.test.ts"],
+      "contracts": ["AT-TASK-LIST-STALL"]
+    },
+    {
+      "source": "src/contract-log-files.ts",
+      "tests": ["tests/unit/contract-log-files.test.ts"],
+      "contracts": ["AT-TASK-LIST-STALL"]
+    },
+    {
+      "source": "modules/task/list/summary.ts",
+      "tests": ["tests/unit/task-list-page.test.ts", "tests/unit/contract-log-runtime.test.ts", "tests/api/task-list-page.test.ts"],
+      "contracts": ["AT-TASK-LIST-PAGING", "AT-TASK-LIST-STALL"]
+    },
+    {
       "source": "modules/task/cache/task-list-cache.ts",
       "tests": ["tests/unit/task-list-cache.test.ts"],
       "contracts": ["AT-TASK-LIST-STALL"]

@@ -1,17 +1,16 @@
-// Contract for toTaskSummary (C-20). Body fields never reach the list, description only
-// on explicit opt-in, and every other field (pluginPayload included) passes unchanged.
-const BODY = ["description", "requirements", "completionEvidence", "publicSummary"];
+// One verdict for the entire page (C-27).
+type Row = Record<string, unknown>;
 
 export default {
-  post: (result: Record<string, unknown>, task: Record<string, unknown>, includeDescription: boolean): true | string => {
-    for (const field of BODY) {
-      if (field === "description" && includeDescription) continue;
-      if (field in result) return `${field} must not be in the summary`;
-    }
-    if (includeDescription && result.description !== (task.description ?? null)) return "description must be kept on include";
-    for (const [field, value] of Object.entries(task)) {
-      if (BODY.includes(field)) continue;
-      if (result[field] !== value) return `${field} must pass through unchanged`;
+  post: (result: readonly Row[], tasks: readonly Row[], includeDescription: boolean): true | string => {
+    if (result.length !== tasks.length) return "summary count changed";
+    for (const [index, task] of tasks.entries()) {
+      const row = result[index];
+      if (row.id !== task.id || row.pluginPayload !== task.pluginPayload) return "row order or pluginPayload changed";
+      if ("requirements" in row || "completionEvidence" in row || "publicSummary" in row) return "body fields must be omitted";
+      if (includeDescription ? row.description !== (task.description ?? null) : "description" in row) {
+        return "description must be kept only on include";
+      }
     }
     return true;
   },

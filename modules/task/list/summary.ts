@@ -1,5 +1,5 @@
 import { contract } from '../../../src/contract-runtime.js'; /* augur-inject:import:160c11d0 */
-import augurContract_2b52f0d5 from '../../../contracts/task-summary.contract.ts'; /* augur-inject:contract-predicate:2be97b97 */
+import augurContract_b3e74f8f from '../../../contracts/task-summary.contract.ts'; /* augur-inject:contract-predicate:c7d47140 */
 /**
  * 一覧に載せるタスク要約 (TaskSummary)。
  *
@@ -22,5 +22,10 @@ export function toTaskSummary<T extends object>(task: T, includeDescription: boo
   if (includeDescription) summary.description = (task as { description?: string | null }).description ?? null;
   return summary as TaskSummary<T>;
 }
+
+/** @implements AT-TASK-LIST-STALL */
+export function summarizeTaskList<T extends object>(tasks: readonly T[], includeDescription: boolean): TaskSummary<T>[] {
+  return tasks.map((task) => toTaskSummary(task, includeDescription));
+}
 // @ts-expect-error augur-inject
-toTaskSummary = contract(toTaskSummary, { ...augurContract_2b52f0d5, contractId: 'C-20', mode: 'observe', sample: 1, where: 'modules/task/list/summary.ts:15', rule: 'contract-wrap', id: '2b52f0d5' }); /* augur-inject:contract-wrap:2b52f0d5 */
+summarizeTaskList = contract(summarizeTaskList, { ...augurContract_b3e74f8f, contractId: 'C-27', mode: 'observe', sample: 1, where: 'modules/task/list/summary.ts:25', rule: 'contract-wrap', id: 'b3e74f8f' }); /* augur-inject:contract-wrap:b3e74f8f */

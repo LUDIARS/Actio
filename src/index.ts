@@ -3,6 +3,7 @@ import { logger } from "hono/logger";
 import { install as installVestigium } from "@ludiars/vestigium";
 import { secretManager, initSecrets } from "./config/secrets.js";
 import { resolveBackendPort } from "./config/service-endpoints.js";
+import { flushContractLogs } from "./contract-runtime.js";
 import { installConnectionDropGuard } from "./lib/connection-drop-guard.js";
 
 const vestigium = installVestigium({
@@ -84,6 +85,7 @@ const stopSprintGateRuntime = (): void => {
   stopAutonomousSprint();
   stopChat();
   stopPmTick();
+  void flushContractLogs();
   server.off("close", stopSprintGateRuntime);
   process.off("SIGTERM", stopSprintGateRuntime);
   process.off("SIGINT", stopSprintGateRuntime);

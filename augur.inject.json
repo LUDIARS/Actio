@@ -1,7 +1,7 @@
 {
   "service": "actio",
   "include": ["src/**/*.ts", "modules/task/team/*.ts", "modules/task/list/*.ts"],
-  "exclude": ["**/*.test.ts"],
+  "exclude": ["**/*.test.ts", "src/contract-runtime.ts", "src/contract-log-*.ts"],
   "rules": {
     "entry-runtime": false,
     "silent-catch": false,

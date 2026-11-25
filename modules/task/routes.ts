@@ -47,7 +47,7 @@ import { canActAsTeamMember } from "./team/access.js";
 import { classifyUnassignedIntake } from "./unassigned-intake.js";
 import { parseTaskListPageQuery } from "./list/page-query.js";
 import { buildTaskListPage } from "./list/page.js";
-import { toTaskSummary } from "./list/summary.js";
+import { summarizeTaskList } from "./list/summary.js";
 import { measureTaskListPhase } from "./list/timing.js";
 import { taskListTimeoutStatus } from "./list/timeout.js";
 
@@ -205,7 +205,7 @@ taskRoutes.get("/", async (c) => {
             const items = tasks.map((task) => toMemoriaShape({ ...task, description: task.description ?? null }));
             return JSON.stringify({ items, nextCursor });
           }
-          return JSON.stringify({ tasks: tasks.map((task) => toTaskSummary(task, includeDescription)), nextCursor });
+          return JSON.stringify({ tasks: summarizeTaskList(tasks, includeDescription), nextCursor });
         });
       });
       return c.body(body, 200, { "content-type": "application/json; charset=UTF-8" });

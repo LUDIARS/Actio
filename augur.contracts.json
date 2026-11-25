@@ -2,7 +2,6 @@
   "version": 1,
   "contractsDir": "contracts",
   "importFrom": "../contract-runtime.js",
-  "runtimeFile": "src/contract-runtime.ts",
   "contracts": [
     {
       "id": "C-5",
@@ -140,15 +139,6 @@
       "sample": 1
     },
     {
-      "id": "C-20",
-      "criterion": "C-20 toTaskSummary(task, includeDescription): description・requirements・completionEvidence・publicSummary を外し (description は includeDescription のときだけ残す)、pluginPayload を含むそれ以外の項目はそのまま返す",
-      "symbol": "toTaskSummary",
-      "file": "modules/task/list/summary.ts",
-      "module": "contracts/task-summary.contract.ts",
-      "mode": "observe",
-      "sample": 1
-    },
-    {
       "id": "C-21",
       "criterion": "C-21 buildTaskListPage(rows, limit, sort): limit を超える行があれば limit 件に切って最後の行のカーソルを nextCursor にし、超えなければ nextCursor を null にする",
       "symbol": "buildTaskListPage",
@@ -199,6 +189,15 @@
       "symbol": "postgresOptions",
       "file": "src/db/dialects/postgres-options.ts",
       "module": "contracts/postgres-options.contract.ts",
+      "mode": "observe",
+      "sample": 1
+    },
+    {
+      "id": "C-27",
+      "criterion": "C-27 summarizeTaskList(tasks, includeDescription): ページ全体を一度の契約観測で扱い、行順・件数・pluginPayload を保って本文を除く。description は明示指定時だけ残す",
+      "symbol": "summarizeTaskList",
+      "file": "modules/task/list/summary.ts",
+      "module": "contracts/task-summary.contract.ts",
       "mode": "observe",
       "sample": 1
     }
