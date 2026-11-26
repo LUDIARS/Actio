@@ -14,4 +14,7 @@ TaskCreation createTask(portus::DbConnection& connection, portus::DbDeadline dea
 // Update a task owned by or assigned to the verified local owner.
 portus::Json patchTask(portus::DbConnection& connection, portus::DbDeadline deadline,
                       std::string_view id, const portus::Json& input);
+// Persist the lane-specific fields of an accessible team task.
+portus::Json changeTaskLane(portus::DbConnection& connection, portus::DbDeadline deadline,
+                           std::string_view id, const portus::Json& input);
 }

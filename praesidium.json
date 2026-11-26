@@ -59,7 +59,7 @@
       "file": "cpp/src/http/concordia_routes.cpp",
       "standard": "c++23",
       "includes": ["cpp/include", "cpp/src/http", "cpp/src/db"],
-      "packages": ["portus-142d69e"]
+      "packages": ["portus-a3cf046"]
     },
     {
       "file": "cpp/src/db/task_cursor.cpp",
@@ -149,7 +149,7 @@
       "file": "cpp/src/db/task_write.cpp",
       "standard": "c++23",
       "includes": ["cpp/include", "cpp/contracts", "cpp/src/db"],
-      "packages": ["portus-142d69e"]
+      "packages": ["portus-a3cf046"]
     },
     {
       "file": "cpp/src/db/task_write_input.cpp",
@@ -161,7 +161,7 @@
       "file": "cpp/src/db/task_write_rules.cpp",
       "standard": "c++23",
       "includes": ["cpp/include", "cpp/src/db"],
-      "packages": ["portus-142d69e"]
+      "packages": ["portus-a3cf046"]
     },
     {
       "file": "cpp/src/http/write_body.cpp",
@@ -210,6 +210,18 @@
       "standard": "c++23",
       "includes": ["cpp/include"],
       "packages": ["portus-142d69e"]
+    },
+    {
+      "file": "cpp/src/db/task_categories.cpp",
+      "standard": "c++23",
+      "includes": ["cpp/include", "cpp/contracts", "cpp/src/db"],
+      "packages": ["portus-a3cf046"]
+    },
+    {
+      "file": "cpp/tests/task_organization.cpp",
+      "standard": "c++23",
+      "includes": ["cpp/include"],
+      "packages": ["portus-a3cf046"]
     }
   ]
 }

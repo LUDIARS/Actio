@@ -54,7 +54,7 @@ Cc のタスク一覧・詳細・作成・更新、`GET /api/teams`、`GET /api/
 | 領域・接頭辞 | Node の method / path | 呼び出し元と移行状況 |
 |---|---|---|
 | チームの依存分析 `/api/teams` | GET `/:teamId/critical-path` | Cc のタスク依存参照と開発ツール。今回、直接接続候補に追加 |
-| タスク基本操作 `/api/tasks` | GET `/plugins`、`/categories`、`/notifications`。POST `/categories`。DELETE `/categories/:name`、`/:id`。PATCH `/:id/lane` | フロントのタスク画面・カテゴリ管理・計画操作、通知管理。タスク削除を直接接続候補に追加。ほかは未移行 |
+| タスク基本操作 `/api/tasks` | GET `/plugins`、`/categories`、`/notifications`。POST `/categories`。DELETE `/categories/:name`、`/:id`。PATCH `/:id/lane` | フロントのタスク画面・カテゴリ管理・計画操作、通知管理。削除、カテゴリ、レーン変更は直接接続候補に移行済み。プラグイン・通知管理は未移行 |
 | チーム情報 `/api/teams` | GET `/memberships/:userId`、`/:teamId/{members,settings,projects}`。PUT・DELETE `/:teamId/members/:userId`。PATCH `/:teamId/settings` | フロントのチーム管理・計画。未移行 |
 | Cc プロジェクト `/api/projects` | GET `/cc/:code/sprints` | Cc プロジェクトに紐づくスプリントの参照。未移行 |
 | 計画 `/api/teams/:teamId/planning` | GET 接頭辞直下、`/sprints/:id/history`。POST `/groups`。DELETE `/groups/:id`。PUT `/order` | フロントのスプリント計画・バックログ。未移行 |
@@ -86,6 +86,8 @@ Cc のタスク一覧・詳細・作成・更新、`GET /api/teams`、`GET /api/
 チームのクリティカルパスは認可済みの直接接続について `taskIds`、`totalDays`、`cycles`、`tasks` を返す。既存の書き込み後の再計算と同じグラフ処理を使い、読み取りでは保存済みの派生値を更新しない。取得行数は既存の PostgreSQL 接続層の制限に従う。回帰テストは依存鎖、余裕日数、所要日数の出典、循環と自己参照、空のチーム、未登録チーム、転送経路の拒否を検査する。
 
 `DELETE /api/tasks/:id` は直接接続の持ち主が所有するタスクを行ロック下で削除し、スプリントに割り当て済みなら 409 を返す。確定後は既存のチーム再計算を使う。PM の直接接続では接続トークンを SQL の投影で除外し、`hasToken` を含む既存の応答を返す。PM のクリティカルパスはチーム計画と所要日数・リスク・応答形式が異なるため、PM の計算を移植する。時間割は DB 接続を使わず、曜日と時限を既存の形で返す。回帰テストは `actio_stage5_http_boundary`、観測契約は C-38〜C-41。
+
+段階 5 の続き (`actio:1b8e85b2-0b76-45d5-bf67-2597f0d0e73e`) では、フロントのカテゴリ管理とレーン変更を移す。カテゴリ API は持ち主の未完了タスクのラベルと既存の `task.categories.registered` をまとめ、重複を除いた `{items}` を返す。新規登録の `name` は文字列とし、並び順には PostgreSQL の照合順序を使う。登録解除後も未完了タスクに付いたラベルは一覧に残る。レーン API はタスクの所有者または担当者でチームに所属する持ち主に限り、行ロック下でレーン、期限、所要日数を更新する。backlog から daily への変更では期限を解除し、スプリント割当中は 400 を返す。回帰テストは `actio_task_organization_boundary`、観測契約は C-42〜C-43。
 
 ## Windows でのビルド確認
 

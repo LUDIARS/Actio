@@ -8,6 +8,7 @@
 #include "pm_critical_path.hpp"
 #include "pm_project_read.hpp"
 #include "sprint_write.hpp"
+#include "task_categories.hpp"
 #include "task_critical_path.hpp"
 #include "task_delete.hpp"
 #include "task_read.hpp"
@@ -138,6 +139,19 @@ struct LocalRoutes {
         }
     }
 
+    portus::Reply removeCategory(const portus::RequestContext& request) {
+        const auto access = authorize(request, "Authentication required");
+        if (access.status != 204) return access;
+        try {
+            const auto& name = request.params.at("name").as_string();
+            return run([&name](portus::DbConnection& connection, portus::DbDeadline deadline) {
+                return privateJson(unregisterTaskCategory(connection, deadline, name));
+            });
+        } catch (const WriteError& invalid) {
+            return error(invalid.what(), invalid.status);
+        }
+    }
+
     template<class Operation>
     portus::Reply write(const portus::RequestContext& request, std::string_view unauthenticated,
                         Operation operation) {
@@ -181,6 +195,17 @@ void addConcordiaReadRoutes(portus::HttpServerOptions& options, bool localMode,
     options.routes.emplace_back("GET", "/api/tasks", [reader](portus::RequestContext& request) {
         return reader->list(request);
     });
+    options.routes.emplace_back("GET", "/api/tasks/categories", [reader](portus::RequestContext& request) {
+        return reader->read(request, readTaskCategories, "Authentication required");
+    });
+    options.routes.emplace_back("POST", "/api/tasks/categories", [reader](portus::RequestContext& request) {
+        return reader->write(request, "Authentication required", [](auto& connection, auto deadline, const auto& input) {
+            return privateJson(registerTaskCategory(connection, deadline, input), 201);
+        });
+    });
+    options.routes.emplace_back("DELETE", "/api/tasks/categories/{name}", [reader](portus::RequestContext& request) {
+        return reader->removeCategory(request);
+    });
     options.routes.emplace_back("GET", "/api/tasks/{id}", [reader](portus::RequestContext& request) {
         return reader->detail(request);
     });
@@ -198,6 +223,12 @@ void addConcordiaReadRoutes(portus::HttpServerOptions& options, bool localMode,
             const auto& id = request.params.at("id").as_string();
             if (id.empty() || id.contains('\0')) throw WriteError("Task not found", 404);
             return privateJson(portus::Json::object({{"task", patchTask(connection, deadline, id, input)}}));
+        });
+    });
+    options.routes.emplace_back("PATCH", "/api/tasks/{id}/lane", [reader](portus::RequestContext& request) {
+        return reader->write(request, "Authentication required", [&](auto& connection, auto deadline, const auto& input) {
+            const auto& id = request.params.at("id").as_string();
+            return privateJson(portus::Json::object({{"task", changeTaskLane(connection, deadline, id, input)}}));
         });
     });
     options.routes.emplace_back("POST", "/api/teams/{teamId}/planning/sprints", [reader](portus::RequestContext& request) {

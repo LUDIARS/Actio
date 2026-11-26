@@ -37,6 +37,7 @@ add_library(actio_concordia_http STATIC
     src/db/pm_project_read.cpp
     src/db/sprint_write.cpp
     src/db/sprint_write_input.cpp
+    src/db/task_categories.cpp
     src/db/task_cursor.cpp
     src/db/task_critical_path.cpp
     src/db/task_delete.cpp
@@ -102,6 +103,10 @@ if(BUILD_TESTING)
     target_link_libraries(actio_stage5_http_test PRIVATE actio_concordia_http)
     lorica_harden_target(actio_stage5_http_test)
     add_test(NAME actio_stage5_http_boundary COMMAND actio_stage5_http_test)
+    add_executable(actio_task_organization_test tests/task_organization.cpp)
+    target_link_libraries(actio_task_organization_test PRIVATE actio_concordia_http)
+    lorica_harden_target(actio_task_organization_test)
+    add_test(NAME actio_task_organization_boundary COMMAND actio_task_organization_test)
     if(WIN32)
         find_path(ACTIO_LIBPQ_DLL_DIR NAMES libpq.dll HINTS "${PostgreSQL_LIBRARY_DIRS}/../bin" REQUIRED)
         set_tests_properties(actio_postgres_boundary PROPERTIES

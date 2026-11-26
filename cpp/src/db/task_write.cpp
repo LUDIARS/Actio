@@ -12,6 +12,7 @@
 #include "augur/contract_runtime.hpp" /* augur-inject:import:a251aa1e */
 #include "../../contracts/task_create.hpp" /* augur-inject:contract-predicate:975888a4 */
 #include "../../contracts/task_patch.hpp" /* augur-inject:contract-predicate:b728496c */
+#include "../../contracts/task_lane.hpp" /* augur-inject:contract-predicate:c0255fd1 */
 
 namespace actio {
 namespace {
@@ -94,6 +95,14 @@ bool ownsOrAssigned(const Json& task) {
     return task.at("ownerId") == Json(local_owner_id) || task.at("assigneeId") == Json(local_owner_id);
 }
 
+Json lockTask(DbConnection& connection, DbDeadline deadline, std::string_view id) {
+    lockTaskWrites(connection, deadline);
+    const auto sql = "SELECT " + taskDocument(TaskProjection::full) + " FROM tasks WHERE id = $1 FOR UPDATE";
+    auto task = document(connection.query({sql, {id}, 1}, deadline));
+    if (task.is_null()) throw WriteError("Task not found", 404);
+    return task;
+}
+
 void verifySourceChange(DbConnection& connection, DbDeadline deadline, const Json& changes, const Json& before) {
     if (!changes.find("source") && !changes.find("sourceRef")) return;
     auto identity = Json::object();
@@ -130,10 +139,7 @@ Json patchTask(DbConnection& connection, DbDeadline deadline, std::string_view i
     Json before;
     bool refresh = false;
     auto after = inWriteTransaction(connection, deadline, [&] {
-        lockTaskWrites(connection, deadline);
-        const auto sql = "SELECT " + taskDocument(TaskProjection::full) + " FROM tasks WHERE id = $1 FOR UPDATE";
-        before = document(connection.query({sql, {id}, 1}, deadline));
-        if (before.is_null()) throw WriteError("Task not found", 404);
+        before = lockTask(connection, deadline, id);
         if (!ownsOrAssigned(before)) throw WriteError("Forbidden", 403);
         auto changes = taskChanges(input, before);
         validateTaskWrite(connection, deadline, changes, before);
@@ -146,4 +152,16 @@ Json patchTask(DbConnection& connection, DbDeadline deadline, std::string_view i
     if (refresh) refreshTaskCriticalPath(connection, deadline, before.at("teamId"), after);
     return after;
 }, connection, deadline, id, input); /* augur-inject:contract-end:e3b8dc63 */ }
+
+Json changeTaskLane(DbConnection& connection, DbDeadline deadline, std::string_view id, const Json& input) { return ::augur::invoke_observed(::augur::ContractSpec{"C-43", "646bbc1a", "src/db/task_write.cpp:155"}, actio::contracts::task_lane, [&]() -> Json { /* augur-inject:contract-wrap:646bbc1a */
+    if (id.empty() || id.contains('\0')) throw WriteError("Task not found", 404);
+    return inWriteTransaction(connection, deadline, [&] {
+        const auto before = lockTask(connection, deadline, id);
+        if (before.at("teamId").as_string().empty())
+            throw WriteError("Lane transitions are only available for team tasks");
+        if (!ownsOrAssigned(before)) throw WriteError("Forbidden", 403);
+        const auto changes = validateTaskLaneChange(connection, deadline, input, before);
+        return updateTask(connection, deadline, id, changes);
+    });
+}, connection, deadline, id, input); /* augur-inject:contract-end:646bbc1a */ }
 }

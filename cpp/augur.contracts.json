@@ -128,6 +128,24 @@
       "module": "contracts/timetable_contract.hpp",
       "mode": "observe",
       "sample": 1
+    },
+    {
+      "id": "C-42",
+      "criterion": "C-42 readTaskCategories(connection, deadline): カテゴリ一覧を重複なしの文字列配列 items として返す",
+      "symbol": "readTaskCategories",
+      "file": "src/db/task_categories.cpp",
+      "module": "contracts/task_categories_contract.hpp",
+      "mode": "observe",
+      "sample": 1
+    },
+    {
+      "id": "C-43",
+      "criterion": "C-43 changeTaskLane(connection, deadline, id, input): 指定されたチームタスクを指定レーンへ移し、backlog から daily へ移すときは期限を解除する",
+      "symbol": "changeTaskLane",
+      "file": "src/db/task_write.cpp",
+      "module": "contracts/task_lane.hpp",
+      "mode": "observe",
+      "sample": 1
     }
   ]
 }

@@ -44,8 +44,7 @@ void validateSource(const Json& changes, const Json& current) {
         throw WriteError("source_ref must be an opaque id or repository-relative path, not an absolute path or URL");
 }
 
-void normalizeDeadline(DbConnection& connection, DbDeadline deadline, Json& changes,
-                       const Json& current) {
+void normalizeDeadline(DbConnection& connection, DbDeadline deadline, Json& changes) {
     if (const auto* requested = changes.find("deadline"); requested && !requested->is_null()) {
         const auto& value = requested->as_string();
         if (value.empty() || value.size() > 128) throw WriteError("Invalid deadline");
@@ -58,9 +57,6 @@ void normalizeDeadline(DbConnection& connection, DbDeadline deadline, Json& chan
         if (rows.empty() || !rows.front().at(0)) throw WriteError("Invalid deadline");
         changes.set("deadline", *rows.front().at(0));
     }
-    if (changes.find("deadline") && current.at("creatorType") == Json("ai")
-        && current.at("deadline") != changes.at("deadline") && !changes.find("creatorType"))
-        changes.set("creatorType", "human");
 }
 
 void validateLane(Json& changes, const Json& current) {
@@ -89,7 +85,15 @@ void validateLane(Json& changes, const Json& current) {
     }
 }
 
-void validateTeam(DbConnection& connection, DbDeadline deadline, const Json& changes, const Json& current) {
+bool isTeamMember(DbConnection& connection, DbDeadline deadline, std::string_view team,
+                  std::string_view user) {
+    return !connection.query({
+        "SELECT 1 FROM team_members WHERE team_id = $1 AND user_id = $2", {team, user}, 1
+    }, deadline).empty();
+}
+
+void validateTeam(DbConnection& connection, DbDeadline deadline, const Json& changes,
+                  const Json& current, bool requireMembership = false) {
     const auto& team = next(changes, current, "teamId");
     if (team.is_null()) return;
     if (team.as_string().empty()) throw WriteError("team_id must be a non-empty string");
@@ -98,8 +102,10 @@ void validateTeam(DbConnection& connection, DbDeadline deadline, const Json& cha
     const auto rows = connection.query({
         "SELECT settings->>'input_mode' FROM team_refs WHERE id = $1", {team.as_string()}, 1
     }, deadline);
-    if ((rows.empty() && assignee == local_owner_id)
-        || !validTaskAssignee(connection, deadline, team.as_string(), assignee))
+    const bool member = requireMembership
+        ? isTeamMember(connection, deadline, team.as_string(), assignee)
+        : validTaskAssignee(connection, deadline, team.as_string(), assignee);
+    if ((rows.empty() && assignee == local_owner_id) || !member)
         throw WriteError("assignee_id must be a team member");
     if (rows.empty()) throw WriteError("Forbidden", 403);
     const auto& lane = next(changes, current, "lane");
@@ -165,17 +171,58 @@ void applyProject(DbConnection& connection, DbDeadline deadline, Json& changes, 
 
 bool validTaskAssignee(DbConnection& connection, DbDeadline deadline, std::string_view team,
                        std::string_view assignee) {
-    return assignee == local_owner_id || !connection.query({
-        "SELECT 1 FROM team_members WHERE team_id = $1 AND user_id = $2", {team, assignee}, 1
-    }, deadline).empty();
+    return assignee == local_owner_id || isTeamMember(connection, deadline, team, assignee);
 }
 
 void validateTaskWrite(DbConnection& connection, DbDeadline deadline, Json& changes, const Json& current) {
     validateSource(changes, current);
-    normalizeDeadline(connection, deadline, changes, current);
+    normalizeDeadline(connection, deadline, changes);
+    if (changes.find("deadline") && current.at("creatorType") == Json("ai")
+        && current.at("deadline") != changes.at("deadline") && !changes.find("creatorType"))
+        changes.set("creatorType", "human");
     validateLane(changes, current);
     if (current.is_null()) applyProject(connection, deadline, changes, current);
     validateTeam(connection, deadline, changes, current);
     if (!current.is_null()) applyProject(connection, deadline, changes, current);
+}
+
+namespace {
+// Read only the lane endpoint's fields, accepting both duration spellings like Node.
+Json laneChanges(DbConnection& connection, DbDeadline deadline, const Json& input) {
+    const auto& lane = input.at("lane");
+    if (lane != "daily" && lane != "backlog") throw WriteError("lane must be daily or backlog");
+    auto changes = Json::object({{"lane", lane}});
+    if (const auto* due = input.find("deadline")) {
+        if (!due->is_null() && !validString(*due)) throw WriteError("Invalid deadline");
+        changes.set("deadline", *due);
+        normalizeDeadline(connection, deadline, changes);
+    }
+    const auto* duration = input.find("durationDays");
+    if (!duration) duration = input.find("duration_days");
+    if (duration) {
+        if (!duration->is_null() && !isInteger(*duration, 1))
+            throw WriteError("duration_days must be a positive integer");
+        changes.set("durationDays", *duration);
+    }
+    return changes;
+}
+}
+
+Json validateTaskLaneChange(DbConnection& connection, DbDeadline deadline, const Json& input,
+                            const Json& current) {
+    const auto& team = current.at("teamId").as_string();
+    if (!isTeamMember(connection, deadline, team, local_owner_id)) throw WriteError("Forbidden", 403);
+    auto changes = laneChanges(connection, deadline, input);
+    const Json lane = changes.at("lane");
+    if (current.at("lane") == "daily" && lane == "backlog"
+        && changes.at("deadline").is_null() && changes.at("durationDays").is_null())
+        throw WriteError("daily to backlog requires deadline or duration_days");
+    if (current.at("lane") == "backlog" && lane == "daily") {
+        if (!current.at("sprintId").is_null())
+            throw WriteError("backlog tasks in a sprint cannot move to daily");
+        changes.set("deadline", Json());
+    }
+    validateTeam(connection, deadline, changes, current, true);
+    return changes;
 }
 }
