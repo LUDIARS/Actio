@@ -2,6 +2,7 @@
 import { randomUUID } from "node:crypto";
 import { initialSprintPhase } from "@ludiars/terpsichore";
 import { PlanningError } from "../planning/contracts.js";
+import { assertNoScrumMaster } from "../scrum-master/assignment.js";
 import { persist } from "../sprint-gates/persistence.js";
 import { exec, one, type GateDatabase, type Program } from "../sprint-gates/query.js";
 import { loadGate, loadSprint } from "../sprint-gates/snapshot.js";
@@ -47,6 +48,7 @@ export class AutonomousSprintControl {
     return this.db.transaction(teamId, function* () {
       yield* assertOperator(teamId, actor);
       if (yield* findLoop(teamId)) throw new PlanningError("このチームには自律スプリントが登録済みです", 409);
+      yield* assertNoScrumMaster(teamId);
       const gate = yield* loadGate(teamId, sprintId);
       if (gate.snapshot.sprint.status !== "planning" || gate.state.held || gate.state.phase !== "planning") {
         throw new PlanningError("保留されていない計画中のスプリントを選んでください", 409);

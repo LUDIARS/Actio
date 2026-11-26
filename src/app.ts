@@ -43,6 +43,7 @@ import { customFieldRoutes } from "./plugins/custom-fields-routes.js";
 import { dynamicInstallRoutes } from "./plugins/dynamic-loader.js";
 import exampleModule from "../modules-ext/example/server.js";
 import { notifyTaskWrite } from "./db/task-write-listeners.js";
+import { scrumMasterBoundary } from "../modules/task/scrum-master/boundary.js";
 
 const TASK_READ_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
 
@@ -135,6 +136,9 @@ export function createApp() {
     await next();
     if (!TASK_READ_METHODS.has(c.req.method) && c.res.status < 400) notifyTaskWrite();
   });
+
+  // スクラムマスターを名乗る要求の書き込みはフェーズ操作だけを通す (全 API より前に置く)。
+  app.use("/api/*", scrumMasterBoundary());
 
   // ─── Setup Routes (認証不要: 初回セットアップ) ──────────────
   app.route("/api/setup", setupRoutes);

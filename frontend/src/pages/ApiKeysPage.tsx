@@ -7,6 +7,7 @@ const SCOPE_LABELS: Record<string, string> = {
   reminders: "リマインダー",
   schedules: "予定設定",
   "autonomous-sprint": "自律スプリントの dots 管制",
+  "scrum-master": "スクラムマスターのフェーズ操作",
 };
 
 const ALL_SCOPES = ["calendar", "reminders", "schedules"];
@@ -259,7 +260,7 @@ export function ApiKeysPage() {
           <div style={{ marginBottom: "0.5rem" }}>
             <label style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>スコープ</label>
             <div style={{ display: "flex", gap: "0.5rem", marginTop: "0.25rem" }}>
-              {[...ALL_SCOPES, "autonomous-sprint"].map((scope) => (
+              {[...ALL_SCOPES, "autonomous-sprint", "scrum-master"].map((scope) => (
                 <label key={scope} style={{ display: "flex", alignItems: "center", gap: "0.25rem", fontSize: "0.8rem", cursor: "pointer" }}>
                   <input
                     type="checkbox"

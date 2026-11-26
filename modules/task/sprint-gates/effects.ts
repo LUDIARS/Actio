@@ -4,6 +4,14 @@ import { PlanningError } from "../planning/contracts.js";
 import { one, exec, type Program, type GateDatabase } from "./query.js";
 import { loadGate } from "./snapshot.js";
 import { persist } from "./persistence.js";
+
+export type EffectMode = "manual" | "autonomous" | "scrum-master";
+/** 次スプリント開始の履歴に残す操作名と理由。自律モードだけは人向けの会話を作らない。 */
+const nextStart: Record<EffectMode, { action: string; reason: string }> = {
+    manual: { action: "approved_next_start", reason: "前スプリントの次計画として人間が承認しました" },
+    autonomous: { action: "autonomous_next_start", reason: "自律スプリントのポリシーに従い開始しました" },
+    "scrum-master": { action: "scrum_master_next_start", reason: "前スプリントの次計画としてスクラムマスターが承認しました" },
+};
 export function* assertEffect(teamId: string, id: string, effect: SprintPhaseDecision["effect"], nextId: string | null): Program<void> {
     if (effect === "none")
         return;
@@ -20,7 +28,7 @@ export function* assertEffect(teamId: string, id: string, effect: SprintPhaseDec
             throw new PlanningError("次スプリントは保留されていない計画中のものを選んでください");
     }
 }
-export function* applyEffect(teamId: string, id: string, actor: string, effect: SprintPhaseDecision["effect"], nextId: string | null, now: Date, db: GateDatabase, mode: "manual" | "autonomous" = "manual"): Program<void> {
+export function* applyEffect(teamId: string, id: string, actor: string, effect: SprintPhaseDecision["effect"], nextId: string | null, now: Date, db: GateDatabase, mode: EffectMode = "manual"): Program<void> {
     if (effect === "none")
         return;
     const active = yield* one<{
@@ -44,8 +52,6 @@ export function* applyEffect(teamId: string, id: string, actor: string, effect: 
     const state = initialSprintPhase(nextId, "implementation");
     state.revision = next.row.revision;
     const observed = decideSprintPhase({ state, snapshot: after.snapshot, command: { action: "observe" }, now });
-    yield* persist(next.row, observed.state, after.snapshot,
-        mode === "manual" ? "approved_next_start" : "autonomous_next_start", actor,
-        mode === "manual" ? "前スプリントの次計画として人間が承認しました" : "自律スプリントのポリシーに従い開始しました",
-        now, undefined, mode === "manual" ? "manual" : "close");
+    yield* persist(next.row, observed.state, after.snapshot, nextStart[mode].action, actor, nextStart[mode].reason,
+        now, undefined, mode === "autonomous" ? "close" : "manual");
 }

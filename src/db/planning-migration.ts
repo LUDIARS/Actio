@@ -1,6 +1,7 @@
 import { implementationDdl, implementationSqliteTriggers } from "./implementation-migration.js";
 import { sprintGateDdl } from "./sprint-gate-migration.js";
 import { autonomousSprintDdl } from "./autonomous-sprint-migration.js";
+import { scrumMasterDdl } from "./scrum-master-migration.js";
 import { chatDdl } from "./chat-migration.js";
 import type { SqliteDatabase } from "./dialects/sqlite.js";
 
@@ -8,7 +9,7 @@ import type { SqliteDatabase } from "./dialects/sqlite.js";
 export function migratePlanning(sqlite: SqliteDatabase): void {
   sqlite.transaction(() => {
     for (const ddl of [...implementationDdl, ...implementationSqliteTriggers]) sqlite.exec(ddl);
-    for (const ddl of [...sprintGateDdl, ...chatDdl, ...autonomousSprintDdl]) sqlite.exec(ddl);
+    for (const ddl of [...sprintGateDdl, ...chatDdl, ...autonomousSprintDdl, ...scrumMasterDdl]) sqlite.exec(ddl);
     sqlite.exec(`
       CREATE TABLE IF NOT EXISTS terpsichore_runs (
         id TEXT PRIMARY KEY, team_id TEXT NOT NULL, project_id TEXT NOT NULL, actor_id TEXT NOT NULL,

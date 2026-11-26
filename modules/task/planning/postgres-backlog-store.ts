@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import type { PlanningPostgres } from "../../../src/db/planning-postgres.js";
 import { PlanningError, type BacklogTask } from "./contracts.js";
+import { toEpochSeconds } from "../sprint-gates/db-time.js";
 /** Task IDs and full contents survive grouping; this ports Memoria's snapshot guard. */
 export class PostgresBacklogStore {
     constructor(private readonly db: PlanningPostgres) { }
@@ -13,7 +14,9 @@ export class PostgresBacklogStore {
       t.duration_days AS durationDays,
       t.updated_at AS updatedAt FROM tasks t LEFT JOIN backlog_placements p ON p.task_id = t.id
       WHERE t.team_id = ? AND t.lane = 'backlog' ORDER BY position, t.created_at, t.id`).all(teamId)) as Omit<BacklogTask, "fingerprint">[];
-        return rows.map(row => ({ ...row, fingerprint: createHash("sha256").update(JSON.stringify(row)).digest("hex") }));
+        // timestamp 列は文字列で返るため契約の epoch 秒へ揃える。fingerprint は取得値のまま計算する。
+        return rows.map(row => ({ ...row, deadline: toEpochSeconds(row.deadline), updatedAt: toEpochSeconds(row.updatedAt),
+            fingerprint: createHash("sha256").update(JSON.stringify(row)).digest("hex") }));
     }
     async groups(teamId: string): Promise<{
         id: string;

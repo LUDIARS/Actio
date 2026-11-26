@@ -6,6 +6,7 @@ import { all, one, exec, type GateDatabase, type Program } from "./query.js";
 import { loadGate } from "./snapshot.js";
 import { persist } from "./persistence.js";
 import { applyEffect, assertEffect } from "./effects.js";
+import type { DelegatedAuthority } from "./authority.js";
 import { assertManualSprint, findLoop } from "../autonomous-sprint/persistence.js";
 import type { GateRow, GateView, GateHistory, OutboxRow, HumanDecision, ContextChange, DecisionOutcome, StoredEvent, Delivery } from "./contracts.js";
 export class SprintGateStore {
@@ -25,8 +26,10 @@ export class SprintGateStore {
         const delivery = yield* one<Delivery>("SELECT status,thread_url AS threadUrl,last_error AS lastError FROM sprint_gate_outbox WHERE team_id=? AND sprint_id=?", teamId, id);
         return { ...loaded.snapshot, state: loaded.state, nextSprintId: loaded.row.nextSprintId, history, delivery: delivery ?? { status: "pending", threadUrl: null, lastError: null }, ...(autonomous ? { autonomous: true } : {}) };
     }
-    async context(teamId: string, id: string, actor: string, input: ContextChange, now: Date, requireLeader = false): Promise<GateView> {
+    async context(teamId: string, id: string, actor: string, input: ContextChange, now: Date, requireLeader = false, delegated?: DelegatedAuthority): Promise<GateView> {
         return this.db.transaction(teamId, function* () {
+            if (delegated)
+                yield* delegated.authorize();
             if (requireLeader) {
                 const member = yield* one<{
                     role: string;
@@ -53,14 +56,20 @@ export class SprintGateStore {
                 nextPlan = null;
             const snapshot = { ...current.snapshot, retrospective: input.retrospective, nextPlan };
             const decision = decideSprintPhase({ state: current.state, snapshot, command: { action: "observe" }, now });
-            if (decision.changed)
-                yield* persist(current.row, decision.state, snapshot, "context", actor, input.reason, now);
+            if (!decision.changed)
+                return;
+            if (delegated)
+                yield* delegated.permit(id, { action: "context", effect: "none", held: current.state.held, eventId: null });
+            yield* persist(current.row, decision.state, snapshot, "context", actor, input.reason, now);
         }).then(() => this.view(teamId, id, now));
     }
-    async decide(teamId: string, id: string, actor: string, input: HumanDecision, now: Date, requireLeader = false): Promise<DecisionOutcome> {
+    async decide(teamId: string, id: string, actor: string, input: HumanDecision, now: Date, requireLeader = false, delegated?: DelegatedAuthority): Promise<DecisionOutcome> {
         const requestHash = createHash("sha256").update(JSON.stringify({ teamId, id, actor, input })).digest("hex");
         const db = this.db;
         return db.transaction(teamId, function* () {
+            // 権限を失った委任主体には、保存済みの回答も返さない。
+            if (delegated)
+                yield* delegated.authorize();
             const old = yield* one<StoredEvent>("SELECT event_id AS eventId,request_hash AS requestHash,outcome,reason FROM sprint_gate_events WHERE event_id=?", input.eventId);
             if (old) {
                 if (old.requestHash !== requestHash)
@@ -104,10 +113,12 @@ export class SprintGateStore {
             if (prepared) {
                 // Every failure after the first business write propagates and rolls back the entire transaction.
                 const { loaded, decision } = prepared;
-                yield* applyEffect(teamId, id, actor, decision.effect, loaded.row.nextSprintId, now, db);
+                if (delegated)
+                    yield* delegated.permit(id, { action: input.action, effect: decision.effect, held: loaded.state.held, eventId: input.eventId });
+                yield* applyEffect(teamId, id, actor, decision.effect, loaded.row.nextSprintId, now, db, delegated ? "scrum-master" : "manual");
                 const after = yield* loadGate(teamId, id);
                 yield* persist(loaded.row, decision.state, after.snapshot, input.action, actor, input.reason, now, input.eventId);
-                outcome = { outcome: "applied", reason: "人間の判断を反映しました" };
+                outcome = { outcome: "applied", reason: delegated ? "スクラムマスターの判断を反映しました" : "人間の判断を反映しました" };
             }
             yield* exec("INSERT INTO sprint_gate_events(event_id,team_id,sprint_id,request_hash,outcome,reason,created_at) VALUES(?,?,?,?,?,?,?)", input.eventId, teamId, id, requestHash, outcome.outcome, outcome.reason, now.toISOString());
             return outcome;

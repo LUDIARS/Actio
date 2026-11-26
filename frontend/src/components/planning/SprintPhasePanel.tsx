@@ -8,6 +8,7 @@ import { useSprintPhase } from "./useSprintPhase";
 import { SprintPhaseEvidence } from "./SprintPhaseEvidence";
 import { SprintNextPlan } from "./SprintNextPlan";
 import { AutonomousSprintPanel } from "./AutonomousSprintPanel";
+import { ScrumMasterPanel } from "./ScrumMasterPanel";
 import "./SprintPhasePanel.css";
 
 const phases: { id: SprintPhase; label: string; guidance: string; approval: string }[] = [
@@ -18,7 +19,7 @@ const phases: { id: SprintPhase; label: string; guidance: string; approval: stri
   { id: "next_planning", label: "次スプリント計画", guidance: "次の目標・対象・期間・容量を選び、人間が次スプリントの開始を承認します。", approval: "現スプリントを終了し、表示の次計画を開始" },
 ];
 const phaseLabel = (phase: string): string => phases.find(item => item.id === phase)?.label ?? phase;
-const actionLabel: Record<string, string> = { observe: "進捗確認", context: "確認内容を保存", approve: "承認", reject: "差し戻し", hold: "保留", resume: "保留を解除", resubmit: "再提出" };
+const actionLabel: Record<string, string> = { observe: "進捗確認", context: "確認内容を保存", approve: "承認", reject: "差し戻し", hold: "保留", resume: "保留を解除", resubmit: "再提出", scrum_master_next_start: "次計画として開始" };
 const deliveryLabel = { pending: "Ccへ通知待ち", delivered: "Ccへ通知済み", failed: "Ccへの通知に失敗", unknown: "Ccへの通知結果を確認中" };
 function discordThread(value: string | null): string | null {
   if (!value) return null;
@@ -77,6 +78,7 @@ function SprintPhaseWorkspace({ ownerId, team, sprintId, sprints, projects, onCh
     <p role="status"><strong>{closed ? "このスプリントは終了しました" : `${current?.label}${view.state.held ? "（保留中）" : ""}`}</strong> ／確認する版 {view.state.revision}</p>
     {!closed && !view.autonomous && <p>{view.state.held ? "進行は保留中です。再開するには明示的に保留を解除してください。" : current?.guidance}</p>}
     {!closed && <AutonomousSprintPanel team={team} sprintId={sprintId} planning={view.sprint.status === "planning"} onChanged={workspace.refresh} />}
+    {!closed && <ScrumMasterPanel key={team} team={team} onChanged={workspace.refresh} />}
     {workspace.error && <p role="alert">{workspace.error}</p>}
     {workspace.notice && <p role="status">{workspace.notice}</p>}
     {!view.autonomous && <div className="sprint-phase-delivery"><p>{deliveryLabel[view.delivery.status]}</p>
@@ -122,7 +124,7 @@ function SprintPhaseWorkspace({ ownerId, team, sprintId, sprints, projects, onCh
     <details><summary>フェーズと判断の履歴（{view.history.length}件）</summary>
       <ol className="sprint-phase-history">{view.history.map(item => <li key={item.eventId}>
         <p>{item.createdAt} ／ {actionLabel[item.action] ?? item.action} → {phaseLabel(item.phase)}（版 {item.revision}）</p>
-        <p>{item.reason}</p><p>{item.actorId?.startsWith("autonomous-sprint:") ? "自律モード" : item.actorId ? "人間の判断" : "進捗の自動確認"}</p>
+        <p>{item.reason}</p><p>{item.actorId?.startsWith("autonomous-sprint:") ? "自律モード" : item.actorId?.startsWith("scrum-master:") ? "スクラムマスター (Terpsichore)" : item.actorId ? "人間の判断" : "進捗の自動確認"}</p>
       </li>)}</ol>
     </details>
     {busy && <p role="status">処理中…</p>}

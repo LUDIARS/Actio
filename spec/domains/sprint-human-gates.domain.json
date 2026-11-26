@@ -12,10 +12,23 @@
     },
     {
       "pathPattern": "(^|/)tests/unit/(?:sprint-gate-(?:store|worker|routes|db-time|cc-admin)|sprint-dialogue-summary|planning-store)\\.test\\.ts$"
+    },
+    {
+      "pathPattern": "(^|/)modules/task/scrum-master/.*\\.ts$"
+    },
+    {
+      "pathPattern": "(^|/)src/db/scrum-master-migration\\.ts$"
+    },
+    {
+      "pathPattern": "(^|/)tests/unit/scrum-master-.*\\.test\\.ts$"
+    },
+    {
+      "pathPattern": "(^|/)frontend/src/(components/planning/ScrumMasterPanel\\.tsx|lib/scrum-master-api\\.ts)$"
     }
   ],
   "specRefs": [
-    "spec/feature/sprint-human-gates.md"
+    "spec/feature/sprint-human-gates.md",
+    "spec/feature/scrum-master.md"
   ],
   "rationale": "全対象の証拠と本人の判断を同一トランザクションに結び、差し戻しでスプリントを進めない。"
 }

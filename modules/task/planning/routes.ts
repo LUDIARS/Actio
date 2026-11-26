@@ -1,6 +1,8 @@
 import { SprintPhaseError } from "@ludiars/terpsichore";
 import { sprintGateRoutes } from "../sprint-gates/routes.js";
 import { autonomousSprintRoutes } from "../autonomous-sprint/routes.js";
+import { scrumMasterPhaseRoutes } from "../scrum-master/phase-routes.js";
+import { scrumMasterRoleRoutes } from "../scrum-master/role-routes.js";
 import { Hono } from "hono";
 import { z } from "zod";
 import { dialect } from "../../../src/db/connection.js";
@@ -63,5 +65,8 @@ planningRoutes.route("/", implementationRoutes);
 planningRoutes.route("/", praeformaRoutes);
 planningRoutes.route("/", terpsichoreRoutes);
 
+// スクラムマスターを名乗る要求を、同じ URL の人間向け経路より先に引き受ける。
+planningRoutes.route("/", scrumMasterPhaseRoutes);
 planningRoutes.route("/", sprintGateRoutes);
 planningRoutes.route("/", autonomousSprintRoutes);
+planningRoutes.route("/", scrumMasterRoleRoutes);

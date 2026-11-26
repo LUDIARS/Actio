@@ -100,6 +100,8 @@ describe("Opt-in autonomous sprint", () => {
     attach("next-work", next);
     await enroll();
     db.prepare("UPDATE tasks SET status='open' WHERE id='cancelled'").run();
+    // A tick that finds changed scope only records it; the following tick starts the sprint.
+    await tick();
     await tick();
     const plan = (await control.read("team", now, "dots"))!;
     await control.control("team", "dots", { action: "policy", expectedRevision: plan.revision, nextSprintId: next, stalledAfterMinutes: 60, reason: "Next cycle" }, now);

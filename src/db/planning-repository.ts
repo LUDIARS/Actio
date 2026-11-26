@@ -15,16 +15,17 @@ import { GuidancePlanStore } from "../../modules/task/terpsichore/plan-store.js"
 import { ExecutionStore } from "../../modules/task/terpsichore/execution-store.js";
 import { AutonomousSprintControl } from "../../modules/task/autonomous-sprint/control-store.js";
 import { AutonomousSprintRunner } from "../../modules/task/autonomous-sprint/runner-store.js";
+import { ScrumMasterStore } from "../../modules/task/scrum-master/store.js";
 
 /** Routes depend on repositories, never native database handles. */
 export function planningRepositories() {
   if (dialect === "postgres") {
     const client = new PlanningPostgres(db.$client as postgres.Sql);
     const gateDb = postgresGateDatabase(client);
-    return { implementation: new ImplementationStore(gateDb), gates: new SprintGateStore(gateDb), backlog: new PostgresBacklogStore(client), sprints: new PostgresSprintStore(client), specs: new PostgresSpecImportStore(client), guidance: new GuidancePlanStore(client), executions: new ExecutionStore(client, gateDb), autonomousControl: new AutonomousSprintControl(gateDb), autonomousRunner: new AutonomousSprintRunner(gateDb) };
+    return { implementation: new ImplementationStore(gateDb), gates: new SprintGateStore(gateDb), backlog: new PostgresBacklogStore(client), sprints: new PostgresSprintStore(client), specs: new PostgresSpecImportStore(client), guidance: new GuidancePlanStore(client), executions: new ExecutionStore(client, gateDb), autonomousControl: new AutonomousSprintControl(gateDb), autonomousRunner: new AutonomousSprintRunner(gateDb), scrumMaster: new ScrumMasterStore(gateDb) };
   }
   if (dialect !== "sqlite") throw new Error("Planning requires PostgreSQL or SQLite");
   const client = db.$client as SqliteDatabase;
   const gateDb = sqliteGateDatabase(client);
-  return { implementation: new ImplementationStore(gateDb), gates: new SprintGateStore(gateDb), backlog: new BacklogStore(client), sprints: new SprintStore(client), specs: new SpecImportStore(client), guidance: new GuidancePlanStore(client), executions: new ExecutionStore(client, gateDb), autonomousControl: new AutonomousSprintControl(gateDb), autonomousRunner: new AutonomousSprintRunner(gateDb) };
+  return { implementation: new ImplementationStore(gateDb), gates: new SprintGateStore(gateDb), backlog: new BacklogStore(client), sprints: new SprintStore(client), specs: new SpecImportStore(client), guidance: new GuidancePlanStore(client), executions: new ExecutionStore(client, gateDb), autonomousControl: new AutonomousSprintControl(gateDb), autonomousRunner: new AutonomousSprintRunner(gateDb), scrumMaster: new ScrumMasterStore(gateDb) };
 }

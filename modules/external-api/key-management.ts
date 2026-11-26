@@ -15,7 +15,7 @@ import { logActivity } from "../../src/activity-logger.js";
 import { userRepo } from "../../src/db/repository.js";
 
 const keyManagement = new Hono();
-const validScopes = ["calendar", "reminders", "schedules", "tasks", "autonomous-sprint"];
+const validScopes = ["calendar", "reminders", "schedules", "tasks", "autonomous-sprint", "scrum-master"];
 
 /** ランダムなクライアントIDを生成 (プレフィックス付き) */
 function generateClientId(): string {

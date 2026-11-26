@@ -62,6 +62,21 @@
       "contracts": ["AT-AUTONOMOUS-SPRINT"]
     },
     {
+      "source": "modules/task/scrum-master/store.ts",
+      "tests": ["tests/unit/scrum-master-store.test.ts"],
+      "contracts": ["AT-SCRUM-MASTER"]
+    },
+    {
+      "source": "modules/task/scrum-master/phase-routes.ts",
+      "tests": ["tests/unit/scrum-master-routes.test.ts"],
+      "contracts": ["AT-SCRUM-MASTER"]
+    },
+    {
+      "source": "modules/task/scrum-master/boundary.ts",
+      "tests": ["tests/unit/scrum-master-routes.test.ts"],
+      "contracts": ["AT-SCRUM-MASTER"]
+    },
+    {
       "source": "modules/task/autonomous-sprint/routes.ts",
       "tests": ["tests/unit/autonomous-sprint-routes.test.ts"],
       "contracts": ["AT-AUTONOMOUS-SPRINT"]
