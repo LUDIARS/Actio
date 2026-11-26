@@ -102,3 +102,27 @@ it("imports reviewed Pf content idempotently and rejects an outdated fingerprint
   expect(sprintStore.find("team", sprint.id).revision).toBe(2);
   expect((db.prepare("SELECT COUNT(*) AS n FROM task_spec_reviews").get() as { n: number }).n).toBe(2);
 });
+
+it("accepts an AI member and the local owner as the assignee of an imported Pf specification", () => {
+  const store = new SpecImportStore(db);
+  db.prepare("INSERT INTO team_members VALUES ('team', 'ai:fable')").run();
+  const detail = (id: string) => ({ spec: { id, projectId: "project", code: "PF-2", title: "仕様", description: "内容", status: "approved", version: 1, priority: "should" },
+    targets: [], acceptance: [{ text: "受入条件", enabled: true }], fingerprint: "current" });
+  const input = { fingerprint: "current", assigneeId: "ai:fable", deadline: "2026-09-20T00:00:00Z", estimatedMinutes: 60, reviewNote: "確認" };
+  const executor = (id: string) => db.prepare("SELECT assignee_id, executor_type, ai_executor FROM tasks WHERE id=?").get(id);
+
+  // An AI member in charge also does the work: executor_type / ai_executor follow the assignee.
+  const ai = store.import("team", "leader", detail("ai-spec"), input, now);
+  expect(executor(ai.id)).toEqual({ assignee_id: "ai:fable", executor_type: "ai", ai_executor: "fable" });
+
+  // Handing the task back to a human returns the work to a human.
+  const snapshot = store.existing("team", "project", "ai-spec")!;
+  store.import("team", "leader", detail("ai-spec"), { ...input, assigneeId: "member", existingFingerprint: snapshot.fingerprint }, now);
+  expect(executor(ai.id)).toEqual({ assignee_id: "member", executor_type: "human", ai_executor: null });
+
+  // Same rule as POST /api/tasks: the verified local owner may be the assignee without a team_members row.
+  expect(() => store.import("team", "actio-local", detail("owner-spec"), { ...input, assigneeId: "actio-local" }, now)).toThrow("担当者");
+  const owned = store.import("team", "actio-local", detail("owner-spec"), { ...input, assigneeId: "actio-local" }, now, "actio-local");
+  expect(executor(owned.id)).toEqual({ assignee_id: "actio-local", executor_type: "human", ai_executor: null });
+  expect(() => store.import("team", "actio-local", detail("other-spec"), { ...input, assigneeId: "outsider" }, now, "actio-local")).toThrow("担当者");
+});

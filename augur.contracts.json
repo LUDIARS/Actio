@@ -200,6 +200,51 @@
       "module": "contracts/task-summary.contract.ts",
       "mode": "observe",
       "sample": 1
+    },
+    {
+      "id": "C-46",
+      "criterion": "C-46 alignExecutorWithAssignee(input): AI メンバーを責任者にしたタスクは executor_type=ai・ai_executor=call_name にそろえ、human の明示や別の ai_executor は誤りにする",
+      "symbol": "alignExecutorWithAssignee",
+      "file": "modules/task/team/ai-assignee-executor.ts",
+      "module": "contracts/ai-assignee-executor.contract.ts",
+      "mode": "observe",
+      "sample": 1
+    },
+    {
+      "id": "C-47",
+      "criterion": "C-47 toTeamMemberView(row): ai:<call_name> の行は kind=ai と callName、それ以外は kind=human で返し、人間と AI を区別する",
+      "symbol": "toTeamMemberView",
+      "file": "modules/task/team/ai-member.ts",
+      "module": "contracts/team-member-view.contract.ts",
+      "mode": "observe",
+      "sample": 1
+    },
+    {
+      "id": "C-48",
+      "criterion": "C-48 humanTeamRole(userId, role): AI メンバーの id か role=ai なら role に関係なく人間の判断権限を与えない",
+      "symbol": "humanTeamRole",
+      "file": "src/auth/ai-member-id.ts",
+      "module": "contracts/human-team-role.contract.ts",
+      "mode": "observe",
+      "sample": 1
+    },
+    {
+      "id": "C-49",
+      "criterion": "C-49 routeAiRecipients(intent): AI 責任者だけに宛てた通知は送らず理由を付けて記録し、人間の宛先が残る通知は AI を除いて送る",
+      "symbol": "routeAiRecipients",
+      "file": "modules/task/team/ai-recipients.ts",
+      "module": "contracts/ai-recipients.contract.ts",
+      "mode": "observe",
+      "sample": 1
+    },
+    {
+      "id": "C-50",
+      "criterion": "C-50 interpretTemplateLookup(status): Cc の応答 200 だけを登録可、404 を存在しない (400)、それ以外を Cc 不達 (502) にする",
+      "symbol": "interpretTemplateLookup",
+      "file": "modules/task/team/cc-template-lookup.ts",
+      "module": "contracts/cc-template-lookup.contract.ts",
+      "mode": "observe",
+      "sample": 1
     }
   ]
 }

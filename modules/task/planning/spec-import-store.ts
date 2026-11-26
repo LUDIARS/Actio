@@ -2,6 +2,10 @@ import { createHash, randomUUID } from "node:crypto";
 import type { SqliteDatabase } from "../../../src/db/dialects/sqlite.js";
 import { PlanningError } from "./contracts.js";
 import type { ReviewedSpec } from "./praeforma-client.js";
+import { alignExecutorWithAssignee } from "../team/ai-assignee-executor.js";
+import { isExecutorType } from "../validation/executor.js";
+
+const NO_EXECUTOR_REQUEST = { executorType: undefined, aiExecutor: undefined };
 
 export class SpecImportStore {
   constructor(private readonly db: SqliteDatabase) {}
@@ -14,13 +18,15 @@ export class SpecImportStore {
       requirements: row.requirements as string | null, estimatedMinutes: row.estimated_minutes as number | null };
   }
 
+  /** `membershipFreeAssignee`: the verified local owner, who may be the assignee without a team_members row (same rule as POST /api/tasks). */
   import(teamId: string, actor: string, detail: ReviewedSpec, input: {
     fingerprint: string; existingFingerprint?: string | null; assigneeId: string; deadline: string; estimatedMinutes: number; reviewNote: string;
-  }, now: Date): { id: string; created: boolean } {
+  }, now: Date, membershipFreeAssignee?: string): { id: string; created: boolean } {
     return this.db.transaction(() => {
       if (detail.fingerprint !== input.fingerprint) throw new PlanningError("確認後に Pf 仕様が変更されています。再精査してください");
       if (detail.spec.status === "obsolete") throw new PlanningError("廃止された仕様は登録できません", 400);
-      if (!this.db.prepare("SELECT 1 FROM team_members WHERE team_id = ? AND user_id = ?").get(teamId, input.assigneeId)) throw new PlanningError("チームの担当者を指定してください", 400);
+      const ownerAssigned = membershipFreeAssignee !== undefined && input.assigneeId === membershipFreeAssignee;
+      if (!ownerAssigned && !this.db.prepare("SELECT 1 FROM team_members WHERE team_id = ? AND user_id = ?").get(teamId, input.assigneeId)) throw new PlanningError("チームの担当者を指定してください", 400);
       const reference = `${teamId}:${detail.spec.projectId}:${detail.spec.id}`;
       const existing = this.existing(teamId, detail.spec.projectId, detail.spec.id);
       if (existing && !input.existingFingerprint) return { id: existing.id, created: false };
@@ -38,10 +44,15 @@ export class SpecImportStore {
       if (existing) {
         const before = this.db.prepare("SELECT * FROM tasks WHERE id = ?").get(id) as Record<string, unknown>;
         if (["done", "cancelled"].includes(String(before.status))) throw new PlanningError("完了済みタスクの仕様は上書きできません。追加分を別のバックログとして登録してください");
+        const executor = alignExecutorWithAssignee({
+          assigneeId: input.assigneeId, previousAssigneeId: before.assignee_id as string | null,
+          executor: { executorType: isExecutorType(before.executor_type) ? before.executor_type : "human", aiExecutor: before.ai_executor as string | null },
+          requested: NO_EXECUTOR_REQUEST,
+        }).value;
         this.db.prepare(`UPDATE tasks SET title = ?, description = ?, requirements = ?, assignee_id = ?,
-          deadline = ?, estimated_minutes = ?, plugin_payload = ?, updated_at = ? WHERE id = ?`)
+          deadline = ?, estimated_minutes = ?, executor_type = ?, ai_executor = ?, plugin_payload = ?, updated_at = ? WHERE id = ?`)
           .run(detail.spec.title, detail.spec.description, requirements, input.assigneeId, Math.floor(new Date(input.deadline).getTime() / 1000),
-            input.estimatedMinutes, JSON.stringify(provenance), timestamp, id);
+            input.estimatedMinutes, executor.executorType, executor.aiExecutor, JSON.stringify(provenance), timestamp, id);
         if (before.sprint_id) {
           const after = this.db.prepare("SELECT * FROM tasks WHERE id = ?").get(id);
           this.db.prepare("UPDATE sprints SET revision = revision + 1, updated_at = ? WHERE id = ?").run(timestamp, before.sprint_id);
@@ -51,14 +62,18 @@ export class SpecImportStore {
         this.record(id, actor, input.reviewNote, before, detail, now);
         return { id, created: false };
       }
+      const executor = alignExecutorWithAssignee({
+        assigneeId: input.assigneeId, previousAssigneeId: null,
+        executor: { executorType: "human", aiExecutor: null }, requested: NO_EXECUTOR_REQUEST,
+      }).value;
       this.db.prepare(`INSERT INTO tasks(id, owner_id, assignee_id, project_id, team_id, lane,
         title, description, requirements, status, priority, deadline, estimated_minutes, source, source_ref,
-        creator_type, kind, created_at, updated_at, plugin_payload)
-        VALUES (?, ?, ?, ?, ?, 'backlog', ?, ?, ?, 'open', ?, ?, ?, 'praeforma-review', ?, 'human', 'task', ?, ?, ?)`)
+        creator_type, kind, created_at, updated_at, plugin_payload, executor_type, ai_executor)
+        VALUES (?, ?, ?, ?, ?, 'backlog', ?, ?, ?, 'open', ?, ?, ?, 'praeforma-review', ?, 'human', 'task', ?, ?, ?, ?, ?)`)
         .run(id, actor, input.assigneeId, `pf:${detail.spec.projectId}`, teamId, detail.spec.title,
           detail.spec.description, requirements, detail.spec.priority === "must" ? "high" : "medium",
           Math.floor(new Date(input.deadline).getTime() / 1000), input.estimatedMinutes, reference, timestamp, timestamp,
-          JSON.stringify(provenance));
+          JSON.stringify(provenance), executor.executorType, executor.aiExecutor);
       this.record(id, actor, input.reviewNote, null, detail, now);
       return { id, created: true };
     })();

@@ -113,7 +113,7 @@ describe("local mode owner — teams synced from Cc", () => {
     const added = await call("PUT", "/api/teams/team-1/members/actio-local", { body: { role: "leader" } });
     expect(added.status).toBe(200);
     const listed = await call("GET", "/api/teams/team-1/members");
-    expect(listed.json.members).toEqual([{ userId: "actio-local", role: "leader" }]);
+    expect(listed.json.members).toEqual([{ userId: "actio-local", role: "leader", kind: "human", callName: null }]);
     expect((await call("DELETE", "/api/teams/team-1/members/actio-local")).status).toBe(200);
     expect((await call("PUT", "/api/teams/no-such/members/actio-local", { body: { role: "member" } })).status).toBe(404);
   });

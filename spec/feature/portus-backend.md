@@ -56,6 +56,7 @@ Cc のタスク一覧・詳細・作成・更新、`GET /api/teams`、`GET /api/
 | チームの依存分析 `/api/teams` | GET `/:teamId/critical-path` | Cc のタスク依存参照と開発ツール。今回、直接接続候補に追加 |
 | タスク基本操作 `/api/tasks` | GET `/plugins`、`/categories`、`/notifications`。POST `/categories`。DELETE `/categories/:name`、`/:id`。PATCH `/:id/lane` | フロントのタスク画面・カテゴリ管理・計画操作、通知管理。削除、カテゴリ、レーン変更は直接接続候補に移行済み。プラグイン・通知管理は未移行 |
 | チーム情報 `/api/teams` | GET `/memberships/:userId`、`/:teamId/{members,settings,projects}`。PUT・DELETE `/:teamId/members/:userId`。PATCH `/:teamId/settings` | フロントのチーム管理・計画。直接接続候補に移行済み |
+| AI メンバー `/api/teams` | PUT・DELETE `/:teamId/ai-members/:callName`。GET `/:teamId/members` の `kind`・`callName`。責任者が AI メンバーのタスクの作業者そろえ、AI メンバーを判断者にしない判定、AI 責任者あて通知の `skipped` 記録 | フロントの計画 (チーム設定・担当者選択)。`actio:79b00c78-e45e-4aaf-b251-7b9b9138796d` で Node に追加。未移行 (切り替え前に直接接続候補へ同じ判定を足す。候補の `PUT /:teamId/members/:userId` は `ai:` で始まる id を拒否していない) |
 | Cc プロジェクト `/api/projects` | GET `/cc/:code/sprints` | Cc プロジェクトに紐づくスプリントの参照。未移行 |
 | 計画 `/api/teams/:teamId/planning` | GET 接頭辞直下、`/sprints/:id/history`。POST `/groups`。DELETE `/groups/:id`。PUT `/order` | フロントのスプリント計画・バックログ。未移行 |
 | 仕様照会 `/api/teams/:teamId/planning/praeforma/projects` | GET 接頭辞直下、`/:pid/specs`、`/:pid/specs/:sid`、`/:pid/implementation`、`/:pid/implementation/service`。POST `/:pid/specs/:sid/backlog`、`/:pid/implementation/:kind/:id` | フロントの計画・仕様取り込みとサービス連携。未移行 |

@@ -69,7 +69,7 @@ describe("PUT/DELETE /api/teams/:teamId/members/:userId", () => {
     const promoted = await request(app, "PUT", "/api/teams/team-1/members/new-1", { token: admin(), body: { role: "leader" } });
     expect(promoted.status).toBe(200);
     const listed = await request(app, "GET", "/api/teams/team-1/members", { token: admin() });
-    expect(listed.json.members).toContainEqual({ userId: "new-1", role: "leader" });
+    expect(listed.json.members).toContainEqual({ userId: "new-1", role: "leader", kind: "human", callName: null });
   });
 
   it("keeps other memberships and roles when an admin adds or removes one team", async () => {
@@ -139,5 +139,53 @@ describe("GET/PATCH /api/teams/:teamId/settings", () => {
     const res = await request(app, "PATCH", "/api/teams/team-1/settings", { token: admin(), body: { standup_enabled: false } });
     expect(res.status).toBe(200);
     expect(res.json.settings.standup_enabled).toBe(false);
+  });
+});
+
+describe("AI members (team-task §3.1)", () => {
+  beforeEach(() => { insertTestTeamMember({ teamId: "team-1", userId: "ai:fable", role: "ai" }); });
+
+  it("lists AI members apart from humans", async () => {
+    const res = await request(app, "GET", "/api/teams/team-1/members", { token: member() });
+    expect(res.json.members).toContainEqual({ userId: "ai:fable", role: "ai", kind: "ai", callName: "fable" });
+    expect(res.json.members).toContainEqual({ userId: "leader-1", role: "leader", kind: "human", callName: null });
+  });
+
+  it("keeps AI member ids out of the human member routes", async () => {
+    const promoted = await request(app, "PUT", "/api/teams/team-1/members/ai:fable", { token: admin(), body: { role: "leader" } });
+    expect(promoted.status).toBe(400);
+    expect((await request(app, "DELETE", "/api/teams/team-1/members/ai:fable", { token: admin() })).status).toBe(400);
+    const listed = await request(app, "GET", "/api/teams/team-1/members", { token: admin() });
+    expect(listed.json.members).toContainEqual({ userId: "ai:fable", role: "ai", kind: "ai", callName: "fable" });
+  });
+
+  it("lets only leaders and admins remove an AI member", async () => {
+    expect((await request(app, "DELETE", "/api/teams/team-1/ai-members/fable", { token: member() })).status).toBe(403);
+    expect((await request(app, "DELETE", "/api/teams/team-1/ai-members/fable", { token: leader() })).status).toBe(200);
+    expect((await request(app, "DELETE", "/api/teams/team-1/ai-members/fable", { token: leader() })).status).toBe(404);
+  });
+
+  it("makes an AI member in charge the executor of the task", async () => {
+    const created = await request(app, "POST", "/api/tasks", { token: leader(), body: { title: "AI 担当", team_id: "team-1", assigneeId: "ai:fable" } });
+    expect(created.status).toBe(201);
+    expect(created.json.task).toMatchObject({ assigneeId: "ai:fable", executorType: "ai", aiExecutor: "fable" });
+
+    const conflict = await request(app, "POST", "/api/tasks", { token: leader(), body: { title: "矛盾", team_id: "team-1", assigneeId: "ai:fable", executor_type: "human" } });
+    expect(conflict.status).toBe(400);
+    const unknown = await request(app, "POST", "/api/tasks", { token: leader(), body: { title: "未登録", team_id: "team-1", assigneeId: "ai:unregistered" } });
+    expect(unknown.status).toBe(400);
+
+    const id = created.json.task.id as string;
+    expect((await request(app, "PATCH", `/api/tasks/${id}`, { token: leader(), body: { executor_type: "human" } })).status).toBe(400);
+    const returned = await request(app, "PATCH", `/api/tasks/${id}`, { token: leader(), body: { assigneeId: "leader-1" } });
+    expect(returned.json.task).toMatchObject({ assigneeId: "leader-1", executorType: "human", aiExecutor: null });
+    const handed = await request(app, "PATCH", `/api/tasks/${id}`, { token: leader(), body: { assigneeId: "ai:fable" } });
+    expect(handed.json.task).toMatchObject({ assigneeId: "ai:fable", executorType: "ai", aiExecutor: "fable" });
+  });
+
+  it("gives an AI member no team authority", async () => {
+    const token = generateTestToken("ai:fable");
+    expect((await request(app, "GET", "/api/teams/team-1/members", { token })).status).toBe(403);
+    expect((await request(app, "GET", "/api/teams/team-1/settings", { token })).status).toBe(403);
   });
 });

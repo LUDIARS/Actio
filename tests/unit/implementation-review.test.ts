@@ -12,7 +12,8 @@ beforeEach(() => {
   db = new Database(":memory:");
   db.exec(`CREATE TABLE tasks (id TEXT PRIMARY KEY, owner_id TEXT, assignee_id TEXT, project_id TEXT,
     team_id TEXT, lane TEXT, title TEXT, description TEXT, requirements TEXT, status TEXT, priority TEXT,
-    deadline INTEGER, estimated_minutes INTEGER, creator_type TEXT, kind TEXT, created_at INTEGER, updated_at INTEGER);
+    deadline INTEGER, estimated_minutes INTEGER, creator_type TEXT, kind TEXT, created_at INTEGER, updated_at INTEGER,
+    executor_type TEXT NOT NULL DEFAULT 'human', ai_executor TEXT);
     CREATE TABLE team_members(team_id TEXT, user_id TEXT);
     INSERT INTO team_members VALUES ('team', 'human');
     INSERT INTO tasks(id,team_id,title,status,kind) VALUES ('task','team','実装','open','task'), ('foreign','other','他チーム','done','task');`);

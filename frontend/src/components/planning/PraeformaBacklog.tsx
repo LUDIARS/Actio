@@ -1,8 +1,9 @@
 import { PraeformaImplementation } from "./PraeformaImplementation";
 import { useState, type FormEvent } from "react";
-import { planningApi, type PfSpec, type PfDetail } from "../../lib/planning-api";
+import { planningApi, type PfSpec, type PfDetail, type TeamMember } from "../../lib/planning-api";
+import { AssigneeOptions } from "./AssigneeOptions";
 
-export function PraeformaBacklog({ team, members, onSaved }: { team: string; members: string[]; onSaved: () => Promise<void> }) {
+export function PraeformaBacklog({ team, members, onSaved }: { team: string; members: TeamMember[]; onSaved: () => Promise<void> }) {
   const [projects, setProjects] = useState<{ id: string; name: string }[]>([]);
   const [project, setProject] = useState("");
   const [specs, setSpecs] = useState<PfSpec[]>([]);
@@ -45,7 +46,7 @@ export function PraeformaBacklog({ team, members, onSaved }: { team: string; mem
       <p>前提条件: {detail.spec.preconditions?.join(" / ") || "なし"}</p><p>事後条件: {detail.spec.postconditions?.join(" / ") || "なし"}</p>
       {detail.existingTask && <details open><summary>登録済みタスクの要件（今回の精査結果で更新）</summary><pre>{detail.existingTask.requirements}</pre><p>現在の見積: {detail.existingTask.estimatedMinutes ?? "未設定"} 分</p></details>}
       <label>精査結果・残る作業<textarea name="reviewNote" required placeholder="実装との差分、今回取り組む内容、確認事項" /></label>
-      <label>担当者<select name="assigneeId" required><option value="">選択</option>{members.map(m => <option key={m}>{m}</option>)}</select></label>
+      <label>担当者<select name="assigneeId" required><AssigneeOptions members={members} /></select></label>
       <label>タスク締め切り<input name="deadline" type="datetime-local" required /></label>
       <label>見積工数（分）<input name="estimatedMinutes" type="number" min="1" required /></label>
       <button className="btn btn-primary" disabled={busy || detail.spec.status === "obsolete"}>{detail.existingTask ? "再精査して更新" : "精査して登録"}</button>

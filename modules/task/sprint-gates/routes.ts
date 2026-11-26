@@ -5,13 +5,14 @@ import { requireTeamRole } from "../../../src/auth/team-role.js";
 import { isLocalModeRequest } from "../../../src/auth/local-mode.js";
 import { PlanningError } from "../planning/contracts.js";
 import type { Context } from "hono";
+import { isAiMemberId } from "../../../src/auth/ai-member-id.js";
 function param(c: Context, name: string): string {
     const value = c.req.param(name);
     if (!value)
         throw new PlanningError("Missing route parameter", 400);
     return value;
 }
-function human(c: Context): boolean { const id = c.get("userId" as never); return !c.get("apiClientId" as never) && !isLocalModeRequest(c) && typeof id === "string" && id !== "anonymous" && id !== "actio-local"; }
+function human(c: Context): boolean { const id = c.get("userId" as never); return !c.get("apiClientId" as never) && !isLocalModeRequest(c) && typeof id === "string" && id !== "anonymous" && id !== "actio-local" && !isAiMemberId(id); }
 import { planningRepositories } from "../../../src/db/planning-repository.js";
 import { gateContext, gateDecision, type GateView } from "./contracts.js";
 const base = "/:teamId/planning/sprints/:id/phase";

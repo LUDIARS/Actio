@@ -18,7 +18,7 @@ Actio が計画・実装・受入確認・振り返り・次計画の正本を�
 
 ## スプリントフェーズの本人認証
 
-直接 API は Cernere の人間セッションを要求する。api_client の X-Decided-By、anonymous、actio-local / local mode は人間の承認証跡に使わない (Cc 経由の管理者判断は下の節)。閲覧は既存チーム member 権限に従う。
+直接 API は Cernere の人間セッションを要求する。api_client の X-Decided-By、anonymous、actio-local / local mode は人間の承認証跡に使わない (Cc 経由の管理者判断は下の節)。チームの AI メンバー (`ai:<call_name>`、team-task §3.1) も同じく使わない: フェーズ承認・受入承認は AI には役割に関係なく許可しない。ただしリーダーがチームに割り当てたスクラムマスター役の主体は、フェーズ操作に限り許可する。AI メンバーであることは許可の根拠にしない。スクラムマスター役の割り当てとフェーズ操作の開放は別 PR で実装する。閲覧は既存チーム member 権限に従う。
 
 Cc の人間イベントは外部から作成できない Cc キューをポーリングする。Discord 本人 ID は Cernere project WS managed_project.resolve_user_by_claim(claim=discord_id) で逆引きし、Actio の team leader を transaction 内で検証する。Cernere 管理者が Actio project の identity_claims に discord_id を許可する必要がある。未連携・資格情報不足・接続不能は明示的な未反映理由と Actio ログイン導線を返す。Actio に Discord ID、表示名、トークンを保管しない。
 

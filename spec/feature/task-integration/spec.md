@@ -108,6 +108,15 @@ introduced by this compatibility addition.
 `NotificationSink` (`deliver(channel, payload): Promise<void>`) を port にし、 実装を
 `concordia-sink.ts` / `memoria-sink.ts` に分ける。 テストは fake sink を注入する (team-task §17 の port 方針)。
 
+### 2.6 AI 責任者あての通知 (`modules/task/team/ai-recipients.ts`, 純粋関数)
+
+人間あての通知を AI メンバー (team-task §3.1) には送らない。
+
+- 宛先 (`recipientIds`) が AI メンバーだけの通知は配送しない。 黙って捨てず、 送信箱に `status = skipped`、
+  `last_error` に理由 (どの AI メンバーあてだったか) を入れて残す。 配送 worker は `pending` だけを拾う。
+- 人間の宛先が残る通知と、 宛先を持たない通知 (スプリント開始など) は従来どおり送る。
+- `GET /api/tasks/notifications?status=skipped` (admin) で見られる。
+
 ### 2.5 Memoria 側 (Memoria リポの変更)
 
 - `POST /api/notifications` を新設 (`server/routes/notifications.ts`)。 body を検証し、 既存の `sendNotificationToAll` (WebPush + Alexa) へ渡す。
@@ -162,6 +171,21 @@ introduced by this compatibility addition.
 - `GET /api/tasks?executor_type=ai|human` で絞り込む。
 - WebUI: 作成フォームに「作業者: 人間 / AI」 と AI 実行者の入力。 一覧・計画表にバッジ (`人間` / `AI: <ai_executor>`)。
 - 外部 API (`/api/external/tasks`) の docs とレスポンスにも同じ 2 項目を足す。
+
+### 4.4 AI メンバーを責任者にしたタスク (`modules/task/team/ai-assignee-executor.ts`, 純粋関数)
+
+`actio:79b00c78-e45e-4aaf-b251-7b9b9138796d`。 チームタスクの `assignee_id` には、 チームに登録した AI メンバー
+(`ai:<call_name>`、 team-task §3.1) を指定できる。
+
+- 責任者が AI メンバーのタスクは `executor_type = ai`、 `ai_executor = <call_name>` にそろえる。
+- 食い違う指定 (`executor_type = human`、 別の `ai_executor`) は上書きせず 400 にする。
+- 責任者を AI メンバーから人間へ戻したとき、 作業者の指定が無く、 そろえた値のままなら `human` へ戻す。
+- 受け付ける経路: 汎用 `POST` / `PATCH /api/tasks`、 計画 API (スプリントへの割付、 Pf 実装確認からのバックログ登録)、
+  Pf 仕様の取り込み (`POST .../praeforma/projects/:pid/specs/:sid/backlog`)。
+- Pf 仕様の取り込みの担当者チェックは汎用 `POST` と同じ判定にする: `team_members` の行 (AI メンバーを含む) か、
+  ローカルモードの持ち主本人。
+- WebUI: 計画画面のチーム設定で AI メンバーを追加・削除する。 担当者の選択肢に AI メンバーを出し、
+  選んだときは作業者の入力を出さない。 一覧と計画表に「責任者: AI (`<call_name>`)」 のバッジを出す。
 
 ## 5. クリティカルパスをタスクに明記する
 
@@ -323,6 +347,7 @@ Cc の project_codes が正本で、 Actio はプロジェクトを持つタス�
   MySQL (`src/db/dialects/mysql.ts`) の全方言に同じ列・表を足す (既存 `ALTER TABLE ... ADD COLUMN IF NOT EXISTS` / try パターン)。
 - Drizzle schema (`src/db/schema.ts` と各 dialect schema) の parity を保つ。
 - 追加のみ (DROP なし)。 冪等。
+- AI メンバー (team-task §3.1) と通知の `skipped` (§2.6) は既存の列に新しい値を入れるだけで、 表・列の追加は無い。
 
 ## 8. 実装タスク (1 PR / リポ)
 

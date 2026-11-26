@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { all, one, exec, type GateDatabase, type Program } from "../sprint-gates/query.js";
 import { PlanningError } from "../planning/contracts.js";
+import { alignExecutorWithAssignee } from "../team/ai-assignee-executor.js";
 import { reviewFingerprint, reviewState } from "./state.js";
 import type { ImplementationAction, ImplementationReview, ImplementationSubject, ImplementationTask } from "./contracts.js";
 
@@ -49,11 +50,16 @@ export class ImplementationStore {
             throw new PlanningError("チームの担当者を指定してください", 400);
           taskId = randomUUID();
           const timestamp = store.db.timestamp(now);
+          const executor = alignExecutorWithAssignee({
+            assigneeId: input.assigneeId, previousAssigneeId: null,
+            executor: { executorType: "human", aiExecutor: null }, requested: { executorType: undefined, aiExecutor: undefined },
+          }).value;
           yield* exec(`INSERT INTO tasks (id, owner_id, assignee_id, project_id, team_id, lane, title, description, requirements,
-            status, priority, deadline, estimated_minutes, creator_type, kind, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, 'backlog', ?, ?, ?, 'open', 'medium', ?, ?, 'human', 'task', ?, ?)`,
+            status, priority, deadline, estimated_minutes, creator_type, kind, created_at, updated_at, executor_type, ai_executor)
+            VALUES (?, ?, ?, ?, ?, 'backlog', ?, ?, ?, 'open', 'medium', ?, ?, 'human', 'task', ?, ?, ?, ?)`,
             taskId, actor, input.assigneeId, `pf:${project}`, team, input.title, input.note,
-            `Pf ${subject.kind}/${subject.id}\n仕様版: ${subject.revision}\n${subject.description}`, store.db.timestamp(new Date(input.deadline)), input.estimatedMinutes, timestamp, timestamp);
+            `Pf ${subject.kind}/${subject.id}\n仕様版: ${subject.revision}\n${subject.description}`, store.db.timestamp(new Date(input.deadline)), input.estimatedMinutes, timestamp, timestamp,
+            executor.executorType, executor.aiExecutor);
         } else {
           taskId = input.taskId;
           if (!(yield* one(`SELECT id FROM tasks WHERE id = ? AND team_id = ? AND kind = 'task'`, taskId, team)))

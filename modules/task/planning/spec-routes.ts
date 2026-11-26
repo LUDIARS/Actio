@@ -3,6 +3,7 @@ import { z } from "zod";
 import { planningRepositories } from "../../../src/db/planning-repository.js";
 import { secretManager } from "../../../src/config/secrets.js";
 import { requireTeamRole } from "../../../src/auth/team-role.js";
+import { isLocalOwnerRequest } from "../../../src/auth/local-owner.js";
 import { PraeformaClient } from "./praeforma-client.js";
 
 export const praeformaRoutes = new Hono();
@@ -37,6 +38,8 @@ praeformaRoutes.post("/:teamId/planning/praeforma/projects/:pid/specs/:sid/backl
   let detail;
   try { detail = await client().detail(c.req.param("pid"), c.req.param("sid")); }
   catch { return c.json({ error: "登録前の Pf 仕様再確認に失敗しました" }, 502); }
-  const result = await planningRepositories().specs.import(c.req.param("teamId"), c.get("actingUserId" as never) as string, detail, input, new Date());
+  const actor = c.get("actingUserId" as never) as string;
+  // 担当者の判定は POST /api/tasks と同じ: team_members の行 (AI メンバーを含む) か、 ローカルの持ち主本人。
+  const result = await planningRepositories().specs.import(c.req.param("teamId"), actor, detail, input, new Date(), isLocalOwnerRequest(c) ? actor : undefined);
   return c.json(result, result.created ? 201 : 200);
 });

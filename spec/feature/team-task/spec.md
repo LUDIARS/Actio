@@ -22,7 +22,7 @@ related:
   - ../../../../Concordia/spec/feature/team-standup-and-review.md
   - ../../../../Concordia/spec/feature/task-workflow.md
   - ../../../../Concordia/spec/feature/reaction-workflow.md
-updated: 2026-08-24
+updated: 2026-11-26
 ---
 
 # チーム別タスク管理
@@ -215,6 +215,9 @@ Cc `team_repos` 由来の安定 ID は `cc_settings.repo_ids` (例: `["cernere"]
 | 遅延レポートの閲覧 | × | ○ | ○ | ○ |
 | チーム設定 (閾値・スロット) | × | ○ | ○ | ○ |
 | メンバー/ロール変更 | × | × | ○ | ○ (admin 相当) |
+| AI メンバーの登録・削除 (§3.1) | × | ○ | ○ | ○ |
+
+AI メンバー (§3.1) はこの表のどの列にも当たらない。 責任者にはなれるが、 表の操作は行えない。
 
 ロールは `team_members.role` + Cernere から検証した `role=admin`。legacy の Actio `users.role` は
 新規コードから読み書きしない。
@@ -228,6 +231,35 @@ Cc から叩くサービス経路は Cc の service token (既存 `api_client` �
 **マッピングできない判断は受理しない** (匿名の裁定を残さない)。
 タスク登録用と裁定用の scope は分離し、裁定 scope を持たない service token では
 `PATCH review-items` を拒否する。
+
+### 3.1 AI メンバー (2026-11-26 neco 指示、 `actio:79b00c78-e45e-4aaf-b251-7b9b9138796d`)
+
+Cc の delegation template を、 チームの **AI メンバー** として登録できる。 AI メンバーはタスクの責任者
+(`assignee_id`) になれる。
+
+- **持ち方**: `team_members` に `user_id = ai:<call_name>`、 `role = ai` の行として持つ。 人間の user id
+  (Cernere の id / `actio-local`) は `ai:` で始まらないので衝突しない。 表・列の追加は無い
+  (既存の行に新しい値を入れるだけなので、 migration は不要で、 繰り返し起動しても変わらない)。
+  id の判定は `src/auth/ai-member-id.ts` に集約する。
+- **登録・削除**: `PUT` / `DELETE /api/teams/:teamId/ai-members/:callName` (leader / admin / ローカルモードの持ち主)。
+  登録時に Cc の `GET {CONCORDIA_URL}/v1/delegation/templates/:identifier` で存在を確かめる。
+  無ければ 400、 Cc に届かない・`CONCORDIA_URL` 未設定・応答が読めないときは 502 (「無い」と見なして通さない)。
+  保存する call_name は Cc が返した値にする。 削除しても、 その AI を責任者にした既存タスクは書き換えない
+  (人間メンバーを外したときと同じ)。
+- **一覧**: `GET /api/teams/:teamId/members` は各行に `kind` (`human` / `ai`) と `callName` (AI だけ) を付けて返す。
+- **人間用の経路では扱わない**: `PUT` / `DELETE /api/teams/:teamId/members/:userId` に `ai:` で始まる id を渡すと 400。
+  AI メンバーに `leader` / `member` を付ける入口は無い。
+- **責任者にしたときの作業者**: task-integration §4.4。 通知: task-integration §2.6。
+
+**人間だけが行う判断** (neco 決定 2026-11-26):
+フェーズ承認・受入承認は AI には役割に関係なく許可しない。 ただしリーダーがチームに割り当てた
+スクラムマスター役の主体は、 フェーズ操作に限り許可する。 AI メンバーであることは許可の根拠にしない。
+
+- AI メンバーの id (`ai:<call_name>`) と `role = ai` は、 フェーズ承認・受入承認・`X-Decided-By` の裁定の
+  許可の根拠にしない。 `requireTeamRole` は AI メンバーを判断者・操作者として 403 にし、 行の role が
+  `leader` に書き換わっていても拒否のままにする (`humanTeamRole`)。 スプリントのフェーズ操作
+  (`modules/task/sprint-gates/routes.ts`) も AI メンバーの id を人間のログインとして扱わない。
+- スクラムマスター役の割り当てと、 その主体へのフェーズ操作の開放は **別 PR** で実装する (本節の範囲外)。
 
 ## 4. 2 レーン運用
 

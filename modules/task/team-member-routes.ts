@@ -5,6 +5,7 @@
  * - `GET /api/teams/:teamId/members` member 以上
  * - `PUT/DELETE /api/teams/:teamId/members/:userId` admin / ローカルモードの持ち主 (§3 表)
  * - `GET/PATCH /api/teams/:teamId/settings` leader/admin
+ * - `PUT/DELETE /api/teams/:teamId/ai-members/:callName` は `team/ai-member-routes.ts` (§3.1)
  *
  * メンバー/ロールは Actio 正本 (`team_members`)。チームマスタは Cc 同期の
  * `team_refs` キャッシュを参照する。
@@ -17,8 +18,13 @@ import { allowLocalOwnerOr, isLocalOwnerRequest, LOCAL_OWNER_TEAM_ROLE } from ".
 import { getUserId, getUserRole } from "../../src/middleware/getUserId.js";
 import { teamMemberRepo, teamRefRepo } from "../../src/db/repository.js";
 import { TeamSettingsSchema } from "./team/settings.js";
+import { isAiMemberId } from "../../src/auth/ai-member-id.js";
+import { toTeamMemberView } from "./team/ai-member.js";
+import { aiMemberRoutes } from "./team/ai-member-routes.js";
 
 const TEAM_ROLES = ["leader", "member"] as const;
+/** AI メンバーは専用 API で扱う。 人間のロール (leader / member) を付けさせない。 */
+const AI_MEMBER_ROUTE_ERROR = "AI members are managed through /api/teams/:teamId/ai-members";
 
 export const teamMemberRoutes = new Hono();
 
@@ -56,7 +62,7 @@ teamMemberRoutes.get("/memberships/:userId", requireMemberAdmin, async (c) => {
 
 teamMemberRoutes.get("/:teamId/members", requireTeamRole("member"), async (c) => {
   const members = await teamMemberRepo.listByTeam(c.req.param("teamId"));
-  return c.json({ members: members.map((m) => ({ userId: m.userId, role: m.role })) });
+  return c.json({ members: members.map((m) => toTeamMemberView({ userId: m.userId, role: m.role })) });
 });
 
 // ─── PUT/DELETE /:teamId/members/:userId — admin / ローカルモードの持ち主 ──
@@ -64,6 +70,7 @@ teamMemberRoutes.get("/:teamId/members", requireTeamRole("member"), async (c) =>
 teamMemberRoutes.put("/:teamId/members/:userId", requireMemberAdmin, async (c) => {
   const teamId = c.req.param("teamId");
   const userId = c.req.param("userId");
+  if (isAiMemberId(userId)) return c.json({ error: AI_MEMBER_ROUTE_ERROR }, 400);
   const body = await c.req.json<{ role?: string }>().catch(() => null);
   if (!body || typeof body.role !== "string") return c.json({ error: "role is required" }, 400);
   if (!TEAM_ROLES.includes(body.role as (typeof TEAM_ROLES)[number])) {
@@ -77,6 +84,7 @@ teamMemberRoutes.put("/:teamId/members/:userId", requireMemberAdmin, async (c) =
 teamMemberRoutes.delete("/:teamId/members/:userId", requireMemberAdmin, async (c) => {
   const teamId = c.req.param("teamId");
   const userId = c.req.param("userId");
+  if (isAiMemberId(userId)) return c.json({ error: AI_MEMBER_ROUTE_ERROR }, 400);
   if ((await teamMemberRepo.findRole(teamId, userId)) === undefined) {
     return c.json({ error: "Member not found" }, 404);
   }
@@ -109,3 +117,5 @@ teamMemberRoutes.patch("/:teamId/settings", requireTeamRole("leader"), async (c)
   await teamRefRepo.updateSettings(teamId, merged as unknown as Record<string, unknown>);
   return c.json({ settings: merged });
 });
+
+teamMemberRoutes.route("/", aiMemberRoutes);

@@ -1,9 +1,11 @@
 import { useState, type FormEvent } from "react";
 import { implementationApi, implementationLabels, type ImplementationReview } from "../../lib/implementation-api";
 import { tasksApi } from "../../lib/api";
+import type { TeamMember } from "../../lib/planning-api";
+import { AssigneeOptions } from "./AssigneeOptions";
 
 export function PraeformaImplementation({ team, project, members, onSaved }: {
-  team: string; project: string; members: string[]; onSaved: () => Promise<void>;
+  team: string; project: string; members: TeamMember[]; onSaved: () => Promise<void>;
 }) {
   const [items, setItems] = useState<ImplementationReview[]>([]);
   const [tasks, setTasks] = useState<Array<{ id: string; title: string; status: string }>>([]);
@@ -52,7 +54,7 @@ export function PraeformaImplementation({ team, project, members, onSaved }: {
       {action === "link" && <label>既存タスク<select name="taskId" required><option value="">選択</option>{tasks.map(task => <option key={task.id} value={task.id}>{task.title} ({task.status})</option>)}</select></label>}
       {action === "backlog" && <>
         <label>追加作業<input name="title" required maxLength={200} /></label>
-        <label>担当者<select name="assigneeId" required><option value="">選択</option>{members.map(member => <option key={member}>{member}</option>)}</select></label>
+        <label>担当者<select name="assigneeId" required><AssigneeOptions members={members} /></select></label>
         <label>締め切り<input name="deadline" type="datetime-local" required /></label>
         <label>見積工数（分）<input name="estimatedMinutes" type="number" min="1" required /></label>
       </>}

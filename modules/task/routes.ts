@@ -44,6 +44,7 @@ import { taskListCache } from "./cache/redis-task-list-cache.js";
 import { planningRepositories } from "../../src/db/planning-repository.js";
 import { dialect } from "../../src/db/connection.js";
 import { canActAsTeamMember } from "./team/access.js";
+import { alignExecutorWithAssignee } from "./team/ai-assignee-executor.js";
 import { classifyUnassignedIntake } from "./unassigned-intake.js";
 import { parseTaskListPageQuery } from "./list/page-query.js";
 import { buildTaskListPage } from "./list/page.js";
@@ -318,6 +319,15 @@ taskRoutes.post("/", async (c) => {
   if (teamValidation.value.teamId && !await canAccessTeam(c, teamValidation.value.teamId, userId)) {
     return c.json({ error: "Forbidden" }, 403);
   }
+  // チームタスクの責任者が AI メンバーなら作業者をそろえる (task-integration §4.4)
+  if (teamId) {
+    const aligned = alignExecutorWithAssignee({
+      assigneeId: body.assigneeId ?? null, previousAssigneeId: null,
+      executor: executor.value, requested: readExecutorFields(body as unknown as Record<string, unknown>),
+    });
+    if (aligned.error) return c.json({ error: aligned.error }, 400);
+    executor.value = aligned.value;
+  }
   if (teamFields.source && teamFields.sourceRef) {
     const duplicate = await taskRepo.findBySource(teamFields.source, teamFields.sourceRef);
     if (duplicate) {
@@ -531,6 +541,19 @@ taskRoutes.on(["PUT", "PATCH"], "/:id", async (c) => {
   if (teamValidation.error) return c.json({ error: teamValidation.error }, 400);
   if (teamValidation.value.teamId && !await canAccessTeam(c, teamValidation.value.teamId, userId)) {
     return c.json({ error: "Forbidden" }, 403);
+  }
+  // チームタスクの責任者が AI メンバーなら作業者をそろえる (task-integration §4.4)
+  if (nextTeamId) {
+    const aligned = alignExecutorWithAssignee({
+      assigneeId: body.assigneeId !== undefined ? body.assigneeId ?? null : existing.assigneeId,
+      previousAssigneeId: existing.assigneeId,
+      executor: executor.value, requested: readExecutorFields(body as unknown as Record<string, unknown>),
+    });
+    if (aligned.error) return c.json({ error: aligned.error }, 400);
+    if (aligned.value.executorType !== existing.executorType) updates.executorType = aligned.value.executorType;
+    else delete updates.executorType;
+    if (aligned.value.aiExecutor !== existing.aiExecutor) updates.aiExecutor = aligned.value.aiExecutor;
+    else delete updates.aiExecutor;
   }
   // 既存の不透明 project_id を壊さないよう、 チームかプロジェクトを変えたときだけ Cc の所属を検証する。
   if (projectIdInput !== undefined || teamFields.teamId !== undefined) {

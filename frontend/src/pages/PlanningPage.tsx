@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { planningApi, type CurrentSprintView, type PlanningData, type PlanningTask, type Team, type TeamProject } from "../lib/planning-api";
+import { planningApi, type CurrentSprintView, type PlanningData, type PlanningTask, type Team, type TeamMember, type TeamProject } from "../lib/planning-api";
 
 type BoardView = "current" | "all";
 
@@ -21,6 +21,8 @@ import { PraeformaBacklog } from "../components/planning/PraeformaBacklog";
 import { TerpsichorePanel } from "../components/planning/TerpsichorePanel";
 import { SprintPhasePanel } from "../components/planning/SprintPhasePanel";
 import { MusaBacklogStatus } from "../components/planning/MusaBacklogStatus";
+import { AiAssigneeBadge, AssigneeOptions } from "../components/planning/AssigneeOptions";
+import { TeamAiMembers } from "../components/planning/TeamAiMembers";
 import "./PlanningPage.css";
 
 export function PlanningPage() {
@@ -65,7 +67,8 @@ function TeamPlanning({ team, teams, cache, teamsError }: {
   const currentTeam = useRef(team);
   useEffect(() => { currentTeam.current = team; return () => { currentTeam.current = ""; }; }, [team]);
   const [data, setData] = useState<PlanningData | null>(() => cache.get(team)?.data ?? null);
-  const [members, setMembers] = useState<string[]>([]);
+  const [members, setMembers] = useState<TeamMember[]>([]);
+  const [assigneeId, setAssigneeId] = useState("");
   const currentSprint = useRef(sprintId);
   currentSprint.current = sprintId;
   const [selected, setSelected] = useState<string[]>([]);
@@ -88,7 +91,7 @@ function TeamPlanning({ team, teams, cache, teamsError }: {
   useEffect(() => {
     let active = true;
     if (team) { setBusy(true); void Promise.all([planningApi.load(team), planningApi.members(team), planningApi.currentView(team), planningApi.teamProjects(team)]).then(([d, m, cv, p]) => {
-      if (active) { cache.set(team, { data: d, current: cv }); setData(d); setMembers(m.members.map(x => x.userId)); setCurrent(cv); setProjects(p.projects); setValidated(true); }
+      if (active) { cache.set(team, { data: d, current: cv }); setData(d); setMembers(m.members); setCurrent(cv); setProjects(p.projects); setValidated(true); }
     }).catch(e => {
       if (!active) return;
       if (e instanceof ApiRequestError && [401, 403].includes(e.status)) {
@@ -98,6 +101,12 @@ function TeamPlanning({ team, teams, cache, teamsError }: {
     }).finally(() => { if (active) setBusy(false); }); }
     return () => { active = false; };
   }, [team, cache]);
+  const reloadMembers = useCallback(async () => {
+    const result = await planningApi.members(team);
+    if (currentTeam.current === team) setMembers(result.members);
+  }, [team]);
+  // 責任者が AI メンバーなら作業者はサーバがそろえるので、作業者の入力は出さない。
+  const aiAssignee = members.some(m => m.kind === "ai" && m.userId === assigneeId);
   const currentIds = new Set(current?.tasks.map(t => t.id) ?? []);
   const visibleTasks = data ? (view === "current" && current ? data.tasks.filter(t => currentIds.has(t.id)) : data.tasks) : [];
   const run = async (fn: () => Promise<unknown>) => {
@@ -119,8 +128,8 @@ function TeamPlanning({ team, teams, cache, teamsError }: {
     void run(async () => { await request("/api/tasks", { method: "POST", body: JSON.stringify({ teamId: team, lane: "backlog",
       title: values.get("title"), description: values.get("description"), assigneeId: values.get("assigneeId"),
       deadline: new Date(String(values.get("deadline"))).toISOString(), estimatedMinutes: Number(values.get("estimatedMinutes")),
-      executorType, ...(executorType === "ai" && aiExecutor ? { aiExecutor } : {}), ...(projectId ? { projectId } : {}),
-    }) }); form.reset(); setExecutorType("human"); });
+      ...(aiAssignee ? {} : { executorType, ...(executorType === "ai" && aiExecutor ? { aiExecutor } : {}) }), ...(projectId ? { projectId } : {}),
+    }) }); form.reset(); setExecutorType("human"); setAssigneeId(""); });
   };
   return <div className="page-container planning-page">
     <h1>バックログとスプリント</h1>
@@ -132,13 +141,14 @@ function TeamPlanning({ team, teams, cache, teamsError }: {
       {!validated && <p role="status">このチームで前回取得したバックログを表示しています。</p>}
       <MusaBacklogStatus tasks={visibleTasks} />
       <TerpsichorePanel key={team} team={team} sprintId={sprintId} data={data} projects={projects} canEdit={canEdit} onRefresh={refresh} />
-      {canEdit && <><SprintForm key={`sprint-${team}`} team={team} onSaved={refresh} /><PraeformaBacklog key={`pf-${team}`} team={team} members={members} onSaved={refresh} />
+      {canEdit && <><TeamAiMembers key={`ai-${team}`} team={team} members={members} onChanged={reloadMembers} /><SprintForm key={`sprint-${team}`} team={team} onSaved={refresh} /><PraeformaBacklog key={`pf-${team}`} team={team} members={members} onSaved={refresh} />
         <details><summary>バックログを追加</summary><form className="planning-form" onSubmit={createTask}>
           <label>タイトル<input name="title" required /></label><label>内容<textarea name="description" /></label>
-          <label>担当者<select name="assigneeId" required><option value="">選択</option>{members.map(m => <option key={m}>{m}</option>)}</select></label>
+          <label>担当者<select name="assigneeId" required value={assigneeId} onChange={e => setAssigneeId(e.target.value)}><AssigneeOptions members={members} /></select></label>
           <label>締め切り<input name="deadline" type="datetime-local" required /></label><label>見積工数（分）<input name="estimatedMinutes" type="number" min="1" required /></label>
-          <label>作業者<select name="executorType" value={executorType} onChange={e => setExecutorType(e.target.value as "human" | "ai")}><option value="human">人間</option><option value="ai">AI</option></select></label>
-          {executorType === "ai" && <label>AI 実行者（任意）<input name="aiExecutor" placeholder="例: codex/impl-from-design" pattern="[A-Za-z0-9._:/@-]{1,128}" /></label>}
+          {aiAssignee && <p>担当者が AI メンバーのため、作業者はその AI になります。</p>}
+          {!aiAssignee && <label>作業者<select name="executorType" value={executorType} onChange={e => setExecutorType(e.target.value as "human" | "ai")}><option value="human">人間</option><option value="ai">AI</option></select></label>}
+          {!aiAssignee && executorType === "ai" && <label>AI 実行者（任意）<input name="aiExecutor" placeholder="例: codex/impl-from-design" pattern="[A-Za-z0-9._:/@-]{1,128}" /></label>}
           <label>プロジェクト（任意）<select name="projectId" defaultValue=""><option value="">なし</option>{projects.map(p => <option key={p.code} value={p.code}>{p.name} ({p.code})</option>)}</select></label>
           <p>AI が作業するタスクでも、担当者は結果を確認する責任者です。</p>
           <button className="btn" disabled={busy}>追加</button>
@@ -172,7 +182,7 @@ function TeamPlanning({ team, teams, cache, teamsError }: {
         {visibleTasks.map((task, index) => <tr key={task.id} className={task.sprintId === sprintId ? "planning-assigned" : ""}>
           <td><input type="checkbox" aria-label={`${task.title}を選択`} checked={selected.includes(task.id)} onChange={e => setSelected(prev => e.target.checked ? [...prev, task.id] : prev.filter(id => id !== task.id))} /></td>
           <td><details><summary>{task.title}</summary><pre>{task.description}</pre><pre>{task.requirements}</pre><p>期限: {task.deadline ? new Date(task.deadline * 1000).toLocaleString() : "未設定"}</p></details></td>
-          <td>{data.groups.find(g => g.id === task.groupId)?.name ?? "—"}</td><td>{task.status}</td><td>{task.assigneeId} / {task.estimatedMinutes ?? "?"} 分</td>
+          <td>{data.groups.find(g => g.id === task.groupId)?.name ?? "—"}</td><td>{task.status}</td><td>{task.assigneeId} <AiAssigneeBadge assigneeId={task.assigneeId} /> / {task.estimatedMinutes ?? "?"} 分</td>
           <td>{executorText(task)}</td><td>{criticalPathText(task)}</td><td>{projects.find(p => p.code === task.projectId)?.name ?? task.projectId ?? "—"}</td>
           <td>{data.sprints.find(s => s.id === task.sprintId)?.name ?? "未割付"}</td><td>
             {canEdit && view === "all" && index > 0 && <button className="btn btn-sm" disabled={busy} onClick={() => {

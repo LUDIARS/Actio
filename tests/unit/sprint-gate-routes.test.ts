@@ -10,7 +10,7 @@ const body={eventId:"stable-id",action:"approve",expectedRevision:1,sourceFinger
 const path="/api/teams/team/planning/sprints/sprint/phase";
 beforeEach(()=>vi.clearAllMocks());
 describe("Human session boundary",()=>{
- for(const identity of [{},{userId:"anonymous"},{userId:"actio-local"},{userId:"looks-human",local:true},{userId:"leader",apiClientId:"service"}]){
+ for(const identity of [{},{userId:"anonymous"},{userId:"actio-local"},{userId:"ai:fable"},{userId:"looks-human",local:true},{userId:"leader",apiClientId:"service"}]){
   it("refuses non-human authority "+JSON.stringify(identity),async()=>{
    const response=await app(identity).request(path+"/decisions",{method:"POST",headers:{"content-type":"application/json","X-Decided-By":"leader"},body:JSON.stringify(body)});
    expect(response.status).toBe(403);expect(stores.decide).not.toHaveBeenCalled();

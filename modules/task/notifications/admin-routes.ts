@@ -1,5 +1,5 @@
 /**
- * 送信箱の状態確認 (admin)。 `GET /api/tasks/notifications?status=failed|pending|sent`
+ * 送信箱の状態確認 (admin)。 `GET /api/tasks/notifications?status=failed|pending|sent|skipped`
  * spec/feature/task-integration/spec.md §2.3
  */
 
@@ -7,7 +7,7 @@ import { Hono } from "hono";
 import { taskNotificationRepo } from "../../../src/db/repository.js";
 import { getUserRole } from "../../../src/middleware/getUserId.js";
 
-const STATUSES = ["pending", "sent", "failed"] as const;
+const STATUSES = ["pending", "sent", "failed", "skipped"] as const;
 const LIST_LIMIT = 200;
 
 export const notificationAdminRoutes = new Hono();

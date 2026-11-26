@@ -9,6 +9,8 @@
  * - Cc service 経路 (api_client トークン, `apiClientId` がコンテキストにある) では
  *   判断者 `X-Decided-By` (Actio user id) を必須にし、対象チームのメンバーへ
  *   マッピングできない場合は 403 (「匿名の裁定を残さない」)。
+ * - AI メンバー (`ai:<call_name>`, `src/auth/ai-member-id.ts`) には role に関係なく権限を与えない。
+ *   責任者にはなれるが、 判断者 (`X-Decided-By`) にも操作者にもなれない。
  * - 裁定 scope は T2 では定義のみ (`TEAM_ADJUDICATION_SCOPE`)。PATCH review-items
  *   (T4) がこの scope を要求する。
  */
@@ -16,6 +18,7 @@
 import { createMiddleware } from "hono/factory";
 import { teamMemberRepo } from "../db/repository.js";
 import { isLocalOwnerRequest, resolveLocalOwnerTeamRole } from "./local-owner.js";
+import { humanTeamRole, isAiMemberId } from "./ai-member-id.js";
 
 export type TeamRole = "leader" | "member";
 
@@ -44,7 +47,7 @@ export function requireTeamRole(...required: TeamRole[]) {
       if (!decidedBy) {
         return c.json({ error: "X-Decided-By (Actio user id) is required for service requests" }, 403);
       }
-      const role = await teamMemberRepo.findRole(teamId, decidedBy);
+      const role = humanTeamRole(decidedBy, await teamMemberRepo.findRole(teamId, decidedBy));
       if (role === undefined || !roleSatisfies(role, required)) {
         return c.json({ error: "decided_by user does not hold the required team role" }, 403);
       }
@@ -56,7 +59,7 @@ export function requireTeamRole(...required: TeamRole[]) {
 
     const userId = c.get("userId" as never) as string | undefined;
     const userRole = c.get("userRole" as never) as string | undefined;
-    if (!userId || userId === "anonymous") return c.json({ error: "Forbidden" }, 403);
+    if (!userId || userId === "anonymous" || isAiMemberId(userId)) return c.json({ error: "Forbidden" }, 403);
 
     if (userRole === "admin") {
       // Actio 管理者は §3 の表どおり全チーム操作をバイパスできる
@@ -69,7 +72,7 @@ export function requireTeamRole(...required: TeamRole[]) {
     // ローカルモードの持ち主は membership の代わりに team_refs の存在で leader 相当になる
     const role = isLocalOwnerRequest(c)
       ? await resolveLocalOwnerTeamRole(teamId)
-      : await teamMemberRepo.findRole(teamId, userId);
+      : humanTeamRole(userId, await teamMemberRepo.findRole(teamId, userId));
     if (role === undefined || !roleSatisfies(role, required)) {
       return c.json({ error: "Forbidden" }, 403);
     }

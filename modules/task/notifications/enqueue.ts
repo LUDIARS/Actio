@@ -1,6 +1,9 @@
 /**
  * 通知の意図を送信箱 (task_notifications) に積む (task-integration §2.3)。
  * 同じ dedupe_key は 1 回だけ積む。 配送は dispatcher が別に行う。
+ *
+ * AI メンバーだけに宛てた通知は配送しない。 黙って捨てず、 status=skipped と理由を付けて
+ * 送信箱に残す (§2.6)。 dispatcher は pending だけを拾うので送られない。
  */
 
 import { v4 as uuidv4 } from "uuid";
@@ -8,6 +11,10 @@ import { secretManager } from "../../../src/config/secrets.js";
 import { taskNotificationRepo, type NewTaskNotification } from "../../../src/db/repository.js";
 import type { QueueableNotificationIntent } from "./events.js";
 import { buildDeliveryPayload, channelFor } from "./route.js";
+import { routeAiRecipients } from "../team/ai-recipients.js";
+
+/** 配送しなかった通知の状態。 再送の対象にしない。 */
+export const NOTIFICATION_SKIPPED_STATUS = "skipped";
 
 export interface EnqueueDeps {
   insertIfAbsent: (row: NewTaskNotification) => Promise<boolean>;
@@ -23,11 +30,12 @@ const defaultDeps: EnqueueDeps = {
   newId: () => uuidv4(),
 };
 
-/** 積んだ件数を返す (重複で積まなかった分は数えない)。 */
+/** 配送待ちとして積んだ件数を返す (重複で積まなかった分と、 送らずに記録した分は数えない)。 */
 export async function enqueueNotifications(intents: readonly QueueableNotificationIntent[], deps: EnqueueDeps = defaultDeps): Promise<number> {
   let queued = 0;
   for (const intent of intents) {
     const channel = channelFor(intent);
+    const route = routeAiRecipients(intent);
     const inserted = await deps.insertIfAbsent({
       id: deps.newId(),
       taskId: intent.taskId,
@@ -36,13 +44,13 @@ export async function enqueueNotifications(intents: readonly QueueableNotificati
       channel,
       dedupeKey: intent.dedupeKey,
       payload: buildDeliveryPayload(intent, channel, deps.frontendUrl()),
-      status: "pending",
+      status: route.deliver ? "pending" : NOTIFICATION_SKIPPED_STATUS,
       attempts: 0,
-      lastError: null,
+      lastError: route.reason,
       createdAt: deps.now(),
       sentAt: null,
     });
-    if (inserted) queued += 1;
+    if (inserted && route.deliver) queued += 1;
   }
   return queued;
 }

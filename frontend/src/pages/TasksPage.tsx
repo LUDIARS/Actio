@@ -16,6 +16,7 @@ import type {
   TaskPriority,
   TaskStatus,
 } from "../lib/api-types";
+import { AiAssigneeBadge } from "../components/planning/AssigneeOptions";
 
 const EXECUTOR_LABELS: Record<TaskExecutorType, string> = {
   human: "人間",
@@ -686,6 +687,7 @@ export function TasksPage() {
                     AI
                   </span>
                 )}
+                <AiAssigneeBadge assigneeId={task.assigneeId} />
                 {task.executorType === "ai" && (
                   <span
                     style={{
