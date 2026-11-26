@@ -5,6 +5,7 @@
 #include <string_view>
 #include "actio/local_access.hpp"
 #include "actio/local_owner.hpp"
+#include "backlog_plan.hpp"
 #include "concordia_catalog.hpp"
 #include "pm_critical_path.hpp"
 #include "pm_project_read.hpp"
@@ -246,6 +247,39 @@ struct LocalRoutes {
         }
     }
 
+    // Planning routes check the team role (403) before the sprint, group or body, as Node does.
+    template<class Operation>
+    portus::Reply planning(const portus::RequestContext& request, Operation operation) {
+        if (!enabled) return error("Forbidden", 403);
+        const auto access = authorize(request, "Forbidden");
+        if (access.status != 204) return access;
+        const auto& team = request.params.at("teamId").as_string();
+        try {
+            return run([&](portus::DbConnection& connection, portus::DbDeadline deadline) {
+                if (team.empty() || team.contains('\0') || !taskTeamExists(connection, deadline, team))
+                    return error("Forbidden", 403);
+                return operation(connection, deadline, team);
+            });
+        } catch (const WriteError& invalid) {
+            return error(invalid.what(), invalid.status);
+        }
+    }
+
+    portus::Reply reorder(const portus::RequestContext& request) {
+        std::optional<WriteError> invalidBody;
+        portus::Json input;
+        try {
+            input = parseWriteBody(request.body);
+        } catch (const WriteError& invalid) {
+            invalidBody.emplace(invalid);
+        }
+        return planning(request, [&](portus::DbConnection& connection, portus::DbDeadline deadline,
+                                     std::string_view team) {
+            if (invalidBody) throw *invalidBody;
+            return privateJson(reorderBacklog(connection, deadline, team, input));
+        });
+    }
+
     template<class Operation>
     portus::Reply write(const portus::RequestContext& request, std::string_view unauthenticated,
                         Operation operation) {
@@ -280,6 +314,25 @@ void addTeamAdminRoutes(portus::HttpServerOptions& options, const std::shared_pt
     options.routes.emplace_back("GET", "/api/teams/{teamId}/projects",
         [routes](Request& request) { return routes->teamRead(request, listTeamProjects); });
 }
+
+// Sprint history and backlog grouping and ordering used by the planning screen.
+void addBacklogPlanRoutes(portus::HttpServerOptions& options, const std::shared_ptr<LocalRoutes>& routes) {
+    using Request = portus::RequestContext;
+    using portus::DbConnection;
+    using portus::DbDeadline;
+    options.routes.emplace_back("GET", "/api/teams/{teamId}/planning/sprints/{id}/history", [routes](Request& request) {
+        return routes->planning(request, [&](DbConnection& connection, DbDeadline deadline, std::string_view team) {
+            return privateJson(readSprintHistory(connection, deadline, team, request.params.at("id").as_string()));
+        });
+    });
+    options.routes.emplace_back("DELETE", "/api/teams/{teamId}/planning/groups/{id}", [routes](Request& request) {
+        return routes->planning(request, [&](DbConnection& connection, DbDeadline deadline, std::string_view team) {
+            return privateJson(ungroupBacklog(connection, deadline, team, request.params.at("id").as_string()));
+        });
+    });
+    options.routes.emplace_back("PUT", "/api/teams/{teamId}/planning/order",
+        [routes](Request& request) { return routes->reorder(request); });
+}
 }
 
 void addConcordiaReadRoutes(portus::HttpServerOptions& options, bool localMode,
@@ -292,6 +345,7 @@ void addConcordiaReadRoutes(portus::HttpServerOptions& options, bool localMode,
         return reader->read(request, listOwnerTeams, "Authentication required");
     });
     addTeamAdminRoutes(options, reader);
+    addBacklogPlanRoutes(options, reader);
     options.routes.emplace_back("GET", "/api/projects/cc",[reader](portus::RequestContext& request) {
         return reader->read(request, listCcProjects, "Authentication required");
     });

@@ -58,7 +58,7 @@ Cc のタスク一覧・詳細・作成・更新、`GET /api/teams`、`GET /api/
 | チーム情報 `/api/teams` | GET `/memberships/:userId`、`/:teamId/{members,settings,projects}`。PUT・DELETE `/:teamId/members/:userId`。PATCH `/:teamId/settings` | フロントのチーム管理・計画。直接接続候補に移行済み |
 | AI メンバー `/api/teams` | PUT・DELETE `/:teamId/ai-members/:callName`。GET `/:teamId/members` の `kind`・`callName`。責任者が AI メンバーのタスクの作業者そろえ、AI メンバーを判断者にしない判定、AI 責任者あて通知の `skipped` 記録 | フロントの計画 (チーム設定・担当者選択)。`actio:79b00c78-e45e-4aaf-b251-7b9b9138796d` で Node に追加。未移行 (切り替え前に直接接続候補へ同じ判定を足す。候補の `PUT /:teamId/members/:userId` は `ai:` で始まる id を拒否していない) |
 | Cc プロジェクト `/api/projects` | GET `/cc/:code/sprints` | Cc プロジェクトに紐づくスプリントの参照。未移行 |
-| 計画 `/api/teams/:teamId/planning` | GET 接頭辞直下、`/sprints/:id/history`。POST `/groups`。DELETE `/groups/:id`。PUT `/order` | フロントのスプリント計画・バックログ。未移行 |
+| 計画 `/api/teams/:teamId/planning` | GET 接頭辞直下、`/sprints/:id/history`。POST `/groups`。DELETE `/groups/:id`。PUT `/order` | フロントのスプリント計画・バックログ。履歴、グループ解除、並び替えは直接接続候補に移行済み。計画の一覧取得とグループ作成は未移行 |
 | 仕様照会 `/api/teams/:teamId/planning/praeforma/projects` | GET 接頭辞直下、`/:pid/specs`、`/:pid/specs/:sid`、`/:pid/implementation`、`/:pid/implementation/service`。POST `/:pid/specs/:sid/backlog`、`/:pid/implementation/:kind/:id` | フロントの計画・仕様取り込みとサービス連携。未移行 |
 | スプリント判定 `/api/teams/:teamId/planning` | GET `/sprints/:id/phase`、`/autonomous-sprint`、`/autonomous-sprint/dots`。PUT `/sprints/:id/phase/context`。POST `/sprints/:id/phase/decisions`、`/autonomous-sprint`、`/autonomous-sprint/:sprintId/{pause,reconcile,release}`、`/autonomous-sprint/dots/{control,claims}` | フロントの計画と Dots の実行制御。未移行 |
 | Terpsichore `/api/teams/:teamId/planning/terpsichore` | GET・PUT `/plan`。POST `/assess`、`/advice`。GET・POST `/execution`。GET `/execution/{templates,preview,:id/manifest}` | フロントの計画と Cc への実行委託。未移行 |
@@ -91,6 +91,8 @@ Cc のタスク一覧・詳細・作成・更新、`GET /api/teams`、`GET /api/
 段階 5 の続き (`actio:1b8e85b2-0b76-45d5-bf67-2597f0d0e73e`) では、フロントのカテゴリ管理とレーン変更を移す。カテゴリ API は持ち主の未完了タスクのラベルと既存の `task.categories.registered` をまとめ、重複を除いた `{items}` を返す。新規登録の `name` は文字列とし、並び順には PostgreSQL の照合順序を使う。登録解除後も未完了タスクに付いたラベルは一覧に残る。レーン API はタスクの所有者または担当者でチームに所属する持ち主に限り、行ロック下でレーン、期限、所要日数を更新する。backlog から daily への変更では期限を解除し、スプリント割当中は 400 を返す。回帰テストは `actio_task_organization_boundary`、観測契約は C-42〜C-43。
 
 段階 5 の続き (`actio:1b8e85b2-0b76-45d5-bf67-2597f0d0e73e`) で、チーム管理の経路を移す。直接接続の持ち主は、Node の管理者経路と同じくチームに所属しなくても所属一覧の取得とメンバーの登録・削除ができる。チームの権限を要する経路 (`members`、`settings`、`projects`) では、`team_refs` に無いチームに 403 を返す。メンバー登録は `leader` か `member` だけを受け付け、チームの存在確認と upsert を一つの文で行う。設定の変更は行ロック下で保存済みの値に重ね、未知のキーと範囲外の値を 400 で拒否する。保存済みの未知キーは除き、既定値で補った 16 項目を Node のスキーマと同じ順で返す。`issues` は項目ごとの `code`・`path`・`message` を返すが、zod と同じ文言ではない。`cc_settings` は変更しない。回帰テストは `actio_team_admin_boundary`、観測契約は C-44〜C-45。
+
+段階 5 の続き (`actio:1b8e85b2-0b76-45d5-bf67-2597f0d0e73e`) で、計画画面のスプリント履歴、バックロググループの解除、バックログの並び替えを移す。3 経路とも、スプリント、グループ、本文より先に `team_refs` を確認し、無いチームには 403 を返す。履歴は監査順に 6 個の文字列項目を返し、件数は接続層の上限 1,024 行に従う。解除と並び替えは Node と同じチーム単位の計画ロックを取る。並び替えはタスク表の書き込みロックの後にバックログ行をロックし、件数と一致数を SQL で照合する。指定 ID がバックログ全件と一致しない時は 409 を返し、並びを位置として一つの文で upsert する。入力の拒否は 400 だが、zod と同じ文言ではない。計画の一覧取得とグループ作成は、Node の行 JSON の SHA-256 による指紋と、NFKC 正規化によるグループ候補を移植する必要があるため、未移行とする。回帰テストは `actio_backlog_plan_boundary`、観測契約は C-46〜C-48。
 
 ## Windows でのビルド確認
 

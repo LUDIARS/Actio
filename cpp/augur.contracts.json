@@ -164,6 +164,33 @@
       "module": "contracts/team_member_contract.hpp",
       "mode": "observe",
       "sample": 1
+    },
+    {
+      "id": "C-46",
+      "criterion": "C-46 readSprintHistory(connection, deadline, team, sprint): チームのスプリントの変更履歴を kind・actorId・reason・beforeJson・afterJson・createdAt の文字列で返す",
+      "symbol": "readSprintHistory",
+      "file": "src/db/backlog_plan.cpp",
+      "module": "contracts/sprint_history_contract.hpp",
+      "mode": "observe",
+      "sample": 1
+    },
+    {
+      "id": "C-47",
+      "criterion": "C-47 ungroupBacklog(connection, deadline, team, group): チームのバックロググループを計画ロック下で解除し ok を返す",
+      "symbol": "ungroupBacklog",
+      "file": "src/db/backlog_plan.cpp",
+      "module": "contracts/backlog_ungroup_contract.hpp",
+      "mode": "observe",
+      "sample": 1
+    },
+    {
+      "id": "C-48",
+      "criterion": "C-48 reorderBacklog(connection, deadline, team, input): チームのバックログ全件を重複なく指定した並び順を保存し ok を返す",
+      "symbol": "reorderBacklog",
+      "file": "src/db/backlog_plan.cpp",
+      "module": "contracts/backlog_order_contract.hpp",
+      "mode": "observe",
+      "sample": 1
     }
   ]
 }

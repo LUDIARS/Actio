@@ -1,6 +1,7 @@
 #include "sprint_write.hpp"
 #include "actio/local_owner.hpp"
 #include "portus/id.hpp"
+#include "planning_lock.hpp"
 #include "sprint_projection.hpp"
 #include "sprint_write_input.hpp"
 #include "task_write_rules.hpp"
@@ -15,13 +16,6 @@ namespace {
 using portus::Json;
 using portus::DbConnection;
 using portus::DbDeadline;
-
-void lockTeamPlan(DbConnection& connection, DbDeadline deadline, std::string_view team) {
-    const auto key = "actio-planning:" + std::string(team);
-    connection.query({"SELECT pg_advisory_xact_lock(hashtextextended($1, 0))", {key}, 1}, deadline);
-    if (connection.query({"SELECT 1 FROM team_refs WHERE id = $1", {team}, 1}, deadline).empty())
-        throw WriteError("Forbidden", 403);
-}
 
 void ensureNoOverlap(DbConnection& connection, DbDeadline deadline, std::string_view team,
                      std::string_view id, const std::string& start, const std::string& end) {
