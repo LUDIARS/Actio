@@ -82,7 +82,8 @@ Cc のタスク一覧・詳細・作成・更新、`GET /api/teams`、`GET /api/
 |---|---|---|
 | `/api/events`、`/api/calendar`、`/api/myplans`、`/api/smart-scheduler`、`/api/holidays`、`/api/voting`、`/api/m1`、`/api/m3`、`/api/integrations`、placement・school | Node のマウント表では予定・学校 SDK を解除済み。フロントに旧クライアントが残る | 解除済みの旧経路は削除予定。画面が使う予定機能は稼働中の C++ 移行対象と照合する |
 | GET `/api/timetable` | Node の共通時間割 | C++ 候補へ移行済み |
-| POST `/api/groups/:id/schedules`、GET・POST `/api/groups/:id/events`、PUT・DELETE `/api/groups/:id/events/:eventId`。 `/api/external` 配下で GET・POST `/calendar/events`、GET・PUT・DELETE `/calendar/events/:id`、GET・POST `/schedules/{plans,myplans}`、DELETE `/schedules/{plans,myplans}/:id`、GET `/reminders/reminders`。group WS の `create_schedule,create_event,update_event,delete_event` | Node に稼働経路が残る。フロントのグループ画面と外部 API が利用し得る | C++ へ移す。認証とグループ権限、外部 API の認可、予定操作後の配信を切り替え前に確認する |
+| POST `/api/groups/:id/schedules`、GET・POST `/api/groups/:id/events`、PUT・DELETE `/api/groups/:id/events/:eventId` | Node のグループ画面が使う | C++ 候補へ移行済み。Node が書く活動ログ (`logActivity` のファイル) は未移行 |
+| `/api/external` 配下で GET・POST `/calendar/events`、GET・PUT・DELETE `/calendar/events/:id`、GET・POST `/schedules/{plans,myplans}`、DELETE `/schedules/{plans,myplans}/:id`、GET `/reminders/reminders`。group WS の `create_schedule,create_event,update_event,delete_event` | Node に稼働経路が残る。フロントのグループ画面と外部 API が利用し得る | C++ へ移す。認証とグループ権限、外部 API の認可、予定操作後の配信を切り替え前に確認する |
 | `/api/school/facility-booking`、`/api/reservations`、`/api/cocoiru` | フロントに旧経路が残り、Node のマウント表では解除済み | 旧経路は削除予定。施設予約は Aedilis が担当する |
 
 チームのクリティカルパスは認可済みの直接接続について `taskIds`、`totalDays`、`cycles`、`tasks` を返す。既存の書き込み後の再計算と同じグラフ処理を使い、読み取りでは保存済みの派生値を更新しない。取得行数は既存の PostgreSQL 接続層の制限に従う。回帰テストは依存鎖、余裕日数、所要日数の出典、循環と自己参照、空のチーム、未登録チーム、転送経路の拒否を検査する。
@@ -94,6 +95,8 @@ Cc のタスク一覧・詳細・作成・更新、`GET /api/teams`、`GET /api/
 段階 5 の続き (`actio:1b8e85b2-0b76-45d5-bf67-2597f0d0e73e`) で、チーム管理の経路を移す。直接接続の持ち主は、Node の管理者経路と同じくチームに所属しなくても所属一覧の取得とメンバーの登録・削除ができる。チームの権限を要する経路 (`members`、`settings`、`projects`) では、`team_refs` に無いチームに 403 を返す。メンバー登録は `leader` か `member` だけを受け付け、チームの存在確認と upsert を一つの文で行う。設定の変更は行ロック下で保存済みの値に重ね、未知のキーと範囲外の値を 400 で拒否する。保存済みの未知キーは除き、既定値で補った 16 項目を Node のスキーマと同じ順で返す。`issues` は項目ごとの `code`・`path`・`message` を返すが、zod と同じ文言ではない。`cc_settings` は変更しない。回帰テストは `actio_team_admin_boundary`、観測契約は C-44〜C-45。
 
 段階 5 の続き (`actio:1b8e85b2-0b76-45d5-bf67-2597f0d0e73e`) で、計画画面のスプリント履歴、バックロググループの解除、バックログの並び替えを移す。3 経路とも、スプリント、グループ、本文より先に `team_refs` を確認し、無いチームには 403 を返す。履歴は監査順に 6 個の文字列項目を返し、件数は接続層の上限 1,024 行に従う。解除と並び替えは Node と同じチーム単位の計画ロックを取る。並び替えはタスク表の書き込みロックの後にバックログ行をロックし、件数と一致数を SQL で照合する。指定 ID がバックログ全件と一致しない時は 409 を返し、並びを位置として一つの文で upsert する。入力の拒否は 400 だが、zod と同じ文言ではない。計画の一覧取得とグループ作成は、Node の行 JSON の SHA-256 による指紋と、NFKC 正規化によるグループ候補を移植する必要があるため、未移行とする。回帰テストは `actio_backlog_plan_boundary`、観測契約は C-46〜C-48。
+
+段階 5 の続き (`actio:1b8e85b2-0b76-45d5-bf67-2597f0d0e73e`) で、グループの個別予定 (`GET`・`POST /api/groups/:id/events`、`PUT`・`DELETE /api/groups/:id/events/:eventId`) と時間割予定の追加 (`POST /api/groups/:id/schedules`) を移す。Node と同じく、持ち主 (`actio-local`) が `group_members` に所属するグループだけを扱い、持ち主の特例は設けない。所属の確認 (403 `Not a member`) を予定の確認 (404 `Event not found`) と本文の検査 (400) より先に行う。作成時は Node の既定値 (`description`・`endDate` の空は NULL、`allDay` は false 以外を true、`duration` は 1、`eventType` は `event`、時間割の `scheduleType` は `recurring`、`duration` の 0 は 1) を補い、`created_at` は UTC で保存する。応答は Drizzle の行と同じ項目名で返す。更新は送られた項目だけを一つの文で反映し、空の本文では保存済みの行をそのまま返す。Node が 500 や型の読み替えで扱う入力 (文字列でない `title`、NOT NULL 列への null、整数でない `period` など) は 400 で拒否する。一覧は日付、作成時刻、ID の順で、件数は接続層の上限 1,024 行に従う。回帰テストは `actio_group_events_boundary`、観測契約は C-49〜C-53。
 
 ## Windows でのビルド確認
 

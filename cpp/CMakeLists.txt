@@ -34,6 +34,9 @@ lorica_harden_target(actio_postgres)
 
 add_library(actio_concordia_http STATIC
     src/db/backlog_plan.cpp
+    src/db/group_event_input.cpp
+    src/db/group_events.cpp
+    src/db/group_schedule.cpp
     src/db/pm_critical_path.cpp
     src/db/pm_project_read.cpp
     src/db/sprint_write.cpp
@@ -118,6 +121,10 @@ if(BUILD_TESTING)
     target_link_libraries(actio_backlog_plan_test PRIVATE actio_concordia_http)
     lorica_harden_target(actio_backlog_plan_test)
     add_test(NAME actio_backlog_plan_boundary COMMAND actio_backlog_plan_test)
+    add_executable(actio_group_events_test tests/group_events.cpp)
+    target_link_libraries(actio_group_events_test PRIVATE actio_concordia_http)
+    lorica_harden_target(actio_group_events_test)
+    add_test(NAME actio_group_events_boundary COMMAND actio_group_events_test)
     if(WIN32)
         find_path(ACTIO_LIBPQ_DLL_DIR NAMES libpq.dll HINTS "${PostgreSQL_LIBRARY_DIRS}/../bin" REQUIRED)
         set_tests_properties(actio_postgres_boundary PROPERTIES

@@ -7,6 +7,8 @@
 #include "actio/local_owner.hpp"
 #include "backlog_plan.hpp"
 #include "concordia_catalog.hpp"
+#include "group_events.hpp"
+#include "group_schedule.hpp"
 #include "pm_critical_path.hpp"
 #include "pm_project_read.hpp"
 #include "sprint_write.hpp"
@@ -280,6 +282,35 @@ struct LocalRoutes {
         });
     }
 
+    // Group routes check membership (403) before the event or the body, as Node does.
+    template<class Operation>
+    portus::Reply group(const portus::RequestContext& request, bool readsBody, Operation operation) {
+        const auto access = authorize(request, "Authentication required");
+        if (access.status != 204) return access;
+        std::optional<WriteError> invalidBody;
+        portus::Json input;
+        if (readsBody) {
+            try {
+                input = parseWriteBody(request.body);
+            } catch (const WriteError& invalid) {
+                invalidBody.emplace(invalid);
+            }
+        }
+        const auto& id = request.params.at("id").as_string();
+        try {
+            return run([&](portus::DbConnection& connection, portus::DbDeadline deadline) {
+                requireGroupMember(connection, deadline, id);
+                const auto body = [&]() -> const portus::Json& {
+                    if (invalidBody) throw *invalidBody;
+                    return input;
+                };
+                return operation(connection, deadline, id, body);
+            });
+        } catch (const WriteError& invalid) {
+            return error(invalid.what(), invalid.status);
+        }
+    }
+
     template<class Operation>
     portus::Reply write(const portus::RequestContext& request, std::string_view unauthenticated,
                         Operation operation) {
@@ -333,6 +364,64 @@ void addBacklogPlanRoutes(portus::HttpServerOptions& options, const std::shared_
     options.routes.emplace_back("PUT", "/api/teams/{teamId}/planning/order",
         [routes](Request& request) { return routes->reorder(request); });
 }
+// Group events and timetable schedules used by the group screen.
+void addGroupEventRoutes(portus::HttpServerOptions& options, const std::shared_ptr<LocalRoutes>& routes) {
+    using Request = portus::RequestContext;
+    using portus::DbConnection;
+    using portus::DbDeadline;
+    options.routes.emplace_back("GET", "/api/groups/{id}/events", [routes](Request& request) {
+        return routes->group(request, false, [](DbConnection& connection, DbDeadline deadline, std::string_view id,
+                                                const auto&) {
+            return privateJson(listGroupEvents(connection, deadline, id));
+        });
+    });
+    options.routes.emplace_back("POST", "/api/groups/{id}/events", [routes](Request& request) {
+        return routes->group(request, true, [](DbConnection& connection, DbDeadline deadline, std::string_view id,
+                                               const auto& body) {
+            return privateJson(portus::Json::object({{"event", createGroupEvent(connection, deadline, id, body())}}), 201);
+        });
+    });
+    options.routes.emplace_back("PUT", "/api/groups/{id}/events/{eventId}", [routes](Request& request) {
+        return routes->group(request, true, [&](DbConnection& connection, DbDeadline deadline, std::string_view id,
+                                                const auto& body) {
+            const auto& event = request.params.at("eventId").as_string();
+            requireGroupEvent(connection, deadline, id, event);
+            return privateJson(portus::Json::object({{"event", updateGroupEvent(connection, deadline, id, event, body())}}));
+        });
+    });
+    options.routes.emplace_back("DELETE", "/api/groups/{id}/events/{eventId}", [routes](Request& request) {
+        return routes->group(request, false, [&](DbConnection& connection, DbDeadline deadline, std::string_view id,
+                                                 const auto&) {
+            return privateJson(deleteGroupEvent(connection, deadline, id, request.params.at("eventId").as_string()));
+        });
+    });
+    options.routes.emplace_back("POST", "/api/groups/{id}/schedules", [routes](Request& request) {
+        return routes->group(request, true, [](DbConnection& connection, DbDeadline deadline, std::string_view id,
+                                               const auto& body) {
+            return privateJson(portus::Json::object({{"schedule", createGroupSchedule(connection, deadline, id, body())}}), 201);
+        });
+    });
+}
+
+// Sprint creation and changes used by the planning screen.
+void addSprintWriteRoutes(portus::HttpServerOptions& options, const std::shared_ptr<LocalRoutes>& reader) {
+    options.routes.emplace_back("POST", "/api/teams/{teamId}/planning/sprints", [reader](portus::RequestContext& request) {
+        return reader->write(request, "Forbidden", [&](auto& connection, auto deadline, const auto& input) {
+            const auto& team = request.params.at("teamId").as_string();
+            if (team.empty() || team.contains('\0')) throw WriteError("teamId is required");
+            return privateJson(portus::Json::object({{"sprint", createSprint(connection, deadline, team, input)}}), 201);
+        });
+    });
+    options.routes.emplace_back("PATCH", "/api/teams/{teamId}/planning/sprints/{id}", [reader](portus::RequestContext& request) {
+        return reader->write(request, "Forbidden", [&](auto& connection, auto deadline, const auto& input) {
+            const auto& team = request.params.at("teamId").as_string();
+            const auto& id = request.params.at("id").as_string();
+            if (team.empty() || team.contains('\0')) throw WriteError("teamId is required");
+            if (id.empty() || id.contains('\0')) throw WriteError("スプリントが見つかりません", 404);
+            return privateJson(portus::Json::object({{"sprint", changeSprint(connection, deadline, team, id, input)}}));
+        });
+    });
+}
 }
 
 void addConcordiaReadRoutes(portus::HttpServerOptions& options, bool localMode,
@@ -346,6 +435,7 @@ void addConcordiaReadRoutes(portus::HttpServerOptions& options, bool localMode,
     });
     addTeamAdminRoutes(options, reader);
     addBacklogPlanRoutes(options, reader);
+    addGroupEventRoutes(options, reader);
     options.routes.emplace_back("GET", "/api/projects/cc",[reader](portus::RequestContext& request) {
         return reader->read(request, listCcProjects, "Authentication required");
     });
@@ -399,21 +489,6 @@ void addConcordiaReadRoutes(portus::HttpServerOptions& options, bool localMode,
             return privateJson(portus::Json::object({{"task", changeTaskLane(connection, deadline, id, input)}}));
         });
     });
-    options.routes.emplace_back("POST", "/api/teams/{teamId}/planning/sprints", [reader](portus::RequestContext& request) {
-        return reader->write(request, "Forbidden", [&](auto& connection, auto deadline, const auto& input) {
-            const auto& team = request.params.at("teamId").as_string();
-            if (team.empty() || team.contains('\0')) throw WriteError("teamId is required");
-            return privateJson(portus::Json::object({{"sprint", createSprint(connection, deadline, team, input)}}), 201);
-        });
-    });
-    options.routes.emplace_back("PATCH", "/api/teams/{teamId}/planning/sprints/{id}", [reader](portus::RequestContext& request) {
-        return reader->write(request, "Forbidden", [&](auto& connection, auto deadline, const auto& input) {
-            const auto& team = request.params.at("teamId").as_string();
-            const auto& id = request.params.at("id").as_string();
-            if (team.empty() || team.contains('\0')) throw WriteError("teamId is required");
-            if (id.empty() || id.contains('\0')) throw WriteError("スプリントが見つかりません", 404);
-            return privateJson(portus::Json::object({{"sprint", changeSprint(connection, deadline, team, id, input)}}));
-        });
-    });
+    addSprintWriteRoutes(options, reader);
 }
 }

@@ -252,6 +252,30 @@
       "standard": "c++23",
       "includes": ["cpp/include"],
       "packages": ["portus-a3cf046"]
+    },
+    {
+      "file": "cpp/src/db/group_event_input.cpp",
+      "standard": "c++23",
+      "includes": ["cpp/include", "cpp/src/db"],
+      "packages": ["portus-a3cf046"]
+    },
+    {
+      "file": "cpp/src/db/group_events.cpp",
+      "standard": "c++23",
+      "includes": ["cpp/include", "cpp/contracts", "cpp/src/db"],
+      "packages": ["portus-a3cf046"]
+    },
+    {
+      "file": "cpp/src/db/group_schedule.cpp",
+      "standard": "c++23",
+      "includes": ["cpp/include", "cpp/contracts", "cpp/src/db"],
+      "packages": ["portus-a3cf046"]
+    },
+    {
+      "file": "cpp/tests/group_events.cpp",
+      "standard": "c++23",
+      "includes": ["cpp/include"],
+      "packages": ["portus-a3cf046"]
     }
   ]
 }

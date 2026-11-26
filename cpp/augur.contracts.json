@@ -191,6 +191,51 @@
       "module": "contracts/backlog_order_contract.hpp",
       "mode": "observe",
       "sample": 1
+    },
+    {
+      "id": "C-49",
+      "criterion": "C-49 listGroupEvents(connection, deadline, group): 所属グループの個別予定だけを Node と同じ 12 項目で返す",
+      "symbol": "listGroupEvents",
+      "file": "src/db/group_events.cpp",
+      "module": "contracts/group_event_list_contract.hpp",
+      "mode": "observe",
+      "sample": 1
+    },
+    {
+      "id": "C-50",
+      "criterion": "C-50 createGroupEvent(connection, deadline, group, input): Node の既定値を補ってグループの個別予定を作り、作成者をローカル持ち主として返す",
+      "symbol": "createGroupEvent",
+      "file": "src/db/group_events.cpp",
+      "module": "contracts/group_event_create_contract.hpp",
+      "mode": "observe",
+      "sample": 1
+    },
+    {
+      "id": "C-51",
+      "criterion": "C-51 updateGroupEvent(connection, deadline, group, event, input): グループの個別予定に送られた項目だけを反映して返す",
+      "symbol": "updateGroupEvent",
+      "file": "src/db/group_events.cpp",
+      "module": "contracts/group_event_update_contract.hpp",
+      "mode": "observe",
+      "sample": 1
+    },
+    {
+      "id": "C-52",
+      "criterion": "C-52 deleteGroupEvent(connection, deadline, group, event): グループの個別予定を削除し deleted に ID を返す",
+      "symbol": "deleteGroupEvent",
+      "file": "src/db/group_events.cpp",
+      "module": "contracts/group_event_delete_contract.hpp",
+      "mode": "observe",
+      "sample": 1
+    },
+    {
+      "id": "C-53",
+      "criterion": "C-53 createGroupSchedule(connection, deadline, group, input): 曜日 0〜6・時限 0〜10 のグループ予定を作り、作成者をローカル持ち主として返す",
+      "symbol": "createGroupSchedule",
+      "file": "src/db/group_schedule.cpp",
+      "module": "contracts/group_schedule_create_contract.hpp",
+      "mode": "observe",
+      "sample": 1
     }
   ]
 }
