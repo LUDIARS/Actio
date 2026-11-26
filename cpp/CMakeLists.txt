@@ -50,6 +50,8 @@ add_library(actio_concordia_http STATIC
     src/db/task_write.cpp
     src/db/task_write_input.cpp
     src/db/task_write_rules.cpp
+    src/db/team_admin.cpp
+    src/db/team_settings.cpp
     src/http/local_access.cpp
     src/http/local_owner.cpp
     src/http/concordia_catalog.cpp
@@ -107,6 +109,10 @@ if(BUILD_TESTING)
     target_link_libraries(actio_task_organization_test PRIVATE actio_concordia_http)
     lorica_harden_target(actio_task_organization_test)
     add_test(NAME actio_task_organization_boundary COMMAND actio_task_organization_test)
+    add_executable(actio_team_admin_test tests/team_admin.cpp)
+    target_link_libraries(actio_team_admin_test PRIVATE actio_concordia_http)
+    lorica_harden_target(actio_team_admin_test)
+    add_test(NAME actio_team_admin_boundary COMMAND actio_team_admin_test)
     if(WIN32)
         find_path(ACTIO_LIBPQ_DLL_DIR NAMES libpq.dll HINTS "${PostgreSQL_LIBRARY_DIRS}/../bin" REQUIRED)
         set_tests_properties(actio_postgres_boundary PROPERTIES

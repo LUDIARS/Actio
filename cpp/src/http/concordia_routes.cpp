@@ -1,6 +1,7 @@
 #include "actio/concordia_routes.hpp"
 #include <atomic>
 #include <chrono>
+#include <optional>
 #include <string_view>
 #include "actio/local_access.hpp"
 #include "actio/local_owner.hpp"
@@ -13,6 +14,8 @@
 #include "task_delete.hpp"
 #include "task_read.hpp"
 #include "task_write.hpp"
+#include "team_admin.hpp"
+#include "team_settings.hpp"
 #include "write_body.hpp"
 #include "write_input.hpp"
 
@@ -152,6 +155,97 @@ struct LocalRoutes {
         }
     }
 
+    using TeamRead = portus::Json (*)(portus::DbConnection&, portus::DbDeadline, std::string_view);
+
+    // Team role routes answer 403 for every caller that does not hold the team, as Node does.
+    portus::Reply teamRead(const portus::RequestContext& request, TeamRead operation) {
+        if (!enabled) return error("Forbidden", 403);
+        const auto access = authorize(request, "Forbidden");
+        if (access.status != 204) return access;
+        const auto& team = request.params.at("teamId").as_string();
+        return run([&](portus::DbConnection& connection, portus::DbDeadline deadline) {
+            const auto result = operation(connection, deadline, team);
+            return result.is_null() ? error("Forbidden", 403) : privateJson(result);
+        });
+    }
+
+    // The local owner may administer memberships without holding any team, as Node allows.
+    portus::Reply memberships(const portus::RequestContext& request) {
+        if (!enabled) return error("Forbidden", 403);
+        const auto access = authorize(request, "Forbidden");
+        if (access.status != 204) return access;
+        const auto& user = request.params.at("userId").as_string();
+        return run([&user](portus::DbConnection& connection, portus::DbDeadline deadline) {
+            return privateJson(listUserMemberships(connection, deadline, user));
+        });
+    }
+
+    portus::Reply patchSettings(const portus::RequestContext& request) {
+        if (!enabled) return error("Forbidden", 403);
+        const auto access = authorize(request, "Forbidden");
+        if (access.status != 204) return access;
+        const auto& team = request.params.at("teamId").as_string();
+        std::optional<std::pair<std::string, int>> invalidBody;
+        portus::Json patch;
+        try {
+            patch = parseWriteBody(request.body);
+        } catch (const WriteError& invalid) {
+            invalidBody.emplace(invalid.what(), invalid.status);
+        }
+        return run([&](portus::DbConnection& connection, portus::DbDeadline deadline) {
+            // Node checks the team role before it reads the body.
+            if (team.contains('\0') || !taskTeamExists(connection, deadline, team)) return error("Forbidden", 403);
+            if (invalidBody) return error(invalidBody->first, invalidBody->second);
+            try {
+                validateTeamSettingsPatch(patch);
+                return privateJson(patchTeamSettings(connection, deadline, team, patch));
+            } catch (const TeamSettingsError& invalid) {
+                return privateJson(portus::Json::object({{"error", invalid.what()}, {"issues", invalid.issues}}), 400);
+            } catch (const WriteError& invalid) {
+                return error(invalid.what(), invalid.status);
+            }
+        });
+    }
+
+    portus::Reply putMember(const portus::RequestContext& request) {
+        if (!enabled) return error("Forbidden", 403);
+        const auto access = authorize(request, "Forbidden");
+        if (access.status != 204) return access;
+        try {
+            portus::Json input;
+            try {
+                input = parseWriteBody(request.body);
+            } catch (const WriteError& invalid) {
+                // Node reads an unparsable or non-object body as a missing role.
+                if (invalid.status != 400) throw;
+                throw WriteError("role is required");
+            }
+            teamMemberRole(input);
+            const auto& team = request.params.at("teamId").as_string();
+            const auto& user = request.params.at("userId").as_string();
+            return run([&](portus::DbConnection& connection, portus::DbDeadline deadline) {
+                return privateJson(putTeamMember(connection, deadline, team, user, input));
+            });
+        } catch (const WriteError& invalid) {
+            return error(invalid.what(), invalid.status);
+        }
+    }
+
+    portus::Reply deleteMember(const portus::RequestContext& request) {
+        if (!enabled) return error("Forbidden", 403);
+        const auto access = authorize(request, "Forbidden");
+        if (access.status != 204) return access;
+        const auto& team = request.params.at("teamId").as_string();
+        const auto& user = request.params.at("userId").as_string();
+        try {
+            return run([&](portus::DbConnection& connection, portus::DbDeadline deadline) {
+                return privateJson(removeTeamMember(connection, deadline, team, user));
+            });
+        } catch (const WriteError& invalid) {
+            return error(invalid.what(), invalid.status);
+        }
+    }
+
     template<class Operation>
     portus::Reply write(const portus::RequestContext& request, std::string_view unauthenticated,
                         Operation operation) {
@@ -167,6 +261,25 @@ struct LocalRoutes {
         }
     }
 };
+
+// Team membership, settings and project routes used by the front end's team administration.
+void addTeamAdminRoutes(portus::HttpServerOptions& options, const std::shared_ptr<LocalRoutes>& routes) {
+    using Request = portus::RequestContext;
+    options.routes.emplace_back("GET", "/api/teams/memberships/{userId}",
+        [routes](Request& request) { return routes->memberships(request); });
+    options.routes.emplace_back("GET", "/api/teams/{teamId}/members",
+        [routes](Request& request) { return routes->teamRead(request, listTeamMembers); });
+    options.routes.emplace_back("PUT", "/api/teams/{teamId}/members/{userId}",
+        [routes](Request& request) { return routes->putMember(request); });
+    options.routes.emplace_back("DELETE", "/api/teams/{teamId}/members/{userId}",
+        [routes](Request& request) { return routes->deleteMember(request); });
+    options.routes.emplace_back("GET", "/api/teams/{teamId}/settings",
+        [routes](Request& request) { return routes->teamRead(request, readTeamSettings); });
+    options.routes.emplace_back("PATCH", "/api/teams/{teamId}/settings",
+        [routes](Request& request) { return routes->patchSettings(request); });
+    options.routes.emplace_back("GET", "/api/teams/{teamId}/projects",
+        [routes](Request& request) { return routes->teamRead(request, listTeamProjects); });
+}
 }
 
 void addConcordiaReadRoutes(portus::HttpServerOptions& options, bool localMode,
@@ -178,7 +291,8 @@ void addConcordiaReadRoutes(portus::HttpServerOptions& options, bool localMode,
     options.routes.emplace_back("GET", "/api/teams", [reader](portus::RequestContext& request) {
         return reader->read(request, listOwnerTeams, "Authentication required");
     });
-    options.routes.emplace_back("GET", "/api/projects/cc", [reader](portus::RequestContext& request) {
+    addTeamAdminRoutes(options, reader);
+    options.routes.emplace_back("GET", "/api/projects/cc",[reader](portus::RequestContext& request) {
         return reader->read(request, listCcProjects, "Authentication required");
     });
     options.routes.emplace_back("GET", "/api/pm/projects", [reader](portus::RequestContext& request) {

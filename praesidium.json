@@ -222,6 +222,24 @@
       "standard": "c++23",
       "includes": ["cpp/include"],
       "packages": ["portus-a3cf046"]
+    },
+    {
+      "file": "cpp/src/db/team_admin.cpp",
+      "standard": "c++23",
+      "includes": ["cpp/include", "cpp/contracts", "cpp/src/db"],
+      "packages": ["portus-a3cf046"]
+    },
+    {
+      "file": "cpp/src/db/team_settings.cpp",
+      "standard": "c++23",
+      "includes": ["cpp/include", "cpp/contracts", "cpp/src/db"],
+      "packages": ["portus-a3cf046"]
+    },
+    {
+      "file": "cpp/tests/team_admin.cpp",
+      "standard": "c++23",
+      "includes": ["cpp/include"],
+      "packages": ["portus-a3cf046"]
     }
   ]
 }

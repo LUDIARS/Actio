@@ -146,6 +146,24 @@
       "module": "contracts/task_lane.hpp",
       "mode": "observe",
       "sample": 1
+    },
+    {
+      "id": "C-44",
+      "criterion": "C-44 mergeTeamSettings(stored, patch): 保存済み設定に変更を重ね、既定値で補った 16 項目の設定を返し、送られた項目は送られた値になる",
+      "symbol": "mergeTeamSettings",
+      "file": "src/db/team_settings.cpp",
+      "module": "contracts/team_settings_contract.hpp",
+      "mode": "observe",
+      "sample": 1
+    },
+    {
+      "id": "C-45",
+      "criterion": "C-45 putTeamMember(connection, deadline, team, user, input): 登録済みチームのメンバーを leader か member で保存し、対象のチーム・ユーザー・ロールを返す",
+      "symbol": "putTeamMember",
+      "file": "src/db/team_admin.cpp",
+      "module": "contracts/team_member_contract.hpp",
+      "mode": "observe",
+      "sample": 1
     }
   ]
 }
